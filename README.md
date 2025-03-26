@@ -1,5 +1,6 @@
 
 # Universal Request Analyzer
+![image](https://github.com/user-attachments/assets/b0ee7434-4cfb-4f3d-a2e8-7411db2c19a1)
 
 ## Overview
 **Universal Request Analyzer** is a browser extension designed to capture and analyze network request timings across all major browsers. It helps you monitor API performance, track request details, and log performance metrics over time.
