@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Network Request Analyzer</title>
+    <style>
+      body {
+        width: 500px;
+        padding: 10px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Network Requests</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Duration (ms)</th>
+        </tr>
+      </thead>
+      <tbody id="requestsBody"></tbody>
+    </table>
+    <script src="popup.js"></script>
+  </body>
+</html>
