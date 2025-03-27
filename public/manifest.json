@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Universal Request Analyzer",
+  "version": "1.0.0",
+  "description": "Captures and analyzes network request timings across browsers with SQLite storage, encryption, and advanced analytics",
+  "permissions": ["webRequest", "storage", "tabs", "downloads", "unlimitedStorage", "notifications", "identity"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background/main.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/content.js"]
+    }
+  ],
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/wasm/sql-wasm.wasm", "assets/themes/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "externally_connectable": {
+    "matches": ["*://*.example.com/*"]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvxmvO...",
+  "oauth2": {
+    "client_id": "your-client-id.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/userinfo.email"]
+  }
+}
+

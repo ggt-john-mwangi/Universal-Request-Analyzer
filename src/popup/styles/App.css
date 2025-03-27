@@ -1,0 +1,74 @@
+.app {
+  width: 800px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
+    "Helvetica Neue", sans-serif;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f5f5f5;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background-color: #e9e9e9;
+  color: #333;
+}
+
+.tab-btn.active {
+  color: #0066cc;
+  border-bottom: 2px solid #0066cc;
+  background-color: #fff;
+}
+
+.tab-content {
+  flex: 1;
+  overflow: auto;
+  padding: 15px;
+  background-color: #fff;
+}
+
+/* Dark mode */
+.dark .app {
+  background-color: #1e1e1e;
+  color: #e0e0e0;
+}
+
+.dark .tabs {
+  border-bottom: 1px solid #333;
+  background-color: #252525;
+}
+
+.dark .tab-btn {
+  color: #aaa;
+}
+
+.dark .tab-btn:hover {
+  background-color: #333;
+  color: #fff;
+}
+
+.dark .tab-btn.active {
+  color: #3385d6;
+  border-bottom: 2px solid #3385d6;
+  background-color: #1e1e1e;
+}
+
+.dark .tab-content {
+  background-color: #1e1e1e;
+}
+

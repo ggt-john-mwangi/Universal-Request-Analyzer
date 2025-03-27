@@ -1,0 +1,230 @@
+// Database migrations to handle schema updates
+
+const migrations = [
+  {
+    version: 1,
+    description: "Initial schema",
+    migrate: (db) => {
+      // No migration needed for initial schema
+      return true
+    },
+  },
+  {
+    version: 2,
+    description: "Add user and project fields",
+    migrate: (db) => {
+      // Check if columns already exist
+      const result = db.exec("PRAGMA table_info(requests)")
+      const columns = result[0].values.map((v) => v[1])
+
+      if (!columns.includes("userId")) {
+        db.exec("ALTER TABLE requests ADD COLUMN userId TEXT")
+      }
+
+      if (!columns.includes("projectId")) {
+        db.exec("ALTER TABLE requests ADD COLUMN projectId TEXT")
+      }
+
+      if (!columns.includes("environmentId")) {
+        db.exec("ALTER TABLE requests ADD COLUMN environmentId TEXT")
+      }
+
+      if (!columns.includes("tags")) {
+        db.exec("ALTER TABLE requests ADD COLUMN tags TEXT")
+      }
+
+      return true
+    },
+  },
+  {
+    version: 3,
+    description: "Add users and projects tables",
+    migrate: (db) => {
+      // Create users table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          email TEXT UNIQUE,
+          name TEXT,
+          role TEXT,
+          lastLogin INTEGER,
+          settings TEXT
+        )
+      `)
+
+      // Create projects table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          name TEXT,
+          description TEXT,
+          createdAt INTEGER,
+          updatedAt INTEGER,
+          ownerId TEXT,
+          settings TEXT
+        )
+      `)
+
+      // Create environments table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS environments (
+          id TEXT PRIMARY KEY,
+          name TEXT,
+          projectId TEXT,
+          createdAt INTEGER,
+          updatedAt INTEGER,
+          settings TEXT,
+          FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+        )
+      `)
+
+      return true
+    },
+  },
+  {
+    version: 4,
+    description: "Add tags support",
+    migrate: (db) => {
+      // Create tags table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tags (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE,
+          color TEXT,
+          createdAt INTEGER
+        )
+      `)
+
+      // Create request_tags table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS request_tags (
+          requestId TEXT,
+          tagId INTEGER,
+          PRIMARY KEY (requestId, tagId),
+          FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE,
+          FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
+        )
+      `)
+
+      return true
+    },
+  },
+  {
+    version: 5,
+    description: "Add authentication and audit logging",
+    migrate: (db) => {
+      // Create sessions table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          userId TEXT,
+          token TEXT,
+          createdAt INTEGER,
+          expiresAt INTEGER,
+          ipAddress TEXT,
+          userAgent TEXT,
+          FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `)
+
+      // Create audit_log table if it doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          userId TEXT,
+          action TEXT,
+          resource TEXT,
+          resourceId TEXT,
+          timestamp INTEGER,
+          ipAddress TEXT,
+          details TEXT
+        )
+      `)
+
+      return true
+    },
+  },
+]
+
+// Get current database version
+function getDatabaseVersion(db) {
+  try {
+    // Check if version table exists
+    const tableCheck = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='version'")
+
+    if (!tableCheck[0] || tableCheck[0].values.length === 0) {
+      // Create version table
+      db.exec("CREATE TABLE version (version INTEGER)")
+      db.exec("INSERT INTO version VALUES (0)")
+      return 0
+    }
+
+    // Get current version
+    const result = db.exec("SELECT version FROM version LIMIT 1")
+    return result[0].values[0][0]
+  } catch (error) {
+    console.error("Failed to get database version:", error)
+    return 0
+  }
+}
+
+// Set database version
+function setDatabaseVersion(db, version) {
+  try {
+    db.exec("UPDATE version SET version = ?", [version])
+    return true
+  } catch (error) {
+    console.error("Failed to set database version:", error)
+    return false
+  }
+}
+
+// Run migrations
+export async function migrateDatabase(db) {
+  try {
+    // Get current version
+    const currentVersion = getDatabaseVersion(db)
+    console.log(`Current database version: ${currentVersion}`)
+
+    // Find migrations to run
+    const pendingMigrations = migrations.filter((m) => m.version > currentVersion)
+
+    if (pendingMigrations.length === 0) {
+      console.log("Database is up to date")
+      return true
+    }
+
+    console.log(`Running ${pendingMigrations.length} migrations...`)
+
+    // Run migrations in a transaction
+    db.exec("BEGIN TRANSACTION")
+
+    try {
+      for (const migration of pendingMigrations) {
+        console.log(`Running migration ${migration.version}: ${migration.description}`)
+
+        // Run migration
+        const success = migration.migrate(db)
+
+        if (!success) {
+          throw new Error(`Migration ${migration.version} failed`)
+        }
+
+        // Update version
+        setDatabaseVersion(db, migration.version)
+      }
+
+      db.exec("COMMIT")
+      console.log("Database migration completed successfully")
+      return true
+    } catch (error) {
+      db.exec("ROLLBACK")
+      console.error("Database migration failed:", error)
+      throw error
+    }
+  } catch (error) {
+    console.error("Database migration failed:", error)
+    throw error
+  }
+}
+
