@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer</title>
-  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
 </head>
 <body>
   <header>
@@ -69,6 +70,7 @@
         <option value="json">JSON</option>
         <option value="csv">CSV</option>
         <option value="sqlite">SQLite</option>
+        <option value="pdf">PDF</option>
       </select>
     </div>
     <div class="export-row">
@@ -122,6 +124,48 @@
       </div>
     </div>
     
+    <div class="config-section">
+      <h4>Auto Export</h4>
+      <div class="config-row">
+        <label for="autoExport">
+          <input type="checkbox" id="autoExport">
+          Enable Auto Export
+        </label>
+      </div>
+      <div class="config-row">
+        <label for="exportFormat">Export Format:</label>
+        <select id="autoExportFormat">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="sqlite">SQLite</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <label for="exportInterval">Export Interval (minutes):</label>
+        <input type="number" id="exportInterval" min="5" max="1440" step="5">
+      </div>
+    </div>
+    
+    <div class="config-section">
+      <h4>Visualization</h4>
+      <div class="config-row">
+        <label for="plotEnabled">
+          <input type="checkbox" id="plotEnabled">
+          Enable Plots
+        </label>
+      </div>
+      <div class="config-row">
+        <label>Plot Types:</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="plotType" value="responseTime"> Response Time</label>
+          <label><input type="checkbox" name="plotType" value="statusCodes"> Status Codes</label>
+          <label><input type="checkbox" name="plotType" value="domains"> Domains</label>
+          <label><input type="checkbox" name="plotType" value="requestTypes"> Request Types</label>
+          <label><input type="checkbox" name="plotType" value="timeDistribution"> Time Distribution</label>
+        </div>
+      </div>
+    </div>
+    
     <div class="config-actions">
       <button id="saveConfigBtn">Save</button>
       <button id="cancelConfigBtn">Cancel</button>
@@ -132,7 +176,6 @@
     <button class="tab-btn active" data-tab="requests">Requests</button>
     <button class="tab-btn" data-tab="stats">Statistics</button>
     <button class="tab-btn" data-tab="plots">Plots</button>
-    <button class="tab-btn" data-tab="visualization">Visualization</button>
   </div>
   
   <div class="tab-content active" id="requests-tab">
@@ -264,73 +307,6 @@
     </div>
   </div>
   
-  <div class="tab-content" id="visualization-tab">
-    <div class="visualization-container">
-      <div class="filter-container">
-        <div class="data-filter-panel">
-          <h3>Filter Data</h3>
-          <div class="filter-row">
-            <label for="vizDomainFilter">Domain:</label>
-            <select id="vizDomainFilter">
-              <option value="">All Domains</option>
-            </select>
-          </div>
-          <div class="filter-row">
-            <label for="vizMethodFilter">Method:</label>
-            <select id="vizMethodFilter">
-              <option value="">All Methods</option>
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="DELETE">DELETE</option>
-              <option value="PATCH">PATCH</option>
-            </select>
-          </div>
-          <div class="filter-row">
-            <label for="vizStatusFilter">Status Code:</label>
-            <select id="vizStatusFilter">
-              <option value="">All Status Codes</option>
-              <option value="2xx">2xx (Success)</option>
-              <option value="3xx">3xx (Redirection)</option>
-              <option value="4xx">4xx (Client Error)</option>
-              <option value="5xx">5xx (Server Error)</option>
-            </select>
-          </div>
-          <div class="filter-actions">
-            <button id="vizApplyFilterBtn">Apply</button>
-            <button id="vizResetFilterBtn">Reset</button>
-          </div>
-        </div>
-      </div>
-      <div class="charts-container">
-        <div class="chart-tabs">
-          <button class="chart-tab active" data-chart="responseTime">Response Time</button>
-          <button class="chart-tab" data-chart="statusCode">Status Codes</button>
-          <button class="chart-tab" data-chart="requestType">Request Types</button>
-          <button class="chart-tab" data-chart="timeDistribution">Time Distribution</button>
-          <button class="chart-tab" data-chart="sizeDistribution">Size Distribution</button>
-        </div>
-        <div class="chart-content">
-          <div class="chart-panel active" id="responseTimeChart">
-            <canvas id="vizResponseTimePlot"></canvas>
-          </div>
-          <div class="chart-panel" id="statusCodeChart">
-            <canvas id="vizStatusCodePlot"></canvas>
-          </div>
-          <div class="chart-panel" id="requestTypeChart">
-            <canvas id="vizRequestTypePlot"></canvas>
-          </div>
-          <div class="chart-panel" id="timeDistributionChart">
-            <canvas id="vizTimeDistributionPlot"></canvas>
-          </div>
-          <div class="chart-panel" id="sizeDistributionChart">
-            <canvas id="vizSizeDistributionPlot"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  
   <div id="requestDetails" class="request-details">
     <div class="details-header">
       <h3>Request Details</h3>
@@ -424,7 +400,7 @@
     </div>
   </div>
   
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
