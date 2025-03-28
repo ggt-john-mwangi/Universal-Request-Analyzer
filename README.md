@@ -141,7 +141,7 @@ We welcome contributions to improve this extension!
    - Click the "Fork" button on the repository page.
 2. **Create a Feature Branch**:
    ```bash
-   git checkout -b feature-branch-name
+   git checkout -b feature-branch: <name>
    ```
 3. **Make Changes & Commit**:
    - Implement your feature or bug fix.
