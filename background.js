@@ -1,26 +1,5 @@
-// Main background script - orchestrates all background processes
-
 // Import SQL.js for SQLite database
-import initSqlJs from "sql.js"
-
-import { initDatabase as initExternalDatabase } from "./database/db-manager.js"
-import { setupRequestCapture } from "./capture/request-capture.js"
-import { setupMessageHandlers } from "./messaging/message-handler.js"
-import { setupNotifications } from "./notifications/notification-manager.js"
-import { setupAuthSystem } from "./auth/auth-manager.js"
-import { setupRemoteAuthService } from "./auth/remote-auth-service.js"
-import { setupEncryption } from "./security/encryption-manager.js"
-import { setupRemoteSyncService } from "./sync/remote-sync-service.js"
-import { setupErrorMonitoring } from "./monitoring/error-monitor.js"
-import { loadConfig, setupConfigWatcher } from "./config/config-manager.js"
-import { setupExportManager } from "./export/export-manager.js"
-import { setupEventBus } from "./messaging/event-bus.js"
-import { setupCrossBrowserCompat } from "./compat/browser-compat.js"
-import { setupApiService } from "./api/api-service.js"
-
-// Declare browser and chrome variables to avoid undefined errors
-const browser = typeof browser !== "undefined" ? browser : chrome
-const chrome = typeof chrome !== "undefined" ? chrome : browser
+importScripts("https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js")
 
 // Global variables
 let db = null
@@ -31,6 +10,8 @@ let config = {
   autoExport: false,
   exportFormat: "json",
   exportInterval: 3600000, // 1 hour in milliseconds
+  plotEnabled: true,
+  plotTypes: ["responseTime", "statusCodes", "domains"],
   captureFilters: {
     includeDomains: [],
     excludeDomains: [],
@@ -38,108 +19,17 @@ let config = {
   },
 }
 
-// Initialize the event bus first
-const eventBus = setupEventBus()
-
-// Initialize configuration
-let initialConfig = null
-
-// Main initialization function
-async function initialize() {
-  try {
-    // Load configuration first
-    initialConfig = await loadConfig()
-
-    // Set up error monitoring
-    setupErrorMonitoring(eventBus)
-
-    // Set up cross-browser compatibility layer
-    setupCrossBrowserCompat()
-
-    // Initialize encryption system
-    const encryptionManager = await setupEncryption(initialConfig.security, eventBus)
-
-    // Initialize database
-    // const dbManager = await initDatabase(initialConfig.database, encryptionManager, eventBus)
-    const dbManager = await initExternalDatabase(initialConfig.database, encryptionManager, eventBus)
-
-    // Set up authentication systems
-    const localAuthManager = await setupAuthSystem(initialConfig.security.auth, eventBus)
-    const remoteAuthService = await setupRemoteAuthService(initialConfig.security.remoteAuth, eventBus)
-
-    // Choose which auth system to use based on configuration
-    const authManager = initialConfig.security.useRemoteAuth ? remoteAuthService : localAuthManager
-
-    // Set up request capture
-    setupRequestCapture(initialConfig.capture, dbManager, eventBus)
-
-    // Set up notification system
-    setupNotifications(initialConfig.notifications, eventBus)
-
-    // Set up remote sync
-    if (initialConfig.sync.enabled) {
-      setupRemoteSyncService(initialConfig.sync, dbManager, authManager, encryptionManager, eventBus)
-    }
-
-    // Set up export manager
-    setupExportManager(dbManager, encryptionManager, eventBus)
-
-    // Set up API service
-    setupApiService(initialConfig.api, dbManager, authManager, encryptionManager, eventBus)
-
-    // Set up message handlers (must be last to ensure all systems are initialized)
-    setupMessageHandlers(dbManager, authManager, encryptionManager, eventBus)
-
-    // Watch for configuration changes
-    setupConfigWatcher((newConfig) => {
-      initialConfig = newConfig
-      config = newConfig
-      eventBus.publish("config:updated", newConfig)
-    })
-
-    // Log successful initialization
-    console.log("Universal Request Analyzer initialized successfully")
-
-    // Notify that the system is ready
-    eventBus.publish("system:ready", { timestamp: Date.now() })
-  } catch (error) {
-    console.error("Failed to initialize Universal Request Analyzer:", error)
-
-    // Attempt to report the error
-    try {
-      if (typeof browser !== "undefined" && browser.runtime && browser.runtime.getBackgroundPage) {
-        const backgroundPage = await browser.runtime.getBackgroundPage()
-        const errorMonitor = backgroundPage.errorMonitor
-        if (errorMonitor) {
-          errorMonitor.reportCriticalError("initialization_failed", error)
-        }
-      } else if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getBackgroundPage) {
-        const backgroundPage = await chrome.runtime.getBackgroundPage()
-        const errorMonitor = backgroundPage.errorMonitor
-        if (errorMonitor) {
-          errorMonitor.reportCriticalError("initialization_failed", error)
-        }
-      } else {
-        console.warn("chrome runtime not available, cannot report critical error")
-      }
-    } catch (e) {
-      // Last resort error logging
-      console.error("Could not report initialization error:", e)
-    }
-  }
-}
-
 // Initialize SQLite database
 async function initDatabase() {
   try {
     const SQL = await initSqlJs({
-      locateFile: (file) => chrome.runtime.getURL(`assets/wasm/${file}`),
+      locateFile: (file) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`,
     })
 
     db = new SQL.Database()
 
     // Create tables
-    db.exec(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS requests (
         id TEXT PRIMARY KEY,
         url TEXT,
@@ -160,7 +50,7 @@ async function initDatabase() {
       )
     `)
 
-    db.exec(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS request_timings (
         requestId TEXT PRIMARY KEY,
         dns INTEGER,
@@ -172,7 +62,7 @@ async function initDatabase() {
       )
     `)
 
-    db.exec(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS request_headers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         requestId TEXT,
@@ -556,6 +446,16 @@ function exportCSV(filename) {
   }
 }
 
+// Export data as PDF (requires additional libraries)
+function exportPDF(filename) {
+  // This would require a PDF generation library
+  // For simplicity, we'll just notify that it's not implemented
+  chrome.runtime.sendMessage({
+    action: "notification",
+    message: "PDF export is not implemented yet",
+  })
+}
+
 // Listen for messages from popup or content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "getRequests") {
@@ -675,6 +575,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break
       case "csv":
         exportCSV(filename)
+        break
+      case "pdf":
+        exportPDF(filename)
         break
       case "json":
       default:
@@ -805,7 +708,4 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     config = changes.analyzerConfig.newValue
   }
 })
-
-// Start initialization
-initialize()
 

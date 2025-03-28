@@ -7,7 +7,14 @@
 **Universal Request Analyzer** is a powerful browser extension designed to capture, store, and analyze network request timings across all major browsers. It helps developers monitor API performance, track request details, log performance metrics, and visualize data efficiently.
 
 ## Features
-
+- **SQLite Database Storage**: Persistently store all captured requests for long-term analysis
+- **Continuous Background Capture**: Automatically capture requests as you browse across all pages
+- **Comprehensive Configuration**: Customize what and how data is captured
+- **Advanced Filtering**: Filter requests by domain, status, type, URL, and date range
+- **Data Visualization**: View charts and plots of request performance metrics
+- **Multiple Export Formats**: Export data as JSON, CSV, SQLite, or PDF
+- **Detailed Timing Information**: Analyze DNS, TCP, SSL, TTFB, and download times
+- **Domain and Route Analysis**: Track performance by domain and route
 ### Core Functionality
 
 - **Cross-Browser Compatibility**: Works seamlessly with Chrome, Firefox, Edge, and other major browsers.

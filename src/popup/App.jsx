@@ -24,15 +24,11 @@ function App() {
   // Load configuration on mount
   useEffect(() => {
     if (typeof chrome !== "undefined" && chrome.runtime) {
-      try {
-        chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
-          if (response && response.config) {
-            setConfig(response.config)
-          }
-        })
-      } catch (error) {
-        console.error("Error communicating with background script:", error)
-      }
+      chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+        if (response && response.config) {
+          setConfig(response.config)
+        }
+      })
     }
   }, [])
 
@@ -74,16 +70,12 @@ function App() {
   // Update configuration
   const updateConfig = (newConfig) => {
     if (typeof chrome !== "undefined" && chrome.runtime) {
-      try {
-        chrome.runtime.sendMessage({ action: "updateConfig", config: newConfig }, (response) => {
-          if (response && response.success) {
-            setConfig(newConfig)
-            setConfigPanelVisible(false)
-          }
-        })
-      } catch (error) {
-        console.error("Error communicating with background script:", error)
-      }
+      chrome.runtime.sendMessage({ action: "updateConfig", config: newConfig }, (response) => {
+        if (response && response.success) {
+          setConfig(newConfig)
+          setConfigPanelVisible(false)
+        }
+      })
     }
   }
 
