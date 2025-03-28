@@ -1,11 +1,11 @@
-const path = require("path")
-const { CleanWebpackPlugin } = require("clean-webpack-plugin")
-const CopyWebpackPlugin = require("copy-webpack-plugin")
-const MiniCssExtractPlugin = require("mini-css-extract-plugin")
-const HtmlWebpackPlugin = require("html-webpack-plugin")
+const path = require("path");
+const { CleanWebpackPlugin } = require("clean-webpack-plugin");
+const CopyWebpackPlugin = require("copy-webpack-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = (env, argv) => {
-  const isProduction = argv.mode === "production"
+  const isProduction = argv.mode === "production";
 
   return {
     mode: argv.mode,
@@ -14,7 +14,9 @@ module.exports = (env, argv) => {
       popup: "./src/popup/js/popup.js",
       options: "./src/options/js/options.js",
       background: "./src/background/background.js",
-      contentScript: "./src/content/content-script.js",
+      // contentScript: "./src/content/content.js",
+      content: "./src/content/content.js",
+      // styles: "./src/styles.css", // Add styles.css as an entry point
     },
     output: {
       path: path.resolve(__dirname, "dist"),
@@ -34,8 +36,18 @@ module.exports = (env, argv) => {
         },
         {
           test: /\.css$/,
-          use: [isProduction ? MiniCssExtractPlugin.loader : "style-loader", "css-loader"],
+          use: [
+            MiniCssExtractPlugin.loader, // Ensure this is used to extract CSS
+            "css-loader",
+          ],
         },
+        // {
+        //   test: /\.css$/,
+        //   use: [
+        //     isProduction ? MiniCssExtractPlugin.loader : "style-loader", // Use MiniCssExtractPlugin.loader in production
+        //     "css-loader",
+        //   ],
+        // },
         {
           test: /\.(png|svg|jpg|jpeg|gif)$/i,
           type: "asset/resource",
@@ -55,12 +67,12 @@ module.exports = (env, argv) => {
     plugins: [
       new CleanWebpackPlugin(),
       new MiniCssExtractPlugin({
-        filename: "[name].css",
+        filename: "styles.css", // Ensure the output CSS file is named correctly
       }),
       new CopyWebpackPlugin({
         patterns: [
           { from: "./src/manifest.json", to: "manifest.json" },
-          { from: "./src/icons", to: "icons" },
+          { from: "./src/icons/**/*", to: "icons/[name][ext]" },
         ],
       }),
       new HtmlWebpackPlugin({
@@ -82,7 +94,16 @@ module.exports = (env, argv) => {
     },
     optimization: {
       minimize: isProduction,
+      splitChunks: {
+        cacheGroups: {
+          styles: {
+            name: "styles",
+            type: "css/mini-extract",
+            chunks: "all",
+            enforce: true,
+          },
+        },
+      },
     },
-  }
-}
-
+  };
+};

@@ -1,89 +1,100 @@
-import { Chart } from "@/components/ui/chart"
+import "../../styles.css"; // Import the global styles.css
+import "../css/popup.css"; // Ensure the CSS file is imported
+import "../css/themes.css";
+import "../css/data-visualization.css";
+
+import { Chart } from "../../ui/chart.js";
 // Import settings UI
-import { initSettingsUI } from "./settings-ui.js"
-import settingsManager from "./settings-manager.js"
-import themeManager from "../../config/theme-manager.js"
+import { initSettingsUI } from "./settings-ui.js";
+import settingsManager from "./settings-manager.js";
+import themeManager from "../../config/theme-manager.js";
 
 // DOM elements
 document.addEventListener("DOMContentLoaded", async () => {
   // Initialize settings manager
-  await settingsManager.initialize()
+  await settingsManager.initialize();
 
   // Initialize theme manager and apply theme
   await themeManager.initialize({
     initialTheme: "light",
-  })
+  });
 
   // Initialize settings UI
-  initSettingsUI()
+  initSettingsUI();
 
   // Rest of the popup.js code...
   // DOM elements
-  const requestsTableBody = document.getElementById("requestsTableBody")
-  const totalRequestsEl = document.getElementById("totalRequests")
-  const avgResponseTimeEl = document.getElementById("avgResponseTime")
-  const successRateEl = document.getElementById("successRate")
-  const filterBtn = document.getElementById("filterBtn")
-  const filterPanel = document.getElementById("filterPanel")
-  const clearBtn = document.getElementById("clearBtn")
-  const exportBtn = document.getElementById("exportBtn")
-  const exportPanel = document.getElementById("exportPanel")
-  const configBtn = document.getElementById("configBtn")
-  const configPanel = document.getElementById("configPanel")
-  const requestDetails = document.getElementById("requestDetails")
-  const closeDetails = document.getElementById("closeDetails")
-  const applyFilterBtn = document.getElementById("applyFilterBtn")
-  const resetFilterBtn = document.getElementById("resetFilterBtn")
-  const doExportBtn = document.getElementById("doExportBtn")
-  const cancelExportBtn = document.getElementById("cancelExportBtn")
-  const saveConfigBtn = document.getElementById("saveConfigBtn")
-  const cancelConfigBtn = document.getElementById("cancelConfigBtn")
-  const prevPageBtn = document.getElementById("prevPageBtn")
-  const nextPageBtn = document.getElementById("nextPageBtn")
-  const pageInfoEl = document.getElementById("pageInfo")
-  const tabButtons = document.querySelectorAll(".tab-btn")
-  const tabContents = document.querySelectorAll(".tab-content")
+  const requestsTableBody = document.getElementById("requestsTableBody");
+  const totalRequestsEl = document.getElementById("totalRequests");
+  const avgResponseTimeEl = document.getElementById("avgResponseTime");
+  const successRateEl = document.getElementById("successRate");
+  const filterBtn = document.getElementById("filterBtn");
+  const filterPanel = document.getElementById("filterPanel");
+  const clearBtn = document.getElementById("clearBtn");
+  const exportBtn = document.getElementById("exportBtn");
+  const exportPanel = document.getElementById("exportPanel");
+  const configBtn = document.getElementById("configBtn");
+  const configPanel = document.getElementById("configPanel");
+  const requestDetails = document.getElementById("requestDetails");
+  const closeDetails = document.getElementById("closeDetails");
+  const applyFilterBtn = document.getElementById("applyFilterBtn");
+  const resetFilterBtn = document.getElementById("resetFilterBtn");
+  const doExportBtn = document.getElementById("doExportBtn");
+  const cancelExportBtn = document.getElementById("cancelExportBtn");
+  const saveConfigBtn = document.getElementById("saveConfigBtn");
+  const cancelConfigBtn = document.getElementById("cancelConfigBtn");
+  const prevPageBtn = document.getElementById("prevPageBtn");
+  const nextPageBtn = document.getElementById("nextPageBtn");
+  const pageInfoEl = document.getElementById("pageInfo");
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  const tabContents = document.querySelectorAll(".tab-content");
 
   // Filter elements
-  const statusFilter = document.getElementById("statusFilter")
-  const typeFilter = document.getElementById("typeFilter")
-  const domainFilter = document.getElementById("domainFilter")
-  const urlFilter = document.getElementById("urlFilter")
-  const startDateFilter = document.getElementById("startDateFilter")
-  const endDateFilter = document.getElementById("endDateFilter")
+  const statusFilter = document.getElementById("statusFilter");
+  const typeFilter = document.getElementById("typeFilter");
+  const domainFilter = document.getElementById("domainFilter");
+  const urlFilter = document.getElementById("urlFilter");
+  const startDateFilter = document.getElementById("startDateFilter");
+  const endDateFilter = document.getElementById("endDateFilter");
 
   // Export elements
-  const exportFormat = document.getElementById("exportFormat")
-  const exportFilename = document.getElementById("exportFilename")
+  const exportFormat = document.getElementById("exportFormat");
+  const exportFilename = document.getElementById("exportFilename");
 
   // Config elements
-  const captureEnabled = document.getElementById("captureEnabled")
-  const maxStoredRequests = document.getElementById("maxStoredRequests")
-  const captureTypeCheckboxes = document.querySelectorAll('input[name="captureType"]')
-  const includeDomains = document.getElementById("includeDomains")
-  const excludeDomains = document.getElementById("excludeDomains")
+  const captureEnabled = document.getElementById("captureEnabled");
+  const maxStoredRequests = document.getElementById("maxStoredRequests");
+  const captureTypeCheckboxes = document.querySelectorAll(
+    'input[name="captureType"]'
+  );
+  const includeDomains = document.getElementById("includeDomains");
+  const excludeDomains = document.getElementById("excludeDomains");
 
   // Visualization elements
-  const chartTabs = document.querySelectorAll(".chart-tab")
-  const chartPanels = document.querySelectorAll(".chart-panel")
-  const vizApplyFilterBtn = document.getElementById("vizApplyFilterBtn")
-  const vizResetFilterBtn = document.getElementById("vizResetFilterBtn")
+  const chartTabs = document.querySelectorAll(".chart-tab");
+  const chartPanels = document.querySelectorAll(".chart-panel");
+  const vizApplyFilterBtn = document.getElementById("vizApplyFilterBtn");
+  const vizResetFilterBtn = document.getElementById("vizResetFilterBtn");
 
   // Chart elements
-  const responseTimePlot = document.getElementById("responseTimePlot")
-  const statusCodePlot = document.getElementById("statusCodePlot")
-  const domainPlot = document.getElementById("domainPlot")
-  const requestTypePlot = document.getElementById("requestTypePlot")
-  const timeDistributionPlot = document.getElementById("timeDistributionPlot")
-  const vizResponseTimePlot = document.getElementById("vizResponseTimePlot")
-  const vizStatusCodePlot = document.getElementById("vizStatusCodePlot")
-  const vizRequestTypePlot = document.getElementById("vizRequestTypePlot")
-  const vizTimeDistributionPlot = document.getElementById("vizTimeDistributionPlot")
-  const vizSizeDistributionPlot = document.getElementById("vizSizeDistributionPlot")
+  const responseTimePlot = document.getElementById("responseTimePlot");
+  const statusCodePlot = document.getElementById("statusCodePlot");
+  const domainPlot = document.getElementById("domainPlot");
+  const requestTypePlot = document.getElementById("requestTypePlot");
+  const timeDistributionPlot = document.getElementById("timeDistributionPlot");
+  const vizResponseTimePlot = document.getElementById("vizResponseTimePlot");
+  const vizStatusCodePlot = document.getElementById("vizStatusCodePlot");
+  const vizRequestTypePlot = document.getElementById("vizRequestTypePlot");
+  const vizTimeDistributionPlot = document.getElementById(
+    "vizTimeDistributionPlot"
+  );
+  const vizSizeDistributionPlot = document.getElementById(
+    "vizSizeDistributionPlot"
+  );
 
   // Store all requests and filtered requests
-  const allRequests = []
-  let filteredRequests = []
+  const allRequests = [];
+  let filteredRequests = [];
   let activeFilters = {
     status: "all",
     type: "all",
@@ -91,13 +102,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     url: "",
     startDate: "",
     endDate: "",
-  }
+  };
 
   // Pagination
-  let currentPage = 1
-  let totalPages = 1
-  const itemsPerPage = 50
-  let totalItems = 0
+  let currentPage = 1;
+  let totalPages = 1;
+  const itemsPerPage = 50;
+  let totalItems = 0;
 
   // Charts
   const charts = {
@@ -111,7 +122,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     vizRequestType: null,
     vizTimeDistribution: null,
     vizSizeDistribution: null,
-  }
+  };
 
   // Config
   let config = {
@@ -120,111 +131,123 @@ document.addEventListener("DOMContentLoaded", async () => {
     captureFilters: {
       includeDomains: [],
       excludeDomains: [],
-      includeTypes: ["xmlhttprequest", "fetch", "script", "stylesheet", "image", "font", "other"],
+      includeTypes: [
+        "xmlhttprequest",
+        "fetch",
+        "script",
+        "stylesheet",
+        "image",
+        "font",
+        "other",
+      ],
     },
-  }
+  };
 
   // Set default export filename
-  exportFilename.value = `request-analyzer-export-${new Date().toISOString().slice(0, 10)}`
+  exportFilename.value = `request-analyzer-export-${new Date()
+    .toISOString()
+    .slice(0, 10)}`;
 
   // Load config
-  loadConfig()
+  loadConfig();
 
   // Load requests
-  loadRequests()
+  loadRequests();
 
   // Set up event listeners
-  filterBtn.addEventListener("click", toggleFilterPanel)
-  clearBtn.addEventListener("click", clearRequests)
-  exportBtn.addEventListener("click", toggleExportPanel)
-  configBtn.addEventListener("click", toggleConfigPanel)
-  closeDetails.addEventListener("click", hideRequestDetails)
-  applyFilterBtn.addEventListener("click", applyFilters)
-  resetFilterBtn.addEventListener("click", resetFilters)
-  doExportBtn.addEventListener("click", exportData)
-  cancelExportBtn.addEventListener("click", toggleExportPanel)
-  saveConfigBtn.addEventListener("click", saveConfig)
-  cancelConfigBtn.addEventListener("click", toggleConfigPanel)
-  prevPageBtn.addEventListener("click", () => changePage(currentPage - 1))
-  nextPageBtn.addEventListener("click", () => changePage(currentPage + 1))
-  vizApplyFilterBtn.addEventListener("click", applyVisualizationFilters)
-  vizResetFilterBtn.addEventListener("click", resetVisualizationFilters)
+  filterBtn.addEventListener("click", toggleFilterPanel);
+  clearBtn.addEventListener("click", clearRequests);
+  exportBtn.addEventListener("click", toggleExportPanel);
+  configBtn.addEventListener("click", toggleConfigPanel);
+  closeDetails.addEventListener("click", hideRequestDetails);
+  applyFilterBtn.addEventListener("click", applyFilters);
+  resetFilterBtn.addEventListener("click", resetFilters);
+  doExportBtn.addEventListener("click", exportData);
+  cancelExportBtn.addEventListener("click", toggleExportPanel);
+  saveConfigBtn.addEventListener("click", saveConfig);
+  cancelConfigBtn.addEventListener("click", toggleConfigPanel);
+  prevPageBtn.addEventListener("click", () => changePage(currentPage - 1));
+  nextPageBtn.addEventListener("click", () => changePage(currentPage + 1));
+  vizApplyFilterBtn.addEventListener("click", applyVisualizationFilters);
+  vizResetFilterBtn.addEventListener("click", resetVisualizationFilters);
 
   // Tab navigation
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      const tabName = button.dataset.tab
+      const tabName = button.dataset.tab;
 
       // Update active tab button
-      tabButtons.forEach((btn) => btn.classList.remove("active"))
-      button.classList.add("active")
+      tabButtons.forEach((btn) => btn.classList.remove("active"));
+      button.classList.add("active");
 
       // Update active tab content
       tabContents.forEach((content) => {
-        content.classList.remove("active")
+        content.classList.remove("active");
         if (content.id === `${tabName}-tab`) {
-          content.classList.add("active")
+          content.classList.add("active");
         }
-      })
+      });
 
       // Load tab-specific data
       if (tabName === "stats") {
-        loadStats()
+        loadStats();
       } else if (tabName === "plots") {
-        loadPlots()
+        loadPlots();
       } else if (tabName === "visualization") {
-        loadVisualizationData()
+        loadVisualizationData();
       }
-    })
-  })
+    });
+  });
 
   // Chart tab navigation
   chartTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
-      const chartType = tab.dataset.chart
+      const chartType = tab.dataset.chart;
 
       // Update active tab
-      chartTabs.forEach((t) => t.classList.remove("active"))
-      tab.classList.add("active")
+      chartTabs.forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
 
       // Update active panel
       chartPanels.forEach((panel) => {
-        panel.classList.remove("active")
+        panel.classList.remove("active");
         if (panel.id === `${chartType}Chart`) {
-          panel.classList.add("active")
+          panel.classList.add("active");
         }
-      })
-    })
-  })
+      });
+    });
+  });
 
   // Listen for updates from background script
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === "requestUpdated") {
       // Reload data instead of updating in-place to ensure consistency with SQLite
-      loadRequests()
+      loadRequests();
     }
-  })
+  });
 
   // Load configuration from background script
   function loadConfig() {
     chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
       if (response && response.config) {
-        config = response.config
+        config = response.config;
 
         // Update UI with config values
-        captureEnabled.checked = config.captureEnabled
-        maxStoredRequests.value = config.maxStoredRequests
+        captureEnabled.checked = config.captureEnabled;
+        maxStoredRequests.value = config.maxStoredRequests;
 
         // Update capture type checkboxes
         captureTypeCheckboxes.forEach((checkbox) => {
-          checkbox.checked = config.captureFilters.includeTypes.includes(checkbox.value)
-        })
+          checkbox.checked = config.captureFilters.includeTypes.includes(
+            checkbox.value
+          );
+        });
 
         // Update domain filters
-        includeDomains.value = config.captureFilters.includeDomains.join(", ")
-        excludeDomains.value = config.captureFilters.excludeDomains.join(", ")
+        includeDomains.value = config.captureFilters.includeDomains.join(", ");
+        excludeDomains.value = config.captureFilters.excludeDomains.join(", ");
       }
-    })
+    });
   }
 
   // Save configuration to background script
@@ -246,7 +269,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           .filter((checkbox) => checkbox.checked)
           .map((checkbox) => checkbox.value),
       },
-    }
+    };
 
     // Save to background script
     chrome.runtime.sendMessage(
@@ -257,16 +280,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       (response) => {
         if (response && response.success) {
           // Update local config
-          config = newConfig
+          config = newConfig;
 
           // Hide config panel
-          toggleConfigPanel()
+          toggleConfigPanel();
 
           // Show success message
-          showNotification("Configuration saved successfully")
+          showNotification("Configuration saved successfully");
         }
-      },
-    )
+      }
+    );
   }
 
   // Load requests from background script
@@ -279,7 +302,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       url: activeFilters.url || null,
       startDate: activeFilters.startDate || null,
       endDate: activeFilters.endDate || null,
-    }
+    };
 
     chrome.runtime.sendMessage(
       {
@@ -292,145 +315,172 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (response && !response.error) {
           // Convert array of arrays to array of objects
           const requests = response.requests.map((row) => {
-            const obj = {}
+            const obj = {};
             response.columns.forEach((col, i) => {
-              obj[col] = row[i]
-            })
-            return obj
-          })
+              obj[col] = row[i];
+            });
+            return obj;
+          });
 
-          filteredRequests = requests
-          totalItems = response.total
-          totalPages = Math.ceil(totalItems / itemsPerPage)
+          filteredRequests = requests;
+          totalItems = response.total;
+          totalPages = Math.ceil(totalItems / itemsPerPage);
 
           // Update pagination UI
-          updatePagination()
+          updatePagination();
 
           // Render the table
-          renderRequestsTable()
+          renderRequestsTable();
 
           // Update stats
-          updateStats()
+          updateStats();
         } else if (response && response.error) {
-          console.error("Error loading requests:", response.error)
-          showNotification("Error loading requests: " + response.error)
+          console.error("Error loading requests:", response.error);
+          showNotification("Error loading requests: " + response.error);
         }
-      },
-    )
+      }
+    );
   }
 
   // Update pagination UI
   function updatePagination() {
-    pageInfoEl.textContent = `Page ${currentPage} of ${totalPages}`
-    prevPageBtn.disabled = currentPage <= 1
-    nextPageBtn.disabled = currentPage >= totalPages
+    pageInfoEl.textContent = `Page ${currentPage} of ${totalPages}`;
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
   }
 
   // Change page
   function changePage(page) {
-    if (page < 1 || page > totalPages) return
+    if (page < 1 || page > totalPages) return;
 
-    currentPage = page
-    loadRequests()
+    currentPage = page;
+    loadRequests();
   }
 
   // Render the requests table
   function renderRequestsTable() {
-    requestsTableBody.innerHTML = ""
+    requestsTableBody.innerHTML = "";
 
     if (filteredRequests.length === 0) {
-      const emptyRow = document.createElement("tr")
-      emptyRow.innerHTML = `<td colspan="8" class="empty-message">No requests captured yet</td>`
-      requestsTableBody.appendChild(emptyRow)
-      return
+      const emptyRow = document.createElement("tr");
+      emptyRow.innerHTML = `<td colspan="8" class="empty-message">No requests captured yet</td>`;
+      requestsTableBody.appendChild(emptyRow);
+      return;
     }
 
     filteredRequests.forEach((request) => {
-      const row = document.createElement("tr")
-      row.dataset.requestId = request.id
+      const row = document.createElement("tr");
+      row.dataset.requestId = request.id;
 
       // Determine status class
-      let statusClass = "status-pending"
+      let statusClass = "status-pending";
       if (request.status === "completed" || request.status > 0) {
-        const statusCode = request.statusCode || request.status
-        statusClass = statusCode >= 200 && statusCode < 400 ? "status-success" : "status-error"
+        const statusCode = request.statusCode || request.status;
+        statusClass =
+          statusCode >= 200 && statusCode < 400
+            ? "status-success"
+            : "status-error";
       } else if (request.status === "error") {
-        statusClass = "status-error"
+        statusClass = "status-error";
       }
 
       // Format duration
-      const duration = request.duration ? `${Math.round(request.duration)}ms` : "-"
+      const duration = request.duration
+        ? `${Math.round(request.duration)}ms`
+        : "-";
 
       // Format time
-      const time = new Date(request.timestamp || request.startTime).toLocaleTimeString()
+      const time = new Date(
+        request.timestamp || request.startTime
+      ).toLocaleTimeString();
 
       // Format size
-      const size = request.size ? formatBytes(request.size) : "-"
+      const size = request.size ? formatBytes(request.size) : "-";
 
       row.innerHTML = `
         <td>${request.method}</td>
         <td>${request.domain || "-"}</td>
-        <td title="${request.path}">${request.path ? (request.path.length > 30 ? request.path.substring(0, 30) + "..." : request.path) : "-"}</td>
-        <td class="${statusClass}">${request.statusCode || request.status || "-"}</td>
+        <td title="${request.path}">${
+        request.path
+          ? request.path.length > 30
+            ? request.path.substring(0, 30) + "..."
+            : request.path
+          : "-"
+      }</td>
+        <td class="${statusClass}">${
+        request.statusCode || request.status || "-"
+      }</td>
         <td>${request.type || "-"}</td>
         <td>${size}</td>
         <td>${duration}</td>
         <td>${time}</td>
-      `
+      `;
 
       // Add click event to show details
-      row.addEventListener("click", () => showRequestDetails(request))
+      row.addEventListener("click", () => showRequestDetails(request));
 
-      requestsTableBody.appendChild(row)
-    })
+      requestsTableBody.appendChild(row);
+    });
   }
 
   // Format bytes to human-readable format
   function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0) return "0 Bytes"
+    if (bytes === 0) return "0 Bytes";
 
-    const k = 1024
-    const dm = decimals < 0 ? 0 : decimals
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+    return (
+      Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+    );
   }
 
   // Show request details panel
   function showRequestDetails(request) {
     // Set basic details
-    document.getElementById("detailUrl").textContent = request.url
-    document.getElementById("detailMethod").textContent = request.method
+    document.getElementById("detailUrl").textContent = request.url;
+    document.getElementById("detailMethod").textContent = request.method;
 
-    document.getElementById("detailStatus").textContent = request.statusCode || request.status || "-"
-    document.getElementById("detailType").textContent = request.type || "-"
-    document.getElementById("detailDomain").textContent = request.domain || "-"
-    document.getElementById("detailPath").textContent = request.path || "-"
-    document.getElementById("detailSize").textContent = request.size ? formatBytes(request.size) : "-"
+    document.getElementById("detailStatus").textContent =
+      request.statusCode || request.status || "-";
+    document.getElementById("detailType").textContent = request.type || "-";
+    document.getElementById("detailDomain").textContent = request.domain || "-";
+    document.getElementById("detailPath").textContent = request.path || "-";
+    document.getElementById("detailSize").textContent = request.size
+      ? formatBytes(request.size)
+      : "-";
     document.getElementById("detailStartTime").textContent = request.startTime
       ? new Date(request.startTime).toLocaleTimeString()
-      : "-"
+      : "-";
     document.getElementById("detailEndTime").textContent = request.endTime
       ? new Date(request.endTime).toLocaleTimeString()
-      : "-"
-    document.getElementById("detailDuration").textContent = request.duration ? `${Math.round(request.duration)}ms` : "-"
+      : "-";
+    document.getElementById("detailDuration").textContent = request.duration
+      ? `${Math.round(request.duration)}ms`
+      : "-";
 
     // Set timing bars if available
-    const timings = request.timings || {}
-    const maxDuration = request.duration || 0
+    const timings = request.timings || {};
+    const maxDuration = request.duration || 0;
 
     // Update timing bars
-    updateTimingBar("dnsBar", "dnsTime", timings.dns || 0, maxDuration)
-    updateTimingBar("tcpBar", "tcpTime", timings.tcp || 0, maxDuration)
-    updateTimingBar("sslBar", "sslTime", timings.ssl || 0, maxDuration)
-    updateTimingBar("ttfbBar", "ttfbTime", timings.ttfb || 0, maxDuration)
-    updateTimingBar("downloadBar", "downloadTime", timings.download || 0, maxDuration)
+    updateTimingBar("dnsBar", "dnsTime", timings.dns || 0, maxDuration);
+    updateTimingBar("tcpBar", "tcpTime", timings.tcp || 0, maxDuration);
+    updateTimingBar("sslBar", "sslTime", timings.ssl || 0, maxDuration);
+    updateTimingBar("ttfbBar", "ttfbTime", timings.ttfb || 0, maxDuration);
+    updateTimingBar(
+      "downloadBar",
+      "downloadTime",
+      timings.download || 0,
+      maxDuration
+    );
 
     // Load headers if available
-    const headersContainer = document.getElementById("headersContainer")
-    headersContainer.innerHTML = ""
+    const headersContainer = document.getElementById("headersContainer");
+    headersContainer.innerHTML = "";
 
     // Fetch headers from database
     chrome.runtime.sendMessage(
@@ -440,105 +490,106 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
       (response) => {
         if (response && response.headers && response.headers.length > 0) {
-          const table = document.createElement("table")
-          table.className = "headers-table"
+          const table = document.createElement("table");
+          table.className = "headers-table";
 
-          const thead = document.createElement("thead")
-          thead.innerHTML = "<tr><th>Name</th><th>Value</th></tr>"
-          table.appendChild(thead)
+          const thead = document.createElement("thead");
+          thead.innerHTML = "<tr><th>Name</th><th>Value</th></tr>";
+          table.appendChild(thead);
 
-          const tbody = document.createElement("tbody")
+          const tbody = document.createElement("tbody");
 
           response.headers.forEach((header) => {
-            const row = document.createElement("tr")
+            const row = document.createElement("tr");
             row.innerHTML = `
               <td>${header.name}</td>
               <td>${header.value}</td>
-            `
-            tbody.appendChild(row)
-          })
+            `;
+            tbody.appendChild(row);
+          });
 
-          table.appendChild(tbody)
-          headersContainer.appendChild(table)
+          table.appendChild(tbody);
+          headersContainer.appendChild(table);
         } else {
-          headersContainer.innerHTML = '<p class="no-data">No headers available</p>'
+          headersContainer.innerHTML =
+            '<p class="no-data">No headers available</p>';
         }
-      },
-    )
+      }
+    );
 
     // Show the details panel
-    requestDetails.classList.add("visible")
+    requestDetails.classList.add("visible");
   }
 
   // Update a timing bar
   function updateTimingBar(barId, timeId, duration, maxDuration) {
-    const bar = document.getElementById(barId)
-    const timeEl = document.getElementById(timeId)
+    const bar = document.getElementById(barId);
+    const timeEl = document.getElementById(timeId);
 
     if (maxDuration > 0) {
-      const percentage = Math.min((duration / maxDuration) * 100, 100)
-      bar.style.width = `${percentage}%`
+      const percentage = Math.min((duration / maxDuration) * 100, 100);
+      bar.style.width = `${percentage}%`;
     } else {
-      bar.style.width = "0%"
+      bar.style.width = "0%";
     }
 
-    timeEl.textContent = `${Math.round(duration)}ms`
+    timeEl.textContent = `${Math.round(duration)}ms`;
   }
 
   // Hide request details panel
   function hideRequestDetails() {
-    requestDetails.classList.remove("visible")
+    requestDetails.classList.remove("visible");
   }
 
   // Toggle filter panel visibility
   function toggleFilterPanel() {
-    filterPanel.classList.toggle("visible")
-    exportPanel.classList.remove("visible")
-    configPanel.classList.remove("visible")
+    filterPanel.classList.toggle("visible");
+    exportPanel.classList.remove("visible");
+    configPanel.classList.remove("visible");
   }
 
   // Toggle export panel visibility
   function toggleExportPanel() {
-    exportPanel.classList.toggle("visible")
-    filterPanel.classList.remove("visible")
-    configPanel.classList.remove("visible")
+    exportPanel.classList.toggle("visible");
+    filterPanel.classList.remove("visible");
+    configPanel.classList.remove("visible");
   }
 
   // Toggle config panel visibility
   function toggleConfigPanel() {
-    configPanel.classList.toggle("visible")
-    filterPanel.classList.remove("visible")
-    exportPanel.classList.remove("visible")
+    configPanel.classList.toggle("visible");
+    filterPanel.classList.remove("visible");
+    exportPanel.classList.remove("visible");
   }
 
   // Apply filters to requests
   function applyFilters() {
     // Get filter values
-    activeFilters.status = statusFilter.value
-    activeFilters.type = typeFilter.value
-    activeFilters.domain = domainFilter.value
-    activeFilters.url = urlFilter.value
-    activeFilters.startDate = startDateFilter.value
-    activeFilters.endDate = endDateFilter.value
+    activeFilters.status = statusFilter.value;
+    activeFilters.type = typeFilter.value;
+    activeFilters.domain = domainFilter.value;
+    activeFilters.url = urlFilter.value;
+    activeFilters.startDate = startDateFilter.value;
+    activeFilters.endDate = endDateFilter.value;
 
     // Reset to first page
-    currentPage = 1
+    currentPage = 1;
 
     // Load filtered requests
-    loadRequests()
+    loadRequests();
 
     // Hide filter panel
-    filterPanel.classList.remove("visible")
+    filterPanel.classList.remove("visible");
   }
 
   // Reset filters
   function resetFilters() {
-    statusFilter.value = "all"
-    typeFilter.value = "all"
-    domainFilter.value = ""
-    urlFilter.value = ""
-    startDateFilter.value = ""
-    endDateFilter.value = ""
+    statusFilter.value = "all";
+    typeFilter.value = "all";
+    domainFilter.value = "";
+    urlFilter.value = "";
+    startDateFilter.value = "";
+    endDateFilter.value = "";
 
     activeFilters = {
       status: "all",
@@ -547,54 +598,60 @@ document.addEventListener("DOMContentLoaded", async () => {
       url: "",
       startDate: "",
       endDate: "",
-    }
+    };
 
     // Reset to first page
-    currentPage = 1
+    currentPage = 1;
 
     // Load all requests
-    loadRequests()
+    loadRequests();
 
     // Hide filter panel
-    filterPanel.classList.remove("visible")
+    filterPanel.classList.remove("visible");
   }
 
   // Apply visualization filters
   function applyVisualizationFilters() {
-    loadVisualizationData()
+    loadVisualizationData();
   }
 
   // Reset visualization filters
   function resetVisualizationFilters() {
-    document.getElementById("vizDomainFilter").value = ""
-    document.getElementById("vizMethodFilter").value = ""
-    document.getElementById("vizStatusFilter").value = ""
+    document.getElementById("vizDomainFilter").value = "";
+    document.getElementById("vizMethodFilter").value = "";
+    document.getElementById("vizStatusFilter").value = "";
 
-    loadVisualizationData()
+    loadVisualizationData();
   }
 
   // Clear all requests
   function clearRequests() {
-    if (confirm("Are you sure you want to clear all captured requests? This cannot be undone.")) {
+    if (
+      confirm(
+        "Are you sure you want to clear all captured requests? This cannot be undone."
+      )
+    ) {
       chrome.runtime.sendMessage({ action: "clearRequests" }, (response) => {
         if (response && response.success) {
           // Reload requests
-          loadRequests()
+          loadRequests();
 
           // Hide details panel
-          hideRequestDetails()
+          hideRequestDetails();
 
           // Show notification
-          showNotification("All requests cleared successfully")
+          showNotification("All requests cleared successfully");
         }
-      })
+      });
     }
   }
 
   // Export data
   function exportData() {
-    const format = exportFormat.value
-    const filename = exportFilename.value || `request-analyzer-export-${new Date().toISOString().slice(0, 10)}`
+    const format = exportFormat.value;
+    const filename =
+      exportFilename.value ||
+      `request-analyzer-export-${new Date().toISOString().slice(0, 10)}`;
 
     chrome.runtime.sendMessage(
       {
@@ -605,154 +662,165 @@ document.addEventListener("DOMContentLoaded", async () => {
       (response) => {
         if (response && response.success) {
           // Hide export panel
-          toggleExportPanel()
+          toggleExportPanel();
 
           // Show notification
-          showNotification(`Data exported successfully as ${format.toUpperCase()}`)
+          showNotification(
+            `Data exported successfully as ${format.toUpperCase()}`
+          );
         }
-      },
-    )
+      }
+    );
   }
 
   // Update statistics
   function updateStats() {
     // Calculate stats from filtered requests
-    const totalRequests = filteredRequests.length
-    totalRequestsEl.textContent = totalRequests
+    const totalRequests = filteredRequests.length;
+    totalRequestsEl.textContent = totalRequests;
 
     // Calculate average response time
-    let totalDuration = 0
-    let completedCount = 0
+    let totalDuration = 0;
+    let completedCount = 0;
 
     filteredRequests.forEach((req) => {
       if (req.duration) {
-        totalDuration += req.duration
-        completedCount++
+        totalDuration += req.duration;
+        completedCount++;
       }
-    })
+    });
 
-    const avgResponseTime = completedCount > 0 ? Math.round(totalDuration / completedCount) : 0
-    avgResponseTimeEl.textContent = `${avgResponseTime} ms`
+    const avgResponseTime =
+      completedCount > 0 ? Math.round(totalDuration / completedCount) : 0;
+    avgResponseTimeEl.textContent = `${avgResponseTime} ms`;
 
     // Calculate success rate
     const successfulRequests = filteredRequests.filter((req) => {
-      const status = req.statusCode || req.status
-      return status >= 200 && status < 400
-    }).length
+      const status = req.statusCode || req.status;
+      return status >= 200 && status < 400;
+    }).length;
 
-    const successRate = totalRequests > 0 ? Math.round((successfulRequests / totalRequests) * 100) : 0
-    successRateEl.textContent = `${successRate}%`
+    const successRate =
+      totalRequests > 0
+        ? Math.round((successfulRequests / totalRequests) * 100)
+        : 0;
+    successRateEl.textContent = `${successRate}%`;
   }
 
   // Load statistics for stats tab
   function loadStats() {
     chrome.runtime.sendMessage({ action: "getStats" }, (response) => {
       if (response && response.stats) {
-        const stats = response.stats
+        const stats = response.stats;
 
         // Update summary stats
-        document.getElementById("statsTotalRequests").textContent = stats.totalRequests
-        document.getElementById("statsAvgResponseTime").textContent = `${stats.avgResponseTime} ms`
+        document.getElementById("statsTotalRequests").textContent =
+          stats.totalRequests;
+        document.getElementById(
+          "statsAvgResponseTime"
+        ).textContent = `${stats.avgResponseTime} ms`;
 
         // Calculate successful and failed requests
-        let successfulCount = 0
-        let failedCount = 0
+        let successfulCount = 0;
+        let failedCount = 0;
 
         Object.entries(stats.statusCodes).forEach(([code, count]) => {
           if (code >= 200 && code < 400) {
-            successfulCount += count
+            successfulCount += count;
           } else {
-            failedCount += count
+            failedCount += count;
           }
-        })
+        });
 
-        document.getElementById("statsSuccessfulRequests").textContent = successfulCount
-        document.getElementById("statsFailedRequests").textContent = failedCount
+        document.getElementById("statsSuccessfulRequests").textContent =
+          successfulCount;
+        document.getElementById("statsFailedRequests").textContent =
+          failedCount;
 
         // Update status codes
-        const statusCodesEl = document.getElementById("statsStatusCodes")
-        statusCodesEl.innerHTML = ""
+        const statusCodesEl = document.getElementById("statsStatusCodes");
+        statusCodesEl.innerHTML = "";
 
         Object.entries(stats.statusCodes)
           .sort(([a], [b]) => Number.parseInt(a) - Number.parseInt(b))
           .forEach(([code, count]) => {
-            const row = document.createElement("div")
-            row.className = "stat-row"
+            const row = document.createElement("div");
+            row.className = "stat-row";
 
-            let statusClass = ""
-            if (code >= 200 && code < 300) statusClass = "status-success"
-            else if (code >= 300 && code < 400) statusClass = "status-redirect"
-            else if (code >= 400) statusClass = "status-error"
+            let statusClass = "";
+            if (code >= 200 && code < 300) statusClass = "status-success";
+            else if (code >= 300 && code < 400) statusClass = "status-redirect";
+            else if (code >= 400) statusClass = "status-error";
 
             row.innerHTML = `
               <span class="stat-name ${statusClass}">${code}:</span>
               <span class="stat-value">${count}</span>
-            `
+            `;
 
-            statusCodesEl.appendChild(row)
-          })
+            statusCodesEl.appendChild(row);
+          });
 
         // Update top domains
-        const topDomainsEl = document.getElementById("statsTopDomains")
-        topDomainsEl.innerHTML = ""
+        const topDomainsEl = document.getElementById("statsTopDomains");
+        topDomainsEl.innerHTML = "";
 
         stats.topDomains.forEach(({ domain, count }) => {
-          const row = document.createElement("div")
-          row.className = "stat-row"
+          const row = document.createElement("div");
+          row.className = "stat-row";
           row.innerHTML = `
             <span class="stat-name">${domain}:</span>
             <span class="stat-value">${count}</span>
-          `
+          `;
 
-          topDomainsEl.appendChild(row)
-        })
+          topDomainsEl.appendChild(row);
+        });
 
         // Update request types
-        const requestTypesEl = document.getElementById("statsRequestTypes")
-        requestTypesEl.innerHTML = ""
+        const requestTypesEl = document.getElementById("statsRequestTypes");
+        requestTypesEl.innerHTML = "";
 
         Object.entries(stats.requestTypes).forEach(([type, count]) => {
-          const row = document.createElement("div")
-          row.className = "stat-row"
+          const row = document.createElement("div");
+          row.className = "stat-row";
           row.innerHTML = `
             <span class="stat-name">${type}:</span>
             <span class="stat-value">${count}</span>
-          `
+          `;
 
-          requestTypesEl.appendChild(row)
-        })
+          requestTypesEl.appendChild(row);
+        });
       }
-    })
+    });
   }
 
   // Load plots for plots tab
   function loadPlots() {
     chrome.runtime.sendMessage({ action: "getStats" }, (response) => {
       if (response && response.stats) {
-        const stats = response.stats
+        const stats = response.stats;
 
         // Create or update charts
-        createResponseTimeChart(stats)
-        createStatusCodeChart(stats)
-        createDomainChart(stats)
-        createRequestTypeChart(stats)
-        createTimeDistributionChart(stats)
+        createResponseTimeChart(stats);
+        createStatusCodeChart(stats);
+        createDomainChart(stats);
+        createRequestTypeChart(stats);
+        createTimeDistributionChart(stats);
       }
-    })
+    });
   }
 
   // Load visualization data
   function loadVisualizationData() {
     // Get filter values
-    const domain = document.getElementById("vizDomainFilter").value
-    const method = document.getElementById("vizMethodFilter").value
-    const statusCode = document.getElementById("vizStatusFilter").value
+    const domain = document.getElementById("vizDomainFilter").value;
+    const method = document.getElementById("vizMethodFilter").value;
+    const statusCode = document.getElementById("vizStatusFilter").value;
 
     // Build filters object
-    const filters = {}
-    if (domain) filters.domain = domain
-    if (method) filters.method = method
-    if (statusCode) filters.statusCode = statusCode
+    const filters = {};
+    if (domain) filters.domain = domain;
+    if (method) filters.method = method;
+    if (statusCode) filters.statusCode = statusCode;
 
     // Request filtered stats from background script
     chrome.runtime.sendMessage(
@@ -763,36 +831,39 @@ document.addEventListener("DOMContentLoaded", async () => {
       (response) => {
         if (response && !response.error) {
           // Create or update visualization charts
-          createVizResponseTimeChart(response)
-          createVizStatusCodeChart(response)
-          createVizRequestTypeChart(response)
-          createVizTimeDistributionChart(response)
-          createVizSizeDistributionChart(response)
+          createVizResponseTimeChart(response);
+          createVizStatusCodeChart(response);
+          createVizRequestTypeChart(response);
+          createVizTimeDistributionChart(response);
+          createVizSizeDistributionChart(response);
         } else {
-          console.error("Error loading visualization data:", response?.error)
+          console.error("Error loading visualization data:", response?.error);
         }
-      },
-    )
+      }
+    );
 
     // Load domain options if not already loaded
     if (document.getElementById("vizDomainFilter").options.length <= 1) {
-      chrome.runtime.sendMessage({ action: "getDistinctValues", field: "domain" }, (response) => {
-        if (response && response.values) {
-          const select = document.getElementById("vizDomainFilter")
-          response.values.forEach((domain) => {
-            const option = document.createElement("option")
-            option.value = domain
-            option.textContent = domain
-            select.appendChild(option)
-          })
+      chrome.runtime.sendMessage(
+        { action: "getDistinctValues", field: "domain" },
+        (response) => {
+          if (response && response.values) {
+            const select = document.getElementById("vizDomainFilter");
+            response.values.forEach((domain) => {
+              const option = document.createElement("option");
+              option.value = domain;
+              option.textContent = domain;
+              select.appendChild(option);
+            });
+          }
         }
-      })
+      );
     }
   }
 
   // Create response time distribution chart
   function createResponseTimeChart(stats) {
-    if (!responseTimePlot) return
+    if (!responseTimePlot) return;
 
     // Define bins for response time (in ms)
     const bins = [
@@ -802,64 +873,69 @@ document.addEventListener("DOMContentLoaded", async () => {
       { label: "500ms-1s", min: 500, max: 1000 },
       { label: "1s-3s", min: 1000, max: 3000 },
       { label: "3s+", min: 3000, max: Number.POSITIVE_INFINITY },
-    ]
+    ];
 
     // Request response time distribution from background script
-    chrome.runtime.sendMessage({ action: "getResponseTimeDistribution" }, (response) => {
-      // Dummy data if no response
-      const responseTimes = response?.distribution || []
+    chrome.runtime.sendMessage(
+      { action: "getResponseTimeDistribution" },
+      (response) => {
+        // Dummy data if no response
+        const responseTimes = response?.distribution || [];
 
-      // Count requests in each bin
-      const data = bins.map((bin) => {
-        return responseTimes.filter((time) => time >= bin.min && time < bin.max).length
-      })
+        // Count requests in each bin
+        const data = bins.map((bin) => {
+          return responseTimes.filter(
+            (time) => time >= bin.min && time < bin.max
+          ).length;
+        });
 
-      // Destroy existing chart
-      if (charts.responseTime) {
-        charts.responseTime.destroy()
-      }
+        // Destroy existing chart
+        if (charts.responseTime) {
+          charts.responseTime.destroy();
+        }
 
-      // Create new chart
-      charts.responseTime = new Chart(responseTimePlot.getContext("2d"), {
-        type: "bar",
-        data: {
-          labels: bins.map((bin) => bin.label),
-          datasets: [
-            {
-              label: "Number of Requests",
-              data: data,
-              backgroundColor: "rgba(54, 162, 235, 0.5)",
-              borderColor: "rgba(54, 162, 235, 1)",
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: "Number of Requests",
+        // Create new chart
+        charts.responseTime = new Chart(responseTimePlot.getContext("2d"), {
+          type: "bar",
+          data: {
+            labels: bins.map((bin) => bin.label),
+            datasets: [
+              {
+                label: "Number of Requests",
+                data: data,
+                backgroundColor: "rgba(54, 162, 235, 0.5)",
+                borderColor: "rgba(54, 162, 235, 1)",
+                borderWidth: 1,
               },
-            },
-            x: {
-              title: {
-                display: true,
-                text: "Response Time",
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: "Number of Requests",
+                },
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: "Response Time",
+                },
               },
             },
           },
-        },
-      })
-    })
+        });
+      }
+    );
   }
 
   // Create status code distribution chart
   function createStatusCodeChart(stats) {
-    if (!statusCodePlot) return
+    if (!statusCodePlot) return;
 
     // Group status codes by category
     const statusGroups = {
@@ -868,17 +944,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       "4xx": 0,
       "5xx": 0,
       Other: 0,
-    }
+    };
 
     // Count status codes
     Object.entries(stats.statusCodes).forEach(([code, count]) => {
-      const codeNum = Number.parseInt(code, 10)
-      if (codeNum >= 200 && codeNum < 300) statusGroups["2xx"] += count
-      else if (codeNum >= 300 && codeNum < 400) statusGroups["3xx"] += count
-      else if (codeNum >= 400 && codeNum < 500) statusGroups["4xx"] += count
-      else if (codeNum >= 500 && codeNum < 600) statusGroups["5xx"] += count
-      else statusGroups["Other"] += count
-    })
+      const codeNum = Number.parseInt(code, 10);
+      if (codeNum >= 200 && codeNum < 300) statusGroups["2xx"] += count;
+      else if (codeNum >= 300 && codeNum < 400) statusGroups["3xx"] += count;
+      else if (codeNum >= 400 && codeNum < 500) statusGroups["4xx"] += count;
+      else if (codeNum >= 500 && codeNum < 600) statusGroups["5xx"] += count;
+      else statusGroups["Other"] += count;
+    });
 
     // Define colors for each category
     const colors = {
@@ -887,7 +963,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       "4xx": "rgba(255, 99, 132, 0.5)",
       "5xx": "rgba(153, 102, 255, 0.5)",
       Other: "rgba(201, 203, 207, 0.5)",
-    }
+    };
 
     const borderColors = {
       "2xx": "rgba(75, 192, 192, 1)",
@@ -895,11 +971,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       "4xx": "rgba(255, 99, 132, 1)",
       "5xx": "rgba(153, 102, 255, 1)",
       Other: "rgba(201, 203, 207, 1)",
-    }
+    };
 
     // Destroy existing chart
     if (charts.statusCode) {
-      charts.statusCode.destroy()
+      charts.statusCode.destroy();
     }
 
     // Create new chart
@@ -910,8 +986,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         datasets: [
           {
             data: Object.values(statusGroups),
-            backgroundColor: Object.keys(statusGroups).map((key) => colors[key]),
-            borderColor: Object.keys(statusGroups).map((key) => borderColors[key]),
+            backgroundColor: Object.keys(statusGroups).map(
+              (key) => colors[key]
+            ),
+            borderColor: Object.keys(statusGroups).map(
+              (key) => borderColors[key]
+            ),
             borderWidth: 1,
           },
         ],
@@ -926,28 +1006,29 @@ document.addEventListener("DOMContentLoaded", async () => {
           tooltip: {
             callbacks: {
               label: (context) => {
-                const label = context.label || ""
-                const value = context.raw || 0
-                const total = context.dataset.data.reduce((a, b) => a + b, 0)
-                const percentage = total > 0 ? Math.round((value / total) * 100) : 0
-                return `${label}: ${value} (${percentage}%)`
+                const label = context.label || "";
+                const value = context.raw || 0;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage =
+                  total > 0 ? Math.round((value / total) * 100) : 0;
+                return `${label}: ${value} (${percentage}%)`;
               },
             },
           },
         },
       },
-    })
+    });
   }
 
   // Create domain distribution chart
   function createDomainChart(stats) {
-    if (!domainPlot) return
+    if (!domainPlot) return;
 
-    const topDomains = stats.topDomains || []
+    const topDomains = stats.topDomains || [];
 
     // Destroy existing chart
     if (charts.domain) {
-      charts.domain.destroy()
+      charts.domain.destroy();
     }
 
     // Create new chart
@@ -979,18 +1060,18 @@ document.addEventListener("DOMContentLoaded", async () => {
           },
         },
       },
-    })
+    });
   }
 
   // Create request type distribution chart
   function createRequestTypeChart(stats) {
-    if (!requestTypePlot) return
+    if (!requestTypePlot) return;
 
-    const requestTypes = stats.requestTypes || {}
+    const requestTypes = stats.requestTypes || {};
 
     // Destroy existing chart
     if (charts.requestType) {
-      charts.requestType.destroy()
+      charts.requestType.destroy();
     }
 
     // Create new chart
@@ -1033,40 +1114,41 @@ document.addEventListener("DOMContentLoaded", async () => {
           tooltip: {
             callbacks: {
               label: (context) => {
-                const label = context.label || ""
-                const value = context.raw || 0
-                const total = context.dataset.data.reduce((a, b) => a + b, 0)
-                const percentage = total > 0 ? Math.round((value / total) * 100) : 0
-                return `${label}: ${value} (${percentage}%)`
+                const label = context.label || "";
+                const value = context.raw || 0;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage =
+                  total > 0 ? Math.round((value / total) * 100) : 0;
+                return `${label}: ${value} (${percentage}%)`;
               },
             },
           },
         },
       },
-    })
+    });
   }
 
   // Create time distribution chart
   function createTimeDistributionChart(stats) {
-    if (!timeDistributionPlot) return
+    if (!timeDistributionPlot) return;
 
-    const timeDistribution = stats.timeDistribution || {}
+    const timeDistribution = stats.timeDistribution || {};
 
     // Create labels for each hour
-    const labels = []
+    const labels = [];
     for (let i = 0; i < 24; i++) {
-      labels.push(`${i}:00`)
+      labels.push(`${i}:00`);
     }
 
     // Create data array
-    const data = []
+    const data = [];
     for (let i = 0; i < 24; i++) {
-      data.push(timeDistribution[i] || 0)
+      data.push(timeDistribution[i] || 0);
     }
 
     // Destroy existing chart
     if (charts.timeDistribution) {
-      charts.timeDistribution.destroy()
+      charts.timeDistribution.destroy();
     }
 
     // Create new chart
@@ -1105,12 +1187,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           },
         },
       },
-    })
+    });
   }
 
   // Create visualization charts
   function createVizResponseTimeChart(data) {
-    if (!vizResponseTimePlot) return
+    if (!vizResponseTimePlot) return;
 
     // Define bins for response time (in ms)
     const bins = [
@@ -1120,16 +1202,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       { label: "500ms-1s", min: 500, max: 1000 },
       { label: "1s-3s", min: 1000, max: 3000 },
       { label: "3s+", min: 3000, max: Number.POSITIVE_INFINITY },
-    ]
+    ];
 
     // Count requests in each bin
     const responseTimeCounts = bins.map((bin) => {
-      return data.responseTimes.filter((time) => time >= bin.min && time < bin.max).length
-    })
+      return data.responseTimes.filter(
+        (time) => time >= bin.min && time < bin.max
+      ).length;
+    });
 
     // Destroy existing chart
     if (charts.vizResponseTime) {
-      charts.vizResponseTime.destroy()
+      charts.vizResponseTime.destroy();
     }
 
     // Create new chart
@@ -1175,12 +1259,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           },
         },
       },
-    })
+    });
   }
 
   // Create visualization status code chart
   function createVizStatusCodeChart(data) {
-    if (!vizStatusCodePlot) return
+    if (!vizStatusCodePlot) return;
 
     // Group status codes by category
     const statusGroups = {
@@ -1189,17 +1273,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       "4xx": 0,
       "5xx": 0,
       Other: 0,
-    }
+    };
 
     // Count status codes
     Object.entries(data.statusCodes).forEach(([code, count]) => {
-      const codeNum = Number.parseInt(code, 10)
-      if (codeNum >= 200 && codeNum < 300) statusGroups["2xx"] += count
-      else if (codeNum >= 300 && codeNum < 400) statusGroups["3xx"] += count
-      else if (codeNum >= 400 && codeNum < 500) statusGroups["4xx"] += count
-      else if (codeNum >= 500 && codeNum < 600) statusGroups["5xx"] += count
-      else statusGroups["Other"] += count
-    })
+      const codeNum = Number.parseInt(code, 10);
+      if (codeNum >= 200 && codeNum < 300) statusGroups["2xx"] += count;
+      else if (codeNum >= 300 && codeNum < 400) statusGroups["3xx"] += count;
+      else if (codeNum >= 400 && codeNum < 500) statusGroups["4xx"] += count;
+      else if (codeNum >= 500 && codeNum < 600) statusGroups["5xx"] += count;
+      else statusGroups["Other"] += count;
+    });
 
     // Define colors for each category
     const colors = {
@@ -1208,7 +1292,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       "4xx": "rgba(255, 99, 132, 0.5)",
       "5xx": "rgba(153, 102, 255, 0.5)",
       Other: "rgba(201, 203, 207, 0.5)",
-    }
+    };
 
     const borderColors = {
       "2xx": "rgba(75, 192, 192, 1)",
@@ -1216,11 +1300,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       "4xx": "rgba(255, 99, 132, 1)",
       "5xx": "rgba(153, 102, 255, 1)",
       Other: "rgba(201, 203, 207, 1)",
-    }
+    };
 
     // Destroy existing chart
     if (charts.vizStatusCode) {
-      charts.vizStatusCode.destroy()
+      charts.vizStatusCode.destroy();
     }
 
     // Create new chart
@@ -1231,8 +1315,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         datasets: [
           {
             data: Object.values(statusGroups),
-            backgroundColor: Object.keys(statusGroups).map((key) => colors[key]),
-            borderColor: Object.keys(statusGroups).map((key) => borderColors[key]),
+            backgroundColor: Object.keys(statusGroups).map(
+              (key) => colors[key]
+            ),
+            borderColor: Object.keys(statusGroups).map(
+              (key) => borderColors[key]
+            ),
             borderWidth: 1,
           },
         ],
@@ -1251,26 +1339,27 @@ document.addEventListener("DOMContentLoaded", async () => {
           tooltip: {
             callbacks: {
               label: (context) => {
-                const label = context.label || ""
-                const value = context.raw || 0
-                const total = context.dataset.data.reduce((a, b) => a + b, 0)
-                const percentage = total > 0 ? Math.round((value / total) * 100) : 0
-                return `${label}: ${value} (${percentage}%)`
+                const label = context.label || "";
+                const value = context.raw || 0;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage =
+                  total > 0 ? Math.round((value / total) * 100) : 0;
+                return `${label}: ${value} (${percentage}%)`;
               },
             },
           },
         },
       },
-    })
+    });
   }
 
   // Create visualization request type chart
   function createVizRequestTypeChart(data) {
-    if (!vizRequestTypePlot) return
+    if (!vizRequestTypePlot) return;
 
     // Destroy existing chart
     if (charts.vizRequestType) {
-      charts.vizRequestType.destroy()
+      charts.vizRequestType.destroy();
     }
 
     // Create new chart
@@ -1317,88 +1406,92 @@ document.addEventListener("DOMContentLoaded", async () => {
           tooltip: {
             callbacks: {
               label: (context) => {
-                const label = context.label || ""
-                const value = context.raw || 0
-                const total = context.dataset.data.reduce((a, b) => a + b, 0)
-                const percentage = total > 0 ? Math.round((value / total) * 100) : 0
-                return `${label}: ${value} (${percentage}%)`
+                const label = context.label || "";
+                const value = context.raw || 0;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage =
+                  total > 0 ? Math.round((value / total) * 100) : 0;
+                return `${label}: ${value} (${percentage}%)`;
               },
             },
           },
         },
       },
-    })
+    });
   }
 
   // Create visualization time distribution chart
   function createVizTimeDistributionChart(data) {
-    if (!vizTimeDistributionPlot) return
+    if (!vizTimeDistributionPlot) return;
 
     // Create labels for each hour
-    const labels = []
+    const labels = [];
     for (let i = 0; i < 24; i++) {
-      labels.push(`${i}:00`)
+      labels.push(`${i}:00`);
     }
 
     // Create data array
-    const timeData = []
+    const timeData = [];
     for (let i = 0; i < 24; i++) {
-      timeData.push(data.timeDistribution[i] || 0)
+      timeData.push(data.timeDistribution[i] || 0);
     }
 
     // Destroy existing chart
     if (charts.vizTimeDistribution) {
-      charts.vizTimeDistribution.destroy()
+      charts.vizTimeDistribution.destroy();
     }
 
     // Create new chart
-    charts.vizTimeDistribution = new Chart(vizTimeDistributionPlot.getContext("2d"), {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Number of Requests",
-            data: timeData,
-            backgroundColor: "rgba(75, 192, 192, 0.2)",
-            borderColor: "rgba(75, 192, 192, 1)",
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: "Requests Over Time (Last 24 Hours)",
-          },
+    charts.vizTimeDistribution = new Chart(
+      vizTimeDistributionPlot.getContext("2d"),
+      {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Number of Requests",
+              data: timeData,
+              backgroundColor: "rgba(75, 192, 192, 0.2)",
+              borderColor: "rgba(75, 192, 192, 1)",
+              borderWidth: 2,
+              fill: true,
+              tension: 0.4,
+            },
+          ],
         },
-        scales: {
-          y: {
-            beginAtZero: true,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
             title: {
               display: true,
-              text: "Number of Requests",
+              text: "Requests Over Time (Last 24 Hours)",
             },
           },
-          x: {
-            title: {
-              display: true,
-              text: "Time",
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: "Number of Requests",
+              },
+            },
+            x: {
+              title: {
+                display: true,
+                text: "Time",
+              },
             },
           },
         },
-      },
-    })
+      }
+    );
   }
 
   // Create visualization size distribution chart
   function createVizSizeDistributionChart(data) {
-    if (!vizSizeDistributionPlot) return
+    if (!vizSizeDistributionPlot) return;
 
     // Define bins for size (in KB)
     const sizeBins = [
@@ -1408,86 +1501,89 @@ document.addEventListener("DOMContentLoaded", async () => {
       { label: "100-500KB", min: 100 * 1024, max: 500 * 1024 },
       { label: "500KB-1MB", min: 500 * 1024, max: 1024 * 1024 },
       { label: "1MB+", min: 1024 * 1024, max: Number.POSITIVE_INFINITY },
-    ]
+    ];
 
     // Count requests in each bin
     const sizeCounts = sizeBins.map((bin) => {
-      return data.sizes.filter((size) => size >= bin.min && size < bin.max).length
-    })
+      return data.sizes.filter((size) => size >= bin.min && size < bin.max)
+        .length;
+    });
 
     // Destroy existing chart
     if (charts.vizSizeDistribution) {
-      charts.vizSizeDistribution.destroy()
+      charts.vizSizeDistribution.destroy();
     }
 
     // Create new chart
-    charts.vizSizeDistribution = new Chart(vizSizeDistributionPlot.getContext("2d"), {
-      type: "bar",
-      data: {
-        labels: sizeBins.map((bin) => bin.label),
-        datasets: [
-          {
-            label: "Number of Requests",
-            data: sizeCounts,
-            backgroundColor: "rgba(153, 102, 255, 0.5)",
-            borderColor: "rgba(153, 102, 255, 1)",
-            borderWidth: 1,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: "Response Size Distribution",
-          },
-          legend: {
-            display: false,
-          },
+    charts.vizSizeDistribution = new Chart(
+      vizSizeDistributionPlot.getContext("2d"),
+      {
+        type: "bar",
+        data: {
+          labels: sizeBins.map((bin) => bin.label),
+          datasets: [
+            {
+              label: "Number of Requests",
+              data: sizeCounts,
+              backgroundColor: "rgba(153, 102, 255, 0.5)",
+              borderColor: "rgba(153, 102, 255, 1)",
+              borderWidth: 1,
+            },
+          ],
         },
-        scales: {
-          y: {
-            beginAtZero: true,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
             title: {
               display: true,
-              text: "Number of Requests",
+              text: "Response Size Distribution",
+            },
+            legend: {
+              display: false,
             },
           },
-          x: {
-            title: {
-              display: true,
-              text: "Response Size",
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: "Number of Requests",
+              },
+            },
+            x: {
+              title: {
+                display: true,
+                text: "Response Size",
+              },
             },
           },
         },
-      },
-    })
+      }
+    );
   }
 
   // Show notification
   function showNotification(message) {
-    const notification = document.createElement("div")
-    notification.className = "notification"
-    notification.textContent = message
+    const notification = document.createElement("div");
+    notification.className = "notification";
+    notification.textContent = message;
 
-    document.body.appendChild(notification)
+    document.body.appendChild(notification);
 
     // Show notification
     setTimeout(() => {
-      notification.classList.add("visible")
-    }, 10)
+      notification.classList.add("visible");
+    }, 10);
 
     // Hide notification after 3 seconds
     setTimeout(() => {
-      notification.classList.remove("visible")
+      notification.classList.remove("visible");
 
       // Remove from DOM after animation
       setTimeout(() => {
-        document.body.removeChild(notification)
-      }, 300)
-    }, 3000)
+        document.body.removeChild(notification);
+      }, 300);
+    }, 3000);
   }
-})
-
+});

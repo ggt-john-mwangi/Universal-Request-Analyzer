@@ -1,7 +1,7 @@
 const { zip } = require("zip-a-folder")
 const path = require("path")
 const fs = require("fs-extra")
-const manifest = require("../public/manifest.json")
+const manifest = require("../../public/manifest.json")
 
 async function packageExtension() {
   const buildDir = path.resolve(__dirname, "../build")
