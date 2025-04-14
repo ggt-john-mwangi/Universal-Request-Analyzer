@@ -72,7 +72,17 @@ module.exports = (env, argv) => {
       new CopyWebpackPlugin({
         patterns: [
           { from: "./src/manifest.json", to: "manifest.json" },
-          { from: "./src/icons/**/*", to: "icons/[name][ext]" },
+          { from: "./src/assets/icons/**/*", to: "assets/icons/[name][ext]" },
+          {
+            from: "./src/assets/fontawesome/css/**/*",
+            to: "assets/fontawesome/css/[name][ext]",
+          },
+          {
+            from: "./src/assets/fontawesome/webfonts/**/*",
+            to: "assets/fontawesome/webfonts/[name][ext]",
+          },
+          // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
+          { from: "./src/lib/**/*", to: "lib/[name][ext]" },
         ],
       }),
       new HtmlWebpackPlugin({
@@ -84,6 +94,11 @@ module.exports = (env, argv) => {
         template: "./src/options/options.html",
         filename: "options.html",
         chunks: ["options"],
+      }),
+      new HtmlWebpackPlugin({
+        template: "./src/devtools/devtools.html",
+        filename: "devtools.html",
+        chunks: ["devtools"],
       }),
     ],
     resolve: {

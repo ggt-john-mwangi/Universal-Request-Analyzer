@@ -1,26 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
+  <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css"> -->
+  <link rel="stylesheet" href="lib/chart.min.css">
+  <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
 </head>
-<body>
-  <header>
-    <h1>Universal Request Analyzer</h1>
+
+<body class="popup_container no-scrollbar">
+  <header class="popup_header">
+    <div class="logo">
+      <img src="assets/logo.png" alt="URA">
+    </div>
+    <h1 class="title">Universal Request Analyzer</h1>
     <div class="controls">
-      <button id="configBtn" title="Configuration">Config</button>
-      <button id="clearBtn" title="Clear all requests">Clear</button>
-      <button id="exportBtn" title="Export data">Export</button>
-      <button id="filterBtn" title="Filter requests">Filter</button>
+      <button id="configBtn" title="Configuration">
+        <i class="fas fa-cog"></i> Config
+      </button>
+      <button id="clearBtn" title="Clear all requests">
+        <i class="fas fa-trash"></i> Clear
+      </button>
+      <button id="exportBtn" title="Export data">
+        <i class="fas fa-file-export"></i> Export
+      </button>
+      <button id="filterBtn" title="Filter requests">
+        <i class="fas fa-filter"></i> Filter
+      </button>
+      <button id="openOptions">
+        <i class="fas fa-sliders-h"></i> Open Options
+      </button>
+      <button id="closeBtn" title="Close">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
   </header>
-  
+
   <div class="filter-panel" id="filterPanel">
     <div class="filter-row">
-      <label for="statusFilter">Status:</label>
+      <label for="statusFilter">
+        <i class="fas fa-info-circle"></i> Status:
+      </label>
       <select id="statusFilter">
         <option value="all">All</option>
         <option value="completed">Completed</option>
@@ -29,7 +52,9 @@
       </select>
     </div>
     <div class="filter-row">
-      <label for="typeFilter">Type:</label>
+      <label for="typeFilter">
+        <i class="fas fa-tags"></i> Type:
+      </label>
       <select id="typeFilter">
         <option value="all">All</option>
         <option value="xmlhttprequest">XHR</option>
@@ -42,15 +67,21 @@
       </select>
     </div>
     <div class="filter-row">
-      <label for="domainFilter">Domain:</label>
+      <label for="domainFilter">
+        <i class="fas fa-globe"></i> Domain:
+      </label>
       <input type="text" id="domainFilter" placeholder="Filter by domain">
     </div>
     <div class="filter-row">
-      <label for="urlFilter">URL contains:</label>
+      <label for="urlFilter">
+        <i class="fas fa-link"></i> URL contains:
+      </label>
       <input type="text" id="urlFilter" placeholder="Filter by URL">
     </div>
     <div class="filter-row">
-      <label for="dateRangeFilter">Date Range:</label>
+      <label for="dateRangeFilter">
+        <i class="fas fa-calendar-alt"></i> Date Range:
+      </label>
       <div class="date-range">
         <input type="date" id="startDateFilter">
         <span>to</span>
@@ -62,7 +93,7 @@
       <button id="resetFilterBtn">Reset</button>
     </div>
   </div>
-  
+
   <div class="export-panel" id="exportPanel">
     <div class="export-row">
       <label for="exportFormat">Format:</label>
@@ -82,10 +113,10 @@
       <button id="cancelExportBtn">Cancel</button>
     </div>
   </div>
-  
+
   <div class="config-panel" id="configPanel">
     <h3>Configuration</h3>
-    
+
     <div class="config-section">
       <h4>Capture Settings</h4>
       <div class="config-row">
@@ -99,7 +130,7 @@
         <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
       </div>
     </div>
-    
+
     <div class="config-section">
       <h4>Capture Filters</h4>
       <div class="config-row">
@@ -123,7 +154,7 @@
         <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
       </div>
     </div>
-    
+
     <div class="config-section">
       <h4>Auto Export</h4>
       <div class="config-row">
@@ -145,7 +176,7 @@
         <input type="number" id="exportInterval" min="5" max="1440" step="5">
       </div>
     </div>
-    
+
     <div class="config-section">
       <h4>Visualization</h4>
       <div class="config-row">
@@ -165,19 +196,19 @@
         </div>
       </div>
     </div>
-    
+
     <div class="config-actions">
       <button id="saveConfigBtn">Save</button>
       <button id="cancelConfigBtn">Cancel</button>
     </div>
   </div>
-  
+
   <div class="tabs">
     <button class="tab-btn active" data-tab="requests">Requests</button>
     <button class="tab-btn" data-tab="stats">Statistics</button>
     <button class="tab-btn" data-tab="plots">Plots</button>
   </div>
-  
+
   <div class="tab-content active" id="requests-tab">
     <div class="stats-panel">
       <div class="stat-item">
@@ -193,7 +224,7 @@
         <span class="stat-value" id="successRate">0%</span>
       </div>
     </div>
-    
+
     <div class="requests-container">
       <table id="requestsTable">
         <thead>
@@ -212,7 +243,7 @@
           <!-- Request rows will be added here dynamically -->
         </tbody>
       </table>
-      
+
       <div class="pagination">
         <button id="prevPageBtn" disabled>&laquo; Previous</button>
         <span id="pageInfo">Page 1 of 1</span>
@@ -220,7 +251,7 @@
       </div>
     </div>
   </div>
-  
+
   <div class="tab-content" id="stats-tab">
     <div class="stats-grid">
       <div class="stats-card">
@@ -244,21 +275,21 @@
           </div>
         </div>
       </div>
-      
+
       <div class="stats-card">
         <h3>Status Codes</h3>
         <div class="stats-data" id="statsStatusCodes">
           <!-- Status code data will be added here dynamically -->
         </div>
       </div>
-      
+
       <div class="stats-card">
         <h3>Top Domains</h3>
         <div class="stats-data" id="statsTopDomains">
           <!-- Domain data will be added here dynamically -->
         </div>
       </div>
-      
+
       <div class="stats-card">
         <h3>Request Types</h3>
         <div class="stats-data" id="statsRequestTypes">
@@ -267,7 +298,7 @@
       </div>
     </div>
   </div>
-  
+
   <div class="tab-content" id="plots-tab">
     <div class="plots-grid">
       <div class="plot-card">
@@ -276,28 +307,28 @@
           <canvas id="responseTimePlot"></canvas>
         </div>
       </div>
-      
+
       <div class="plot-card">
         <h3>Status Code Distribution</h3>
         <div class="plot-container">
           <canvas id="statusCodePlot"></canvas>
         </div>
       </div>
-      
+
       <div class="plot-card">
         <h3>Top Domains</h3>
         <div class="plot-container">
           <canvas id="domainPlot"></canvas>
         </div>
       </div>
-      
+
       <div class="plot-card">
         <h3>Request Types</h3>
         <div class="plot-container">
           <canvas id="requestTypePlot"></canvas>
         </div>
       </div>
-      
+
       <div class="plot-card wide">
         <h3>Requests Over Time (Last 24 Hours)</h3>
         <div class="plot-container">
@@ -306,7 +337,7 @@
       </div>
     </div>
   </div>
-  
+
   <div id="requestDetails" class="request-details">
     <div class="details-header">
       <h3>Request Details</h3>
@@ -353,7 +384,7 @@
         <span class="detail-label">Duration:</span>
         <span class="detail-value" id="detailDuration"></span>
       </div>
-      
+
       <h4>Timing Breakdown</h4>
       <div class="timing-chart">
         <div class="timing-bar-container">
@@ -392,16 +423,16 @@
           </div>
         </div>
       </div>
-      
+
       <h4>Headers</h4>
       <div class="headers-container" id="headersContainer">
         <!-- Headers will be added here dynamically -->
       </div>
     </div>
   </div>
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script> -->
   <script src="popup.js"></script>
 </body>
-</html>
 
+</html>

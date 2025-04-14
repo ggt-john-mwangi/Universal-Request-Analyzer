@@ -48,7 +48,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const pageInfoEl = document.getElementById("pageInfo");
   const tabButtons = document.querySelectorAll(".tab-btn");
   const tabContents = document.querySelectorAll(".tab-content");
-
+  const OptionsPage = document.getElementById("openOptions");
+  const closeBtn = document.getElementById("closeBtn");
   // Filter elements
   const statusFilter = document.getElementById("statusFilter");
   const typeFilter = document.getElementById("typeFilter");
@@ -170,7 +171,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   nextPageBtn.addEventListener("click", () => changePage(currentPage + 1));
   vizApplyFilterBtn.addEventListener("click", applyVisualizationFilters);
   vizResetFilterBtn.addEventListener("click", resetVisualizationFilters);
-
+  OptionsPage.addEventListener("click", () => openOptionsPage);
+  closeBtn.addEventListener("click", () => closeBtnClick());
+  // Close button click event
+  closeBtnClick = () => {
+    window.close();
+  };
+  // Open options page
+  openOptionsPage = () => {
+    document.getElementById("open-options").addEventListener("click", () => {
+      if (chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        window.open(chrome.runtime.getURL("options.html"));
+      }
+    });
+  };
   // Tab navigation
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {

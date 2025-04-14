@@ -1,8 +1,61 @@
-/* Tabs */
+.popup_container {
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  width: 800px;
+  height: 600px;
+  overflow: scroll;
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 2px;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.popup-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary-color);
+}
+
+.controls {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 1;
+}
+
+.controls button {
+  display: flex;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px !important;
+  color: var(--text-primary-color);
+}
+
+.controls button:hover {
+  background-color: var(--divider-color);
+}
+
+.controls button:focus-visible {
+  outline: 2px solid var(--primary-color);
+}
+
 .tabs {
   display: flex;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #ddd;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .tab-btn {
@@ -12,27 +65,29 @@
   border-bottom: 2px solid transparent;
   cursor: pointer;
   font-weight: 500;
+  color: var(--text-secondary-color);
 }
 
 .tab-btn.active {
-  border-bottom-color: #0066cc;
-  color: #0066cc;
+  border-bottom-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 .tab-content {
   display: none;
   height: calc(100% - 90px);
   overflow: auto;
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
 }
 
 .tab-content.active {
   display: block;
 }
 
-/* Filter Panel */
 .filter-panel {
-  background-color: #f9f9f9;
-  border-bottom: 1px solid #ddd;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
   padding: 12px 16px;
   display: none;
   position: absolute;
@@ -40,7 +95,7 @@
   right: 0;
   width: 350px;
   z-index: 100;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px var(--shadow-color);
 }
 
 .filter-panel.visible {
@@ -56,13 +111,16 @@
 .filter-row label {
   width: 100px;
   font-weight: 500;
+  color: var(--text-primary-color);
 }
 
 .filter-row select,
 .filter-row input {
   flex: 1;
   padding: 6px;
-  border: 1px solid #ddd;
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
 }
 
@@ -89,10 +147,20 @@
   margin-top: 8px;
 }
 
+.filter-actions button {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.filter-actions button:hover {
+  background-color: var(--primary-color);
+  filter: brightness(90%);
+}
+
 /* Export Panel */
 .export-panel {
-  background-color: #f9f9f9;
-  border-bottom: 1px solid #ddd;
+  /* background-color: #f9f9f9;
+  border-bottom: 1px solid #ddd; */
   padding: 12px 16px;
   display: none;
   position: absolute;
@@ -592,4 +660,16 @@ h4 {
 
 .notification.visible {
   bottom: 20px;
+}
+
+/* Class to hide the visible scrollbar but still allow scrolling.
+   This enables scrolling with overflow content without showing scrollbar indicators. */
+.no-scrollbar {
+  overflow: auto; /* Enables scrolling if content overflows */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
 }
