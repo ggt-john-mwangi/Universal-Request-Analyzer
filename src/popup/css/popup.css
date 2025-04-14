@@ -33,6 +33,18 @@
   align-items: center;
   flex: 1;
 }
+.fas {
+  margin-right: 4px;
+}
+#closeBtn {
+  background-color: transparent;
+  border: 1px solid var(--error-color);
+}
+
+#closeBtn .fas {
+  color: var(--error-color);
+  margin-right: 0;
+}
 
 .controls button {
   display: flex;

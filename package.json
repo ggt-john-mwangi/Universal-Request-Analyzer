@@ -14,7 +14,12 @@
     "lint:fix": "eslint src/**/*.js --fix",
     "clean": "rimraf dist"
   },
-  "keywords": ["browser-extension", "network", "requests", "analyzer"],
+  "keywords": [
+    "browser-extension",
+    "network",
+    "requests",
+    "analyzer"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -42,8 +47,12 @@
   },
   "dependencies": {
     "chart.js": "^4.3.0",
+    "crypto-browserify": "^3.12.1",
     "date-fns": "^2.30.0",
-    "dexie": "^3.2.4"
+    "dexie": "^3.2.4",
+    "path-browserify": "^1.0.1",
+    "sql.js": "^1.13.0",
+    "stream-browserify": "^3.0.0",
+    "vm-browserify": "^1.1.2"
   }
 }
-

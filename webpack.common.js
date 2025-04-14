@@ -51,6 +51,11 @@ module.exports = {
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
+    fallback: {
+      "fs": false,
+      "path": require.resolve("path-browserify"),
+      "crypto": require.resolve("crypto-browserify")
+    }
   },
   plugins: [
     new CleanWebpackPlugin(),

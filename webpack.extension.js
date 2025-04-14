@@ -1,6 +1,6 @@
-const path = require("path")
-const CopyPlugin = require("copy-webpack-plugin")
-const HtmlWebpackPlugin = require("html-webpack-plugin")
+const path = require("path");
+const CopyPlugin = require("copy-webpack-plugin");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
   mode: "production",
@@ -52,6 +52,11 @@ module.exports = {
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
+    fallback: {
+      fs: false,
+      path: require.resolve("path-browserify"),
+      crypto: require.resolve("crypto-browserify"),
+    },
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -71,5 +76,4 @@ module.exports = {
       ],
     }),
   ],
-}
-
+};

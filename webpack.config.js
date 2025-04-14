@@ -81,6 +81,10 @@ module.exports = (env, argv) => {
             from: "./src/assets/fontawesome/webfonts/**/*",
             to: "assets/fontawesome/webfonts/[name][ext]",
           },
+          {
+            from: "./src/assets/wasm/**/*",
+            to: "assets/wasm/[name][ext]",
+          },
           // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
         ],
@@ -105,6 +109,13 @@ module.exports = (env, argv) => {
       extensions: [".js"],
       alias: {
         "@": path.resolve(__dirname, "src"),
+      },
+      fallback: {
+        fs: false,
+        path: require.resolve("path-browserify"),
+        crypto: require.resolve("crypto-browserify"),
+        vm: require.resolve("vm-browserify"),
+        stream: require.resolve("stream-browserify"),
       },
     },
     optimization: {

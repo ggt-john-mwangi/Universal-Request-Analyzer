@@ -4,7 +4,6 @@ let SQL = null;
 
 export async function initSqlJs() {
   if (SQL) return SQL;
-
   try {
     // Determine the global object
     const globalObject =
@@ -55,18 +54,74 @@ export async function initSqlJs() {
 // Load SQL.js script dynamically
 async function loadSqlJsScript() {
   if (typeof document === "undefined") {
+    console.warn(
+      "Cannot load SQL.js script: document is not defined. Falling back to Node.js-compatible loading."
+    );
+    // Attempt to load SQL.js in a Node.js environment
+    if (typeof require !== "undefined") {
+      try {
+        const sqlJs = "assets/wasm/sql-wasm.js";
+        global.initSqlJs = sqlJs;
+        return;
+      } catch (error) {
+        throw new Error(
+          "Failed to load SQL.js in Node.js environment: " + error.message
+        );
+      }
+    }
     throw new Error(
-      "Cannot load SQL.js script: document is not defined. This function must be run in a browser environment."
+      "Cannot load SQL.js script: document is not defined and Node.js fallback failed."
     );
   }
 
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src =
-      "lib/sql-wasm.js" ||
-      "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js";
-    script.onload = resolve;
-    script.onerror = reject;
+    script.src = chrome.runtime.getURL("assets/wasm/sql-wasm.js");
+    script.onload = () => {
+      if (typeof window.initSqlJs === "function") {
+        resolve();
+      } else {
+        reject(new Error("SQL.js script loaded but initSqlJs is not defined."));
+      }
+    };
+    script.onerror = () => {
+      reject(new Error("Failed to load SQL.js script."));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// Dynamically load and initialize the sql-wasm.js script
+export async function getInitSqlJs() {
+  if (typeof window.initSqlJs === "function") {
+    // If already loaded, return the initialized function
+    return window.initSqlJs({
+      locateFile: (file) => chrome.runtime.getURL(`assets/wasm/${file}`),
+    });
+  }
+
+  // Dynamically load the sql-wasm.js script
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = chrome.runtime.getURL("assets/wasm/sql-wasm.js");
+    script.onload = () => {
+      if (typeof window.initSqlJs === "function") {
+        resolve(
+          window.initSqlJs({
+            locateFile: (file) => chrome.runtime.getURL(`assets/wasm/${file}`),
+          })
+        );
+      } else {
+        reject(
+          new Error(
+            "Failed to initialize SQL-WASM.js: initSqlJs is not defined."
+          )
+        );
+      }
+    };
+    script.onerror = () => {
+      reject(new Error("Failed to load sql-wasm.js script."));
+    };
     document.head.appendChild(script);
   });
 }

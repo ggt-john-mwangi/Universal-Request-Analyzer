@@ -1,52 +1,54 @@
 // Database manager - handles all database operations
 
-import { initSqlJs } from "./sql-js-loader.js"
-import { createTables } from "./schema.js"
-import { migrateDatabase } from "./migrations.js"
-import { DatabaseError } from "../errors/error-types.js"
+import { initSqlJs } from "./sql-js-loader.js";
+import { createTables } from "./schema.js";
+import { migrateDatabase } from "./migrations.js";
+import { DatabaseError } from "../errors/error-types.js";
 
-let db = null
-let encryptionManager = null
-let eventBus = null
+let db = null;
+let encryptionManager = null;
+let eventBus = null;
 
 // Initialize the database
 export async function initDatabase(dbConfig, encryptionMgr, events) {
   try {
-    encryptionManager = encryptionMgr
-    eventBus = events
+    encryptionManager = encryptionMgr;
+    eventBus = events;
 
     // Load SQL.js
-    const SQL = await initSqlJs()
-
+    // const SQL = await initSqlJs()
+    const SQL = await initSqlJs({
+      locateFile: (file) => chrome.runtime.getURL(`assets/wasm/${file}`),
+    });
     // Check if we have a saved database
-    const savedDb = await loadSavedDatabase()
+    const savedDb = await loadSavedDatabase();
 
     if (savedDb) {
       // Open existing database
-      db = new SQL.Database(savedDb)
-      console.log("Opened existing database")
+      db = new SQL.Database(savedDb);
+      console.log("Opened existing database");
 
       // Run migrations if needed
-      await migrateDatabase(db)
+      await migrateDatabase(db);
     } else {
       // Create new database
-      db = new SQL.Database()
-      console.log("Created new database")
+      db = new SQL.Database();
+      console.log("Created new database");
 
       // Create tables
-      await createTables(db)
+      await createTables(db);
     }
 
     // Set up auto-save interval
-    setInterval(() => saveDatabase(), dbConfig.autoSaveInterval || 60000)
+    setInterval(() => saveDatabase(), dbConfig.autoSaveInterval || 60000);
 
     // Set up auto-vacuum interval if enabled
     if (dbConfig.autoVacuum) {
-      setInterval(() => vacuumDatabase(), dbConfig.vacuumInterval || 3600000)
+      setInterval(() => vacuumDatabase(), dbConfig.vacuumInterval || 3600000);
     }
 
     // Publish database ready event
-    eventBus.publish("database:ready", { timestamp: Date.now() })
+    eventBus.publish("database:ready", { timestamp: Date.now() });
 
     // Return database manager interface
     return {
@@ -67,216 +69,233 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
       encryptDatabase,
       decryptDatabase,
       backupDatabase,
-    }
+    };
   } catch (error) {
-    console.error("Failed to initialize database:", error)
-    throw new DatabaseError("Failed to initialize database", error)
+    console.error("Failed to initialize database:", error);
+    throw new DatabaseError("Failed to initialize database", error);
   }
 }
 
 // Load saved database from storage
 async function loadSavedDatabase() {
   return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.local
+    ) {
       chrome.storage.local.get("database", (result) => {
         if (result.database) {
           // Check if database is encrypted
           if (result.database.encrypted && encryptionManager) {
             try {
-              const decrypted = encryptionManager.decrypt(result.database.data)
-              resolve(decrypted)
+              const decrypted = encryptionManager.decrypt(result.database.data);
+              resolve(decrypted);
             } catch (error) {
-              console.error("Failed to decrypt database:", error)
-              resolve(null)
+              console.error("Failed to decrypt database:", error);
+              resolve(null);
             }
           } else if (result.database.data) {
-            resolve(result.database.data)
+            resolve(result.database.data);
           } else {
-            resolve(null)
+            resolve(null);
           }
         } else {
-          resolve(null)
+          resolve(null);
         }
-      })
+      });
     } else {
-      console.warn("Chrome storage API not available.")
-      resolve(null)
+      console.warn("Chrome storage API not available.");
+      resolve(null);
     }
-  })
+  });
 }
 
 // Save database to storage
 async function saveDatabase() {
-  if (!db) return
+  if (!db) return;
 
   try {
-    const data = db.export()
-    const isEncrypted = encryptionManager && encryptionManager.isEnabled()
+    const data = db.export();
+    const isEncrypted = encryptionManager && encryptionManager.isEnabled();
 
-    let saveData
+    let saveData;
     if (isEncrypted) {
       saveData = {
         encrypted: true,
         data: encryptionManager.encrypt(data),
-      }
+      };
     } else {
       saveData = {
         encrypted: false,
         data: data,
-      }
+      };
     }
 
-    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({ database: saveData })
-      eventBus.publish("database:saved", { timestamp: Date.now(), size: data.length })
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.local
+    ) {
+      await chrome.storage.local.set({ database: saveData });
+      eventBus.publish("database:saved", {
+        timestamp: Date.now(),
+        size: data.length,
+      });
     } else {
-      console.warn("Chrome storage API not available.")
+      console.warn("Chrome storage API not available.");
     }
   } catch (error) {
-    console.error("Failed to save database:", error)
-    eventBus.publish("database:error", { error: "save_failed", message: error.message })
+    console.error("Failed to save database:", error);
+    eventBus.publish("database:error", {
+      error: "save_failed",
+      message: error.message,
+    });
   }
 }
 
 // Vacuum database to optimize storage
 function vacuumDatabase() {
-  if (!db) return
+  if (!db) return;
 
   try {
-    db.exec("VACUUM")
-    eventBus.publish("database:vacuumed", { timestamp: Date.now() })
+    db.exec("VACUUM");
+    eventBus.publish("database:vacuumed", { timestamp: Date.now() });
   } catch (error) {
-    console.error("Failed to vacuum database:", error)
-    eventBus.publish("database:error", { error: "vacuum_failed", message: error.message })
+    console.error("Failed to vacuum database:", error);
+    eventBus.publish("database:error", {
+      error: "vacuum_failed",
+      message: error.message,
+    });
   }
 }
 
 // Execute a single query
 function executeQuery(query, params = []) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    return db.exec(query, params)
+    return db.exec(query, params);
   } catch (error) {
-    console.error("Query execution failed:", error, { query, params })
-    throw new DatabaseError("Query execution failed", error)
+    console.error("Query execution failed:", error, { query, params });
+    throw new DatabaseError("Query execution failed", error);
   }
 }
 
 // Execute multiple queries in a transaction
 function executeTransaction(queries) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    db.exec("BEGIN TRANSACTION")
+    db.exec("BEGIN TRANSACTION");
 
     for (const { query, params } of queries) {
-      db.exec(query, params)
+      db.exec(query, params);
     }
 
-    db.exec("COMMIT")
-    return true
+    db.exec("COMMIT");
+    return true;
   } catch (error) {
-    db.exec("ROLLBACK")
-    console.error("Transaction failed:", error)
-    throw new DatabaseError("Transaction failed", error)
+    db.exec("ROLLBACK");
+    console.error("Transaction failed:", error);
+    throw new DatabaseError("Transaction failed", error);
   }
 }
 
 // Get requests with pagination and filtering
 function getRequests({ page = 1, limit = 100, filters = {} }) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
-  const offset = (page - 1) * limit
+  const offset = (page - 1) * limit;
   let query = `
     SELECT r.*, t.dns, t.tcp, t.ssl, t.ttfb, t.download
     FROM requests r
     LEFT JOIN request_timings t ON r.id = t.requestId
     WHERE 1=1
-  `
+  `;
 
-  const params = []
+  const params = [];
 
   // Apply filters
   if (filters.domain) {
-    query += " AND r.domain LIKE ?"
-    params.push(`%${filters.domain}%`)
+    query += " AND r.domain LIKE ?";
+    params.push(`%${filters.domain}%`);
   }
 
   if (filters.status) {
-    query += " AND r.status = ?"
-    params.push(filters.status)
+    query += " AND r.status = ?";
+    params.push(filters.status);
   }
 
   if (filters.type) {
-    query += " AND r.type = ?"
-    params.push(filters.type)
+    query += " AND r.type = ?";
+    params.push(filters.type);
   }
 
   if (filters.startDate) {
-    query += " AND r.timestamp >= ?"
-    params.push(new Date(filters.startDate).getTime())
+    query += " AND r.timestamp >= ?";
+    params.push(new Date(filters.startDate).getTime());
   }
 
   if (filters.endDate) {
-    query += " AND r.timestamp <= ?"
-    params.push(new Date(filters.endDate).getTime())
+    query += " AND r.timestamp <= ?";
+    params.push(new Date(filters.endDate).getTime());
   }
 
   if (filters.url) {
-    query += " AND r.url LIKE ?"
-    params.push(`%${filters.url}%`)
+    query += " AND r.url LIKE ?";
+    params.push(`%${filters.url}%`);
   }
 
   if (filters.method) {
-    query += " AND r.method = ?"
-    params.push(filters.method)
+    query += " AND r.method = ?";
+    params.push(filters.method);
   }
 
   // Add order and pagination
-  query += " ORDER BY r.timestamp DESC LIMIT ? OFFSET ?"
-  params.push(limit, offset)
+  query += " ORDER BY r.timestamp DESC LIMIT ? OFFSET ?";
+  params.push(limit, offset);
 
   // Execute query
-  const results = executeQuery(query, params)
+  const results = executeQuery(query, params);
 
   // Get total count for pagination
   let countQuery = `
     SELECT COUNT(*) as count
     FROM requests r
     WHERE 1=1
-  `
+  `;
 
   // Apply the same filters to count query
   if (filters.domain) {
-    countQuery += " AND r.domain LIKE ?"
+    countQuery += " AND r.domain LIKE ?";
   }
 
   if (filters.status) {
-    countQuery += " AND r.status = ?"
+    countQuery += " AND r.status = ?";
   }
 
   if (filters.type) {
-    countQuery += " AND r.type = ?"
+    countQuery += " AND r.type = ?";
   }
 
   if (filters.startDate) {
-    countQuery += " AND r.timestamp >= ?"
+    countQuery += " AND r.timestamp >= ?";
   }
 
   if (filters.endDate) {
-    countQuery += " AND r.timestamp <= ?"
+    countQuery += " AND r.timestamp <= ?";
   }
 
   if (filters.url) {
-    countQuery += " AND r.url LIKE ?"
+    countQuery += " AND r.url LIKE ?";
   }
 
   if (filters.method) {
-    countQuery += " AND r.method = ?"
+    countQuery += " AND r.method = ?";
   }
 
-  const countResult = executeQuery(countQuery, params.slice(0, -2))
+  const countResult = executeQuery(countQuery, params.slice(0, -2));
 
   return {
     requests: results[0] ? results[0].values : [],
@@ -284,12 +303,12 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
     total: countResult[0] ? countResult[0].values[0][0] : 0,
     page,
     limit,
-  }
+  };
 }
 
 // Save a request to the database
 function saveRequest(requestData) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     db.exec(
@@ -316,33 +335,33 @@ function saveRequest(requestData) {
         requestData.tabId || 0,
         requestData.pageUrl || "",
         requestData.error || "",
-      ],
-    )
+      ]
+    );
 
-    eventBus.publish("request:saved", { id: requestData.id })
-    return true
+    eventBus.publish("request:saved", { id: requestData.id });
+    return true;
   } catch (error) {
-    console.error("Failed to save request:", error)
-    throw new DatabaseError("Failed to save request", error)
+    console.error("Failed to save request:", error);
+    throw new DatabaseError("Failed to save request", error);
   }
 }
 
 // Update an existing request
 function updateRequest(id, updates) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     // Build update query dynamically based on provided updates
-    const fields = []
-    const values = []
+    const fields = [];
+    const values = [];
 
     Object.entries(updates).forEach(([key, value]) => {
-      fields.push(`${key} = ?`)
-      values.push(value)
-    })
+      fields.push(`${key} = ?`);
+      values.push(value);
+    });
 
     // Add ID to values
-    values.push(id)
+    values.push(id);
 
     db.exec(
       `
@@ -350,99 +369,102 @@ function updateRequest(id, updates) {
       SET ${fields.join(", ")}
       WHERE id = ?
     `,
-      values,
-    )
+      values
+    );
 
-    eventBus.publish("request:updated", { id })
-    return true
+    eventBus.publish("request:updated", { id });
+    return true;
   } catch (error) {
-    console.error("Failed to update request:", error)
-    throw new DatabaseError("Failed to update request", error)
+    console.error("Failed to update request:", error);
+    throw new DatabaseError("Failed to update request", error);
   }
 }
 
 // Delete a request
 function deleteRequest(id) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     // Delete related data first
-    db.exec("DELETE FROM request_headers WHERE requestId = ?", [id])
-    db.exec("DELETE FROM request_timings WHERE requestId = ?", [id])
+    db.exec("DELETE FROM request_headers WHERE requestId = ?", [id]);
+    db.exec("DELETE FROM request_timings WHERE requestId = ?", [id]);
 
     // Delete the request
-    db.exec("DELETE FROM requests WHERE id = ?", [id])
+    db.exec("DELETE FROM requests WHERE id = ?", [id]);
 
-    eventBus.publish("request:deleted", { id })
-    return true
+    eventBus.publish("request:deleted", { id });
+    return true;
   } catch (error) {
-    console.error("Failed to delete request:", error)
-    throw new DatabaseError("Failed to delete request", error)
+    console.error("Failed to delete request:", error);
+    throw new DatabaseError("Failed to delete request", error);
   }
 }
 
 // Get headers for a request
 function getRequestHeaders(requestId) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    const result = executeQuery("SELECT name, value FROM request_headers WHERE requestId = ?", [requestId])
+    const result = executeQuery(
+      "SELECT name, value FROM request_headers WHERE requestId = ?",
+      [requestId]
+    );
 
-    if (!result[0]) return []
+    if (!result[0]) return [];
 
-    return result[0].values.map(([name, value]) => ({ name, value }))
+    return result[0].values.map(([name, value]) => ({ name, value }));
   } catch (error) {
-    console.error("Failed to get request headers:", error)
-    throw new DatabaseError("Failed to get request headers", error)
+    console.error("Failed to get request headers:", error);
+    throw new DatabaseError("Failed to get request headers", error);
   }
 }
 
 // Save headers for a request
 function saveRequestHeaders(requestId, headers) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     // Delete existing headers first
-    db.exec("DELETE FROM request_headers WHERE requestId = ?", [requestId])
+    db.exec("DELETE FROM request_headers WHERE requestId = ?", [requestId]);
 
     // Insert new headers
     for (const header of headers) {
-      db.exec("INSERT INTO request_headers (requestId, name, value) VALUES (?, ?, ?)", [
-        requestId,
-        header.name,
-        header.value,
-      ])
+      db.exec(
+        "INSERT INTO request_headers (requestId, name, value) VALUES (?, ?, ?)",
+        [requestId, header.name, header.value]
+      );
     }
 
-    return true
+    return true;
   } catch (error) {
-    console.error("Failed to save request headers:", error)
-    throw new DatabaseError("Failed to save request headers", error)
+    console.error("Failed to save request headers:", error);
+    throw new DatabaseError("Failed to save request headers", error);
   }
 }
 
 // Get timing data for a request
 function getRequestTimings(requestId) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    const result = executeQuery("SELECT dns, tcp, ssl, ttfb, download FROM request_timings WHERE requestId = ?", [
-      requestId,
-    ])
+    const result = executeQuery(
+      "SELECT dns, tcp, ssl, ttfb, download FROM request_timings WHERE requestId = ?",
+      [requestId]
+    );
 
-    if (!result[0] || !result[0].values.length) return null
+    if (!result[0] || !result[0].values.length) return null;
 
-    const [dns, tcp, ssl, ttfb, download] = result[0].values[0]
-    return { dns, tcp, ssl, ttfb, download }
+    const [dns, tcp, ssl, ttfb, download] = result[0].values[0];
+    return { dns, tcp, ssl, ttfb, download };
   } catch (error) {
-    console.error("Failed to get request timings:", error)
-    throw new DatabaseError("Failed to get request timings", error)
+    console.error("Failed to get request timings:", error);
+    throw new DatabaseError("Failed to get request timings", error);
   }
 }
 
 // Save timing data for a request
 function saveRequestTimings(requestId, timings) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     db.exec(
@@ -451,32 +473,39 @@ function saveRequestTimings(requestId, timings) {
         requestId, dns, tcp, ssl, ttfb, download
       ) VALUES (?, ?, ?, ?, ?, ?)
     `,
-      [requestId, timings.dns || 0, timings.tcp || 0, timings.ssl || 0, timings.ttfb || 0, timings.download || 0],
-    )
+      [
+        requestId,
+        timings.dns || 0,
+        timings.tcp || 0,
+        timings.ssl || 0,
+        timings.ttfb || 0,
+        timings.download || 0,
+      ]
+    );
 
-    return true
+    return true;
   } catch (error) {
-    console.error("Failed to save request timings:", error)
-    throw new DatabaseError("Failed to save request timings", error)
+    console.error("Failed to save request timings:", error);
+    throw new DatabaseError("Failed to save request timings", error);
   }
 }
 
 // Get database size in bytes
 function getDatabaseSize() {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    const data = db.export()
-    return data.length
+    const data = db.export();
+    return data.length;
   } catch (error) {
-    console.error("Failed to get database size:", error)
-    throw new DatabaseError("Failed to get database size", error)
+    console.error("Failed to get database size:", error);
+    throw new DatabaseError("Failed to get database size", error);
   }
 }
 
 // Get database statistics
 function getDatabaseStats() {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     const stats = {
@@ -486,15 +515,19 @@ function getDatabaseStats() {
       topDomains: [],
       requestTypes: {},
       timeDistribution: {},
-    }
+    };
 
     // Get total requests
-    const totalResult = executeQuery("SELECT COUNT(*) FROM requests")
-    stats.totalRequests = totalResult[0] ? totalResult[0].values[0][0] : 0
+    const totalResult = executeQuery("SELECT COUNT(*) FROM requests");
+    stats.totalRequests = totalResult[0] ? totalResult[0].values[0][0] : 0;
 
     // Get average response time
-    const avgResult = executeQuery("SELECT AVG(duration) FROM requests WHERE duration > 0")
-    stats.avgResponseTime = avgResult[0] ? Math.round(avgResult[0].values[0][0] || 0) : 0
+    const avgResult = executeQuery(
+      "SELECT AVG(duration) FROM requests WHERE duration > 0"
+    );
+    stats.avgResponseTime = avgResult[0]
+      ? Math.round(avgResult[0].values[0][0] || 0)
+      : 0;
 
     // Get status code distribution
     const statusResult = executeQuery(`
@@ -503,12 +536,12 @@ function getDatabaseStats() {
       WHERE status > 0
       GROUP BY status
       ORDER BY count DESC
-    `)
+    `);
 
     if (statusResult[0]) {
       statusResult[0].values.forEach((row) => {
-        stats.statusCodes[row[0]] = row[1]
-      })
+        stats.statusCodes[row[0]] = row[1];
+      });
     }
 
     // Get top domains
@@ -519,13 +552,13 @@ function getDatabaseStats() {
       GROUP BY domain
       ORDER BY count DESC
       LIMIT 10
-    `)
+    `);
 
     if (domainResult[0]) {
       stats.topDomains = domainResult[0].values.map((row) => ({
         domain: row[0],
         count: row[1],
-      }))
+      }));
     }
 
     // Get request type distribution
@@ -534,17 +567,17 @@ function getDatabaseStats() {
       FROM requests
       GROUP BY type
       ORDER BY count DESC
-    `)
+    `);
 
     if (typeResult[0]) {
       typeResult[0].values.forEach((row) => {
-        stats.requestTypes[row[0]] = row[1]
-      })
+        stats.requestTypes[row[0]] = row[1];
+      });
     }
 
     // Get time distribution (last 24 hours by hour)
-    const now = Date.now()
-    const oneDayAgo = now - 24 * 60 * 60 * 1000
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
     const timeResult = executeQuery(`
       SELECT 
@@ -554,41 +587,41 @@ function getDatabaseStats() {
       WHERE timestamp >= ${oneDayAgo}
       GROUP BY hour
       ORDER BY hour
-    `)
+    `);
 
     if (timeResult[0]) {
       // Initialize all hours with 0
       for (let i = 0; i < 24; i++) {
-        stats.timeDistribution[i] = 0
+        stats.timeDistribution[i] = 0;
       }
 
       // Fill in actual data
       timeResult[0].values.forEach((row) => {
-        const hour = Math.min(Math.max(0, row[0]), 23)
-        stats.timeDistribution[hour] = row[1]
-      })
+        const hour = Math.min(Math.max(0, row[0]), 23);
+        stats.timeDistribution[hour] = row[1];
+      });
     }
 
-    return stats
+    return stats;
   } catch (error) {
-    console.error("Failed to get database stats:", error)
-    throw new DatabaseError("Failed to get database stats", error)
+    console.error("Failed to get database stats:", error);
+    throw new DatabaseError("Failed to get database stats", error);
   }
 }
 
 // Export database in various formats
 function exportDatabase(format) {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
     switch (format) {
       case "sqlite":
-        return db.export()
+        return db.export();
 
       case "json":
-        const requests = executeQuery("SELECT * FROM requests")
-        const timings = executeQuery("SELECT * FROM request_timings")
-        const headers = executeQuery("SELECT * FROM request_headers")
+        const requests = executeQuery("SELECT * FROM requests");
+        const timings = executeQuery("SELECT * FROM request_timings");
+        const headers = executeQuery("SELECT * FROM request_headers");
 
         return JSON.stringify(
           {
@@ -601,131 +634,136 @@ function exportDatabase(format) {
             exportDate: new Date().toISOString(),
           },
           null,
-          2,
-        )
+          2
+        );
 
       case "csv":
         const result = executeQuery(`
           SELECT r.*, t.dns, t.tcp, t.ssl, t.ttfb, t.download
           FROM requests r
           LEFT JOIN request_timings t ON r.id = t.requestId
-        `)
+        `);
 
-        if (!result[0]) return ""
+        if (!result[0]) return "";
 
-        const columns = result[0].columns
-        let csv = columns.join(",") + "\n"
+        const columns = result[0].columns;
+        let csv = columns.join(",") + "\n";
 
         result[0].values.forEach((row) => {
           // Escape fields that might contain commas
           const escapedRow = row.map((field) => {
-            if (field === null || field === undefined) return ""
-            const str = String(field)
-            return str.includes(",") ? `"${str}"` : str
-          })
+            if (field === null || field === undefined) return "";
+            const str = String(field);
+            return str.includes(",") ? `"${str}"` : str;
+          });
 
-          csv += escapedRow.join(",") + "\n"
-        })
+          csv += escapedRow.join(",") + "\n";
+        });
 
-        return csv
+        return csv;
 
       default:
-        throw new Error(`Unsupported export format: ${format}`)
+        throw new Error(`Unsupported export format: ${format}`);
     }
   } catch (error) {
-    console.error(`Failed to export database as ${format}:`, error)
-    throw new DatabaseError(`Failed to export database as ${format}`, error)
+    console.error(`Failed to export database as ${format}:`, error);
+    throw new DatabaseError(`Failed to export database as ${format}`, error);
   }
 }
 
 // Clear all data from the database
 function clearDatabase() {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    db.exec("DELETE FROM request_headers")
-    db.exec("DELETE FROM request_timings")
-    db.exec("DELETE FROM requests")
+    db.exec("DELETE FROM request_headers");
+    db.exec("DELETE FROM request_timings");
+    db.exec("DELETE FROM requests");
 
     // Vacuum to reclaim space
-    db.exec("VACUUM")
+    db.exec("VACUUM");
 
-    eventBus.publish("database:cleared", { timestamp: Date.now() })
-    return true
+    eventBus.publish("database:cleared", { timestamp: Date.now() });
+    return true;
   } catch (error) {
-    console.error("Failed to clear database:", error)
-    throw new DatabaseError("Failed to clear database", error)
+    console.error("Failed to clear database:", error);
+    throw new DatabaseError("Failed to clear database", error);
   }
 }
 
 // Encrypt the database with a new key
 function encryptDatabase(key) {
-  if (!db) throw new DatabaseError("Database not initialized")
-  if (!encryptionManager) throw new DatabaseError("Encryption manager not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
+  if (!encryptionManager)
+    throw new DatabaseError("Encryption manager not initialized");
 
   try {
     // Enable encryption with the provided key
-    encryptionManager.setKey(key)
-    encryptionManager.enable()
+    encryptionManager.setKey(key);
+    encryptionManager.enable();
 
     // Save the database to apply encryption
-    saveDatabase()
+    saveDatabase();
 
-    eventBus.publish("database:encrypted", { timestamp: Date.now() })
-    return true
+    eventBus.publish("database:encrypted", { timestamp: Date.now() });
+    return true;
   } catch (error) {
-    console.error("Failed to encrypt database:", error)
-    throw new DatabaseError("Failed to encrypt database", error)
+    console.error("Failed to encrypt database:", error);
+    throw new DatabaseError("Failed to encrypt database", error);
   }
 }
 
 // Decrypt the database
 function decryptDatabase(key) {
-  if (!db) throw new DatabaseError("Database not initialized")
-  if (!encryptionManager) throw new DatabaseError("Encryption manager not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
+  if (!encryptionManager)
+    throw new DatabaseError("Encryption manager not initialized");
 
   try {
     // Set the key and disable encryption
-    encryptionManager.setKey(key)
-    encryptionManager.disable()
+    encryptionManager.setKey(key);
+    encryptionManager.disable();
 
     // Save the database to apply decryption
-    saveDatabase()
+    saveDatabase();
 
-    eventBus.publish("database:decrypted", { timestamp: Date.now() })
-    return true
+    eventBus.publish("database:decrypted", { timestamp: Date.now() });
+    return true;
   } catch (error) {
-    console.error("Failed to decrypt database:", error)
-    throw new DatabaseError("Failed to decrypt database", error)
+    console.error("Failed to decrypt database:", error);
+    throw new DatabaseError("Failed to decrypt database", error);
   }
 }
 
 // Create a backup of the database
 function backupDatabase() {
-  if (!db) throw new DatabaseError("Database not initialized")
+  if (!db) throw new DatabaseError("Database not initialized");
 
   try {
-    const data = db.export()
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-    const backupKey = `database_backup_${timestamp}`
+    const data = db.export();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupKey = `database_backup_${timestamp}`;
 
-    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.local
+    ) {
       // Save backup to storage
-      chrome.storage.local.set({ [backupKey]: data })
+      chrome.storage.local.set({ [backupKey]: data });
 
       eventBus.publish("database:backup_created", {
         timestamp: Date.now(),
         backupKey,
         size: data.length,
-      })
+      });
     } else {
-      console.warn("Chrome storage API not available.")
+      console.warn("Chrome storage API not available.");
     }
 
-    return backupKey
+    return backupKey;
   } catch (error) {
-    console.error("Failed to backup database:", error)
-    throw new DatabaseError("Failed to backup database", error)
+    console.error("Failed to backup database:", error);
+    throw new DatabaseError("Failed to backup database", error);
   }
 }
-
