@@ -1,12 +1,9 @@
-"use client"
+// Converted to Vanilla JS
 
 // Data filter panel component for filtering visualization data
 
-import { useState, useEffect } from "react"
-
-// Filter panel for data visualization
-export function DataFilterPanel({ onFilterChange, initialFilters = {} }) {
-  const [filters, setFilters] = useState({
+function DataFilterPanel({ onFilterChange, initialFilters = {} }) {
+  const filters = {
     domain: initialFilters.domain || "",
     page: initialFilters.page || "",
     api: initialFilters.api || "",
@@ -15,54 +12,50 @@ export function DataFilterPanel({ onFilterChange, initialFilters = {} }) {
     endDate: initialFilters.endDate || "",
     statusCode: initialFilters.statusCode || "",
     ...initialFilters,
-  })
+  };
 
-  const [domains, setDomains] = useState([])
-  const [pages, setPages] = useState([])
-  const [apis, setApis] = useState([])
+  const domains = [];
+  const pages = [];
+  const apis = [];
 
   // Load available filter options
-  useEffect(() => {
-    // Check if chrome is available (running in a browser extension context)
-    if (typeof chrome !== "undefined" && chrome.runtime) {
-      // Load domains
-      chrome.runtime.sendMessage({ action: "getDistinctValues", field: "domain" }, (response) => {
-        if (response && response.values) {
-          setDomains(response.values)
-        }
-      })
+  if (typeof chrome !== "undefined" && chrome.runtime) {
+    // Load domains
+    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "domain" }, (response) => {
+      if (response && response.values) {
+        domains.push(...response.values);
+      }
+    });
 
-      // Load pages
-      chrome.runtime.sendMessage({ action: "getDistinctValues", field: "pageUrl" }, (response) => {
-        if (response && response.values) {
-          setPages(response.values)
-        }
-      })
+    // Load pages
+    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "pageUrl" }, (response) => {
+      if (response && response.values) {
+        pages.push(...response.values);
+      }
+    });
 
-      // Load APIs (paths that look like APIs)
-      chrome.runtime.sendMessage({ action: "getApiPaths" }, (response) => {
-        if (response && response.paths) {
-          setApis(response.paths)
-        }
-      })
-    } else {
-      console.warn("Chrome runtime is not available.  Running outside of extension context?")
-    }
-  }, [])
+    // Load APIs (paths that look like APIs)
+    chrome.runtime.sendMessage({ action: "getApiPaths" }, (response) => {
+      if (response && response.paths) {
+        apis.push(...response.paths);
+      }
+    });
+  } else {
+    console.warn("Chrome runtime is not available. Running outside of extension context?");
+  }
 
   // Handle filter changes
-  const handleFilterChange = (field, value) => {
-    const newFilters = { ...filters, [field]: value }
-    setFilters(newFilters)
+  function handleFilterChange(field, value) {
+    filters[field] = value;
 
     // Notify parent component
     if (onFilterChange) {
-      onFilterChange(newFilters)
+      onFilterChange(filters);
     }
   }
 
   // Reset filters
-  const handleReset = () => {
+  function handleReset() {
     const resetFilters = {
       domain: "",
       page: "",
@@ -71,110 +64,102 @@ export function DataFilterPanel({ onFilterChange, initialFilters = {} }) {
       startDate: "",
       endDate: "",
       statusCode: "",
-    }
+    };
 
-    setFilters(resetFilters)
+    Object.assign(filters, resetFilters);
 
     // Notify parent component
     if (onFilterChange) {
-      onFilterChange(resetFilters)
+      onFilterChange(resetFilters);
     }
   }
 
-  return (
-    <div className="data-filter-panel">
-      <h3>Filter Data</h3>
+  // Create DOM elements
+  const container = document.createElement("div");
+  container.className = "data-filter-panel";
 
-      <div className="filter-row">
-        <label htmlFor="domainFilter">Domain:</label>
-        <select id="domainFilter" value={filters.domain} onChange={(e) => handleFilterChange("domain", e.target.value)}>
-          <option value="">All Domains</option>
-          {domains.map((domain, index) => (
-            <option key={index} value={domain}>
-              {domain}
-            </option>
-          ))}
-        </select>
-      </div>
+  const title = document.createElement("h3");
+  title.textContent = "Filter Data";
+  container.appendChild(title);
 
-      <div className="filter-row">
-        <label htmlFor="pageFilter">Page:</label>
-        <select id="pageFilter" value={filters.page} onChange={(e) => handleFilterChange("page", e.target.value)}>
-          <option value="">All Pages</option>
-          {pages.map((page, index) => (
-            <option key={index} value={page}>
-              {page}
-            </option>
-          ))}
-        </select>
-      </div>
+  function createFilterRow(labelText, id, options, onChange) {
+    const row = document.createElement("div");
+    row.className = "filter-row";
 
-      <div className="filter-row">
-        <label htmlFor="apiFilter">API Endpoint:</label>
-        <select id="apiFilter" value={filters.api} onChange={(e) => handleFilterChange("api", e.target.value)}>
-          <option value="">All APIs</option>
-          {apis.map((api, index) => (
-            <option key={index} value={api}>
-              {api}
-            </option>
-          ))}
-        </select>
-      </div>
+    const label = document.createElement("label");
+    label.htmlFor = id;
+    label.textContent = labelText;
+    row.appendChild(label);
 
-      <div className="filter-row">
-        <label htmlFor="methodFilter">Method:</label>
-        <select id="methodFilter" value={filters.method} onChange={(e) => handleFilterChange("method", e.target.value)}>
-          <option value="">All Methods</option>
-          <option value="GET">GET</option>
-          <option value="POST">POST</option>
-          <option value="PUT">PUT</option>
-          <option value="DELETE">DELETE</option>
-          <option value="PATCH">PATCH</option>
-          <option value="OPTIONS">OPTIONS</option>
-          <option value="HEAD">HEAD</option>
-        </select>
-      </div>
+    const select = document.createElement("select");
+    select.id = id;
+    select.addEventListener("change", (e) => onChange(e.target.value));
 
-      <div className="filter-row">
-        <label htmlFor="statusCodeFilter">Status Code:</label>
-        <select
-          id="statusCodeFilter"
-          value={filters.statusCode}
-          onChange={(e) => handleFilterChange("statusCode", e.target.value)}
-        >
-          <option value="">All Status Codes</option>
-          <option value="2xx">2xx (Success)</option>
-          <option value="3xx">3xx (Redirection)</option>
-          <option value="4xx">4xx (Client Error)</option>
-          <option value="5xx">5xx (Server Error)</option>
-        </select>
-      </div>
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = `All ${labelText}`;
+    select.appendChild(defaultOption);
 
-      <div className="filter-row">
-        <label htmlFor="startDateFilter">Date Range:</label>
-        <div className="date-range">
-          <input
-            type="date"
-            id="startDateFilter"
-            value={filters.startDate}
-            onChange={(e) => handleFilterChange("startDate", e.target.value)}
-          />
-          <span>to</span>
-          <input
-            type="date"
-            id="endDateFilter"
-            value={filters.endDate}
-            onChange={(e) => handleFilterChange("endDate", e.target.value)}
-          />
-        </div>
-      </div>
+    options.forEach((option) => {
+      const opt = document.createElement("option");
+      opt.value = option;
+      opt.textContent = option;
+      select.appendChild(opt);
+    });
 
-      <div className="filter-actions">
-        <button onClick={handleReset} className="reset-btn">
-          Reset Filters
-        </button>
-      </div>
-    </div>
-  )
+    row.appendChild(select);
+    return row;
+  }
+
+  container.appendChild(createFilterRow("Domain", "domainFilter", domains, (value) => handleFilterChange("domain", value)));
+  container.appendChild(createFilterRow("Page", "pageFilter", pages, (value) => handleFilterChange("page", value)));
+  container.appendChild(createFilterRow("API Endpoint", "apiFilter", apis, (value) => handleFilterChange("api", value)));
+
+  // Method filter
+  const methodRow = createFilterRow("Method", "methodFilter", ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"], (value) => handleFilterChange("method", value));
+  container.appendChild(methodRow);
+
+  // Status Code filter
+  const statusCodeRow = createFilterRow("Status Code", "statusCodeFilter", ["2xx", "3xx", "4xx", "5xx"], (value) => handleFilterChange("statusCode", value));
+  container.appendChild(statusCodeRow);
+
+  // Date range filter
+  const dateRow = document.createElement("div");
+  dateRow.className = "filter-row";
+
+  const dateLabel = document.createElement("label");
+  dateLabel.htmlFor = "startDateFilter";
+  dateLabel.textContent = "Date Range:";
+  dateRow.appendChild(dateLabel);
+
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  startDate.id = "startDateFilter";
+  startDate.addEventListener("change", (e) => handleFilterChange("startDate", e.target.value));
+  dateRow.appendChild(startDate);
+
+  const toSpan = document.createElement("span");
+  toSpan.textContent = "to";
+  dateRow.appendChild(toSpan);
+
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  endDate.id = "endDateFilter";
+  endDate.addEventListener("change", (e) => handleFilterChange("endDate", e.target.value));
+  dateRow.appendChild(endDate);
+
+  container.appendChild(dateRow);
+
+  // Reset button
+  const resetButton = document.createElement("button");
+  resetButton.className = "reset-btn";
+  resetButton.textContent = "Reset Filters";
+  resetButton.addEventListener("click", handleReset);
+  container.appendChild(resetButton);
+
+  return container;
 }
+
+// Export the function
+export default DataFilterPanel;
 

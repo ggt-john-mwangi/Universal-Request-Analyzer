@@ -2,7 +2,7 @@ import "../css/popup.css"; // Ensure the CSS file is imported
 import "../css/themes.css";
 import "../css/data-visualization.css";
 
-import { Chart } from "./ui/chart";
+import "../../lib/chart.min.js";
 // DOM elements
 const requestsTableBody = document.getElementById("requestsTableBody");
 const totalRequestsEl = document.getElementById("totalRequests");

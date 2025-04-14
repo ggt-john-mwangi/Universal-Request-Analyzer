@@ -1,9 +1,10 @@
 // Database manager - handles all database operations
 
-import { initSqlJs } from "./sql-js-loader.js";
+// import { initSqlJs } from "./sql-js-loader.js";
 import { createTables } from "./schema.js";
 import { migrateDatabase } from "./migrations.js";
 import { DatabaseError } from "../errors/error-types.js";
+import initSqlJs from "../../assets/wasm/sql-wasm.js";
 
 let db = null;
 let encryptionManager = null;
@@ -15,11 +16,35 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
     encryptionManager = encryptionMgr;
     eventBus = events;
 
-    // Load SQL.js
     // const SQL = await initSqlJs()
     const SQL = await initSqlJs({
-      locateFile: (file) => chrome.runtime.getURL(`assets/wasm/${file}`),
+      locateFile: (file) => {
+        if (typeof chrome !== "undefined" && chrome.runtime) {
+          return chrome.runtime.getURL(`assets/wasm/${file}`);
+        } else if (typeof browser !== "undefined" && browser.runtime) {
+          return browser.runtime.getURL(`assets/wasm/${file}`);
+        } else {
+          console.warn(
+            "chrome.runtime.getURL is not available. Using a fallback URL."
+          );
+          return `assets/wasm/${file}`; // Or a different fallback strategy
+        }
+      },
+      instantiateWasm: async (imports, successCallback) => {
+        const wasmFileUrl =
+          typeof chrome !== "undefined" && chrome.runtime
+            ? chrome.runtime.getURL("assets/wasm/sql-wasm.wasm")
+            : "assets/wasm/sql-wasm.wasm";
+
+        const response = await fetch(wasmFileUrl);
+        const buffer = await response.arrayBuffer();
+        const wasmModule = await WebAssembly.instantiate(buffer, imports);
+        successCallback(wasmModule.instance);
+        return wasmModule.instance.exports;
+      },
     });
+
+    const db = new SQL.Database();
     // Check if we have a saved database
     const savedDb = await loadSavedDatabase();
 
