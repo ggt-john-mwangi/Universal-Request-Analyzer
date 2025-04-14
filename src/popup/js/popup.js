@@ -2,7 +2,7 @@ import "../../styles.css"; // Import the global styles.css
 import "../css/popup.css"; // Ensure the CSS file is imported
 import "../css/themes.css";
 import "../css/data-visualization.css";
-
+import "../css/settings.css";
 import { Chart } from "../../ui/chart.js";
 // Import settings UI
 import { initSettingsUI } from "./settings-ui.js";
@@ -559,7 +559,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Toggle filter panel visibility
   function toggleFilterPanel() {
+    console.log("Filter button clicked");
+    console.log("Filter panel before toggle:", filterPanel.classList);
     filterPanel.classList.toggle("visible");
+    console.log("Filter panel after toggle:", filterPanel.classList);
     exportPanel.classList.remove("visible");
     configPanel.classList.remove("visible");
   }

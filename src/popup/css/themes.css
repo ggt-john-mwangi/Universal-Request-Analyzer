@@ -89,11 +89,13 @@ header {
 .tabs {
   background-color: var(--surface-color);
   border-color: var(--border-color);
-}
-
-.tab-btn.active {
-  border-bottom-color: var(--primary-color);
-  color: var(--primary-color);
+  box-shadow: 0 2px 4px var(--shadow-color);
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
 }
 
 button {
@@ -124,6 +126,20 @@ button:hover {
 .danger-btn:hover {
   background-color: var(--error-color);
   filter: brightness(90%);
+}
+.tab-btn {
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+}
+.tab-btn::hover {
+  color: white;
+}
+.tab-btn.active {
+  border-bottom-color: var(--primary-color);
+  color: var(--primary-color);
+}
+.tab-btn.active::hover {
+  color: white;
 }
 
 /* Status colors */
@@ -163,4 +179,8 @@ button:hover {
 .download-bar {
   background-color: var(--error-color);
 }
-
+/* settings */
+.settings-container {
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+}

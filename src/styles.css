@@ -41,17 +41,8 @@ button:disabled {
 }
 
 .tab-btn {
-  padding: 8px 16px;
-  background: none;
   border: none;
-  border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-weight: 500;
-}
-
-.tab-btn.active {
-  border-bottom-color: #0066cc;
-  color: #0066cc;
 }
 
 .tab-content {
@@ -66,8 +57,6 @@ button:disabled {
 
 /* Filter Panel */
 .filter-panel {
-  background-color: #f9f9f9;
-  border-bottom: 1px solid #ddd;
   padding: 12px 16px;
   display: none;
   position: absolute;
