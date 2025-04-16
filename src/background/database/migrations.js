@@ -6,34 +6,44 @@ const migrations = [
     description: "Initial schema",
     migrate: (db) => {
       // No migration needed for initial schema
-      return true
+      return true;
     },
   },
   {
     version: 2,
     description: "Add user and project fields",
     migrate: (db) => {
-      // Check if columns already exist
-      const result = db.exec("PRAGMA table_info(requests)")
-      const columns = result[0].values.map((v) => v[1])
+      try {
+        // Check if columns already exist
+        const result = db.exec("PRAGMA table_info(requests)");
 
-      if (!columns.includes("userId")) {
-        db.exec("ALTER TABLE requests ADD COLUMN userId TEXT")
+        if (!result || !result[0] || !result[0].values) {
+          throw new Error("Failed to retrieve table info for 'requests'.");
+        }
+
+        const columns = result[0].values.map((v) => v[1]);
+
+        if (!columns.includes("userId")) {
+          db.exec("ALTER TABLE requests ADD COLUMN userId TEXT");
+        }
+
+        if (!columns.includes("projectId")) {
+          db.exec("ALTER TABLE requests ADD COLUMN projectId TEXT");
+        }
+
+        if (!columns.includes("environmentId")) {
+          db.exec("ALTER TABLE requests ADD COLUMN environmentId TEXT");
+        }
+
+        if (!columns.includes("tags")) {
+          db.exec("ALTER TABLE requests ADD COLUMN tags TEXT");
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Migration version 2 failed:", error);
+        return false;
       }
-
-      if (!columns.includes("projectId")) {
-        db.exec("ALTER TABLE requests ADD COLUMN projectId TEXT")
-      }
-
-      if (!columns.includes("environmentId")) {
-        db.exec("ALTER TABLE requests ADD COLUMN environmentId TEXT")
-      }
-
-      if (!columns.includes("tags")) {
-        db.exec("ALTER TABLE requests ADD COLUMN tags TEXT")
-      }
-
-      return true
     },
   },
   {
@@ -50,7 +60,7 @@ const migrations = [
           lastLogin INTEGER,
           settings TEXT
         )
-      `)
+      `);
 
       // Create projects table if it doesn't exist
       db.exec(`
@@ -63,7 +73,7 @@ const migrations = [
           ownerId TEXT,
           settings TEXT
         )
-      `)
+      `);
 
       // Create environments table if it doesn't exist
       db.exec(`
@@ -76,9 +86,9 @@ const migrations = [
           settings TEXT,
           FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
         )
-      `)
+      `);
 
-      return true
+      return true;
     },
   },
   {
@@ -93,7 +103,7 @@ const migrations = [
           color TEXT,
           createdAt INTEGER
         )
-      `)
+      `);
 
       // Create request_tags table if it doesn't exist
       db.exec(`
@@ -104,9 +114,9 @@ const migrations = [
           FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE,
           FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
         )
-      `)
+      `);
 
-      return true
+      return true;
     },
   },
   {
@@ -125,7 +135,7 @@ const migrations = [
           userAgent TEXT,
           FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
         )
-      `)
+      `);
 
       // Create audit_log table if it doesn't exist
       db.exec(`
@@ -139,43 +149,45 @@ const migrations = [
           ipAddress TEXT,
           details TEXT
         )
-      `)
+      `);
 
-      return true
+      return true;
     },
   },
-]
+];
 
 // Get current database version
 function getDatabaseVersion(db) {
   try {
     // Check if version table exists
-    const tableCheck = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='version'")
+    const tableCheck = db.exec(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='version'"
+    );
 
     if (!tableCheck[0] || tableCheck[0].values.length === 0) {
       // Create version table
-      db.exec("CREATE TABLE version (version INTEGER)")
-      db.exec("INSERT INTO version VALUES (0)")
-      return 0
+      db.exec("CREATE TABLE version (version INTEGER)");
+      db.exec("INSERT INTO version VALUES (0)");
+      return 0;
     }
 
     // Get current version
-    const result = db.exec("SELECT version FROM version LIMIT 1")
-    return result[0].values[0][0]
+    const result = db.exec("SELECT version FROM version LIMIT 1");
+    return result[0].values[0][0];
   } catch (error) {
-    console.error("Failed to get database version:", error)
-    return 0
+    console.error("Failed to get database version:", error);
+    return 0;
   }
 }
 
 // Set database version
 function setDatabaseVersion(db, version) {
   try {
-    db.exec("UPDATE version SET version = ?", [version])
-    return true
+    db.exec("UPDATE version SET version = ?", [version]);
+    return true;
   } catch (error) {
-    console.error("Failed to set database version:", error)
-    return false
+    console.error("Failed to set database version:", error);
+    return false;
   }
 }
 
@@ -183,48 +195,51 @@ function setDatabaseVersion(db, version) {
 export async function migrateDatabase(db) {
   try {
     // Get current version
-    const currentVersion = getDatabaseVersion(db)
-    console.log(`Current database version: ${currentVersion}`)
+    const currentVersion = getDatabaseVersion(db);
+    console.log(`Current database version: ${currentVersion}`);
 
     // Find migrations to run
-    const pendingMigrations = migrations.filter((m) => m.version > currentVersion)
+    const pendingMigrations = migrations.filter(
+      (m) => m.version > currentVersion
+    );
 
     if (pendingMigrations.length === 0) {
-      console.log("Database is up to date")
-      return true
+      console.log("Database is up to date");
+      return true;
     }
 
-    console.log(`Running ${pendingMigrations.length} migrations...`)
+    console.log(`Running ${pendingMigrations.length} migrations...`);
 
     // Run migrations in a transaction
-    db.exec("BEGIN TRANSACTION")
+    db.exec("BEGIN TRANSACTION");
 
     try {
       for (const migration of pendingMigrations) {
-        console.log(`Running migration ${migration.version}: ${migration.description}`)
+        console.log(
+          `Running migration ${migration.version}: ${migration.description}`
+        );
 
         // Run migration
-        const success = migration.migrate(db)
+        const success = migration.migrate(db);
 
         if (!success) {
-          throw new Error(`Migration ${migration.version} failed`)
+          throw new Error(`Migration ${migration.version} failed`);
         }
 
         // Update version
-        setDatabaseVersion(db, migration.version)
+        setDatabaseVersion(db, migration.version);
       }
 
-      db.exec("COMMIT")
-      console.log("Database migration completed successfully")
-      return true
+      db.exec("COMMIT");
+      console.log("Database migration completed successfully");
+      return true;
     } catch (error) {
-      db.exec("ROLLBACK")
-      console.error("Database migration failed:", error)
-      throw error
+      db.exec("ROLLBACK");
+      console.error("Database migration failed:", error);
+      throw error;
     }
   } catch (error) {
-    console.error("Database migration failed:", error)
-    throw error
+    console.error("Database migration failed:", error);
+    throw error;
   }
 }
-

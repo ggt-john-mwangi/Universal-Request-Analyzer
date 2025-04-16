@@ -14,97 +14,13 @@ import { setupEventBus } from "./messaging/event-bus";
 import { setupCrossBrowserCompat } from "./compat/browser-compat";
 import { setupApiService } from "./api/api-service";
 // import { getInitSqlJs } from "./database/sql-js-loader.js";
-import initSqlJs from "../assets/wasm/sql-wasm.js";
+// import initSqlJs from "../assets/wasm/sql-wasm.js";
+
 // Initialize the event bus first
 const eventBus = setupEventBus();
 
 // Initialize configuration
 let config = null;
-
-// Initialize SQLite database
-async function initSQLiteDatabase() {
-  try {
-    const SQL = await initSqlJs({
-      locateFile: (file) => {
-        if (typeof chrome !== "undefined" && chrome.runtime) {
-          return chrome.runtime.getURL(`assets/wasm/${file}`);
-        } else if (typeof browser !== "undefined" && browser.runtime) {
-          return browser.runtime.getURL(`assets/wasm/${file}`);
-        } else {
-          console.warn(
-            "chrome.runtime.getURL is not available. Using a fallback URL."
-          );
-          return `assets/wasm/${file}`; // Or a different fallback strategy
-        }
-      },
-      instantiateWasm: async (imports, successCallback) => {
-        const wasmFileUrl =
-          typeof chrome !== "undefined" && chrome.runtime
-            ? chrome.runtime.getURL("assets/wasm/sql-wasm.wasm")
-            : "assets/wasm/sql-wasm.wasm";
-
-        const response = await fetch(wasmFileUrl);
-        const buffer = await response.arrayBuffer();
-        const wasmModule = await WebAssembly.instantiate(buffer, imports);
-        successCallback(wasmModule.instance);
-        return wasmModule.instance.exports;
-      },
-    });
-
-    const db = new SQL.Database();
-
-    // Create tables
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS requests (
-        id TEXT PRIMARY KEY,
-        url TEXT,
-        method TEXT,
-        type TEXT,
-        status INTEGER,
-        statusText TEXT,
-        domain TEXT,
-        path TEXT,
-        startTime INTEGER,
-        endTime INTEGER,
-        duration INTEGER,
-        size INTEGER,
-        timestamp INTEGER,
-        tabId INTEGER,
-        pageUrl TEXT,
-        error TEXT
-      );
-    `);
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS request_timings (
-        requestId TEXT PRIMARY KEY,
-        dns INTEGER,
-        tcp INTEGER,
-        ssl INTEGER,
-        ttfb INTEGER,
-        download INTEGER,
-        FOREIGN KEY(requestId) REFERENCES requests(id)
-      );
-    `);
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS request_headers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        requestId TEXT,
-        name TEXT,
-        value TEXT,
-        FOREIGN KEY(requestId) REFERENCES requests(id)
-      );
-    `);
-
-    console.log("SQLite database initialized");
-
-    return db;
-  } catch (error) {
-    console.error("Failed to initialize SQLite database:", error);
-    throw error;
-  }
-}
 
 // Parse URL to extract domain and path
 function parseUrl(url) {
@@ -173,7 +89,7 @@ chrome.webRequest.onBeforeRequest.addListener(
 
       if (tab && tab.url) {
         request.pageUrl = tab.url;
-        updateRequestData(details.requestId, request);
+        dbManager.saveRequest(request);
       }
     });
   },
@@ -200,14 +116,7 @@ chrome.webRequest.onHeadersReceived.addListener(
     }
 
     // Store headers if needed
-    if (db) {
-      details.responseHeaders.forEach((header) => {
-        db.run(
-          "INSERT INTO request_headers (requestId, name, value) VALUES (?, ?, ?)",
-          [details.requestId, header.name, header.value]
-        );
-      });
-    }
+    dbManager.saveRequestHeaders(details.requestId, details.responseHeaders);
   },
   { urls: ["<all_urls>"] },
   ["responseHeaders"]
@@ -230,7 +139,7 @@ chrome.webRequest.onCompleted.addListener(
       request.timings.endTime = endTime;
       request.timings.duration = endTime - request.timings.startTime;
 
-      updateRequestData(details.requestId, request);
+      dbManager.updateRequest(request);
 
       // Send updated data to popup if open
       chrome.runtime
@@ -261,81 +170,11 @@ chrome.webRequest.onErrorOccurred.addListener(
       request.timings.endTime = details.timeStamp;
       request.timings.duration = details.timeStamp - request.timings.startTime;
 
-      updateRequestData(details.requestId, request);
+      dbManager.updateRequest(request);
     }
   },
   { urls: ["<all_urls>"] }
 );
-
-// Helper function to update request data
-function updateRequestData(requestId, requestData) {
-  const index = capturedRequests.findIndex((req) => req.id === requestId);
-
-  if (index !== -1) {
-    capturedRequests[index] = requestData;
-  } else {
-    capturedRequests.unshift(requestData);
-
-    // Limit the number of stored requests in memory
-    if (capturedRequests.length > config.maxStoredRequests) {
-      capturedRequests = capturedRequests.slice(0, config.maxStoredRequests);
-    }
-  }
-
-  // Save to SQLite database
-  if (db) {
-    try {
-      // Insert or update request in database
-      db.run(
-        `
-        INSERT OR REPLACE INTO requests (
-          id, url, method, type, status, statusText, domain, path, 
-          startTime, endTime, duration, size, timestamp, tabId, pageUrl, error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        [
-          requestData.id,
-          requestData.url,
-          requestData.method,
-          requestData.type,
-          requestData.statusCode || 0,
-          requestData.statusText || "",
-          requestData.domain || "",
-          requestData.path || "",
-          requestData.timings.startTime || 0,
-          requestData.timings.endTime || 0,
-          requestData.timings.duration || 0,
-          requestData.size || 0,
-          requestData.timestamp || Date.now(),
-          requestData.tabId || 0,
-          requestData.pageUrl || "",
-          requestData.error || "",
-        ]
-      );
-
-      // Insert or update timing data
-      if (requestData.timings) {
-        db.run(
-          `
-          INSERT OR REPLACE INTO request_timings (
-            requestId, dns, tcp, ssl, ttfb, download
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `,
-          [
-            requestData.id,
-            requestData.timings.dns || 0,
-            requestData.timings.tcp || 0,
-            requestData.timings.ssl || 0,
-            requestData.timings.ttfb || 0,
-            requestData.timings.download || 0,
-          ]
-        );
-      }
-    } catch (error) {
-      console.error("Error saving request to database:", error);
-    }
-  }
-}
 
 // Main initialization function
 async function initialize() {
@@ -352,15 +191,11 @@ async function initialize() {
     // Initialize encryption system
     const encryptionManager = await setupEncryption(config.security, eventBus);
 
-    // Initialize SQLite database
-    const sqliteDb = await initSQLiteDatabase();
-
-    // Initialize database manager with SQLite database
+    // Initialize database manager
     const dbManager = await initDatabase(
       config.database,
       encryptionManager,
-      eventBus,
-      sqliteDb
+      eventBus
     );
 
     // Set up authentication systems

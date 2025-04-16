@@ -1,14 +1,46 @@
 // Database manager - handles all database operations
 
-// import { initSqlJs } from "./sql-js-loader.js";
 import { createTables } from "./schema.js";
 import { migrateDatabase } from "./migrations.js";
 import { DatabaseError } from "../errors/error-types.js";
-import initSqlJs from "../../assets/wasm/sql-wasm.js";
+import { initSqlJs } from "./sql-js-loader.js";
 
 let db = null;
 let encryptionManager = null;
 let eventBus = null;
+const DB_FILE_NAME = "universal_request_analyzer.sqlite";
+
+async function loadDatabaseFromOPFS() {
+  try {
+    const fsHandle = await navigator.storage.getDirectory();
+    const fileHandle = await fsHandle.getFileHandle(DB_FILE_NAME, {
+      create: true,
+    });
+    const file = await fileHandle.getFile();
+    return new Uint8Array(await file.arrayBuffer());
+  } catch (error) {
+    console.warn(
+      "Failed to load database from OPFS. Creating a new one.",
+      error
+    );
+    return null;
+  }
+}
+
+async function saveDatabaseToOPFS(data) {
+  try {
+    const fsHandle = await navigator.storage.getDirectory();
+    const fileHandle = await fsHandle.getFileHandle(DB_FILE_NAME, {
+      create: true,
+    });
+    const writable = await fileHandle.createWritable();
+    await writable.write(data);
+    await writable.close();
+    console.log("Database saved to OPFS.");
+  } catch (error) {
+    console.error("Failed to save database to OPFS.", error);
+  }
+}
 
 // Initialize the database
 export async function initDatabase(dbConfig, encryptionMgr, events) {
@@ -16,7 +48,6 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
     encryptionManager = encryptionMgr;
     eventBus = events;
 
-    // const SQL = await initSqlJs()
     const SQL = await initSqlJs({
       locateFile: (file) => {
         if (typeof chrome !== "undefined" && chrome.runtime) {
@@ -27,55 +58,55 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
           console.warn(
             "chrome.runtime.getURL is not available. Using a fallback URL."
           );
-          return `assets/wasm/${file}`; // Or a different fallback strategy
+          return `assets/wasm/${file}`;
         }
-      },
-      instantiateWasm: async (imports, successCallback) => {
-        const wasmFileUrl =
-          typeof chrome !== "undefined" && chrome.runtime
-            ? chrome.runtime.getURL("assets/wasm/sql-wasm.wasm")
-            : "assets/wasm/sql-wasm.wasm";
-
-        const response = await fetch(wasmFileUrl);
-        const buffer = await response.arrayBuffer();
-        const wasmModule = await WebAssembly.instantiate(buffer, imports);
-        successCallback(wasmModule.instance);
-        return wasmModule.instance.exports;
       },
     });
 
-    const db = new SQL.Database();
-    // Check if we have a saved database
-    const savedDb = await loadSavedDatabase();
+    const savedDb = await loadDatabaseFromOPFS();
 
     if (savedDb) {
-      // Open existing database
       db = new SQL.Database(savedDb);
-      console.log("Opened existing database");
+      console.log("Opened existing database from OPFS.");
 
       // Run migrations if needed
-      await migrateDatabase(db);
+      try {
+        await migrateDatabase(db);
+      } catch (migrationError) {
+        console.error("Database migration failed:", migrationError);
+        throw new DatabaseError("Database migration failed", migrationError);
+      }
     } else {
-      // Create new database
       db = new SQL.Database();
-      console.log("Created new database");
+      console.log("Created new database.");
 
       // Create tables
-      await createTables(db);
+      try {
+        await createTables(db);
+      } catch (tableCreationError) {
+        console.error("Failed to create database tables:", tableCreationError);
+        throw new DatabaseError(
+          "Failed to create database tables",
+          tableCreationError
+        );
+      }
     }
 
     // Set up auto-save interval
-    setInterval(() => saveDatabase(), dbConfig.autoSaveInterval || 60000);
-
-    // Set up auto-vacuum interval if enabled
-    if (dbConfig.autoVacuum) {
-      setInterval(() => vacuumDatabase(), dbConfig.vacuumInterval || 3600000);
-    }
+    setInterval(async () => {
+      if (db) {
+        try {
+          const data = db.export();
+          await saveDatabaseToOPFS(data);
+        } catch (autoSaveError) {
+          console.error("Auto-save failed:", autoSaveError);
+        }
+      }
+    }, dbConfig.autoSaveInterval || 60000);
 
     // Publish database ready event
     eventBus.publish("database:ready", { timestamp: Date.now() });
 
-    // Return database manager interface
     return {
       executeQuery,
       executeTransaction,
@@ -97,85 +128,10 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
     };
   } catch (error) {
     console.error("Failed to initialize database:", error);
+    if (error instanceof DatabaseError) {
+      throw error; // Re-throw if it's already a DatabaseError
+    }
     throw new DatabaseError("Failed to initialize database", error);
-  }
-}
-
-// Load saved database from storage
-async function loadSavedDatabase() {
-  return new Promise((resolve) => {
-    if (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.local
-    ) {
-      chrome.storage.local.get("database", (result) => {
-        if (result.database) {
-          // Check if database is encrypted
-          if (result.database.encrypted && encryptionManager) {
-            try {
-              const decrypted = encryptionManager.decrypt(result.database.data);
-              resolve(decrypted);
-            } catch (error) {
-              console.error("Failed to decrypt database:", error);
-              resolve(null);
-            }
-          } else if (result.database.data) {
-            resolve(result.database.data);
-          } else {
-            resolve(null);
-          }
-        } else {
-          resolve(null);
-        }
-      });
-    } else {
-      console.warn("Chrome storage API not available.");
-      resolve(null);
-    }
-  });
-}
-
-// Save database to storage
-async function saveDatabase() {
-  if (!db) return;
-
-  try {
-    const data = db.export();
-    const isEncrypted = encryptionManager && encryptionManager.isEnabled();
-
-    let saveData;
-    if (isEncrypted) {
-      saveData = {
-        encrypted: true,
-        data: encryptionManager.encrypt(data),
-      };
-    } else {
-      saveData = {
-        encrypted: false,
-        data: data,
-      };
-    }
-
-    if (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.local
-    ) {
-      await chrome.storage.local.set({ database: saveData });
-      eventBus.publish("database:saved", {
-        timestamp: Date.now(),
-        size: data.length,
-      });
-    } else {
-      console.warn("Chrome storage API not available.");
-    }
-  } catch (error) {
-    console.error("Failed to save database:", error);
-    eventBus.publish("database:error", {
-      error: "save_failed",
-      message: error.message,
-    });
   }
 }
 
@@ -728,7 +684,8 @@ function encryptDatabase(key) {
     encryptionManager.enable();
 
     // Save the database to apply encryption
-    saveDatabase();
+    const data = db.export();
+    saveDatabaseToOPFS(data);
 
     eventBus.publish("database:encrypted", { timestamp: Date.now() });
     return true;
@@ -750,7 +707,8 @@ function decryptDatabase(key) {
     encryptionManager.disable();
 
     // Save the database to apply decryption
-    saveDatabase();
+    const data = db.export();
+    saveDatabaseToOPFS(data);
 
     eventBus.publish("database:decrypted", { timestamp: Date.now() });
     return true;
