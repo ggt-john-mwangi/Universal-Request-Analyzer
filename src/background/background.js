@@ -16,6 +16,16 @@ import { setupApiService } from "./api/api-service";
 // import { getInitSqlJs } from "./database/sql-js-loader.js";
 // import initSqlJs from "../assets/wasm/sql-wasm.js";
 
+// Initialize the database when the extension starts
+chrome.runtime.onStartup.addListener(async () => {
+  try {
+    await initDatabase();
+    console.log("Database initialized successfully.");
+  } catch (error) {
+    console.error("Failed to initialize database:", error);
+  }
+});
+
 // Initialize the event bus first
 const eventBus = setupEventBus();
 

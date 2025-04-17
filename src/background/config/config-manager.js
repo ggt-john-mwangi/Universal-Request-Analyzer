@@ -1,6 +1,6 @@
 // Configuration manager
 
-import { ConfigError } from "../errors/error-types.js"
+import { ConfigError } from "../errors/error-types.js";
 
 // Default configuration
 const defaultConfig = {
@@ -20,7 +20,15 @@ const defaultConfig = {
     captureFilters: {
       includeDomains: [],
       excludeDomains: [],
-      includeTypes: ["xmlhttprequest", "fetch", "script", "stylesheet", "image", "font", "other"],
+      includeTypes: [
+        "xmlhttprequest",
+        "fetch",
+        "script",
+        "stylesheet",
+        "image",
+        "font",
+        "other",
+      ],
     },
   },
 
@@ -82,6 +90,7 @@ const defaultConfig = {
     autoExportInterval: 86400000, // 24 hours
     autoExportFormat: "json",
     autoExportPath: "",
+    enableSqliteExport: true, // Default to enabled
   },
 
   // API configuration
@@ -95,26 +104,26 @@ const defaultConfig = {
       timeWindow: 3600000, // 1 hour
     },
   },
-}
+};
 
 // Load configuration
 export async function loadConfig() {
   try {
     // Load from storage
-    const storedConfig = await getStoredConfig()
+    const storedConfig = await getStoredConfig();
 
     // Merge with default config
-    const config = mergeConfigs(defaultConfig, storedConfig)
+    const config = mergeConfigs(defaultConfig, storedConfig);
 
     // Save merged config
-    await saveConfig(config)
+    await saveConfig(config);
 
-    return config
+    return config;
   } catch (error) {
-    console.error("Failed to load configuration:", error)
+    console.error("Failed to load configuration:", error);
 
     // Return default config as fallback
-    return defaultConfig
+    return defaultConfig;
   }
 }
 
@@ -123,12 +132,12 @@ async function getStoredConfig() {
   return new Promise((resolve) => {
     if (typeof chrome !== "undefined" && chrome.storage) {
       chrome.storage.local.get("analyzerConfig", (result) => {
-        resolve(result.analyzerConfig || {})
-      })
+        resolve(result.analyzerConfig || {});
+      });
     } else {
-      resolve({})
+      resolve({});
     }
-  })
+  });
 }
 
 // Save configuration
@@ -137,21 +146,21 @@ async function saveConfig(config) {
     if (typeof chrome !== "undefined" && chrome.storage) {
       chrome.storage.local.set({ analyzerConfig: config }, () => {
         if (chrome.runtime.lastError) {
-          reject(new ConfigError(chrome.runtime.lastError.message))
+          reject(new ConfigError(chrome.runtime.lastError.message));
         } else {
-          resolve(config)
+          resolve(config);
         }
-      })
+      });
     } else {
-      reject(new ConfigError("Chrome storage is not available."))
+      reject(new ConfigError("Chrome storage is not available."));
     }
-  })
+  });
 }
 
 // Merge configurations
 function mergeConfigs(defaultConfig, userConfig) {
   // Deep merge of objects
-  const merged = { ...defaultConfig }
+  const merged = { ...defaultConfig };
 
   // Recursively merge properties
   for (const key in userConfig) {
@@ -162,14 +171,14 @@ function mergeConfigs(defaultConfig, userConfig) {
         typeof defaultConfig[key] === "object" &&
         defaultConfig[key] !== null
       ) {
-        merged[key] = mergeConfigs(defaultConfig[key], userConfig[key])
+        merged[key] = mergeConfigs(defaultConfig[key], userConfig[key]);
       } else {
-        merged[key] = userConfig[key]
+        merged[key] = userConfig[key];
       }
     }
   }
 
-  return merged
+  return merged;
 }
 
 // Set up configuration watcher
@@ -177,9 +186,9 @@ export function setupConfigWatcher(callback) {
   if (typeof chrome !== "undefined" && chrome.storage) {
     chrome.storage.onChanged.addListener((changes, namespace) => {
       if (namespace === "local" && changes.analyzerConfig) {
-        callback(changes.analyzerConfig.newValue)
+        callback(changes.analyzerConfig.newValue);
       }
-    })
+    });
   }
 }
 
@@ -187,18 +196,18 @@ export function setupConfigWatcher(callback) {
 export async function updateConfig(newConfig) {
   try {
     // Load current config
-    const currentConfig = await loadConfig()
+    const currentConfig = await loadConfig();
 
     // Merge with new config
-    const updatedConfig = mergeConfigs(currentConfig, newConfig)
+    const updatedConfig = mergeConfigs(currentConfig, newConfig);
 
     // Save updated config
-    await saveConfig(updatedConfig)
+    await saveConfig(updatedConfig);
 
-    return updatedConfig
+    return updatedConfig;
   } catch (error) {
-    console.error("Failed to update configuration:", error)
-    throw new ConfigError("Failed to update configuration", error)
+    console.error("Failed to update configuration:", error);
+    throw new ConfigError("Failed to update configuration", error);
   }
 }
 
@@ -206,12 +215,12 @@ export async function updateConfig(newConfig) {
 export async function resetConfig() {
   try {
     // Save default config
-    await saveConfig(defaultConfig)
+    await saveConfig(defaultConfig);
 
-    return defaultConfig
+    return defaultConfig;
   } catch (error) {
-    console.error("Failed to reset configuration:", error)
-    throw new ConfigError("Failed to reset configuration", error)
+    console.error("Failed to reset configuration:", error);
+    throw new ConfigError("Failed to reset configuration", error);
   }
 }
 
@@ -219,14 +228,14 @@ export async function resetConfig() {
 export async function exportConfig() {
   try {
     // Load current config
-    const config = await loadConfig()
+    const config = await loadConfig();
 
     // Convert to JSON string
-    const configJson = JSON.stringify(config, null, 2)
+    const configJson = JSON.stringify(config, null, 2);
 
     // Create blob
-    const blob = new Blob([configJson], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
+    const blob = new Blob([configJson], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
 
     if (typeof chrome !== "undefined" && chrome.downloads) {
       // Download file
@@ -234,13 +243,13 @@ export async function exportConfig() {
         url: url,
         filename: "request-analyzer-config.json",
         saveAs: true,
-      })
+      });
     }
 
-    return true
+    return true;
   } catch (error) {
-    console.error("Failed to export configuration:", error)
-    throw new ConfigError("Failed to export configuration", error)
+    console.error("Failed to export configuration:", error);
+    throw new ConfigError("Failed to export configuration", error);
   }
 }
 
@@ -248,20 +257,20 @@ export async function exportConfig() {
 export async function importConfig(configJson) {
   try {
     // Parse JSON
-    const config = JSON.parse(configJson)
+    const config = JSON.parse(configJson);
 
     // Validate config
     if (!validateConfig(config)) {
-      throw new ConfigError("Invalid configuration format")
+      throw new ConfigError("Invalid configuration format");
     }
 
     // Save config
-    await saveConfig(config)
+    await saveConfig(config);
 
-    return config
+    return config;
   } catch (error) {
-    console.error("Failed to import configuration:", error)
-    throw new ConfigError("Failed to import configuration", error)
+    console.error("Failed to import configuration:", error);
+    throw new ConfigError("Failed to import configuration", error);
   }
 }
 
@@ -269,18 +278,26 @@ export async function importConfig(configJson) {
 function validateConfig(config) {
   // Basic validation
   if (!config || typeof config !== "object") {
-    return false
+    return false;
   }
 
   // Check for required sections
-  const requiredSections = ["database", "capture", "security", "sync", "notifications", "ui", "export", "api"]
+  const requiredSections = [
+    "database",
+    "capture",
+    "security",
+    "sync",
+    "notifications",
+    "ui",
+    "export",
+    "api",
+  ];
 
   for (const section of requiredSections) {
     if (!config[section] || typeof config[section] !== "object") {
-      return false
+      return false;
     }
   }
 
-  return true
+  return true;
 }
-

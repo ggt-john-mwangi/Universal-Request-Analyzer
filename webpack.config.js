@@ -17,6 +17,7 @@ module.exports = (env, argv) => {
       // contentScript: "./src/content/content.js",
       content: "./src/content/content.js",
       // styles: "./src/styles.css", // Add styles.css as an entry point
+      devtools: ["./src/devtools/js/devtools.js", "./src/devtools/js/panel.js"],
     },
     output: {
       path: path.resolve(__dirname, "dist"),
@@ -87,6 +88,7 @@ module.exports = (env, argv) => {
           },
           // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
+          { from: "./src/devtools/js/**/*", to: "[name][ext]" },
         ],
       }),
       new HtmlWebpackPlugin({

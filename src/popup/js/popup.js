@@ -169,15 +169,38 @@ document.addEventListener("DOMContentLoaded", async () => {
   cancelConfigBtn.addEventListener("click", toggleConfigPanel);
   prevPageBtn.addEventListener("click", () => changePage(currentPage - 1));
   nextPageBtn.addEventListener("click", () => changePage(currentPage + 1));
-  vizApplyFilterBtn.addEventListener("click", applyVisualizationFilters);
-  vizResetFilterBtn.addEventListener("click", resetVisualizationFilters);
+  if (vizApplyFilterBtn) {
+    vizApplyFilterBtn.addEventListener("click", applyVisualizationFilters);
+  }
+  if (vizResetFilterBtn) {
+    vizResetFilterBtn.addEventListener("click", resetVisualizationFilters);
+  }
   OptionsPage.addEventListener("click", () => openOptionsPage);
+
+  document.getElementById("exportDbBtn").addEventListener("click", () => {
+    chrome.runtime.sendMessage(
+      {
+        action: "exportDatabase",
+        format: "sqlite",
+        filename: `database-export-${new Date()
+          .toISOString()
+          .slice(0, 10)}.sqlite`,
+      },
+      (response) => {
+        if (response && response.success) {
+          showNotification("Database exported successfully.");
+        } else {
+          showNotification("Failed to export database.", true);
+        }
+      }
+    );
+  });
   // closeBtn.addEventListener("click", () => closeBtnClick());
   // Close button click event
 
   // Open options page
-  openOptionsPage = () => {
-    document.getElementById("open-options").addEventListener("click", () => {
+  const openOptionsPage = () => {
+    OptionsPage.addEventListener("click", () => {
       if (chrome.runtime.openOptionsPage) {
         chrome.runtime.openOptionsPage();
       } else {
@@ -246,13 +269,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (response && response.config) {
         config = response.config;
 
+        // Add null check for config object
+        if (!config || !config.captureFilters) {
+          console.error(
+            "Config object is undefined or missing captureFilters."
+          );
+          return;
+        }
+
         // Update UI with config values
         captureEnabled.checked = config.captureEnabled;
         maxStoredRequests.value = config.maxStoredRequests;
 
         // Update capture type checkboxes
         captureTypeCheckboxes.forEach((checkbox) => {
-          checkbox.checked = config.captureFilters.includeTypes.includes(
+          checkbox.checked = config.captureFilters?.includeTypes.includes(
             checkbox.value
           );
         });
@@ -557,10 +588,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Toggle filter panel visibility
   function toggleFilterPanel() {
+    // console.log("Filter button clicked");
+    // console.log("Before toggle:", filterPanel.classList);
+    // filterPanel.classList.toggle("visible");
+    // console.log("After toggle:", filterPanel.classList);
     console.log("Filter button clicked");
-    console.log("Filter panel before toggle:", filterPanel.classList);
-    filterPanel.classList.toggle("visible");
-    console.log("Filter panel after toggle:", filterPanel.classList);
+    console.log("Before toggle:", filterPanel.classList);
+
+    if (filterPanel.classList.contains("visible")) {
+      filterPanel.classList.remove("visible");
+      console.log("Removed 'visible' class");
+    } else {
+      filterPanel.classList.add("visible");
+      console.log("Added 'visible' class");
+    }
+
+    console.log("After toggle:", filterPanel.classList);
+
     exportPanel.classList.remove("visible");
     configPanel.classList.remove("visible");
   }
@@ -816,6 +860,36 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (response && response.stats) {
         const stats = response.stats;
 
+        // Ensure existing chart is destroyed before creating a new one
+        if (charts.responseTime) {
+          charts.responseTime.destroy();
+          charts.responseTime = null;
+        }
+
+        // Ensure existing chart is destroyed before creating a new one
+        if (charts.statusCode) {
+          charts.statusCode.destroy();
+          charts.statusCode = null;
+        }
+
+        // Ensure existing chart is destroyed before creating a new one
+        if (charts.domain) {
+          charts.domain.destroy();
+          charts.domain = null;
+        }
+
+        // Ensure existing chart is destroyed before creating a new one
+        if (charts.requestType) {
+          charts.requestType.destroy();
+          charts.requestType = null;
+        }
+
+        // Ensure existing chart is destroyed before creating a new one
+        if (charts.timeDistribution) {
+          charts.timeDistribution.destroy();
+          charts.timeDistribution = null;
+        }
+
         // Create or update charts
         createResponseTimeChart(stats);
         createStatusCodeChart(stats);
@@ -847,6 +921,36 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
       (response) => {
         if (response && !response.error) {
+          // Ensure existing chart is destroyed before creating a new one
+          if (charts.vizResponseTime) {
+            charts.vizResponseTime.destroy();
+            charts.vizResponseTime = null;
+          }
+
+          // Ensure existing chart is destroyed before creating a new one
+          if (charts.vizStatusCode) {
+            charts.vizStatusCode.destroy();
+            charts.vizStatusCode = null;
+          }
+
+          // Ensure existing chart is destroyed before creating a new one
+          if (charts.vizRequestType) {
+            charts.vizRequestType.destroy();
+            charts.vizRequestType = null;
+          }
+
+          // Ensure existing chart is destroyed before creating a new one
+          if (charts.vizTimeDistribution) {
+            charts.vizTimeDistribution.destroy();
+            charts.vizTimeDistribution = null;
+          }
+
+          // Ensure existing chart is destroyed before creating a new one
+          if (charts.vizSizeDistribution) {
+            charts.vizSizeDistribution.destroy();
+            charts.vizSizeDistribution = null;
+          }
+
           // Create or update visualization charts
           createVizResponseTimeChart(response);
           createVizStatusCodeChart(response);

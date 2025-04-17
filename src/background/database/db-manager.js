@@ -8,6 +8,8 @@ import { initSqlJs } from "./sql-js-loader.js";
 let db = null;
 let encryptionManager = null;
 let eventBus = null;
+let isSaving = false;
+let autoSaveInterval = null;
 const DB_FILE_NAME = "universal_request_analyzer.sqlite";
 
 async function loadDatabaseFromOPFS() {
@@ -42,67 +44,35 @@ async function saveDatabaseToOPFS(data) {
   }
 }
 
+// Add a function to log errors into the database
+export function logErrorToDatabase(db, error) {
+  if (!db || typeof db.exec !== "function") {
+    console.error("Database is not initialized or invalid. Cannot log error.");
+    return;
+  }
+
+  try {
+    db.exec(
+      `INSERT INTO errors (type, message, stack, timestamp) VALUES (?, ?, ?, ?)`,
+      [
+        error.name || "UnknownError",
+        error.message || "",
+        error.stack || "",
+        Date.now(),
+      ]
+    );
+  } catch (dbError) {
+    console.error("Failed to log error to database:", dbError);
+  }
+}
+
 // Initialize the database
 export async function initDatabase(dbConfig, encryptionMgr, events) {
   try {
     encryptionManager = encryptionMgr;
     eventBus = events;
 
-    const SQL = await initSqlJs({
-      locateFile: (file) => {
-        if (typeof chrome !== "undefined" && chrome.runtime) {
-          return chrome.runtime.getURL(`assets/wasm/${file}`);
-        } else if (typeof browser !== "undefined" && browser.runtime) {
-          return browser.runtime.getURL(`assets/wasm/${file}`);
-        } else {
-          console.warn(
-            "chrome.runtime.getURL is not available. Using a fallback URL."
-          );
-          return `assets/wasm/${file}`;
-        }
-      },
-    });
-
-    const savedDb = await loadDatabaseFromOPFS();
-
-    if (savedDb) {
-      db = new SQL.Database(savedDb);
-      console.log("Opened existing database from OPFS.");
-
-      // Run migrations if needed
-      try {
-        await migrateDatabase(db);
-      } catch (migrationError) {
-        console.error("Database migration failed:", migrationError);
-        throw new DatabaseError("Database migration failed", migrationError);
-      }
-    } else {
-      db = new SQL.Database();
-      console.log("Created new database.");
-
-      // Create tables
-      try {
-        await createTables(db);
-      } catch (tableCreationError) {
-        console.error("Failed to create database tables:", tableCreationError);
-        throw new DatabaseError(
-          "Failed to create database tables",
-          tableCreationError
-        );
-      }
-    }
-
-    // Set up auto-save interval
-    setInterval(async () => {
-      if (db) {
-        try {
-          const data = db.export();
-          await saveDatabaseToOPFS(data);
-        } catch (autoSaveError) {
-          console.error("Auto-save failed:", autoSaveError);
-        }
-      }
-    }, dbConfig.autoSaveInterval || 60000);
+    db = await initializeDatabase();
 
     // Publish database ready event
     eventBus.publish("database:ready", { timestamp: Date.now() });
@@ -178,8 +148,9 @@ function executeTransaction(queries) {
     return true;
   } catch (error) {
     db.exec("ROLLBACK");
-    console.error("Transaction failed:", error);
-    throw new DatabaseError("Transaction failed", error);
+    const dbError = new DatabaseError("Transaction failed", error);
+    logErrorToDatabase(db, dbError);
+    throw dbError;
   }
 }
 
@@ -748,5 +719,122 @@ function backupDatabase() {
   } catch (error) {
     console.error("Failed to backup database:", error);
     throw new DatabaseError("Failed to backup database", error);
+  }
+}
+
+// Initialize the database with proper handling of OPFS
+
+/**
+ * Initializes the SQLite database using SQL.js and optionally loads from OPFS.
+ * Handles retries, migration, and periodic auto-saving.
+ *
+ * @returns {Promise<SQL.Database>} The initialized database instance
+ */
+export async function initializeDatabase() {
+  const MAX_RETRIES = 3;
+  const AUTO_SAVE_INTERVAL_MS = 60000;
+  let retryCount = 0;
+
+  while (retryCount < MAX_RETRIES) {
+    try {
+      // Initialize SQL.js with correct wasm path handling
+      const SQL = await initSqlJs({
+        locateFile: (file) => {
+          if (typeof chrome !== "undefined" && chrome.runtime) {
+            return chrome.runtime.getURL(`assets/wasm/${file}`);
+          } else if (typeof browser !== "undefined" && browser.runtime) {
+            return browser.runtime.getURL(`assets/wasm/${file}`);
+          } else {
+            return `assets/wasm/${file}`;
+          }
+        },
+      });
+
+      // Load from OPFS if supported and available
+      if (await opfsSupported()) {
+        const savedDb = await loadDatabaseFromOPFS();
+
+        if (savedDb) {
+          db = new SQL.Database(savedDb);
+          console.log("[DB] Loaded existing database from OPFS.");
+        } else {
+          db = new SQL.Database();
+          console.log("[DB] Created new in-memory database.");
+          await createTables(db);
+          await saveDatabaseToOPFS(db.export());
+        }
+      } else {
+        db = new SQL.Database();
+        console.warn("[DB] OPFS not supported — using in-memory only.");
+        await createTables(db);
+      }
+
+      // Run migrations (optional)
+      try {
+        await migrateDatabase(db);
+      } catch (migrationError) {
+        throw new Error(`Migration failed: ${migrationError.message}`);
+      }
+
+      // Start auto-save
+      autoSaveInterval = setInterval(async () => {
+        if (!db || isSaving || !(await opfsSupported())) return;
+        isSaving = true;
+        try {
+          const data = db.export();
+          await saveDatabaseToOPFS(data);
+        } catch (err) {
+          console.error("[DB] Auto-save failed:", err);
+        } finally {
+          isSaving = false;
+        }
+      }, AUTO_SAVE_INTERVAL_MS);
+
+      return db;
+    } catch (err) {
+      retryCount++;
+      console.error(`[DB] Initialization failed (attempt ${retryCount}):`, err);
+
+      if (retryCount >= MAX_RETRIES) {
+        throw new Error(
+          "Database failed to initialize after multiple retries."
+        );
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+}
+
+/**
+ * Stops the auto-save interval and cleans up resources
+ */
+export function cleanupDatabase() {
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+    autoSaveInterval = null;
+  }
+}
+/**
+ * Checks whether the browser supports the Origin Private File System (OPFS).
+ *
+ * @returns {Promise<boolean>} True if OPFS is supported and usable
+ */
+export async function opfsSupported() {
+  try {
+    if (
+      typeof navigator === "undefined" ||
+      typeof navigator.storage === "undefined" ||
+      typeof navigator.storage.getDirectory !== "function"
+    ) {
+      return false;
+    }
+
+    // Try requesting access to the OPFS root directory
+    const dirHandle = await navigator.storage.getDirectory();
+    return !!dirHandle;
+  } catch (err) {
+    console.warn("[OPFS] Not supported or inaccessible:", err);
+    return false;
   }
 }

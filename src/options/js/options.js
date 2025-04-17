@@ -1,5 +1,9 @@
 import "../css/options.css"; // Ensure the CSS file is imported
-
+import "../../styles.css"; // Import the global styles.css
+// import "../css/themes.css";
+// import "../css/data-visualization.css";
+// import "../css/settings.css";
+import "../../lib/chart.min.js";
 // DOM elements
 const captureEnabled = document.getElementById("captureEnabled");
 const maxStoredRequests = document.getElementById("maxStoredRequests");
@@ -64,6 +68,26 @@ resetBtn.addEventListener("click", resetOptions);
 exportDbBtn.addEventListener("click", exportDatabase);
 clearDbBtn.addEventListener("click", clearDatabase);
 
+// Add event listener for SQLite export toggle
+document
+  .getElementById("enableSqliteExport")
+  .addEventListener("change", (event) => {
+    const isEnabled = event.target.checked;
+    chrome.runtime.sendMessage(
+      {
+        action: "updateConfig",
+        config: { export: { enableSqliteExport: isEnabled } },
+      },
+      (response) => {
+        if (response && response.success) {
+          showNotification("SQLite export feature updated successfully.");
+        } else {
+          showNotification("Failed to update SQLite export feature.", true);
+        }
+      }
+    );
+  });
+
 // Load options from storage
 function loadOptions() {
   chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
@@ -110,6 +134,19 @@ function loadOptions() {
 
   // Load database info
   loadDatabaseInfo();
+
+  // Load SQLite export toggle state
+  loadSqliteExportToggle();
+}
+
+// Load SQLite export toggle state
+function loadSqliteExportToggle() {
+  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+    if (response && response.config && response.config.export) {
+      document.getElementById("enableSqliteExport").checked =
+        response.config.export.enableSqliteExport || false;
+    }
+  });
 }
 
 // Load database information

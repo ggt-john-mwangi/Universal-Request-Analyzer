@@ -25,6 +25,11 @@
   margin: 0;
   color: var(--text-primary-color);
 }
+.popup_header .logo {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+}
 
 .controls {
   display: flex;

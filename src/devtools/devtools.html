@@ -10,7 +10,13 @@
 
 <body>
     <h1>Universal Request Analyzer DevTools</h1>
-    <div id="app"></div>
+    <div id="app">
+        <button id="toggleNetworkStats">Toggle Network Stats</button>
+        <div id="networkStatsPanel" style="display: none;">
+            <h2>Network Stats</h2>
+            <canvas id="networkStatsChart"></canvas>
+        </div>
+    </div>
     <script src="devtools.js"></script>
 </body>
 

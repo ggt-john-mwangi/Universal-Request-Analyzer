@@ -14,9 +14,33 @@ const migrations = [
     description: "Add user and project fields",
     migrate: (db) => {
       try {
-        // Check if columns already exist
-        const result = db.exec("PRAGMA table_info(requests)");
+        // Check if table exists
+        const tableExists = db.exec(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='requests'"
+        );
+        if (!tableExists[0] || tableExists[0].values.length === 0) {
+          console.warn("Table 'requests' does not exist. Creating table.");
+          db.exec(`CREATE TABLE requests (
+            id TEXT PRIMARY KEY,
+            url TEXT,
+            method TEXT,
+            type TEXT,
+            status INTEGER,
+            statusText TEXT,
+            domain TEXT,
+            path TEXT,
+            startTime INTEGER,
+            endTime INTEGER,
+            duration INTEGER,
+            size INTEGER,
+            timestamp INTEGER,
+            tabId INTEGER,
+            pageUrl TEXT,
+            error TEXT
+          )`);
+        }
 
+        const result = db.exec("PRAGMA table_info(requests)");
         if (!result || !result[0] || !result[0].values) {
           throw new Error("Failed to retrieve table info for 'requests'.");
         }
@@ -154,6 +178,29 @@ const migrations = [
       return true;
     },
   },
+  {
+    version: 6,
+    description: "Add request_timings table",
+    migrate: (db) => {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS request_timings (
+            requestId TEXT PRIMARY KEY,
+            dns INTEGER,
+            tcp INTEGER,
+            ssl INTEGER,
+            ttfb INTEGER,
+            download INTEGER,
+            FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE
+          )
+        `);
+        return true;
+      } catch (error) {
+        console.error("Migration version 6 failed:", error);
+        return false;
+      }
+    },
+  },
 ];
 
 // Get current database version
@@ -164,7 +211,7 @@ function getDatabaseVersion(db) {
       "SELECT name FROM sqlite_master WHERE type='table' AND name='version'"
     );
 
-    if (!tableCheck[0] || tableCheck[0].values.length === 0) {
+    if (!tableCheck[0] || !tableCheck[0].values.length === 0) {
       // Create version table
       db.exec("CREATE TABLE version (version INTEGER)");
       db.exec("INSERT INTO version VALUES (0)");
