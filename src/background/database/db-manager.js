@@ -123,7 +123,11 @@ function vacuumDatabase() {
 
 // Execute a single query
 function executeQuery(query, params = []) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     return db.exec(query, params);
@@ -135,7 +139,11 @@ function executeQuery(query, params = []) {
 
 // Execute multiple queries in a transaction
 function executeTransaction(queries) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     db.exec("BEGIN TRANSACTION");
@@ -156,7 +164,11 @@ function executeTransaction(queries) {
 
 // Get requests with pagination and filtering
 function getRequests({ page = 1, limit = 100, filters = {} }) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   const offset = (page - 1) * limit;
   let query = `
@@ -260,7 +272,11 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
 
 // Save a request to the database
 function saveRequest(requestData) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     db.exec(
@@ -300,7 +316,11 @@ function saveRequest(requestData) {
 
 // Update an existing request
 function updateRequest(id, updates) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     // Build update query dynamically based on provided updates
@@ -334,7 +354,11 @@ function updateRequest(id, updates) {
 
 // Delete a request
 function deleteRequest(id) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     // Delete related data first
@@ -354,7 +378,11 @@ function deleteRequest(id) {
 
 // Get headers for a request
 function getRequestHeaders(requestId) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     const result = executeQuery(
@@ -373,7 +401,11 @@ function getRequestHeaders(requestId) {
 
 // Save headers for a request
 function saveRequestHeaders(requestId, headers) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     // Delete existing headers first
@@ -396,7 +428,11 @@ function saveRequestHeaders(requestId, headers) {
 
 // Get timing data for a request
 function getRequestTimings(requestId) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     const result = executeQuery(
@@ -416,7 +452,11 @@ function getRequestTimings(requestId) {
 
 // Save timing data for a request
 function saveRequestTimings(requestId, timings) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     db.exec(
@@ -444,7 +484,11 @@ function saveRequestTimings(requestId, timings) {
 
 // Get database size in bytes
 function getDatabaseSize() {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     const data = db.export();
@@ -457,7 +501,11 @@ function getDatabaseSize() {
 
 // Get database statistics
 function getDatabaseStats() {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     const stats = {
@@ -563,7 +611,11 @@ function getDatabaseStats() {
 
 // Export database in various formats
 function exportDatabase(format) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     switch (format) {
@@ -625,7 +677,11 @@ function exportDatabase(format) {
 
 // Clear all data from the database
 function clearDatabase() {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     db.exec("DELETE FROM request_headers");
@@ -645,7 +701,11 @@ function clearDatabase() {
 
 // Encrypt the database with a new key
 function encryptDatabase(key) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
   if (!encryptionManager)
     throw new DatabaseError("Encryption manager not initialized");
 
@@ -668,7 +728,11 @@ function encryptDatabase(key) {
 
 // Decrypt the database
 function decryptDatabase(key) {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
   if (!encryptionManager)
     throw new DatabaseError("Encryption manager not initialized");
 
@@ -691,7 +755,11 @@ function decryptDatabase(key) {
 
 // Create a backup of the database
 function backupDatabase() {
-  if (!db) throw new DatabaseError("Database not initialized");
+  // Ensure dbManager is initialized before performing operations
+  if (!db) {
+    console.error("Database is not initialized or invalid.");
+    return;
+  }
 
   try {
     const data = db.export();

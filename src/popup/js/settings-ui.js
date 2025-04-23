@@ -4,10 +4,7 @@
  * This module provides the UI for managing settings, feature flags, ACLs, and themes.
  */
 
-import settingsManager from "./settings-manager.js"
-import featureFlags from "../../config/feature-flags.js"
-import aclManager from "../../auth/acl-manager.js"
-import themeManager from "../../config/theme-manager.js"
+import optionsManager from "./options.js";
 
 /**
  * Initialize the settings UI
@@ -15,34 +12,38 @@ import themeManager from "../../config/theme-manager.js"
 export function initSettingsUI() {
   // Add settings tab button if it doesn't exist
   if (!document.querySelector('.tab-btn[data-tab="settings"]')) {
-    const tabsContainer = document.querySelector(".tabs")
-    const settingsTabBtn = document.createElement("button")
-    settingsTabBtn.className = "tab-btn"
-    settingsTabBtn.setAttribute("data-tab", "settings")
-    settingsTabBtn.textContent = "Settings"
-    tabsContainer.appendChild(settingsTabBtn)
+    const tabsContainer = document.querySelector(".tabs");
+    const settingsTabBtn = document.createElement("button");
+    settingsTabBtn.className = "tab-btn";
+    settingsTabBtn.setAttribute("data-tab", "settings");
+    settingsTabBtn.textContent = "Settings";
+    tabsContainer.appendChild(settingsTabBtn);
 
     // Add click event
     settingsTabBtn.addEventListener("click", () => {
       // Update active tab button
-      document.querySelectorAll(".tab-btn").forEach((btn) => btn.classList.remove("active"))
-      settingsTabBtn.classList.add("active")
+      document
+        .querySelectorAll(".tab-btn")
+        .forEach((btn) => btn.classList.remove("active"));
+      settingsTabBtn.classList.add("active");
 
       // Update active tab content
-      document.querySelectorAll(".tab-content").forEach((content) => content.classList.remove("active"))
-      document.getElementById("settings-tab").classList.add("active")
+      document
+        .querySelectorAll(".tab-content")
+        .forEach((content) => content.classList.remove("active"));
+      document.getElementById("settings-tab").classList.add("active");
 
-      // Load settings data
-      loadSettingsData()
-    })
+      // Delegate settings data loading to options.js
+      optionsManager.loadSettingsData();
+    });
   }
 
   // Create settings tab content if it doesn't exist
   if (!document.getElementById("settings-tab")) {
-    const tabsContent = document.querySelector(".tab-content").parentNode
-    const settingsTab = document.createElement("div")
-    settingsTab.className = "tab-content"
-    settingsTab.id = "settings-tab"
+    const tabsContent = document.querySelector(".tab-content").parentNode;
+    const settingsTab = document.createElement("div");
+    settingsTab.className = "tab-content";
+    settingsTab.id = "settings-tab";
 
     settingsTab.innerHTML = `
       <div class="settings-container">
@@ -319,558 +320,78 @@ export function initSettingsUI() {
           </div>
         </div>
       </div>
-    `
+    `;
 
-    tabsContent.appendChild(settingsTab)
+    tabsContent.appendChild(settingsTab);
 
     // Add event listeners for settings navigation
     document.querySelectorAll(".settings-nav-item").forEach((item) => {
       item.addEventListener("click", () => {
         // Update active nav item
-        document.querySelectorAll(".settings-nav-item").forEach((navItem) => navItem.classList.remove("active"))
-        item.classList.add("active")
+        document
+          .querySelectorAll(".settings-nav-item")
+          .forEach((navItem) => navItem.classList.remove("active"));
+        item.classList.add("active");
 
         // Update active section
-        const section = item.getAttribute("data-section")
-        document.querySelectorAll(".settings-section").forEach((section) => section.classList.remove("active"))
-        document.querySelector(`.settings-section[data-section="${section}"]`).classList.add("active")
-      })
-    })
+        const section = item.getAttribute("data-section");
+        document
+          .querySelectorAll(".settings-section")
+          .forEach((section) => section.classList.remove("active"));
+        document
+          .querySelector(`.settings-section[data-section="${section}"]`)
+          .classList.add("active");
+      });
+    });
 
     // Add event listeners for settings actions
-    document.getElementById("resetSettingsBtn").addEventListener("click", resetAllSettings)
-    document.getElementById("saveGeneralSettingsBtn").addEventListener("click", saveGeneralSettings)
-    document.getElementById("saveCaptureSettingsBtn").addEventListener("click", saveCaptureSettings)
-    document.getElementById("saveDisplaySettingsBtn").addEventListener("click", saveDisplaySettings)
-    document.getElementById("saveFeatureSettingsBtn").addEventListener("click", saveFeatureSettings)
-    document.getElementById("resetFeatureSettingsBtn").addEventListener("click", resetFeatureSettings)
-    document.getElementById("savePermissionSettingsBtn").addEventListener("click", savePermissionSettings)
-    document.getElementById("resetPermissionSettingsBtn").addEventListener("click", resetPermissionSettings)
-    document.getElementById("saveThemeSettingsBtn").addEventListener("click", saveThemeSettings)
-    document.getElementById("resetThemeSettingsBtn").addEventListener("click", resetThemeSettings)
-    document.getElementById("saveAdvancedSettingsBtn").addEventListener("click", saveAdvancedSettings)
+    document
+      .getElementById("resetSettingsBtn")
+      .addEventListener("click", optionsManager.resetAllSettings);
+    document
+      .getElementById("saveGeneralSettingsBtn")
+      .addEventListener("click", optionsManager.saveGeneralSettings);
+    document
+      .getElementById("saveCaptureSettingsBtn")
+      .addEventListener("click", optionsManager.saveCaptureSettings);
+    document
+      .getElementById("saveDisplaySettingsBtn")
+      .addEventListener("click", optionsManager.saveDisplaySettings);
+    document
+      .getElementById("saveFeatureSettingsBtn")
+      .addEventListener("click", optionsManager.saveFeatureSettings);
+    document
+      .getElementById("resetFeatureSettingsBtn")
+      .addEventListener("click", optionsManager.resetFeatureSettings);
+    document
+      .getElementById("savePermissionSettingsBtn")
+      .addEventListener("click", optionsManager.savePermissionSettings);
+    document
+      .getElementById("resetPermissionSettingsBtn")
+      .addEventListener("click", optionsManager.resetPermissionSettings);
+    document
+      .getElementById("saveThemeSettingsBtn")
+      .addEventListener("click", optionsManager.saveThemeSettings);
+    document
+      .getElementById("resetThemeSettingsBtn")
+      .addEventListener("click", optionsManager.resetThemeSettings);
+    document
+      .getElementById("saveAdvancedSettingsBtn")
+      .addEventListener("click", optionsManager.saveAdvancedSettings);
 
     // Add CSS for settings UI
-    addSettingsStyles()
+    addSettingsStyles();
   }
-}
-
-/**
- * Load settings data into the UI
- */
-function loadSettingsData() {
-  const allSettings = settingsManager.getAllSettings()
-
-  // Load general settings
-  document.getElementById("maxStoredRequests").value = allSettings.settings.general.maxStoredRequests
-  document.getElementById("autoStartCapture").checked = allSettings.settings.general.autoStartCapture
-  document.getElementById("showNotifications").checked = allSettings.settings.general.showNotifications
-  document.getElementById("confirmClearRequests").checked = allSettings.settings.general.confirmClearRequests
-  document.getElementById("defaultExportFormat").value = allSettings.settings.general.defaultExportFormat
-  document.getElementById("dateFormat").value = allSettings.settings.general.dateFormat
-  document.getElementById("timeZone").value = allSettings.settings.general.timeZone
-
-  // Load capture settings
-  document.getElementById("includeHeaders").checked = allSettings.settings.capture.includeHeaders
-  document.getElementById("includeTiming").checked = allSettings.settings.capture.includeTiming
-  document.getElementById("includeContent").checked = allSettings.settings.capture.includeContent
-  document.getElementById("maxContentSize").value = allSettings.settings.capture.maxContentSize
-  document.getElementById("captureWebSockets").checked = allSettings.settings.capture.captureWebSockets
-  document.getElementById("captureServerSentEvents").checked = allSettings.settings.capture.captureServerSentEvents
-
-  // Load display settings
-  document.getElementById("requestsPerPage").value = allSettings.settings.display.requestsPerPage
-  document.getElementById("expandedDetails").checked = allSettings.settings.display.expandedDetails
-  document.getElementById("showStatusColors").checked = allSettings.settings.display.showStatusColors
-  document.getElementById("showTimingBars").checked = allSettings.settings.display.showTimingBars
-  document.getElementById("defaultTab").value = allSettings.settings.display.defaultTab
-
-  // Load column order
-  const columnOrderContainer = document.getElementById("columnOrderContainer")
-  columnOrderContainer.innerHTML = ""
-
-  allSettings.settings.display.columnOrder.forEach((column, index) => {
-    const columnItem = document.createElement("div")
-    columnItem.className = "column-order-item"
-    columnItem.setAttribute("data-column", column)
-
-    columnItem.innerHTML = `
-      <span class="column-name">${formatColumnName(column)}</span>
-      <div class="column-actions">
-        <button class="column-move-up" ${index === 0 ? "disabled" : ""}>↑</button>
-        <button class="column-move-down" ${index === allSettings.settings.display.columnOrder.length - 1 ? "disabled" : ""}>↓</button>
-      </div>
-    `
-
-    columnOrderContainer.appendChild(columnItem)
-
-    // Add event listeners for column reordering
-    columnItem.querySelector(".column-move-up").addEventListener("click", () => moveColumn(column, "up"))
-    columnItem.querySelector(".column-move-down").addEventListener("click", () => moveColumn(column, "down"))
-  })
-
-  // Load feature flags
-  const featuresContainer = document.querySelector(".features-container")
-  featuresContainer.innerHTML = ""
-
-  for (const [category, features] of Object.entries(allSettings.featureFlags)) {
-    const categorySection = document.createElement("div")
-    categorySection.className = "feature-category"
-
-    categorySection.innerHTML = `
-      <h3>${formatCategoryName(category)}</h3>
-      <div class="feature-list" data-category="${category}"></div>
-    `
-
-    featuresContainer.appendChild(categorySection)
-
-    const featureList = categorySection.querySelector(".feature-list")
-
-    features.forEach((feature) => {
-      const featureItem = document.createElement("div")
-      featureItem.className = "feature-item"
-
-      featureItem.innerHTML = `
-        <div class="feature-header">
-          <label for="feature-${feature.id}">
-            <input type="checkbox" id="feature-${feature.id}" data-feature="${feature.id}" 
-              ${feature.enabled ? "checked" : ""} ${!feature.hasPermission ? "disabled" : ""}>
-            <span class="feature-name">${feature.name}</span>
-          </label>
-          <button class="feature-info-btn" data-feature="${feature.id}">ⓘ</button>
-        </div>
-        <div class="feature-description">${feature.description}</div>
-        ${!feature.hasPermission ? `<div class="feature-permission-notice">Requires ${feature.requiredPermission} permission</div>` : ""}
-        ${feature.dependencies.length > 0 ? `<div class="feature-dependencies">Depends on: ${feature.dependencies.join(", ")}</div>` : ""}
-      `
-
-      featureList.appendChild(featureItem)
-
-      // Add event listener for feature info button
-      featureItem.querySelector(".feature-info-btn").addEventListener("click", () => showFeatureInfo(feature))
-    })
-  }
-
-  // Load roles and permissions
-  const currentRoleSelect = document.getElementById("currentRole")
-  currentRoleSelect.innerHTML = '<option value="">Select a role</option>'
-
-  for (const [roleName, roleData] of Object.entries(allSettings.acl.roles)) {
-    const option = document.createElement("option")
-    option.value = roleName
-    option.textContent = roleData.name
-    option.selected = roleData.isCurrentRole
-    currentRoleSelect.appendChild(option)
-  }
-
-  // Load permissions
-  const permissionsContainer = document.querySelector(".permissions-container")
-  permissionsContainer.innerHTML = ""
-
-  for (const [category, permissions] of Object.entries(allSettings.acl.permissions)) {
-    const categorySection = document.createElement("div")
-    categorySection.className = "permission-category"
-
-    categorySection.innerHTML = `
-      <h4>${formatCategoryName(category)}</h4>
-      <div class="permission-list" data-category="${category}"></div>
-    `
-
-    permissionsContainer.appendChild(categorySection)
-
-    const permissionList = categorySection.querySelector(".permission-list")
-
-    permissions.forEach((permission) => {
-      const permissionItem = document.createElement("div")
-      permissionItem.className = "permission-item"
-
-      permissionItem.innerHTML = `
-        <div class="permission-header">
-          <span class="permission-status ${permission.hasPermission ? "has-permission" : "no-permission"}">
-            ${permission.hasPermission ? "✓" : "✗"}
-          </span>
-          <span class="permission-name">${permission.action}</span>
-        </div>
-        <div class="permission-description">${permission.description}</div>
-      `
-
-      permissionList.appendChild(permissionItem)
-    })
-  }
-
-  // Load themes
-  const currentThemeSelect = document.getElementById("currentTheme")
-  currentThemeSelect.innerHTML = '<option value="system">System Preference</option>'
-
-  const themesContainer = document.querySelector(".themes-container")
-  themesContainer.innerHTML = ""
-
-  allSettings.theme.themes.forEach((theme) => {
-    // Add to dropdown
-    const option = document.createElement("option")
-    option.value = theme.id
-    option.textContent = theme.name
-    option.selected = theme.isCurrentTheme
-    currentThemeSelect.appendChild(option)
-
-    // Add theme card
-    const themeCard = document.createElement("div")
-    themeCard.className = `theme-card ${theme.isCurrentTheme ? "current-theme" : ""}`
-    themeCard.setAttribute("data-theme", theme.id)
-
-    themeCard.innerHTML = `
-      <div class="theme-preview" style="background-color: ${theme.previewColors.background};">
-        <div class="theme-preview-header" style="background-color: ${theme.previewColors.surface}; color: ${theme.previewColors.text};">
-          ${theme.name}
-        </div>
-        <div class="theme-preview-button" style="background-color: ${theme.previewColors.primary}; color: white;">
-          Button
-        </div>
-      </div>
-      <div class="theme-info">
-        <div class="theme-name">${theme.name}</div>
-        <div class="theme-description">${theme.description}</div>
-      </div>
-      <div class="theme-actions">
-        <button class="theme-apply-btn" data-theme="${theme.id}" ${theme.isCurrentTheme ? "disabled" : ""}>
-          ${theme.isCurrentTheme ? "Current" : "Apply"}
-        </button>
-      </div>
-    `
-
-    themesContainer.appendChild(themeCard)
-
-    // Add event listener for theme apply button
-    themeCard.querySelector(".theme-apply-btn").addEventListener("click", () => applyTheme(theme.id))
-  })
-
-  // Load advanced settings
-  document.getElementById("enableDebugMode").checked = allSettings.settings.advanced.enableDebugMode
-  document.getElementById("persistFilters").checked = allSettings.settings.advanced.persistFilters
-  document.getElementById("useCompression").checked = allSettings.settings.advanced.useCompression
-  document.getElementById("backgroundMode").value = allSettings.settings.advanced.backgroundMode
-  document.getElementById("syncInterval").value = allSettings.settings.advanced.syncInterval
-}
-
-/**
- * Format a column name for display
- * @param {string} column - Column name
- * @returns {string} - Formatted name
- */
-function formatColumnName(column) {
-  return column.charAt(0).toUpperCase() + column.slice(1)
-}
-
-/**
- * Format a category name for display
- * @param {string} category - Category name
- * @returns {string} - Formatted name
- */
-function formatCategoryName(category) {
-  return category.charAt(0).toUpperCase() + category.slice(1)
-}
-
-/**
- * Move a column in the column order
- * @param {string} column - Column to move
- * @param {string} direction - Direction to move ('up' or 'down')
- */
-function moveColumn(column, direction) {
-  const allSettings = settingsManager.getAllSettings()
-  const columnOrder = [...allSettings.settings.display.columnOrder]
-  const index = columnOrder.indexOf(column)
-
-  if (direction === "up" && index > 0) {
-    // Swap with previous column
-    ;[columnOrder[index], columnOrder[index - 1]] = [columnOrder[index - 1], columnOrder[index]]
-  } else if (direction === "down" && index < columnOrder.length - 1) {
-    // Swap with next column
-    ;[columnOrder[index], columnOrder[index + 1]] = [columnOrder[index + 1], columnOrder[index]]
-  }
-
-  // Update settings
-  settingsManager
-    .updateSettings({
-      display: {
-        columnOrder,
-      },
-    })
-    .then(() => {
-      // Reload settings data
-      loadSettingsData()
-    })
-}
-
-/**
- * Show feature information
- * @param {Object} feature - Feature to show info for
- */
-function showFeatureInfo(feature) {
-  // Create modal
-  const modal = document.createElement("div")
-  modal.className = "modal"
-
-  modal.innerHTML = `
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>${feature.name}</h3>
-        <button class="modal-close-btn">×</button>
-      </div>
-      <div class="modal-body">
-        <p>${feature.description}</p>
-        
-        <h4>Details</h4>
-        <ul>
-          <li><strong>Status:</strong> ${feature.enabled ? "Enabled" : "Disabled"}</li>
-          <li><strong>Required Permission:</strong> ${feature.requiredPermission}</li>
-          ${feature.dependencies.length > 0 ? `<li><strong>Dependencies:</strong> ${feature.dependencies.join(", ")}</li>` : ""}
-        </ul>
-      </div>
-      <div class="modal-footer">
-        <button class="modal-close-btn-secondary">Close</button>
-      </div>
-    </div>
-  `
-
-  document.body.appendChild(modal)
-
-  // Add event listeners for close buttons
-  modal.querySelector(".modal-close-btn").addEventListener("click", () => {
-    document.body.removeChild(modal)
-  })
-
-  modal.querySelector(".modal-close-btn-secondary").addEventListener("click", () => {
-    document.body.removeChild(modal)
-  })
-
-  // Close modal when clicking outside
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) {
-      document.body.removeChild(modal)
-    }
-  })
-}
-
-/**
- * Apply a theme
- * @param {string} themeId - Theme ID to apply
- */
-function applyTheme(themeId) {
-  themeManager.setTheme(themeId).then(() => {
-    // Reload settings data
-    loadSettingsData()
-
-    // Show notification
-    showNotification(`Theme "${themeId}" applied successfully`)
-  })
-}
-
-/**
- * Save general settings
- */
-function saveGeneralSettings() {
-  settingsManager
-    .updateSettings({
-      general: {
-        maxStoredRequests: Number.parseInt(document.getElementById("maxStoredRequests").value, 10),
-        autoStartCapture: document.getElementById("autoStartCapture").checked,
-        showNotifications: document.getElementById("showNotifications").checked,
-        confirmClearRequests: document.getElementById("confirmClearRequests").checked,
-        defaultExportFormat: document.getElementById("defaultExportFormat").value,
-        dateFormat: document.getElementById("dateFormat").value,
-        timeZone: document.getElementById("timeZone").value,
-      },
-    })
-    .then(() => {
-      showNotification("General settings saved successfully")
-    })
-}
-
-/**
- * Save capture settings
- */
-function saveCaptureSettings() {
-  settingsManager
-    .updateSettings({
-      capture: {
-        includeHeaders: document.getElementById("includeHeaders").checked,
-        includeTiming: document.getElementById("includeTiming").checked,
-        includeContent: document.getElementById("includeContent").checked,
-        maxContentSize: Number.parseInt(document.getElementById("maxContentSize").value, 10),
-        captureWebSockets: document.getElementById("captureWebSockets").checked,
-        captureServerSentEvents: document.getElementById("captureServerSentEvents").checked,
-      },
-    })
-    .then(() => {
-      showNotification("Capture settings saved successfully")
-    })
-}
-
-/**
- * Save display settings
- */
-function saveDisplaySettings() {
-  settingsManager
-    .updateSettings({
-      display: {
-        requestsPerPage: Number.parseInt(document.getElementById("requestsPerPage").value, 10),
-        expandedDetails: document.getElementById("expandedDetails").checked,
-        showStatusColors: document.getElementById("showStatusColors").checked,
-        showTimingBars: document.getElementById("showTimingBars").checked,
-        defaultTab: document.getElementById("defaultTab").value,
-      },
-    })
-    .then(() => {
-      showNotification("Display settings saved successfully")
-    })
-}
-
-/**
- * Save feature settings
- */
-function saveFeatureSettings() {
-  const featureUpdates = {}
-
-  // Get all feature checkboxes
-  document.querySelectorAll("input[data-feature]").forEach((checkbox) => {
-    featureUpdates[checkbox.dataset.feature] = checkbox.checked
-  })
-
-  featureFlags.updateFeatures(featureUpdates).then(() => {
-    showNotification("Feature settings saved successfully")
-    loadSettingsData() // Reload to show dependencies
-  })
-}
-
-/**
- * Reset feature settings to defaults
- */
-function resetFeatureSettings() {
-  if (confirm("Are you sure you want to reset all feature flags to defaults?")) {
-    featureFlags.resetToDefaults().then(() => {
-      showNotification("Feature flags reset to defaults")
-      loadSettingsData()
-    })
-  }
-}
-
-/**
- * Save permission settings
- */
-function savePermissionSettings() {
-  const role = document.getElementById("currentRole").value
-
-  if (role) {
-    aclManager.setRole(role).then(() => {
-      showNotification(`Role changed to "${role}"`)
-      loadSettingsData()
-    })
-  }
-}
-
-/**
- * Reset permission settings to defaults
- */
-function resetPermissionSettings() {
-  if (confirm("Are you sure you want to reset all permissions to defaults?")) {
-    aclManager.resetToDefaults().then(() => {
-      showNotification("Permissions reset to defaults")
-      loadSettingsData()
-    })
-  }
-}
-
-/**
- * Save theme settings
- */
-function saveThemeSettings() {
-  const theme = document.getElementById("currentTheme").value
-
-  themeManager.setTheme(theme).then(() => {
-    showNotification(`Theme changed to "${theme}"`)
-    loadSettingsData()
-  })
-}
-
-/**
- * Reset theme settings to defaults
- */
-function resetThemeSettings() {
-  if (confirm("Are you sure you want to reset all themes to defaults?")) {
-    themeManager.resetToDefaults().then(() => {
-      showNotification("Themes reset to defaults")
-      loadSettingsData()
-    })
-  }
-}
-
-/**
- * Save advanced settings
- */
-function saveAdvancedSettings() {
-  settingsManager
-    .updateSettings({
-      advanced: {
-        enableDebugMode: document.getElementById("enableDebugMode").checked,
-        persistFilters: document.getElementById("persistFilters").checked,
-        useCompression: document.getElementById("useCompression").checked,
-        backgroundMode: document.getElementById("backgroundMode").value,
-        syncInterval: Number.parseInt(document.getElementById("syncInterval").value, 10),
-      },
-    })
-    .then(() => {
-      showNotification("Advanced settings saved successfully")
-    })
-}
-
-/**
- * Reset all settings to defaults
- */
-function resetAllSettings() {
-  if (confirm("Are you sure you want to reset ALL settings to defaults? This cannot be undone.")) {
-    settingsManager.resetAllToDefaults().then(() => {
-      showNotification("All settings reset to defaults")
-      loadSettingsData()
-    })
-  }
-}
-
-/**
- * Show a notification
- * @param {string} message - Message to show
- */
-function showNotification(message) {
-  const notification = document.createElement("div")
-  notification.className = "notification"
-  notification.textContent = message
-
-  document.body.appendChild(notification)
-
-  // Show notification
-  setTimeout(() => {
-    notification.classList.add("visible")
-  }, 10)
-
-  // Hide notification after 3 seconds
-  setTimeout(() => {
-    notification.classList.remove("visible")
-
-    // Remove from DOM after animation
-    setTimeout(() => {
-      document.body.removeChild(notification)
-    }, 300)
-  }, 3000)
 }
 
 /**
  * Add CSS styles for settings UI
  */
 function addSettingsStyles() {
-  const styleElement = document.createElement("style")
+  const styleElement = document.createElement("style");
   styleElement.textContent = `
    
-  `
+  `;
 
-  document.head.appendChild(styleElement)
+  document.head.appendChild(styleElement);
 }
-

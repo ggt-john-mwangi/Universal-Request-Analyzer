@@ -57,32 +57,43 @@ function handleMessage(message, sender, sendResponse) {
         const data = dbManager.exportDatabase(format);
         const blob = new Blob([data], { type: "application/x-sqlite3" });
 
-        // Use a file writer API or alternative method to save the blob
-        chrome.fileSystem.chooseEntry(
-          { type: "saveFile", suggestedName: filename },
-          (fileEntry) => {
-            if (chrome.runtime.lastError) {
-              sendResponse({
-                success: false,
-                error: chrome.runtime.lastError.message,
+        // Check if chrome.fileSystem is available before using it
+        if (
+          typeof chrome.fileSystem !== "undefined" &&
+          chrome.fileSystem.chooseEntry
+        ) {
+          chrome.fileSystem.chooseEntry(
+            { type: "saveFile", suggestedName: filename },
+            (fileEntry) => {
+              if (chrome.runtime.lastError) {
+                sendResponse({
+                  success: false,
+                  error: chrome.runtime.lastError.message,
+                });
+                return;
+              }
+
+              fileEntry.createWriter((fileWriter) => {
+                fileWriter.onwriteend = () => {
+                  sendResponse({ success: true });
+                };
+
+                fileWriter.onerror = (error) => {
+                  console.error("Failed to write file:", error);
+                  sendResponse({ success: false, error: error.message });
+                };
+
+                fileWriter.write(blob);
               });
-              return;
             }
-
-            fileEntry.createWriter((fileWriter) => {
-              fileWriter.onwriteend = () => {
-                sendResponse({ success: true });
-              };
-
-              fileWriter.onerror = (error) => {
-                console.error("Failed to write file:", error);
-                sendResponse({ success: false, error: error.message });
-              };
-
-              fileWriter.write(blob);
-            });
-          }
-        );
+          );
+        } else {
+          console.error("chrome.fileSystem API is not available.");
+          sendResponse({
+            success: false,
+            error: "File system API is not available.",
+          });
+        }
       } catch (error) {
         console.error("Failed to export database:", error);
         sendResponse({ success: false, error: error.message });
