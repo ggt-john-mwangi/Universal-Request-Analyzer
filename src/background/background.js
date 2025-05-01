@@ -3,7 +3,8 @@ import { initDatabase } from "./database/db-manager";
 import { setupRequestCapture } from "./capture/request-capture";
 import { setupMessageHandlers } from "./messaging/message-handler";
 import { setupNotifications } from "./notifications/notification-manager";
-import { setupAuthSystem } from "./auth/auth-manager";
+// Import both setupAuthSystem and setDatabaseManager
+import { setupAuthSystem, setDatabaseManager } from "./auth/auth-manager";
 import { setupRemoteAuthService } from "./auth/remote-auth-service";
 import { setupEncryption } from "./security/encryption-manager";
 import { setupRemoteSyncService } from "./sync/remote-sync-service";
@@ -16,21 +17,26 @@ import { setupCrossBrowserCompat } from "./compat/browser-compat";
 import { setupApiService } from "./api/api-service";
 import { setupApiEndpoints } from "./api/api-manager.js";
 
+// Global config variable
+let config = null;
+let dbManager = null; // Make dbManager accessible globally or pass it where needed
+let captureManager = null; // Declare captureManager globally
+let errorMonitor = null; // Declare errorMonitor globally for use in catch block
+
 // Initialize the database when the extension starts
 chrome.runtime.onStartup.addListener(async () => {
   try {
-    await initDatabase();
-    console.log("Database initialized successfully.");
+    // Load config first on startup as well, if needed early
+    config = await loadConfig();
+    dbManager = await initDatabase(config?.database, null, setupEventBus(), { getConfig: () => config }); // Pass minimal dependencies initially
+    console.log("Database initialized successfully on startup.");
   } catch (error) {
-    console.error("Failed to initialize database:", error);
+    console.error("Failed to initialize database on startup:", error);
   }
 });
 
 // Initialize the event bus first
 const eventBus = setupEventBus();
-
-// Initialize configuration
-let config = null;
 
 // Parse URL to extract domain and path
 function parseUrl(url) {
@@ -48,182 +54,61 @@ function parseUrl(url) {
   }
 }
 
-// Listen for web requests
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    // Check if we should capture this request type
-    if (!config.captureFilters.includeTypes.includes(details.type)) return;
-
-    const { domain, path } = parseUrl(details.url);
-
-    // Check domain filters
-    if (config.captureFilters.excludeDomains.includes(domain)) return;
-    if (
-      config.captureFilters.includeDomains.length > 0 &&
-      !config.captureFilters.includeDomains.includes(domain)
-    )
-      return;
-
-    const request = {
-      id: details.requestId,
-      url: details.url,
-      method: details.method,
-      type: details.type,
-      domain: domain,
-      path: path,
-      startTime: details.timeStamp,
-      timestamp: Date.now(),
-      tabId: details.tabId,
-      status: "pending",
-      size: 0,
-      timings: {
-        startTime: details.timeStamp,
-        endTime: null,
-        duration: null,
-        dns: 0,
-        tcp: 0,
-        ssl: 0,
-        ttfb: 0,
-        download: 0,
-      },
-    };
-
-    // Get the page URL
-    chrome.tabs.get(details.tabId, (tab) => {
-      if (chrome.runtime.lastError) {
-        // Tab might not exist anymore
-        return;
-      }
-
-      if (tab && tab.url) {
-        request.pageUrl = tab.url;
-        dbManager.saveRequest(request);
-      }
-    });
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// Listen for headers received
-chrome.webRequest.onHeadersReceived.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    const request = capturedRequests.find(
-      (req) => req.id === details.requestId
-    );
-    if (!request) return;
-
-    // Extract content length from headers
-    const contentLengthHeader = details.responseHeaders.find(
-      (h) => h.name.toLowerCase() === "content-length"
-    );
-
-    if (contentLengthHeader) {
-      request.size = Number.parseInt(contentLengthHeader.value, 10) || 0;
-    }
-
-    // Store headers if needed
-    dbManager.saveRequestHeaders(details.requestId, details.responseHeaders);
-  },
-  { urls: ["<all_urls>"] },
-  ["responseHeaders"]
-);
-
-// Listen for completed requests
-chrome.webRequest.onCompleted.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    const endTime = details.timeStamp;
-    const request = capturedRequests.find(
-      (req) => req.id === details.requestId
-    );
-
-    if (request) {
-      request.status = "completed";
-      request.statusCode = details.statusCode;
-      request.statusText = details.statusLine;
-      request.timings.endTime = endTime;
-      request.timings.duration = endTime - request.timings.startTime;
-
-      dbManager.updateRequest(request);
-
-      // Send updated data to popup if open
-      chrome.runtime
-        .sendMessage({
-          action: "requestUpdated",
-          request: request,
-        })
-        .catch(() => {
-          // Popup might not be open, ignore error
-        });
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// Listen for error requests
-chrome.webRequest.onErrorOccurred.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    const request = capturedRequests.find(
-      (req) => req.id === details.requestId
-    );
-
-    if (request) {
-      request.status = "error";
-      request.error = details.error;
-      request.timings.endTime = details.timeStamp;
-      request.timings.duration = details.timeStamp - request.timings.startTime;
-
-      dbManager.updateRequest(request);
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
 // Main initialization function
 async function initialize() {
   console.log("Initializing background script...");
 
   try {
-    const eventBus = setupEventBus();
-    const configManager = await setupConfigManager(eventBus); // Wait for config to load
-    const encryptionManager = setupEncryptionManager(configManager); // Pass config if needed for keys etc.
-    const dbManager = await initDatabase(
-      configManager.getConfigValue("database"), // Pass DB specific config
+    // Load configuration first
+    config = await loadConfig();
+    console.log("Configuration loaded:", config);
+
+    // Setup managers, passing config and eventBus
+    const encryptionManager = await setupEncryption(config.security, eventBus);
+    // Initialize DB *after* config is loaded
+    dbManager = await initDatabase(
+      config.database,
       encryptionManager,
       eventBus,
-      configManager // Pass config manager
+      { getConfig: () => config, getConfigValue: (key) => config[key] } // Provide a minimal config manager interface
     );
-    const authManager = setupAuthManager(dbManager, configManager, eventBus); // Pass dbManager for user/token checks
-    const errorMonitor = setupErrorMonitoring(eventBus, configManager); // Pass config manager
-    const captureManager = setupRequestCapture(dbManager, configManager, eventBus);
-    const exportManager = setupExportManager(dbManager, encryptionManager, eventBus); // Pass dbManager
-    const importManager = setupImportManager(dbManager, eventBus); // Pass dbManager
-    const apiManager = setupApiEndpoints(dbManager, authManager, encryptionManager, eventBus); // Setup API endpoints
+    // Setup auth system
+    const authManager = await setupAuthSystem(config.security?.auth, eventBus);
+    // Inject dbManager dependency into authManager using the imported function
+    setDatabaseManager(dbManager);
 
-    // Setup message handler last, passing all managers
+    // Initialize errorMonitor and captureManager here
+    errorMonitor = setupErrorMonitoring(eventBus, { getConfigValue: (key) => config[key] });
+    captureManager = setupRequestCapture(dbManager, config.capture, eventBus); // Pass capture config directly
+    const exportManager = setupExportManager(dbManager, encryptionManager, eventBus);
+    const importManager = setupImportManager(dbManager, eventBus);
+    const apiService = setupApiService(config.api, dbManager, authManager, encryptionManager, eventBus); // Use setupApiService
+
+    // Setup message handler last, passing all managers/services
     setupMessageHandlers(
       dbManager,
-      configManager,
+      { getConfig: () => config, updateConfig: (newConf) => { config = {...config, ...newConf}; /* TODO: Save config */ return config; } }, // Provide config access/update
       captureManager,
       exportManager,
       importManager,
       authManager,
       encryptionManager,
       errorMonitor,
-      apiManager // Pass API manager
+      apiService // Pass apiService
     );
 
     // Watch for configuration changes
     setupConfigWatcher((newConfig) => {
+      console.log("Configuration updated:", newConfig);
+      const oldConfig = config;
       config = newConfig;
-      eventBus.publish("config:updated", newConfig);
+      // Notify relevant modules about the config change
+      eventBus.publish("config:updated", { newConfig, oldConfig });
+
+      // Update capture manager's config
+      if (captureManager && typeof captureManager.updateCaptureConfig === 'function') {
+        captureManager.updateCaptureConfig(newConfig.capture);
+      }
     });
 
     // Log successful initialization
@@ -234,8 +119,10 @@ async function initialize() {
   } catch (error) {
     console.error("Background script initialization failed:", error);
     // Use error monitor if available, otherwise basic console log
-    if (typeof errorMonitor !== 'undefined' && errorMonitor.reportCriticalError) {
+    if (errorMonitor && typeof errorMonitor.reportCriticalError === 'function') {
         errorMonitor.reportCriticalError("initialization_failed", error);
+    } else {
+        console.error("Critical initialization error:", error); // Fallback logging
     }
   }
 }

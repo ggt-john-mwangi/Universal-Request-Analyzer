@@ -14,7 +14,76 @@ import "../components/filters.js";
 import "./settings-manager.js";
 import "./settings-ui.js";
 
-// DOM elements
+// --- Global Variables ---
+
+// Pagination
+let currentPage = 1; // Current page number for pagination
+let totalPages = 1;
+let itemsPerPage = 50; // Default, will be updated from config
+let totalItems = 0;
+
+// Active filters
+let activeFilters = {
+  status: "all",
+  type: "all",
+  domain: "",
+  url: "",
+  startDate: "",
+  endDate: "",
+};
+
+// Config - Load relevant parts needed for popup operation (like itemsPerPage)
+let config = {
+  ui: {
+    requestsPerPage: 50, // Default value
+  },
+};
+
+// DOM elements - Declare globally, assign in DOMContentLoaded
+let requestsTableBody = null;
+let totalRequestsEl = null;
+let avgResponseTimeEl = null;
+let successRateEl = null;
+let filterBtn = null;
+let filterPanel = null;
+let clearBtn = null;
+let exportBtn = null;
+let exportPanel = null;
+let exportDbSizeSpan = null;
+let exportFormatSelect = null;
+let exportFilenameInput = null;
+let requestDetails = null;
+let closeDetails = null;
+let applyFilterBtn = null;
+let resetFilterBtn = null;
+let doExportBtn = null;
+let cancelExportBtn = null;
+let prevPageBtn = null;
+let nextPageBtn = null;
+let pageInfoEl = null;
+let tabButtons = null;
+let tabContents = null;
+let vizApplyFilterBtn = null;
+let vizResetFilterBtn = null;
+let OptionsPage = null;
+let notificationElement = null;
+let importBtn = null;
+let importPanel = null;
+let doImportBtn = null;
+let cancelImportBtn = null;
+let importFile = null;
+let importStatus = null;
+let exportDbBtn = null;
+let refreshBtn = null;
+let statusFilter = null;
+let typeFilter = null;
+let domainFilter = null;
+let urlFilter = null;
+let startDateFilter = null;
+let endDateFilter = null;
+
+let activePanel = null; // Keep track of the currently open panel
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Initialize theme manager and apply theme
   await themeManager.initialize({
@@ -26,73 +95,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     initSettingsUI();
   }
 
-  // Rest of the popup.js code...
-  // DOM elements
-  const requestsTableBody = document.getElementById("requestsTableBody");
-  const totalRequestsEl = document.getElementById("totalRequests");
-  const avgResponseTimeEl = document.getElementById("avgResponseTime");
-  const successRateEl = document.getElementById("successRate");
-  const filterBtn = document.getElementById("filterBtn");
-  const filterPanel = document.getElementById("filterPanel");
-  const clearBtn = document.getElementById("clearBtn");
-  const exportBtn = document.getElementById("exportBtn");
-  const exportPanel = document.getElementById("exportPanel");
-  const exportDbSizeSpan = document.getElementById("exportDbSize");
-  const exportFormatSelect = document.getElementById("exportFormat");
-  const exportFilenameInput = document.getElementById("exportFilename");
-  const requestDetails = document.getElementById("requestDetails");
-  const closeDetails = document.getElementById("closeDetails");
-  const applyFilterBtn = document.getElementById("applyFilterBtn");
-  const resetFilterBtn = document.getElementById("resetFilterBtn");
-  const doExportBtn = document.getElementById("doExportBtn");
-  const cancelExportBtn = document.getElementById("cancelExportBtn");
-  const prevPageBtn = document.getElementById("prevPageBtn");
-  const nextPageBtn = document.getElementById("nextPageBtn");
-  const pageInfoEl = document.getElementById("pageInfo");
-  const tabButtons = document.querySelectorAll(".tab-btn");
-  const tabContents = document.querySelectorAll(".tab-content");
-  const vizApplyFilterBtn = document.getElementById("vizApplyFilterBtn");
-  const vizResetFilterBtn = document.getElementById("vizResetFilterBtn");
-  const OptionsPage = document.getElementById("openOptions");
-  const importBtn = document.getElementById("importBtn");
-  const importPanel = document.getElementById("importPanel");
-  const doImportBtn = document.getElementById("doImportBtn");
-  const cancelImportBtn = document.getElementById("cancelImportBtn");
-  const importFile = document.getElementById("importFile");
-  const importStatus = document.getElementById("importStatus");
-  const exportDbBtn = document.getElementById("exportDbBtn"); // Added reference for Export DB button
-  const refreshBtn = document.getElementById("refreshBtn"); // Added refresh button
-
-  // Filter elements
-  const statusFilter = document.getElementById("statusFilter");
-  const typeFilter = document.getElementById("typeFilter");
-  const domainFilter = document.getElementById("domainFilter");
-  const urlFilter = document.getElementById("urlFilter");
-  const startDateFilter = document.getElementById("startDateFilter");
-  const endDateFilter = document.getElementById("endDateFilter");
-
-  // Active filters
-  let activeFilters = {
-    status: "all",
-    type: "all",
-    domain: "",
-    url: "",
-    startDate: "",
-    endDate: "",
-  };
-
-  // Pagination
-  let currentPage = 1;
-  let totalPages = 1;
-  let itemsPerPage = 50; // Default, will be updated from config
-  let totalItems = 0;
-
-  // Config - Load relevant parts needed for popup operation (like itemsPerPage)
-  let config = {
-    ui: {
-      requestsPerPage: 50, // Default value
-    },
-  };
+  // Assign DOM elements inside DOMContentLoaded
+  requestsTableBody = document.getElementById("requestsTableBody");
+  totalRequestsEl = document.getElementById("totalRequests");
+  avgResponseTimeEl = document.getElementById("avgResponseTime");
+  successRateEl = document.getElementById("successRate");
+  filterBtn = document.getElementById("filterBtn");
+  filterPanel = document.getElementById("filterPanel");
+  clearBtn = document.getElementById("clearBtn");
+  exportBtn = document.getElementById("exportBtn");
+  exportPanel = document.getElementById("exportPanel");
+  exportDbSizeSpan = document.getElementById("exportDbSize");
+  exportFormatSelect = document.getElementById("exportFormat");
+  exportFilenameInput = document.getElementById("exportFilename");
+  requestDetails = document.getElementById("requestDetails");
+  closeDetails = document.getElementById("closeDetails");
+  applyFilterBtn = document.getElementById("applyFilterBtn");
+  resetFilterBtn = document.getElementById("resetFilterBtn");
+  doExportBtn = document.getElementById("doExportBtn");
+  cancelExportBtn = document.getElementById("cancelExportBtn");
+  prevPageBtn = document.getElementById("prevPageBtn");
+  nextPageBtn = document.getElementById("nextPageBtn");
+  pageInfoEl = document.getElementById("pageInfo");
+  tabButtons = document.querySelectorAll(".tab-btn");
+  tabContents = document.querySelectorAll(".tab-content");
+  vizApplyFilterBtn = document.getElementById("vizApplyFilterBtn");
+  vizResetFilterBtn = document.getElementById("vizResetFilterBtn");
+  OptionsPage = document.getElementById("openOptions");
+  notificationElement = document.getElementById("notification");
+  importBtn = document.getElementById("importBtn");
+  importPanel = document.getElementById("importPanel");
+  doImportBtn = document.getElementById("doImportBtn");
+  cancelImportBtn = document.getElementById("cancelImportBtn");
+  importFile = document.getElementById("importFile");
+  importStatus = document.getElementById("importStatus");
+  exportDbBtn = document.getElementById("exportDbBtn");
+  refreshBtn = document.getElementById("refreshBtn");
+  statusFilter = document.getElementById("statusFilter");
+  typeFilter = document.getElementById("typeFilter");
+  domainFilter = document.getElementById("domainFilter");
+  urlFilter = document.getElementById("urlFilter");
+  startDateFilter = document.getElementById("startDateFilter");
+  endDateFilter = document.getElementById("endDateFilter");
 
   // --- Utility Functions ---
   function formatBytes(bytes, decimals = 2) {
@@ -106,16 +150,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function showNotification(message, isError = false) {
-    const notificationElement = document.getElementById("notification");
     if (notificationElement) {
       notificationElement.textContent = message;
       notificationElement.className = `notification ${
         isError ? "error" : "success"
       }`;
       notificationElement.style.display = "block";
-      setTimeout(() => {
-        notificationElement.style.display = "none";
-      }, isError ? 6000 : 4000);
+      setTimeout(
+        () => {
+          notificationElement.style.display = "none";
+        },
+        isError ? 6000 : 4000
+      );
     } else {
       console.warn("Notification element not found in popup.html");
       if (isError) {
@@ -127,13 +173,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // --- Panel Management ---
-  let activePanel = null;
 
   function togglePanel(panelElement) {
     if (!panelElement) return; // Safety check
 
     const isOpening =
-      panelElement.style.display === "none" || panelElement.style.display === "";
+      panelElement.style.display === "none" ||
+      panelElement.style.display === "";
 
     // Close currently active panel if it's different
     if (activePanel && activePanel !== panelElement) {
@@ -176,7 +222,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         exportDbSizeSpan.textContent = formatBytes(response.stats.size || 0);
       } else {
         exportDbSizeSpan.textContent = "Error";
-        console.error("Failed to get DB stats for export panel:", response?.error);
+        console.error(
+          "Failed to get DB stats for export panel:",
+          response?.error
+        );
       }
     });
 
@@ -228,7 +277,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (response && response.success) {
             togglePanel(exportPanel); // Close panel on success
             showNotification(
-              `Data exported successfully. Download ID: ${response.downloadId || "N/A"}`
+              `Data exported successfully. Download ID: ${
+                response.downloadId || "N/A"
+              }`
             );
           } else {
             showNotification(
@@ -259,7 +310,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.runtime.sendMessage({ action: "exportDatabase" }, (response) => {
       if (response && response.success) {
         showNotification(
-          `Database exported successfully. Download ID: ${response.downloadId || "N/A"}`
+          `Database exported successfully. Download ID: ${
+            response.downloadId || "N/A"
+          }`
         );
       } else {
         showNotification(
@@ -344,7 +397,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (importStatus) importStatus.textContent = successMsg;
             togglePanel(importPanel);
           } else {
-            const errorMsg = `Error importing data: ${response?.error || "Unknown error"}`;
+            const errorMsg = `Error importing data: ${
+              response?.error || "Unknown error"
+            }`;
             showNotification(errorMsg, true);
             if (importStatus) importStatus.textContent = errorMsg;
           }
@@ -479,6 +534,7 @@ function loadRequests() {
 
 // Update pagination UI
 function updatePagination() {
+  if (!pageInfoEl || !prevPageBtn || !nextPageBtn) return; // Add checks
   pageInfoEl.textContent = `Page ${currentPage} of ${totalPages} (${totalItems} items)`;
   prevPageBtn.disabled = currentPage <= 1;
   nextPageBtn.disabled = currentPage >= totalPages;
@@ -494,6 +550,7 @@ function changePage(page) {
 
 // Render the requests table
 function renderRequestsTable(requests) {
+  if (!requestsTableBody) return; // Add check
   requestsTableBody.innerHTML = "";
 
   if (requests.length === 0) {
@@ -523,7 +580,9 @@ function renderRequestsTable(requests) {
       <td class="path-cell" title="${request.path || "-"}">${
       request.path || "-"
     }</td>
-      <td class="${statusClass}">${request.statusCode || request.status || "-"}</td>
+      <td class="${statusClass}">${
+      request.statusCode || request.status || "-"
+    }</td>
       <td>${request.type || "-"}</td>
       <td>${request.size ? formatBytes(request.size) : "-"}</td>
       <td>${request.duration ? `${Math.round(request.duration)}ms` : "-"}</td>
@@ -538,6 +597,7 @@ function renderRequestsTable(requests) {
 
 // Update stats summary panel
 function updateStatsSummary(stats) {
+  if (!totalRequestsEl || !avgResponseTimeEl || !successRateEl) return; // Add checks
   if (stats) {
     totalRequestsEl.textContent = stats.totalRequests.toLocaleString();
     avgResponseTimeEl.textContent = `${Math.round(
@@ -558,6 +618,7 @@ function loadStats() {
 
 // Show request details panel
 function showRequestDetails(request) {
+  if (!requestDetails) return; // Add check
   document.getElementById("detailUrl").textContent = request.url;
   document.getElementById("detailMethod").textContent = request.method;
 
@@ -652,6 +713,7 @@ function updateTimingBar(barId, timeId, duration, maxDuration) {
 
 // Hide request details panel
 function hideRequestDetails() {
+  if (!requestDetails) return; // Add check
   requestDetails.classList.remove("visible");
 }
 

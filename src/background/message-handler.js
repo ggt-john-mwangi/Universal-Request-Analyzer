@@ -74,6 +74,13 @@ async function handleMessage(request, sender, sendResponse) {
       case "exportData":
         response = await exportManager.exportData(request); // Pass full request options
         break;
+      case "getExportFormats": // <<< ADDED CASE
+        if (exportManager && typeof exportManager.getExportFormats === 'function') {
+          response.formats = exportManager.getExportFormats();
+        } else {
+          throw new Error("Export manager or getExportFormats function not available.");
+        }
+        break;
       case "importData":
         response.importedCount = await importManager.importData(
           request.format,

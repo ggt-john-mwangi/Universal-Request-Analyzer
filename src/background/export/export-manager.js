@@ -32,7 +32,32 @@ export function setupExportManager(database, encryption, events) {
     exportToSqlite,
     exportToPdf,
     exportToExcel,
+    getExportFormats, // Add getExportFormats here
   }
+}
+
+// Get available export formats
+export function getExportFormats() {
+  return [
+    {
+      id: "json",
+      name: "JSON",
+      description: "Export as JSON file with optional compression",
+    },
+    {
+      id: "csv",
+      name: "CSV",
+      description: "Export as CSV file with configurable columns",
+    },
+    {
+      id: "sqlite",
+      name: "SQLite",
+      description: "Export as SQLite database file",
+    },
+    // Add other formats if/when implemented and supported
+    // { id: "pdf", name: "PDF", description: "Export as PDF (Not implemented)" },
+    // { id: "excel", name: "Excel", description: "Export as Excel (Not implemented)" },
+  ];
 }
 
 // Set up auto-export
