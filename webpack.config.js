@@ -3,6 +3,7 @@ const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const ZipPlugin = require("zip-webpack-plugin");
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === "production";
@@ -89,6 +90,8 @@ module.exports = (env, argv) => {
           // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
           { from: "./src/devtools/js/**/*", to: "[name][ext]" },
+
+          { from: "./src/**/css/*", to: "css/[name][ext]" },
         ],
       }),
       new HtmlWebpackPlugin({
@@ -106,6 +109,11 @@ module.exports = (env, argv) => {
         filename: "devtools.html",
         chunks: ["devtools"],
       }),
+      // Package the dist/ folder into a single ZIP for upload/sideload
+      new ZipPlugin({
+        path: path.resolve(__dirname, "release"),
+        filename: "ura.zip",
+      }),
     ],
     resolve: {
       extensions: [".js"],
@@ -121,7 +129,7 @@ module.exports = (env, argv) => {
       },
     },
     optimization: {
-      minimize: isProduction,
+      minimize: isProduction ? true : true,
       splitChunks: {
         cacheGroups: {
           styles: {

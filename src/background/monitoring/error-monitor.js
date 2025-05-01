@@ -1,136 +1,215 @@
-// Error monitoring system
+// Error monitoring system - tracks and handles errors across the extension
 
-let eventBus = null
-let errorLog = []
-const MAX_ERROR_LOG_SIZE = 100
-
-// Set up error monitoring
-export function setupErrorMonitoring(events) {
-  eventBus = events
-
-  // Set up global error handler
-  setupGlobalErrorHandler()
-
-  // Expose error monitor to background page
-  if (typeof window !== "undefined") {
-    window.errorMonitor = {
-      reportError,
-      reportCriticalError,
-      getErrorLog,
-      clearErrorLog,
-    }
+class ErrorMonitor {
+  constructor(eventBus) {
+    this.eventBus = eventBus;
+    this.errorLog = new Map();
+    this.errorCounts = new Map();
+    this.maxLogSize = 1000;
+    this.retryStrategies = new Map();
   }
 
-  console.log("Error monitoring initialized")
-
-  return {
-    reportError,
-    reportCriticalError,
-    getErrorLog,
-    clearErrorLog,
+  // Initialize error monitoring
+  initialize() {
+    this.setupErrorListeners();
+    this.setupPeriodicCleanup();
+    this.registerRetryStrategies();
   }
-}
 
-// Set up global error handler
-function setupGlobalErrorHandler() {
-  if (typeof window !== "undefined") {
-    // Handle uncaught exceptions
-    window.addEventListener("error", (event) => {
-      reportError("uncaught_exception", event.error || new Error(event.message))
+  // Set up error event listeners
+  setupErrorListeners() {
+    // Listen for service errors
+    this.eventBus.subscribe("service:stateChanged", (data) => {
+      if (data.status === "failed") {
+        this.handleServiceError(data);
+      }
+    });
 
-      // Don't prevent default error handling
-      return false
-    })
+    // Listen for message errors
+    this.eventBus.subscribe("message:error", (data) => {
+      this.logError("message", data);
+    });
 
-    // Handle unhandled promise rejections
-    window.addEventListener("unhandledrejection", (event) => {
-      reportError("unhandled_rejection", event.reason)
+    // Listen for database errors
+    this.eventBus.subscribe("database:error", (data) => {
+      this.logError("database", data);
+    });
 
-      // Don't prevent default error handling
-      return false
-    })
+    // Listen for auth errors
+    this.eventBus.subscribe("auth:error", (data) => {
+      this.logError("auth", data);
+    });
+
+    // Listen for sync errors
+    this.eventBus.subscribe("sync:error", (data) => {
+      this.logError("sync", data);
+    });
+
+    // Listen for export errors
+    this.eventBus.subscribe("export:error", (data) => {
+      this.logError("export", data);
+    });
+
+    // Listen for encryption errors
+    this.eventBus.subscribe("encryption:error", (data) => {
+      this.logError("encryption", data);
+    });
   }
-}
 
-// Report an error
-function reportError(errorType, error) {
-  try {
-    // Create error entry
-    const errorEntry = {
-      type: errorType,
-      message: error.message || String(error),
-      stack: error.stack,
-      timestamp: Date.now(),
+  // Register retry strategies for different error types
+  registerRetryStrategies() {
+    // Database connection errors
+    this.retryStrategies.set("database:connection", {
+      maxRetries: 3,
+      backoffMs: 1000,
+      backoffMultiplier: 2,
+    });
+
+    // Authentication errors
+    this.retryStrategies.set("auth:token", {
+      maxRetries: 2,
+      backoffMs: 500,
+      backoffMultiplier: 2,
+    });
+
+    // Sync errors
+    this.retryStrategies.set("sync:network", {
+      maxRetries: 5,
+      backoffMs: 2000,
+      backoffMultiplier: 1.5,
+    });
+  }
+
+  // Handle service-specific errors
+  handleServiceError(data) {
+    const { service, error } = data;
+    this.logError(service, error);
+
+    // Check if we have a retry strategy for this service
+    const strategy = this.retryStrategies.get(`${service}:${error.type}`);
+    if (strategy) {
+      this.handleRetry(service, error, strategy);
     }
-
-    // Add to error log
-    errorLog.unshift(errorEntry)
-
-    // Limit error log size
-    if (errorLog.length > MAX_ERROR_LOG_SIZE) {
-      errorLog = errorLog.slice(0, MAX_ERROR_LOG_SIZE)
-    }
-
-    // Log to console
-    console.error(`[${errorType}]`, error)
 
     // Publish error event
-    if (eventBus) {
-      eventBus.publish("error:reported", errorEntry)
+    this.eventBus.publish("monitor:error", {
+      service,
+      error: error.message,
+      timestamp: Date.now(),
+    });
+  }
+
+  // Handle retrying failed operations
+  async handleRetry(service, error, strategy) {
+    const errorKey = `${service}:${error.type}`;
+    const retryCount = this.errorCounts.get(errorKey) || 0;
+
+    if (retryCount < strategy.maxRetries) {
+      const backoffTime =
+        strategy.backoffMs * Math.pow(strategy.backoffMultiplier, retryCount);
+
+      // Update retry count
+      this.errorCounts.set(errorKey, retryCount + 1);
+
+      // Wait for backoff time
+      await new Promise((resolve) => setTimeout(resolve, backoffTime));
+
+      // Publish retry event
+      this.eventBus.publish("monitor:retry", {
+        service,
+        attempt: retryCount + 1,
+        timestamp: Date.now(),
+      });
+
+      // Trigger service retry
+      this.eventBus.publish(`${service}:retry`, {
+        error,
+        attempt: retryCount + 1,
+      });
+    } else {
+      // Max retries reached
+      this.eventBus.publish("monitor:retryFailed", {
+        service,
+        error: error.message,
+        attempts: retryCount,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  // Log an error
+  logError(category, error) {
+    const timestamp = Date.now();
+    const errorKey = `${category}:${timestamp}`;
+
+    // Create error entry
+    const errorEntry = {
+      category,
+      message: error.message || error,
+      stack: error.stack,
+      timestamp,
+      context: error.context || {},
+    };
+
+    // Add to error log
+    this.errorLog.set(errorKey, errorEntry);
+
+    // Update error counts
+    const categoryCount = this.errorCounts.get(category) || 0;
+    this.errorCounts.set(category, categoryCount + 1);
+
+    // Cleanup if log is too large
+    if (this.errorLog.size > this.maxLogSize) {
+      this.cleanup();
     }
 
-    return errorEntry
-  } catch (e) {
-    // Last resort error logging
-    console.error("Error in error reporting:", e)
-    return null
+    console.error(`[${category}]`, error);
+  }
+
+  // Set up periodic cleanup
+  setupPeriodicCleanup() {
+    // Clean up old errors every hour
+    setInterval(() => this.cleanup(), 3600000);
+  }
+
+  // Clean up old error logs
+  cleanup() {
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Remove old entries
+    for (const [key, entry] of this.errorLog.entries()) {
+      if (now - entry.timestamp > maxAge) {
+        this.errorLog.delete(key);
+      }
+    }
+
+    // Reset error counts
+    this.errorCounts.clear();
+  }
+
+  // Get error statistics
+  getStats() {
+    return {
+      totalErrors: this.errorLog.size,
+      categoryCounts: Object.fromEntries(this.errorCounts),
+      recentErrors: Array.from(this.errorLog.values())
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 10),
+    };
+  }
+
+  // Get errors by category
+  getErrorsByCategory(category) {
+    return Array.from(this.errorLog.values())
+      .filter((error) => error.category === category)
+      .sort((a, b) => b.timestamp - a.timestamp);
   }
 }
 
-// Report a critical error
-function reportCriticalError(errorType, error) {
-  try {
-    // Report error
-    const errorEntry = reportError(errorType, error)
-
-    // Check if chrome is defined (running in a Chrome extension context)
-    if (typeof chrome !== "undefined" && chrome.notifications) {
-      chrome.notifications.create({
-        type: "basic",
-        iconUrl: chrome.runtime.getURL("assets/icons/error.png"),
-        title: "Critical Error",
-        message: `A critical error occurred: ${error.message || String(error)}`,
-        priority: 2,
-      })
-    }
-
-    // Publish critical error event
-    if (eventBus) {
-      eventBus.publish("error:critical", errorEntry)
-    }
-
-    return errorEntry
-  } catch (e) {
-    // Last resort error logging
-    console.error("Error in critical error reporting:", e)
-    return null
-  }
+// Set up error monitoring
+export function setupErrorMonitoring(eventBus) {
+  const monitor = new ErrorMonitor(eventBus);
+  monitor.initialize();
+  return monitor;
 }
-
-// Get error log
-function getErrorLog() {
-  return [...errorLog]
-}
-
-// Clear error log
-function clearErrorLog() {
-  errorLog = []
-
-  // Publish error log cleared event
-  if (eventBus) {
-    eventBus.publish("error:log_cleared", { timestamp: Date.now() })
-  }
-
-  return true
-}
-

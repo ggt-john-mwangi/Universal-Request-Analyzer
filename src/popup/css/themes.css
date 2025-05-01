@@ -81,7 +81,14 @@ body {
   color: var(--text-primary-color);
 }
 
-header {
+.popup_container,
+.options_container {
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+}
+
+header,
+.popup_header {
   background-color: var(--surface-color);
   border-color: var(--border-color);
 }
@@ -89,28 +96,22 @@ header {
 .tabs {
   background-color: var(--surface-color);
   border-color: var(--border-color);
-  box-shadow: 0 2px 4px var(--shadow-color);
-  border-radius: 4px;
-  padding: 8px;
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 8px;
 }
 
 button {
   background-color: var(--surface-color);
-  border-color: var(--border-color);
+  border: 1px solid var(--border-color);
   color: var(--text-primary-color);
 }
 
 button:hover {
-  background-color: var(--divider-color);
+  background-color: var(--primary-color);
+  color: #ffffff;
 }
 
 .primary-btn {
   background-color: var(--primary-color);
-  color: white;
+  color: #ffffff;
 }
 
 .primary-btn:hover {
@@ -120,41 +121,24 @@ button:hover {
 
 .danger-btn {
   background-color: var(--error-color);
-  color: white;
+  color: #ffffff;
 }
 
 .danger-btn:hover {
   background-color: var(--error-color);
   filter: brightness(90%);
 }
-.tab-btn {
-  background-color: var(--background-color);
-  color: var(--text-primary-color);
-}
-.tab-btn::hover {
-  color: white;
-}
-.tab-btn.active {
-  border-bottom-color: var(--primary-color);
-  color: var(--primary-color);
-}
-.tab-btn.active::hover {
-  color: white;
-}
 
 /* Status colors */
 .status-success {
   color: var(--success-color);
 }
-
 .status-error {
   color: var(--error-color);
 }
-
 .status-pending {
   color: var(--warning-color);
 }
-
 .status-redirect {
   color: var(--info-color);
 }
@@ -163,24 +147,55 @@ button:hover {
 .dns-bar {
   background-color: var(--success-color);
 }
-
 .tcp-bar {
   background-color: var(--info-color);
 }
-
 .ssl-bar {
   background-color: var(--accent-color);
 }
-
 .ttfb-bar {
   background-color: var(--warning-color);
 }
-
 .download-bar {
   background-color: var(--error-color);
 }
-/* settings */
+
+/* Settings panel */
 .settings-container {
+  background-color: var(--surface-color);
+  color: var(--text-primary-color);
+  border: 1px solid var(--border-color);
+}
+
+.settings-section {
+  border-bottom: 1px solid var(--divider-color);
+}
+
+input,
+select,
+textarea {
   background-color: var(--background-color);
   color: var(--text-primary-color);
+  border: 1px solid var(--border-color);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color, #0066cc);
+}
+
+/* Tables */
+table {
+  border-color: var(--border-color);
+}
+
+th {
+  background-color: var(--surface-color);
+  color: var(--text-primary-color);
+}
+
+tr:hover {
+  background-color: var(--surface-color);
 }

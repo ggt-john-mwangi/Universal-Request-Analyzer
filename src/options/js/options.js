@@ -1,9 +1,27 @@
-import "../css/options.css"; // Ensure the CSS file is imported
-import "../../styles.css"; // Import the global styles.css
-// import "../css/themes.css";
-// import "../css/data-visualization.css";
-// import "../css/settings.css";
+// Import necessary modules
+import "../components/auto-export.js";
+import "../components/capture-filters.js";
+import "../components/capture-settings.js";
+import "../components/chart-components.js";
+import "../components/chart-renderer.js";
+import "../components/data-filter-panel.js";
+import "../components/data-loader.js";
+import "../components/data-purge.js";
+import "../components/data-visualization.js";
+import "../components/export-db.js";
+import "../components/export-panel.js";
+import "../components/filters.js";
+import "../components/notifications.js";
+import "../components/performance-monitor.js";
+import "../components/settings-manager.js";
+import "../components/settings-ui.js";
+import "../components/tab-manager.js";
+import "../components/visualization.js";
+import "../../auth/acl-manager.js";
+import "../../config/feature-flags.js";
+import "../../config/theme-manager.js";
 import "../../lib/chart.min.js";
+
 // DOM elements
 const captureEnabled = document.getElementById("captureEnabled");
 const maxStoredRequests = document.getElementById("maxStoredRequests");
@@ -27,264 +45,328 @@ const dbTotalRequests = document.getElementById("dbTotalRequests");
 const dbSize = document.getElementById("dbSize");
 const lastExport = document.getElementById("lastExport");
 
-// Default configuration
-const defaultConfig = {
-  maxStoredRequests: 10000,
-  captureEnabled: true,
-  autoExport: false,
-  exportFormat: "json",
-  exportInterval: 60, // minutes
-  exportPath: "",
-  plotEnabled: true,
-  plotTypes: [
-    "responseTime",
-    "statusCodes",
-    "domains",
-    "requestTypes",
-    "timeDistribution",
-  ],
-  captureFilters: {
-    includeDomains: [],
-    excludeDomains: [],
-    includeTypes: [
-      "xmlhttprequest",
-      "fetch",
-      "script",
-      "stylesheet",
-      "image",
-      "font",
-      "other",
-    ],
-  },
-  lastExportTime: null,
-};
+// Add import/export elements
+const exportSettingsBtn = document.getElementById("exportSettingsBtn");
+const importSettingsBtn = document.getElementById("importSettingsBtn");
+const importSettingsFile = document.getElementById("importSettingsFile");
 
-// Load options when the page loads
-document.addEventListener("DOMContentLoaded", loadOptions);
+// Theme elements
+const currentThemeSelect = document.getElementById("currentTheme");
+const themesContainer = document.querySelector(".themes-container");
+const saveThemeBtn = document.getElementById("saveThemeBtn");
+const resetThemeBtn = document.getElementById("resetThemeBtn");
 
-// Add event listeners
-saveBtn.addEventListener("click", saveOptions);
-resetBtn.addEventListener("click", resetOptions);
-exportDbBtn.addEventListener("click", exportDatabase);
-clearDbBtn.addEventListener("click", clearDatabase);
+// Load when DOM is ready
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    // Initialize settings manager
+    await settingsManager.initialize();
 
-// Add event listener for SQLite export toggle
-document
-  .getElementById("enableSqliteExport")
-  .addEventListener("change", (event) => {
-    const isEnabled = event.target.checked;
-    chrome.runtime.sendMessage(
-      {
-        action: "updateConfig",
-        config: { export: { enableSqliteExport: isEnabled } },
-      },
-      (response) => {
-        if (response && response.success) {
-          showNotification("SQLite export feature updated successfully.");
-        } else {
-          showNotification("Failed to update SQLite export feature.", true);
-        }
-      }
+    // Initialize theme manager
+    await themeManager.initialize({
+      initialTheme: settingsManager.getAllSettings().theme.current || "light",
+      onUpdate: handleThemeUpdate,
+    });
+
+    // Load initial settings
+    await loadOptions();
+
+    // Add settings change listener
+    settingsManager.addSettingsListener(handleSettingsChange);
+
+    // Initialize data purge component
+    const dataPurgeContainer = document.getElementById("dataPurge");
+    if (dataPurgeContainer) {
+      dataPurgeContainer.appendChild(renderDataPurge());
+    }
+
+    // Set up tab navigation
+    setupTabNavigation();
+
+    // Render theme options
+    renderThemeOptions();
+  } catch (error) {
+    console.error("Error initializing options:", error);
+    showNotification("Failed to initialize options", true);
+  }
+});
+
+// Load options from storage
+async function loadOptions() {
+  const allSettings = settingsManager.getAllSettings();
+  const settings = allSettings.settings;
+
+  // Update capture settings
+  captureEnabled.checked = settings.capture.enabled;
+  maxStoredRequests.value = settings.general.maxStoredRequests;
+
+  // Update capture types
+  captureTypeCheckboxes.forEach((checkbox) => {
+    checkbox.checked = settings.capture.captureFilters.includeTypes.includes(
+      checkbox.value
     );
   });
 
-// Load options from storage
-function loadOptions() {
-  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
-    if (response && response.config) {
-      const config = response.config;
+  // Update domains
+  includeDomains.value =
+    settings.capture.captureFilters.includeDomains.join(", ");
+  excludeDomains.value =
+    settings.capture.captureFilters.excludeDomains.join(", ");
 
-      // Update UI with config values
-      captureEnabled.checked = config.captureEnabled;
-      maxStoredRequests.value = config.maxStoredRequests;
+  // Update export settings
+  autoExport.checked = settings.general.autoExport;
+  exportFormat.value = settings.general.defaultExportFormat;
+  exportInterval.value = settings.general.autoExportInterval / 60000; // Convert to minutes
+  exportPath.value = settings.general.exportPath || "";
 
-      // Update capture type checkboxes
-      captureTypeCheckboxes.forEach((checkbox) => {
-        checkbox.checked = config.captureFilters.includeTypes.includes(
-          checkbox.value
-        );
-      });
-
-      // Update domain filters
-      includeDomains.value = config.captureFilters.includeDomains.join(", ");
-      excludeDomains.value = config.captureFilters.excludeDomains.join(", ");
-
-      // Update auto export settings
-      autoExport.checked = config.autoExport;
-      exportFormat.value = config.exportFormat;
-      exportInterval.value = config.exportInterval / 60000; // Convert ms to minutes
-      exportPath.value = config.exportPath || "";
-
-      // Update plot settings
-      plotEnabled.checked = config.plotEnabled;
-
-      // Update plot type checkboxes
-      plotTypeCheckboxes.forEach((checkbox) => {
-        checkbox.checked = config.plotTypes.includes(checkbox.value);
-      });
-
-      // Update last export time
-      if (config.lastExportTime) {
-        lastExport.textContent = new Date(
-          config.lastExportTime
-        ).toLocaleString();
-      }
-    }
+  // Update visualization settings
+  plotEnabled.checked = settings.display.showCharts;
+  plotTypeCheckboxes.forEach((checkbox) => {
+    checkbox.checked = settings.display.enabledCharts.includes(checkbox.value);
   });
 
-  // Load database info
-  loadDatabaseInfo();
+  // Update theme settings
+  currentThemeSelect.value = themeManager.currentTheme;
+  renderThemeCards();
 
-  // Load SQLite export toggle state
+  // Load database info
+  await loadDatabaseInfo();
   loadSqliteExportToggle();
 }
 
-// Load SQLite export toggle state
-function loadSqliteExportToggle() {
-  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
-    if (response && response.config && response.config.export) {
-      document.getElementById("enableSqliteExport").checked =
-        response.config.export.enableSqliteExport || false;
-    }
-  });
+// Handle settings changes from other views
+function handleSettingsChange(newSettings) {
+  // Update UI elements with new settings
+  captureEnabled.checked = newSettings.capture.enabled;
+  maxStoredRequests.value = newSettings.general.maxStoredRequests;
+
+  // Update theme UI if needed
+  if (
+    newSettings.theme &&
+    newSettings.theme.current !== currentThemeSelect.value
+  ) {
+    currentThemeSelect.value = newSettings.theme.current;
+    renderThemeCards();
+  }
 }
 
-// Load database information
-function loadDatabaseInfo() {
-  chrome.runtime.sendMessage({ action: "getDatabaseInfo" }, (response) => {
-    if (response && !response.error) {
-      dbTotalRequests.textContent = response.totalRequests.toLocaleString();
-      dbSize.textContent = formatBytes(response.databaseSize);
-    }
-  });
-}
-
-// Format bytes to human-readable format
-function formatBytes(bytes, decimals = 2) {
-  if (bytes === 0) return "0 Bytes";
-
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return (
-    Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-  );
+// Handle theme updates
+function handleThemeUpdate(themeData) {
+  currentThemeSelect.value = themeData.theme;
+  renderThemeCards();
 }
 
 // Save options to storage
-function saveOptions() {
-  // Get values from UI
-  const newConfig = {
-    captureEnabled: captureEnabled.checked,
-    maxStoredRequests: Number.parseInt(maxStoredRequests.value, 10),
-    autoExport: autoExport.checked,
-    exportFormat: exportFormat.value,
-    exportInterval: Number.parseInt(exportInterval.value, 10) * 60000, // Convert minutes to ms
-    exportPath: exportPath.value.trim(),
-    plotEnabled: plotEnabled.checked,
-    plotTypes: Array.from(plotTypeCheckboxes)
-      .filter((checkbox) => checkbox.checked)
-      .map((checkbox) => checkbox.value),
-    captureFilters: {
-      includeDomains: includeDomains.value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d),
-      excludeDomains: excludeDomains.value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d),
-      includeTypes: Array.from(captureTypeCheckboxes)
+async function saveOptions() {
+  const newSettings = {
+    capture: {
+      enabled: captureEnabled.checked,
+      captureFilters: {
+        includeTypes: Array.from(captureTypeCheckboxes)
+          .filter((checkbox) => checkbox.checked)
+          .map((checkbox) => checkbox.value),
+        includeDomains: includeDomains.value
+          .split(",")
+          .map((d) => d.trim())
+          .filter((d) => d),
+        excludeDomains: excludeDomains.value
+          .split(",")
+          .map((d) => d.trim())
+          .filter((d) => d),
+      },
+    },
+    general: {
+      maxStoredRequests: Number.parseInt(maxStoredRequests.value, 10),
+      autoExport: autoExport.checked,
+      defaultExportFormat: exportFormat.value,
+      autoExportInterval: Number.parseInt(exportInterval.value, 10) * 60000,
+      exportPath: exportPath.value.trim(),
+    },
+    display: {
+      showCharts: plotEnabled.checked,
+      enabledCharts: Array.from(plotTypeCheckboxes)
         .filter((checkbox) => checkbox.checked)
         .map((checkbox) => checkbox.value),
     },
+    theme: {
+      current: themeManager.currentTheme,
+    },
   };
 
-  // Save to background script
-  chrome.runtime.sendMessage(
-    {
-      action: "updateConfig",
-      config: newConfig,
-    },
-    (response) => {
-      if (response && response.success) {
-        showNotification("Options saved successfully!");
-      } else {
-        showNotification("Error saving options", true);
-      }
-    }
-  );
+  const success = await settingsManager.updateSettings(newSettings);
+  if (success) {
+    showNotification("Options saved successfully!");
+  } else {
+    showNotification("Error saving options", true);
+  }
 }
 
 // Reset options to defaults
-function resetOptions() {
-  if (
-    confirm("Are you sure you want to reset all options to default values?")
-  ) {
-    // Save default config to background script
-    chrome.runtime.sendMessage(
-      {
-        action: "updateConfig",
-        config: defaultConfig,
-      },
-      (response) => {
-        if (response && response.success) {
-          // Reload options
-          loadOptions();
-          showNotification("Options reset to defaults");
-        } else {
-          showNotification("Error resetting options", true);
-        }
-      }
-    );
+async function resetOptions() {
+  const success = await settingsManager.resetAllToDefaults();
+  if (success) {
+    await loadOptions();
+    showNotification("Options reset to defaults!");
+  } else {
+    showNotification("Error resetting options", true);
   }
 }
 
-// Export database
-function exportDatabase() {
-  const format = exportFormat.value;
-  const filename = `request-analyzer-database-${new Date()
+// Export settings to file
+function exportSettings() {
+  const exportData = settingsManager.exportSettings();
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `request-analyzer-settings-${new Date()
     .toISOString()
-    .slice(0, 10)}`;
-
-  chrome.runtime.sendMessage(
-    {
-      action: "exportData",
-      format: format,
-      filename: filename,
-    },
-    (response) => {
-      if (response && response.success) {
-        showNotification(
-          `Database exported successfully as ${format.toUpperCase()}`
-        );
-        loadDatabaseInfo();
-      } else {
-        showNotification("Error exporting database", true);
-      }
-    }
-  );
+    .slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showNotification("Settings exported successfully!");
 }
 
-// Clear database
-function clearDatabase() {
-  if (
-    confirm(
-      "Are you sure you want to clear all captured requests? This cannot be undone."
-    )
-  ) {
-    chrome.runtime.sendMessage({ action: "clearRequests" }, (response) => {
-      if (response && response.success) {
-        showNotification("Database cleared successfully");
-        loadDatabaseInfo();
-      } else {
-        showNotification("Error clearing database", true);
+// Import settings from file
+async function importSettings(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  try {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const importData = JSON.parse(e.target.result);
+        const success = await settingsManager.importSettings(importData);
+
+        if (success) {
+          await loadOptions(); // Reload UI with new settings
+          showNotification("Settings imported successfully!");
+        } else {
+          showNotification("Failed to import settings", true);
+        }
+      } catch (error) {
+        console.error("Import error:", error);
+        showNotification("Invalid settings file", true);
       }
-    });
+    };
+    reader.readAsText(file);
+  } catch (error) {
+    console.error("File read error:", error);
+    showNotification("Failed to read settings file", true);
   }
+
+  // Clear the file input for future imports
+  event.target.value = "";
+}
+
+// Render theme options
+function renderThemeOptions() {
+  // Handle theme selection change
+  currentThemeSelect.addEventListener("change", async (e) => {
+    const themeId = e.target.value;
+    await themeManager.setTheme(themeId);
+  });
+
+  // Handle theme save
+  saveThemeBtn.addEventListener("click", async () => {
+    const success = await settingsManager.updateSettings({
+      theme: {
+        current: themeManager.currentTheme,
+      },
+    });
+
+    if (success) {
+      showNotification("Theme settings saved successfully!");
+    } else {
+      showNotification("Error saving theme settings", true);
+    }
+  });
+
+  // Handle theme reset
+  resetThemeBtn.addEventListener("click", async () => {
+    if (confirm("Are you sure you want to reset theme settings to defaults?")) {
+      await themeManager.resetToDefaults();
+      currentThemeSelect.value = themeManager.currentTheme;
+      renderThemeCards();
+      showNotification("Theme settings reset to defaults!");
+    }
+  });
+
+  // Initial render of theme cards
+  renderThemeCards();
+}
+
+// Render theme preview cards
+function renderThemeCards() {
+  const themes = themeManager.getThemesInfo();
+  themesContainer.innerHTML = themes
+    .map(
+      (theme) => `
+    <div class="theme-card ${
+      theme.isCurrentTheme ? "current-theme" : ""
+    }" data-theme-id="${theme.id}">
+      <div class="theme-preview" style="background-color: ${
+        theme.previewColors.background
+      }">
+        <div class="theme-preview-header" style="
+          background-color: ${theme.previewColors.surface};
+          color: ${theme.previewColors.text};
+          border: 1px solid ${theme.previewColors.primary};">
+          ${theme.name}
+        </div>
+      </div>
+      <div class="theme-info">
+        <div class="theme-name">${theme.name}</div>
+        <div class="theme-description">${theme.description}</div>
+      </div>
+      <div class="theme-actions">
+        <button class="theme-apply-btn" data-theme-id="${theme.id}"
+          ${theme.isCurrentTheme ? "disabled" : ""}>
+          ${theme.isCurrentTheme ? "Current Theme" : "Apply Theme"}
+        </button>
+      </div>
+    </div>
+  `
+    )
+    .join("");
+
+  // Add theme card click handlers
+  document.querySelectorAll(".theme-apply-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const themeId = e.target.dataset.themeId;
+      await themeManager.setTheme(themeId);
+      currentThemeSelect.value = themeId;
+      renderThemeCards();
+      showNotification(
+        `${themeManager.themes[themeId].name} theme applied successfully!`
+      );
+    });
+  });
+}
+
+// Setup tab navigation
+function setupTabNavigation() {
+  const tabs = document.querySelectorAll(".tab-button");
+  const tabContents = document.querySelectorAll(".tab-content");
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      // Remove active class from all tabs and contents
+      tabs.forEach((t) => t.classList.remove("active"));
+      tabContents.forEach((c) => c.classList.remove("active"));
+
+      // Add active class to clicked tab and corresponding content
+      tab.classList.add("active");
+      const tabId = tab.dataset.tab;
+      document.getElementById(tabId).classList.add("active");
+    });
+  });
 }
 
 // Show notification
@@ -297,3 +379,44 @@ function showNotification(message, isError = false) {
     notification.classList.remove("visible");
   }, 5000);
 }
+
+// Add event listeners
+saveBtn.addEventListener("click", saveOptions);
+resetBtn.addEventListener("click", resetOptions);
+exportDbBtn.addEventListener("click", () => {
+  chrome.runtime.sendMessage(
+    {
+      action: "exportDatabase",
+      format: exportFormat.value,
+      filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
+        exportFormat.value
+      }`,
+    },
+    (response) => {
+      if (response && response.success) {
+        showNotification("Database exported successfully!");
+        lastExport.textContent = new Date().toLocaleString();
+      } else {
+        showNotification("Failed to export database", true);
+      }
+    }
+  );
+});
+
+clearDbBtn.addEventListener("click", () => {
+  if (confirm("Are you sure you want to clear all stored requests?")) {
+    chrome.runtime.sendMessage({ action: "clearDatabase" }, (response) => {
+      if (response && response.success) {
+        showNotification("Database cleared successfully!");
+        loadDatabaseInfo();
+      } else {
+        showNotification("Failed to clear database", true);
+      }
+    });
+  }
+});
+
+// Add import/export event listeners
+exportSettingsBtn.addEventListener("click", exportSettings);
+importSettingsBtn.addEventListener("click", () => importSettingsFile.click());
+importSettingsFile.addEventListener("change", importSettings);

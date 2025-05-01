@@ -1,0 +1,130 @@
+.data-purge-section {
+  padding: 20px;
+  background: var(--surface-color);
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.data-purge-section h2 {
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.settings-group {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.settings-group h3 {
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.setting-row label {
+  flex: 0 0 150px;
+  color: var(--text-primary);
+}
+
+.setting-row input[type="number"],
+.setting-row select {
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-background);
+  color: var(--text-primary);
+}
+
+.setting-row input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.cleanup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.action-row button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.action-row button.warning {
+  background-color: var(--warning-color);
+  color: var(--warning-text);
+}
+
+.action-row button.danger {
+  background-color: var(--error-color);
+  color: var(--error-text);
+}
+
+.action-row button:hover {
+  opacity: 0.9;
+}
+
+.action-row .description {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.action-row input[type="text"] {
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-background);
+  color: var(--text-primary);
+  flex: 1;
+  max-width: 300px;
+}
+
+.status-message {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.status-message.success {
+  background-color: var(--success-background);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
+}
+
+.status-message.error {
+  background-color: var(--error-background);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -3,6 +3,100 @@
 import { parseUrl } from "../utils/url-utils.js";
 import { generateId } from "../utils/id-generator.js";
 
+// Performance metrics capture and analysis
+class PerformanceMetricsCollector {
+  constructor(config) {
+    this.enabled = config.enabled;
+    this.samplingRate = config.samplingRate;
+    this.metrics = new Map();
+    this.retentionPeriod = config.retentionPeriod;
+  }
+
+  shouldCapture() {
+    return this.enabled && Math.random() * 100 <= this.samplingRate;
+  }
+
+  captureRequestStart(requestId, timestamp) {
+    if (!this.shouldCapture()) return;
+
+    this.metrics.set(requestId, {
+      startTime: timestamp,
+      dnsStart: 0,
+      dnsEnd: 0,
+      connectStart: 0,
+      connectEnd: 0,
+      sslStart: 0,
+      sslEnd: 0,
+      sendStart: 0,
+      sendEnd: 0,
+      receiveStart: 0,
+      receiveEnd: 0,
+      endTime: 0,
+      total: 0,
+    });
+  }
+
+  updateRequestTiming(requestId, timing) {
+    if (!this.metrics.has(requestId)) return;
+
+    const metric = this.metrics.get(requestId);
+
+    // Update timing information
+    if (timing) {
+      metric.dnsStart = timing.dnsStart || 0;
+      metric.dnsEnd = timing.dnsEnd || 0;
+      metric.connectStart = timing.connectStart || 0;
+      metric.connectEnd = timing.connectEnd || 0;
+      metric.sslStart = timing.sslStart || 0;
+      metric.sslEnd = timing.sslEnd || 0;
+      metric.sendStart = timing.sendStart || 0;
+      metric.sendEnd = timing.sendEnd || 0;
+      metric.receiveStart = timing.receiveStart || 0;
+      metric.receiveEnd = timing.receiveEnd || 0;
+    }
+  }
+
+  finalizeRequest(requestId, endTime) {
+    if (!this.metrics.has(requestId)) return;
+
+    const metric = this.metrics.get(requestId);
+    metric.endTime = endTime;
+
+    // Calculate timing breakdowns
+    metric.dns = metric.dnsEnd - metric.dnsStart || 0;
+    metric.tcp =
+      metric.connectEnd -
+        metric.connectStart -
+        (metric.sslEnd - metric.sslStart) || 0;
+    metric.ssl = metric.sslEnd - metric.sslStart || 0;
+    metric.ttfb = metric.receiveStart - metric.sendEnd || 0;
+    metric.download = metric.receiveEnd - metric.receiveStart || 0;
+    metric.total = metric.endTime - metric.startTime || 0;
+
+    return metric;
+  }
+
+  getMetrics(requestId) {
+    return this.metrics.get(requestId);
+  }
+
+  cleanupOldMetrics() {
+    const now = Date.now();
+    for (const [requestId, metric] of this.metrics.entries()) {
+      if (now - metric.endTime > this.retentionPeriod) {
+        this.metrics.delete(requestId);
+      }
+    }
+  }
+}
+
+// Export the collector instance
+export const performanceMetricsCollector = new PerformanceMetricsCollector({
+  enabled: false, // Will be updated from config
+  samplingRate: 100,
+  retentionPeriod: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
+
 let dbManager = null;
 let eventBus = null;
 let config = null;
@@ -51,6 +145,11 @@ export function setupRequestCapture(captureConfig, database, events) {
   dbManager = database;
   eventBus = events;
 
+  // Update performance metrics collector config
+  performanceMetricsCollector.enabled = config.performanceMetrics.enabled;
+  performanceMetricsCollector.samplingRate =
+    config.performanceMetrics.samplingRate;
+
   // Ensure config.captureFilters has default values
   initializeCaptureFilters(config);
 
@@ -61,6 +160,11 @@ export function setupRequestCapture(captureConfig, database, events) {
   setupContentScriptListener();
 
   console.log("Request capture initialized");
+
+  // Set up periodic cleanup of old metrics
+  setInterval(() => {
+    performanceMetricsCollector.cleanupOldMetrics();
+  }, 60 * 60 * 1000); // Run cleanup every hour
 
   return {
     enableCapture,
@@ -73,21 +177,58 @@ export function setupRequestCapture(captureConfig, database, events) {
 function setupWebRequestListeners() {
   // Listen for web requests
   if (typeof chrome !== "undefined" && chrome.webRequest) {
-    chrome.webRequest.onBeforeRequest.addListener(handleBeforeRequest, {
-      urls: ["<all_urls>"],
-    });
+    chrome.webRequest.onBeforeRequest.addListener(
+      (details) => {
+        // Start performance capture if enabled
+        if (config.performanceMetrics.enabled) {
+          performanceMetricsCollector.captureRequestStart(
+            details.requestId,
+            details.timeStamp
+          );
+        }
+
+        handleBeforeRequest(details);
+      },
+      { urls: ["<all_urls>"] }
+    );
 
     // Listen for headers received
     chrome.webRequest.onHeadersReceived.addListener(
-      handleHeadersReceived,
+      (details) => {
+        // Update performance metrics if enabled
+        if (config.performanceMetrics.enabled) {
+          const timing = details.timing;
+          performanceMetricsCollector.updateRequestTiming(
+            details.requestId,
+            timing
+          );
+        }
+
+        handleHeadersReceived(details);
+      },
       { urls: ["<all_urls>"] },
       ["responseHeaders"]
     );
 
     // Listen for completed requests
-    chrome.webRequest.onCompleted.addListener(handleRequestCompleted, {
-      urls: ["<all_urls>"],
-    });
+    chrome.webRequest.onCompleted.addListener(
+      (details) => {
+        // Finalize performance metrics if enabled
+        if (config.performanceMetrics.enabled) {
+          const metrics = performanceMetricsCollector.finalizeRequest(
+            details.requestId,
+            details.timeStamp
+          );
+          if (metrics) {
+            // Save metrics to database
+            dbManager.saveRequestMetrics(details.requestId, metrics);
+          }
+        }
+
+        handleRequestCompleted(details);
+      },
+      { urls: ["<all_urls>"] }
+    );
 
     // Listen for error requests
     chrome.webRequest.onErrorOccurred.addListener(handleRequestError, {
@@ -236,6 +377,21 @@ function setupContentScriptListener() {
       } else if (message.action === "fetchError") {
         handleFetchError(message, sender.tab);
         sendResponse({ success: true });
+      } else if (message.action === "getPerformanceMetrics") {
+        // Return aggregated metrics for the popup
+        const metrics = Array.from(
+          performanceMetricsCollector.metrics.values()
+        );
+        const avgMetrics = {
+          dns: average(metrics.map((m) => m.dns)),
+          tcp: average(metrics.map((m) => m.tcp)),
+          ssl: average(metrics.map((m) => m.ssl)),
+          ttfb: average(metrics.map((m) => m.ttfb)),
+          download: average(metrics.map((m) => m.download)),
+          total: average(metrics.map((m) => m.total)),
+        };
+        sendResponse(avgMetrics);
+        return true;
       }
     });
   }
@@ -550,4 +706,10 @@ function updateCaptureConfig(newConfig) {
   config = { ...config, ...newConfig };
   initializeCaptureFilters(config); // Ensure captureFilters is properly initialized
   eventBus.publish("capture:config_updated", { timestamp: Date.now() });
+}
+
+// Utility function to calculate average
+function average(array) {
+  if (array.length === 0) return 0;
+  return array.reduce((a, b) => a + b, 0) / array.length;
 }

@@ -1,236 +1,122 @@
-// Database migrations to handle schema updates
+// Database migrations handler
+import { DatabaseError } from "../errors/error-types.js";
 
 const migrations = [
   {
     version: 1,
-    description: "Initial schema",
+    description: "Initial schema setup",
     migrate: (db) => {
-      // No migration needed for initial schema
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS requests (
+          id TEXT PRIMARY KEY,
+          url TEXT,
+          method TEXT,
+          type TEXT,
+          status INTEGER,
+          size INTEGER,
+          duration INTEGER,
+          timestamp INTEGER,
+          domain TEXT,
+          path TEXT,
+          pageUrl TEXT,
+          error TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS request_timings (
+          requestId TEXT PRIMARY KEY,
+          dns INTEGER,
+          tcp INTEGER,
+          ssl INTEGER,
+          ttfb INTEGER,
+          download INTEGER,
+          FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS request_headers (
+          requestId TEXT,
+          name TEXT,
+          value TEXT,
+          FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS performance_metrics (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          request_id TEXT,
+          dns_time INTEGER,
+          tcp_time INTEGER,
+          ssl_time INTEGER,
+          ttfb_time INTEGER,
+          download_time INTEGER,
+          total_time INTEGER,
+          created_at INTEGER,
+          FOREIGN KEY(request_id) REFERENCES requests(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_requests_domain ON requests(domain);
+        CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
+        CREATE INDEX IF NOT EXISTS idx_requests_type ON requests(type);
+      `);
       return true;
     },
   },
   {
     version: 2,
-    description: "Add user and project fields",
+    description: "Add version tracking table",
     migrate: (db) => {
-      try {
-        // Check if table exists
-        const tableExists = db.exec(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='requests'"
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS db_version (
+          version INTEGER PRIMARY KEY,
+          description TEXT,
+          applied_at INTEGER,
+          status TEXT
         );
-        if (!tableExists[0] || tableExists[0].values.length === 0) {
-          console.warn("Table 'requests' does not exist. Creating table.");
-          db.exec(`CREATE TABLE requests (
-            id TEXT PRIMARY KEY,
-            url TEXT,
-            method TEXT,
-            type TEXT,
-            status INTEGER,
-            statusText TEXT,
-            domain TEXT,
-            path TEXT,
-            startTime INTEGER,
-            endTime INTEGER,
-            duration INTEGER,
-            size INTEGER,
-            timestamp INTEGER,
-            tabId INTEGER,
-            pageUrl TEXT,
-            error TEXT
-          )`);
-        }
-
-        const result = db.exec("PRAGMA table_info(requests)");
-        if (!result || !result[0] || !result[0].values) {
-          throw new Error("Failed to retrieve table info for 'requests'.");
-        }
-
-        const columns = result[0].values.map((v) => v[1]);
-
-        if (!columns.includes("userId")) {
-          db.exec("ALTER TABLE requests ADD COLUMN userId TEXT");
-        }
-
-        if (!columns.includes("projectId")) {
-          db.exec("ALTER TABLE requests ADD COLUMN projectId TEXT");
-        }
-
-        if (!columns.includes("environmentId")) {
-          db.exec("ALTER TABLE requests ADD COLUMN environmentId TEXT");
-        }
-
-        if (!columns.includes("tags")) {
-          db.exec("ALTER TABLE requests ADD COLUMN tags TEXT");
-        }
-
-        return true;
-      } catch (error) {
-        console.error("Migration version 2 failed:", error);
-        return false;
-      }
+      `);
+      return true;
     },
   },
   {
     version: 3,
-    description: "Add users and projects tables",
+    description: "Add retention settings table",
     migrate: (db) => {
-      // Create users table if it doesn't exist
       db.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          email TEXT UNIQUE,
-          name TEXT,
-          role TEXT,
-          lastLogin INTEGER,
-          settings TEXT
-        )
-      `);
-
-      // Create projects table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS projects (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          description TEXT,
-          createdAt INTEGER,
-          updatedAt INTEGER,
-          ownerId TEXT,
-          settings TEXT
-        )
-      `);
-
-      // Create environments table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS environments (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          projectId TEXT,
-          createdAt INTEGER,
-          updatedAt INTEGER,
-          settings TEXT,
-          FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
-        )
-      `);
-
-      return true;
-    },
-  },
-  {
-    version: 4,
-    description: "Add tags support",
-    migrate: (db) => {
-      // Create tags table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS tags (
+        CREATE TABLE IF NOT EXISTS retention_settings (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT UNIQUE,
-          color TEXT,
-          createdAt INTEGER
-        )
+          retention_period INTEGER,
+          max_size_bytes INTEGER,
+          auto_cleanup_enabled INTEGER DEFAULT 0,
+          cleanup_interval INTEGER,
+          created_at INTEGER
+        );
       `);
-
-      // Create request_tags table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS request_tags (
-          requestId TEXT,
-          tagId INTEGER,
-          PRIMARY KEY (requestId, tagId),
-          FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE,
-          FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
-        )
-      `);
-
       return true;
-    },
-  },
-  {
-    version: 5,
-    description: "Add authentication and audit logging",
-    migrate: (db) => {
-      // Create sessions table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS sessions (
-          id TEXT PRIMARY KEY,
-          userId TEXT,
-          token TEXT,
-          createdAt INTEGER,
-          expiresAt INTEGER,
-          ipAddress TEXT,
-          userAgent TEXT,
-          FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-      `);
-
-      // Create audit_log table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS audit_log (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          userId TEXT,
-          action TEXT,
-          resource TEXT,
-          resourceId TEXT,
-          timestamp INTEGER,
-          ipAddress TEXT,
-          details TEXT
-        )
-      `);
-
-      return true;
-    },
-  },
-  {
-    version: 6,
-    description: "Add request_timings table",
-    migrate: (db) => {
-      try {
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS request_timings (
-            requestId TEXT PRIMARY KEY,
-            dns INTEGER,
-            tcp INTEGER,
-            ssl INTEGER,
-            ttfb INTEGER,
-            download INTEGER,
-            FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE
-          )
-        `);
-        return true;
-      } catch (error) {
-        console.error("Migration version 6 failed:", error);
-        return false;
-      }
     },
   },
 ];
 
 // Get current database version
-function getDatabaseVersion(db) {
+async function getDatabaseVersion(db) {
   try {
-    // Check if version table exists
-    const tableCheck = db.exec(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='version'"
+    const result = db.exec(
+      "SELECT version FROM db_version ORDER BY version DESC LIMIT 1"
     );
-
-    if (!tableCheck[0] || !tableCheck[0].values.length === 0) {
-      // Create version table
-      db.exec("CREATE TABLE version (version INTEGER)");
-      db.exec("INSERT INTO version VALUES (0)");
-      return 0;
-    }
-
-    // Get current version
-    const result = db.exec("SELECT version FROM version LIMIT 1");
-    return result[0].values[0][0];
+    return result[0] ? result[0].values[0][0] : 0;
   } catch (error) {
     console.error("Failed to get database version:", error);
     return 0;
   }
 }
 
-// Set database version
-function setDatabaseVersion(db, version) {
+// Set database version with audit trail
+async function setDatabaseVersion(db, version, description) {
   try {
-    db.exec("UPDATE version SET version = ?", [version]);
+    db.exec(
+      `
+      INSERT INTO db_version (version, description, applied_at, status)
+      VALUES (?, ?, ?, ?)
+    `,
+      [version, description, Date.now(), "success"]
+    );
     return true;
   } catch (error) {
     console.error("Failed to set database version:", error);
@@ -238,55 +124,48 @@ function setDatabaseVersion(db, version) {
   }
 }
 
-// Run migrations
+// Run migrations with validation and rollback support
 export async function migrateDatabase(db) {
-  try {
-    // Get current version
-    const currentVersion = getDatabaseVersion(db);
-    console.log(`Current database version: ${currentVersion}`);
+  const currentVersion = await getDatabaseVersion(db);
+  const pendingMigrations = migrations.filter(
+    (m) => m.version > currentVersion
+  );
 
-    // Find migrations to run
-    const pendingMigrations = migrations.filter(
-      (m) => m.version > currentVersion
-    );
+  if (pendingMigrations.length === 0) {
+    console.log("Database is up to date");
+    return true;
+  }
 
-    if (pendingMigrations.length === 0) {
-      console.log("Database is up to date");
-      return true;
-    }
+  console.log(`Running ${pendingMigrations.length} migration(s)`);
 
-    console.log(`Running ${pendingMigrations.length} migrations...`);
-
-    // Run migrations in a transaction
-    db.exec("BEGIN TRANSACTION");
-
+  for (const migration of pendingMigrations) {
     try {
-      for (const migration of pendingMigrations) {
-        console.log(
-          `Running migration ${migration.version}: ${migration.description}`
-        );
+      console.log(
+        `Applying migration ${migration.version}: ${migration.description}`
+      );
 
-        // Run migration
-        const success = migration.migrate(db);
+      // Start transaction for each migration
+      db.exec("BEGIN TRANSACTION");
 
-        if (!success) {
-          throw new Error(`Migration ${migration.version} failed`);
-        }
-
-        // Update version
-        setDatabaseVersion(db, migration.version);
+      const success = await migration.migrate(db);
+      if (!success) {
+        throw new Error(`Migration ${migration.version} failed`);
       }
 
+      // Update version tracking
+      await setDatabaseVersion(db, migration.version, migration.description);
+
+      // Commit transaction
       db.exec("COMMIT");
-      console.log("Database migration completed successfully");
-      return true;
+
+      console.log(`Migration ${migration.version} completed successfully`);
     } catch (error) {
+      // Rollback on error
       db.exec("ROLLBACK");
-      console.error("Database migration failed:", error);
-      throw error;
+      console.error(`Migration ${migration.version} failed:`, error);
+      throw new DatabaseError(`Migration ${migration.version} failed`, error);
     }
-  } catch (error) {
-    console.error("Database migration failed:", error);
-    throw error;
   }
+
+  return true;
 }

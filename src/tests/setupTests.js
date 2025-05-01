@@ -1,71 +1,74 @@
 // Setup file for Jest tests
 
-// Mock Chrome API
-global.chrome = require("./mocks/chromeMock").default
+// Import jest-dom matchers
+import "@testing-library/jest-dom";
+import chromeMock from "./mocks/chromeMock";
+
+// Set up global mocks
+global.chrome = chromeMock;
 
 // Mock localStorage
 const localStorageMock = (() => {
-  let store = {}
+  let store = {};
   return {
     getItem: jest.fn((key) => store[key] || null),
     setItem: jest.fn((key, value) => {
-      store[key] = value.toString()
-    }),
-    removeItem: jest.fn((key) => {
-      delete store[key]
+      store[key] = value.toString();
     }),
     clear: jest.fn(() => {
-      store = {}
+      store = {};
     }),
-    getAll: () => store,
-  }
-})()
+    removeItem: jest.fn((key) => {
+      delete store[key];
+    }),
+  };
+})();
 
-Object.defineProperty(window, "localStorage", {
-  value: localStorageMock,
-})
+global.localStorage = localStorageMock;
 
-// Mock matchMedia
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-})
+// Mock Window APIs
+global.matchMedia = jest.fn().mockImplementation((query) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener: jest.fn(),
+  removeListener: jest.fn(),
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  dispatchEvent: jest.fn(),
+}));
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
-  constructor(callback) {
-    this.callback = callback
+  constructor() {
+    this.observe = jest.fn();
+    this.unobserve = jest.fn();
+    this.disconnect = jest.fn();
   }
-  observe() {
-    return null
-  }
-  unobserve() {
-    return null
-  }
-  disconnect() {
-    return null
-  }
-}
+};
+
+// Mock crypto APIs
+global.crypto = {
+  getRandomValues: (arr) => {
+    for (let i = 0; i < arr.length; i++) {
+      arr[i] = Math.floor(Math.random() * 256);
+    }
+    return arr;
+  },
+  subtle: {
+    importKey: jest.fn().mockResolvedValue("mock-key"),
+    deriveBits: jest.fn().mockResolvedValue(new ArrayBuffer(32)),
+  },
+};
 
 // Mock requestAnimationFrame
-global.requestAnimationFrame = (callback) => setTimeout(callback, 0)
+global.requestAnimationFrame = (callback) => setTimeout(callback, 0);
 
 // Mock Canvas
 HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
   fillRect: jest.fn(),
   clearRect: jest.fn(),
-  getImageData: jest.fn(() => ({
-    data: new Array(4),
-  })),
+  getImageData: jest.fn(() => ({ data: new Array(4) })),
   putImageData: jest.fn(),
   createImageData: jest.fn(() => []),
   setTransform: jest.fn(),
@@ -82,17 +85,12 @@ HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
   rotate: jest.fn(),
   arc: jest.fn(),
   fill: jest.fn(),
-  measureText: jest.fn(() => ({ width: 0 })),
-  transform: jest.fn(),
-  rect: jest.fn(),
-  clip: jest.fn(),
-}))
+}));
 
 // Setup MSW
-const { server } = require("./mocks/server")
-const { beforeAll, afterEach, afterAll } = require("@jest/globals")
+const { server } = require("./mocks/server");
+const { beforeAll, afterEach, afterAll } = require("@jest/globals");
 
-beforeAll(() => server.listen())
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
-
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());

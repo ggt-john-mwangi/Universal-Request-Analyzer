@@ -11,6 +11,24 @@ body {
   padding: 10px 16px;
 }
 
+:root {
+  /* Data purge specific colors */
+  --warning-color: #ffa726;
+  --warning-text: #000;
+  --error-color: #f44336;
+  --error-text: #fff;
+  --success-background: #e8f5e9;
+  --success-text: #2e7d32;
+  --success-border: #a5d6a7;
+  --error-background: #ffebee;
+  --error-text: #c62828;
+  --error-border: #ef9a9a;
+
+  /* Input styles */
+  --input-background: var(--surface-color);
+  --border-color: #e0e0e0;
+}
+
 /* Header */
 header {
   display: flex;

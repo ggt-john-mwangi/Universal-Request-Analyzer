@@ -2,25 +2,21 @@
   "manifest_version": 3,
   "name": "Universal Request Analyzer",
   "version": "1.0.0",
-  "description": "Captures and analyzes network request timings across browsers with SQLite storage",
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
-  },
+  "description": "Capture, analyze and monitor network requests with detailed performance metrics",
   "permissions": [
     "webRequest",
     "storage",
-    "tabs",
     "downloads",
-    "unlimitedStorage",
-    "scripting",
-    "activeTab",
-    "webRequest",
-    "sidePanel"
+    "tabs",
+    "webNavigation"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "action": {
     "default_popup": "popup.html",
@@ -30,31 +26,30 @@
       "128": "assets/icons/icon128.png"
     }
   },
-  "options_page": "options.html",
-
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
-    }
-  ],
   "icons": {
     "16": "assets/icons/icon16.png",
     "48": "assets/icons/icon48.png",
     "128": "assets/icons/icon128.png"
   },
+  "options_page": "options.html",
+  "devtools_page": "devtools.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/wasm/sql-wasm.wasm"],
-      "matches": ["<all_urls>"]
-    },
-    {
-      "resources": [
-        "assets/fontawesome/css/all.min.css",
-        "assets/fontawesome/webfonts/*"
-      ],
+      "resources": ["assets/wasm/*", "assets/fontawesome/webfonts/*"],
       "matches": ["<all_urls>"]
     }
   ],
-  "devtools_page": "devtools.html"
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "request-analyzer@example.com",
+      "strict_min_version": "109.0"
+    }
+  }
 }

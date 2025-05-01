@@ -25,7 +25,7 @@ export async function createTables(db) {
       environmentId TEXT,
       tags TEXT
     )
-  `)
+  `);
 
   // Create request_timings table
   db.exec(`
@@ -38,7 +38,7 @@ export async function createTables(db) {
       download INTEGER,
       FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE
     )
-  `)
+  `);
 
   // Create request_headers table
   db.exec(`
@@ -49,7 +49,7 @@ export async function createTables(db) {
       value TEXT,
       FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE
     )
-  `)
+  `);
 
   // Create users table
   db.exec(`
@@ -61,7 +61,7 @@ export async function createTables(db) {
       lastLogin INTEGER,
       settings TEXT
     )
-  `)
+  `);
 
   // Create projects table
   db.exec(`
@@ -74,7 +74,7 @@ export async function createTables(db) {
       ownerId TEXT,
       settings TEXT
     )
-  `)
+  `);
 
   // Create environments table
   db.exec(`
@@ -87,7 +87,7 @@ export async function createTables(db) {
       settings TEXT,
       FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
     )
-  `)
+  `);
 
   // Create tags table
   db.exec(`
@@ -97,7 +97,7 @@ export async function createTables(db) {
       color TEXT,
       createdAt INTEGER
     )
-  `)
+  `);
 
   // Create request_tags table (many-to-many relationship)
   db.exec(`
@@ -108,16 +108,57 @@ export async function createTables(db) {
       FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE,
       FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
     )
-  `)
+  `);
+
+  // Create performance_metrics table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS performance_metrics (
+      request_id TEXT PRIMARY KEY,
+      dns_time INTEGER,
+      tcp_time INTEGER,
+      ssl_time INTEGER,
+      ttfb_time INTEGER,
+      download_time INTEGER,
+      total_time INTEGER,
+      created_at INTEGER,
+      FOREIGN KEY (request_id) REFERENCES requests (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create performance_settings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS performance_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enabled BOOLEAN DEFAULT 0,
+      sampling_rate INTEGER DEFAULT 100,
+      capture_navigation_timing BOOLEAN DEFAULT 0,
+      capture_resource_timing BOOLEAN DEFAULT 0,
+      capture_server_timing BOOLEAN DEFAULT 0,
+      capture_custom_metrics BOOLEAN DEFAULT 0,
+      retention_period INTEGER DEFAULT 604800000
+    )
+  `);
 
   // Create indexes for better query performance
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_domain ON requests(domain)`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_type ON requests(type)`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_userId ON requests(userId)`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_projectId ON requests(projectId)`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_headers_requestId ON request_headers(requestId)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_domain ON requests(domain)`);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`
+  );
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_type ON requests(type)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_userId ON requests(userId)`);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_requests_projectId ON requests(projectId)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_headers_requestId ON request_headers(requestId)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_performance_metrics_request_id ON performance_metrics(request_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_performance_metrics_created_at ON performance_metrics(created_at)`
+  );
 
   // Create sessions table for authentication
   db.exec(`
@@ -131,7 +172,7 @@ export async function createTables(db) {
       userAgent TEXT,
       FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
     )
-  `)
+  `);
 
   // Create audit_log table for security tracking
   db.exec(`
@@ -145,9 +186,8 @@ export async function createTables(db) {
       ipAddress TEXT,
       details TEXT
     )
-  `)
+  `);
 
-  console.log("Database schema created successfully")
-  return true
+  console.log("Database schema created successfully");
+  return true;
 }
-

@@ -4,312 +4,220 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal Request Analyzer - Options</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      color: #333;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    h1 {
-      font-size: 24px;
-      margin-bottom: 20px;
-    }
-
-    .options-container {
-      background-color: #fff;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .option-section {
-      margin-bottom: 30px;
-    }
-
-    .option-section h2 {
-      font-size: 18px;
-      margin-bottom: 15px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #eee;
-    }
-
-    .option-row {
-      margin-bottom: 15px;
-    }
-
-    .option-row label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: 500;
-    }
-
-    .option-row input[type="text"],
-    .option-row input[type="number"],
-    .option-row select {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-
-    .checkbox-group {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 5px;
-    }
-
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-    }
-
-    .checkbox-label input {
-      margin-right: 5px;
-    }
-
-    .actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    button {
-      padding: 8px 16px;
-      background-color: #0066cc;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-
-    button:hover {
-      background-color: #0055aa;
-    }
-
-    button.secondary {
-      background-color: #f5f5f5;
-      color: #333;
-      border: 1px solid #ddd;
-    }
-
-    button.secondary:hover {
-      background-color: #e5e5e5;
-    }
-
-    .notification {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background-color: #4caf50;
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 4px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-      display: none;
-    }
-
-    .notification.error {
-      background-color: #f44336;
-    }
-
-    .notification.visible {
-      display: block;
-      animation: fadeOut 3s forwards;
-      animation-delay: 2s;
-    }
-
-    @keyframes fadeOut {
-      from {
-        opacity: 1;
-      }
-
-      to {
-        opacity: 0;
-      }
-    }
-
-    .database-info {
-      margin-top: 30px;
-      padding: 15px;
-      background-color: #f9f9f9;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-
-    .database-info h3 {
-      margin-top: 0;
-      margin-bottom: 10px;
-      font-size: 16px;
-    }
-
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 5px;
-    }
-
-    .info-label {
-      font-weight: 500;
-    }
-  </style>
+  <title>Universal Request Analyzer - Config</title>
+  <link rel="stylesheet" href="../assets/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="css/options.css">
+  <link rel="stylesheet" href="css/data-purge.css">
 </head>
 
 <body>
-  <h1>Universal Request Analyzer - Options</h1>
+  <div id="app">
+    <header class="header">
+      <h1>Universal Request Analyzer Settings</h1>
+    </header>
 
-  <div class="options-container">
-    <div class="option-section">
-      <h2>Capture Settings</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="captureEnabled">
-          Enable Request Capture
-        </label>
-      </div>
-      <div class="option-row">
-        <label for="maxStoredRequests">Maximum Stored Requests:</label>
-        <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
-      </div>
-    </div>
+    <nav class="nav-tabs">
+      <button class="tab-button active" data-tab="general">General</button>
+      <button class="tab-button" data-tab="monitoring">Monitoring</button>
+      <button class="tab-button" data-tab="filters">Filters</button>
+      <button class="tab-button" data-tab="export">Export</button>
+      <button class="tab-button" data-tab="retention">Data Retention</button>
+      <button class="tab-button" data-tab="security">Security</button>
+      <button class="tab-button" data-tab="themes">Themes</button>
+    </nav>
 
-    <div class="option-section">
-      <h2>Capture Filters</h2>
-      <div class="option-row">
-        <label>Request Types to Capture:</label>
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="xmlhttprequest"> XHR
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="fetch"> Fetch
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="script"> Script
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="stylesheet"> Stylesheet
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="image"> Image
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="font"> Font
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="other"> Other
-          </label>
+    <main class="main-content">
+      <!-- General Settings Tab -->
+      <section id="general" class="tab-content active">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Capture Settings</h2>
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="captureEnabled">
+                Enable Request Capture
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="maxStoredRequests">Maximum Stored Requests:</label>
+              <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="option-row">
-        <label for="includeDomains">Include Domains (comma separated):</label>
-        <input type="text" id="includeDomains" placeholder="Leave empty to include all">
-      </div>
-      <div class="option-row">
-        <label for="excludeDomains">Exclude Domains (comma separated):</label>
-        <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
-      </div>
-    </div>
+      </section>
 
-    <div class="option-section">
-      <h2>Auto Export</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="autoExport">
-          Enable Auto Export
-        </label>
-      </div>
-      <div class="option-row">
-        <label for="exportFormat">Export Format:</label>
-        <select id="exportFormat">
-          <option value="json">JSON</option>
-          <option value="csv">CSV</option>
-          <option value="sqlite">SQLite</option>
-        </select>
-      </div>
-      <div class="option-row">
-        <label for="exportInterval">Export Interval (minutes):</label>
-        <input type="number" id="exportInterval" min="5" max="1440" step="5">
-      </div>
-      <div class="option-row">
-        <label for="exportPath">Export Directory (optional):</label>
-        <input type="text" id="exportPath" placeholder="Default downloads directory">
-      </div>
-    </div>
-
-    <div class="option-section">
-      <h2>Visualization</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="plotEnabled">
-          Enable Plots
-        </label>
-      </div>
-      <div class="option-row">
-        <label>Plot Types:</label>
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="responseTime"> Response Time
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="statusCodes"> Status Codes
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="domains"> Domains
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="requestTypes"> Request Types
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="timeDistribution"> Time Distribution
-          </label>
+      <!-- Monitoring Settings Tab -->
+      <section id="monitoring" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Visualization</h2>
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="plotEnabled">
+                Enable Plots
+              </label>
+            </div>
+            <div class="option-row">
+              <label>Plot Types:</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="plotType" value="responseTime"> Response Time
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="plotType" value="statusCodes"> Status Codes
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="plotType" value="domains"> Domains
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="plotType" value="requestTypes"> Request Types
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="plotType" value="timeDistribution"> Time Distribution
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <div class="database-info">
-      <h3>Database Information</h3>
-      <div class="info-row">
-        <span class="info-label">Total Requests:</span>
-        <span id="dbTotalRequests">0</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Database Size:</span>
-        <span id="dbSize">0 KB</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Last Export:</span>
-        <span id="lastExport">Never</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Enable SQLite Export:</span>
-        <input type="checkbox" id="enableSqliteExport" />
-      </div>
-      <div class="actions">
-        <button id="exportDbBtn">Export Database</button>
-        <button id="clearDbBtn" class="secondary">Clear Database</button>
-      </div>
-    </div>
+      <!-- Filters Settings Tab -->
+      <section id="filters" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Capture Filters</h2>
+            <div class="option-row">
+              <label>Request Types to Capture:</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="xmlhttprequest"> XHR
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="fetch"> Fetch
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="script"> Script
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="stylesheet"> Stylesheet
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="image"> Image
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="font"> Font
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="captureType" value="other"> Other
+                </label>
+              </div>
+            </div>
+            <div class="option-row">
+              <label for="includeDomains">Include Domains (comma separated):</label>
+              <input type="text" id="includeDomains" placeholder="Leave empty to include all">
+            </div>
+            <div class="option-row">
+              <label for="excludeDomains">Exclude Domains (comma separated):</label>
+              <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <div class="actions">
-      <button id="saveBtn">Save Options</button>
-      <button id="resetBtn" class="secondary">Reset to Defaults</button>
-    </div>
+      <!-- Export Settings Tab -->
+      <section id="export" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Auto Export</h2>
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="autoExport">
+                Enable Auto Export
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="exportFormat">Export Format:</label>
+              <select id="exportFormat">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+                <option value="sqlite">SQLite</option>
+              </select>
+            </div>
+            <div class="option-row">
+              <label for="exportInterval">Export Interval (minutes):</label>
+              <input type="number" id="exportInterval" min="5" max="1440" step="5">
+            </div>
+            <div class="option-row">
+              <label for="exportPath">Export Directory (optional):</label>
+              <input type="text" id="exportPath" placeholder="Default downloads directory">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data Retention Tab -->
+      <section id="retention" class="tab-content">
+        <div id="dataPurge"></div>
+      </section>
+
+      <!-- Security Settings Tab -->
+      <section id="security" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Settings Import/Export</h2>
+            <div class="option-row">
+              <button id="exportSettingsBtn" class="primary-btn">
+                Export Settings
+              </button>
+              <p class="description">Export all settings to a file for backup or transfer</p>
+            </div>
+            <div class="option-row">
+              <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
+              <button id="importSettingsBtn" class="secondary-btn">
+                Import Settings
+              </button>
+              <p class="description">Import settings from a previously exported file</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Themes Settings Tab -->
+      <section id="themes" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Theme Settings</h2>
+            <div class="option-row">
+              <label for="currentTheme">Current Theme:</label>
+              <select id="currentTheme">
+                <option value="system">System Preference</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="highContrast">High Contrast</option>
+                <option value="blue">Blue</option>
+              </select>
+            </div>
+
+            <h3>Available Themes</h3>
+            <div class="themes-container">
+              <!-- Theme cards will be added dynamically -->
+            </div>
+
+            <div class="option-row actions">
+              <button id="saveThemeBtn" class="primary-btn">Save Changes</button>
+              <button id="resetThemeBtn" class="secondary-btn">Reset to Default</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <div id="notification" class="notification">Options saved successfully!</div>
+  <div id="notification" class="notification"></div>
 
-  <script src="options.js"></script>
+  <script type="module" src="js/options.js"></script>
 </body>
 
 </html>

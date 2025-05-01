@@ -906,3 +906,328 @@ export async function opfsSupported() {
     return false;
   }
 }
+
+export class DatabaseManager {
+  constructor() {
+    this.db = null;
+    this.initialized = false;
+    this.writeQueue = [];
+    this.processingQueue = false;
+  }
+
+  async initialize() {
+    // Initialize purge manager
+    this.purgeManager = setupPurgeManager(this, eventBus);
+
+    // Initialize write queue processor
+    this.startQueueProcessor();
+    return true;
+  }
+
+  // Process write operations queue
+  async startQueueProcessor() {
+    if (this.processingQueue) return;
+
+    this.processingQueue = true;
+    while (this.writeQueue.length > 0) {
+      const operation = this.writeQueue.shift();
+      try {
+        await this.executeWrite(operation);
+      } catch (error) {
+        console.error("Error processing write operation:", error);
+        operation.reject(error);
+      }
+    }
+    this.processingQueue = false;
+  }
+
+  // Execute a write operation
+  async executeWrite(operation) {
+    if (!this.db) {
+      throw new Error("Database not initialized");
+    }
+
+    try {
+      const result = await operation.execute(this.db);
+      operation.resolve(result);
+    } catch (error) {
+      operation.reject(error);
+    }
+  }
+
+  // Queue a write operation
+  async queueWrite(execute) {
+    return new Promise((resolve, reject) => {
+      this.writeQueue.push({ execute, resolve, reject });
+      if (!this.processingQueue) {
+        this.startQueueProcessor();
+      }
+    });
+  }
+
+  // Async save request
+  async saveRequest(request) {
+    return this.queueWrite(async (db) => {
+      const stmt = db.prepare(`
+        INSERT INTO requests (
+          id, method, url, headers, body, timestamp, status,
+          response_size, duration, type, domain
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      return stmt.run(
+        request.id,
+        request.method,
+        request.url,
+        JSON.stringify(request.headers),
+        request.body,
+        request.timestamp,
+        request.status,
+        request.responseSize,
+        request.duration,
+        request.type,
+        request.domain
+      );
+    });
+  }
+
+  // Async save performance metrics
+  async saveRequestMetrics(requestId, metrics) {
+    return this.queueWrite(async (db) => {
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO performance_metrics (
+          request_id, dns_time, tcp_time, ssl_time,
+          ttfb_time, download_time, total_time, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      return stmt.run(
+        requestId,
+        metrics.dns,
+        metrics.tcp,
+        metrics.ssl,
+        metrics.ttfb,
+        metrics.download,
+        metrics.total,
+        Date.now()
+      );
+    });
+  }
+
+  async purgeOldData(timestamp) {
+    return this.purgeManager.purgeOldData(timestamp);
+  }
+
+  async purgeByRetentionPolicy(retentionPeriod) {
+    return this.purgeManager.purgeByRetentionPolicy(retentionPeriod);
+  }
+
+  async purgeBySize(maxSizeBytes) {
+    return this.purgeManager.purgeBySize(maxSizeBytes);
+  }
+
+  async purgeByCustomFilter(filter) {
+    return this.purgeManager.purgeByCustomFilter(filter);
+  }
+
+  async purgeAllData() {
+    return this.purgeManager.purgeAllData();
+  }
+
+  async optimizeStorage() {
+    return this.purgeManager.optimizeStorage();
+  }
+
+  // Get current retention settings
+  async getRetentionSettings() {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT retention_period, max_database_size 
+        FROM settings 
+        ORDER BY id DESC 
+        LIMIT 1
+      `);
+      const result = stmt.get();
+
+      return {
+        retentionPeriod: result?.retention_period || DEFAULT_RETENTION_PERIOD,
+        maxDatabaseSize: result?.max_database_size || null,
+      };
+    } catch (error) {
+      console.error("Failed to get retention settings:", error);
+      return null;
+    }
+  }
+
+  // Update retention settings
+  async updateRetentionSettings(settings) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO settings (
+          retention_period,
+          max_database_size,
+          updated_at
+        ) VALUES (?, ?, ?)
+      `);
+
+      stmt.run(settings.retentionPeriod, settings.maxDatabaseSize, Date.now());
+
+      eventBus.publish("settings:retention_updated", {
+        timestamp: Date.now(),
+        settings,
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Failed to update retention settings:", error);
+      throw new Error("Failed to update retention settings");
+    }
+  }
+
+  // Get performance metrics for a request
+  async getRequestMetrics(requestId) {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM performance_metrics WHERE request_id = ?
+      `);
+      return stmt.get(requestId);
+    } catch (error) {
+      console.error("Failed to get performance metrics:", error);
+      return null;
+    }
+  }
+
+  // Get aggregated performance metrics for a time range
+  async getAggregatedMetrics(startTime, endTime) {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT 
+          AVG(dns_time) as avg_dns,
+          AVG(tcp_time) as avg_tcp,
+          AVG(ssl_time) as avg_ssl,
+          AVG(ttfb_time) as avg_ttfb,
+          AVG(download_time) as avg_download,
+          AVG(total_time) as avg_total,
+          COUNT(*) as total_requests
+        FROM performance_metrics
+        WHERE created_at BETWEEN ? AND ?
+      `);
+      return stmt.get(startTime, endTime);
+    } catch (error) {
+      console.error("Failed to get aggregated metrics:", error);
+      return null;
+    }
+  }
+
+  // Save performance settings
+  async savePerformanceSettings(settings) {
+    if (!this.db) return;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO performance_settings (
+          enabled,
+          sampling_rate,
+          capture_navigation_timing,
+          capture_resource_timing,
+          capture_server_timing,
+          capture_custom_metrics,
+          retention_period
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        settings.enabled ? 1 : 0,
+        settings.samplingRate,
+        settings.captureNavigationTiming ? 1 : 0,
+        settings.captureResourceTiming ? 1 : 0,
+        settings.captureServerTiming ? 1 : 0,
+        settings.captureCustomMetrics ? 1 : 0,
+        settings.retentionPeriod
+      );
+    } catch (error) {
+      console.error("Failed to save performance settings:", error);
+      throw new Error("Failed to save performance settings");
+    }
+  }
+
+  // Get performance settings
+  async getPerformanceSettings() {
+    if (!this.db) return null;
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM performance_settings ORDER BY id DESC LIMIT 1
+      `);
+      const result = stmt.get();
+
+      if (!result) {
+        // Return default settings if none exist
+        return {
+          enabled: false,
+          samplingRate: 100,
+          captureNavigationTiming: false,
+          captureResourceTiming: false,
+          captureServerTiming: false,
+          captureCustomMetrics: false,
+          retentionPeriod: 7 * 24 * 60 * 60 * 1000, // 7 days
+        };
+      }
+
+      return {
+        enabled: Boolean(result.enabled),
+        samplingRate: result.sampling_rate,
+        captureNavigationTiming: Boolean(result.capture_navigation_timing),
+        captureResourceTiming: Boolean(result.capture_resource_timing),
+        captureServerTiming: Boolean(result.capture_server_timing),
+        captureCustomMetrics: Boolean(result.capture_custom_metrics),
+        retentionPeriod: result.retention_period,
+      };
+    } catch (error) {
+      console.error("Failed to get performance settings:", error);
+      return null;
+    }
+  }
+
+  // Clean up old performance metrics
+  async cleanupOldMetrics(retentionPeriod) {
+    if (!this.db) return;
+
+    try {
+      const cutoffTime = Date.now() - retentionPeriod;
+      const stmt = this.db.prepare(`
+        DELETE FROM performance_metrics WHERE created_at < ?
+      `);
+      stmt.run(cutoffTime);
+    } catch (error) {
+      console.error("Failed to cleanup old metrics:", error);
+    }
+  }
+
+  // Cleanup method for graceful shutdown
+  async cleanup() {
+    // Wait for pending writes to complete
+    if (this.writeQueue.length > 0) {
+      await new Promise((resolve) => {
+        const checkQueue = () => {
+          if (this.writeQueue.length === 0) {
+            resolve();
+          } else {
+            setTimeout(checkQueue, 100);
+          }
+        };
+        checkQueue();
+      });
+    }
+
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      this.initialized = false;
+    }
+  }
+}

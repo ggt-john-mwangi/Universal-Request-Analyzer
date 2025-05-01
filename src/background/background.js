@@ -8,302 +8,398 @@ import { setupRemoteAuthService } from "./auth/remote-auth-service";
 import { setupEncryption } from "./security/encryption-manager";
 import { setupRemoteSyncService } from "./sync/remote-sync-service";
 import { setupErrorMonitoring } from "./monitoring/error-monitor";
-import { loadConfig, setupConfigWatcher } from "./config/config-manager";
+import {
+  loadConfig,
+  setupConfigWatcher,
+  updateConfig,
+} from "./config/config-manager";
 import { setupExportManager } from "./export/export-manager";
 import { setupEventBus } from "./messaging/event-bus";
 import { setupCrossBrowserCompat } from "./compat/browser-compat";
+import { setupCleanupManager } from "./cleanup/cleanup-manager";
 import { setupApiService } from "./api/api-service";
-// import { getInitSqlJs } from "./database/sql-js-loader.js";
-// import initSqlJs from "../assets/wasm/sql-wasm.js";
 
-// Initialize the database when the extension starts
-chrome.runtime.onStartup.addListener(async () => {
-  try {
-    await initDatabase();
-    console.log("Database initialized successfully.");
-  } catch (error) {
-    console.error("Failed to initialize database:", error);
+class ExtensionInitializer {
+  constructor() {
+    this.dbManager = null;
+    this.eventBus = null;
+    this.config = null;
+    this.services = new Map();
+    this.initializationState = {
+      started: false,
+      completed: false,
+      failed: false,
+      retryCount: 0,
+      lastError: null,
+    };
+    this.serviceStates = new Map();
+    this.maxRetries = 3;
+    this.retryDelay = 5000; // 5 seconds
+  }
+
+  async initialize() {
+    if (this.initializationState.started) {
+      console.warn("Initialization already in progress");
+      return false;
+    }
+
+    this.initializationState.started = true;
+
+    try {
+      await this.initializeCore();
+      await this.initializeServices();
+      await this.finalizeInitialization();
+
+      this.initializationState.completed = true;
+      return true;
+    } catch (error) {
+      await this.handleInitializationError(error);
+      return await this.retryInitialization();
+    }
+  }
+
+  async initializeCore() {
+    try {
+      // Initialize event bus first as other modules depend on it
+      this.eventBus = setupEventBus();
+      this.updateServiceState("eventBus", "ready");
+
+      this.services.set("errorMonitor", setupErrorMonitoring(this.eventBus));
+      this.updateServiceState("errorMonitor", "ready");
+
+      // Load configuration early
+      this.config = await loadConfig();
+      this.updateServiceState("config", "ready");
+
+      // Set up cross-browser compatibility layer
+      setupCrossBrowserCompat();
+      this.updateServiceState("browserCompat", "ready");
+
+      // Initialize critical systems
+      const encryptionManager = await setupEncryption(
+        this.config.security,
+        this.eventBus
+      );
+      this.services.set("encryption", encryptionManager);
+      this.updateServiceState("encryption", "ready");
+
+      // Initialize database manager with retry logic
+      await this.initializeDatabaseWithRetry();
+    } catch (error) {
+      this.updateServiceState("core", "failed", error);
+      throw error;
+    }
+  }
+
+  async initializeDatabaseWithRetry(attempt = 1) {
+    try {
+      this.dbManager = await initDatabase(
+        this.config.database,
+        this.services.get("encryption"),
+        this.eventBus
+      );
+      this.services.set("database", this.dbManager);
+      this.updateServiceState("database", "ready");
+    } catch (error) {
+      if (attempt < this.maxRetries) {
+        console.warn(
+          `Database initialization failed, attempt ${attempt}. Retrying...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
+        return this.initializeDatabaseWithRetry(attempt + 1);
+      }
+      throw error;
+    }
+  }
+
+  async initializeServices() {
+    if (!this.checkCoreDependencies()) {
+      throw new Error("Core dependencies not ready");
+    }
+
+    try {
+      // Set up authentication with dependency check
+      if (await this.initializeAuthServices()) {
+        await this.initializeFeatureServices();
+        await this.initializeOptionalServices();
+      } else {
+        throw new Error("Authentication services failed to initialize");
+      }
+    } catch (error) {
+      this.updateServiceState("services", "failed", error);
+      throw error;
+    }
+  }
+
+  async initializeAuthServices() {
+    const localAuthManager = await setupAuthSystem(
+      this.config.security.auth,
+      this.eventBus
+    );
+    const remoteAuthService = await setupRemoteAuthService(
+      this.config.security.remoteAuth,
+      this.eventBus
+    );
+    const authManager = this.config.security.useRemoteAuth
+      ? remoteAuthService
+      : localAuthManager;
+    this.services.set("auth", authManager);
+    this.updateServiceState("auth", "ready");
+    return true;
+  }
+
+  async initializeFeatureServices() {
+    const featureServices = [
+      {
+        name: "capture",
+        setup: () =>
+          setupRequestCapture(
+            this.config.capture,
+            this.dbManager,
+            this.eventBus
+          ),
+      },
+      {
+        name: "notifications",
+        setup: () =>
+          setupNotifications(this.config.notifications, this.eventBus),
+      },
+      {
+        name: "cleanup",
+        setup: () =>
+          setupCleanupManager(
+            this.config.cleanup,
+            this.dbManager,
+            this.eventBus
+          ),
+      },
+      {
+        name: "export",
+        setup: () =>
+          setupExportManager(
+            this.dbManager,
+            this.services.get("encryption"),
+            this.eventBus
+          ),
+      },
+    ];
+
+    for (const service of featureServices) {
+      try {
+        this.services.set(service.name, await service.setup());
+        this.updateServiceState(service.name, "ready");
+      } catch (error) {
+        this.updateServiceState(service.name, "failed", error);
+        console.error(`Failed to initialize ${service.name}:`, error);
+        // Continue with other services
+      }
+    }
+  }
+
+  async initializeOptionalServices() {
+    // Initialize sync service if enabled
+    if (this.config.sync.enabled) {
+      try {
+        this.services.set(
+          "sync",
+          await setupRemoteSyncService(
+            this.config.sync,
+            this.dbManager,
+            this.services.get("auth"),
+            this.services.get("encryption"),
+            this.eventBus
+          )
+        );
+        this.updateServiceState("sync", "ready");
+      } catch (error) {
+        this.updateServiceState("sync", "failed", error);
+        console.warn("Sync service failed to initialize:", error);
+      }
+    }
+
+    // Initialize API service
+    try {
+      this.services.set(
+        "api",
+        await setupApiService(
+          this.config.api,
+          this.dbManager,
+          this.services.get("auth"),
+          this.services.get("encryption"),
+          this.eventBus
+        )
+      );
+      this.updateServiceState("api", "ready");
+    } catch (error) {
+      this.updateServiceState("api", "failed", error);
+      console.warn("API service failed to initialize:", error);
+    }
+
+    // Set up message handlers last
+    try {
+      this.services.set(
+        "messaging",
+        setupMessageHandlers(
+          this.dbManager,
+          this.services.get("auth"),
+          this.services.get("encryption"),
+          this.eventBus
+        )
+      );
+      this.updateServiceState("messaging", "ready");
+    } catch (error) {
+      this.updateServiceState("messaging", "failed", error);
+      console.error("Message handlers failed to initialize:", error);
+    }
+  }
+
+  async finalizeInitialization() {
+    // Watch for configuration changes
+    setupConfigWatcher((newConfig) => {
+      this.config = newConfig;
+      this.eventBus.publish("config:updated", newConfig);
+    });
+
+    // Publish initialization complete event with service states
+    this.eventBus.publish("system:ready", {
+      timestamp: Date.now(),
+      services: Array.from(this.serviceStates.entries()).reduce(
+        (acc, [name, state]) => {
+          acc[name] = state.status;
+          return acc;
+        },
+        {}
+      ),
+    });
+
+    console.log("Universal Request Analyzer initialized successfully");
+  }
+
+  async handleInitializationError(error) {
+    this.initializationState.failed = true;
+    this.initializationState.lastError = error;
+
+    console.error("Initialization failed:", error);
+
+    this.eventBus?.publish("system:error", {
+      error: error.message,
+      timestamp: Date.now(),
+      stack: error.stack,
+      serviceStates: Object.fromEntries(this.serviceStates),
+    });
+
+    await this.cleanup();
+  }
+
+  async cleanup() {
+    for (const [name, service] of this.services.entries()) {
+      try {
+        if (service && typeof service.cleanup === "function") {
+          await service.cleanup();
+          this.updateServiceState(name, "cleaned");
+        }
+      } catch (cleanupError) {
+        console.error(`Failed to cleanup service ${name}:`, cleanupError);
+        this.updateServiceState(name, "cleanup_failed", cleanupError);
+      }
+    }
+  }
+
+  async retryInitialization() {
+    if (this.initializationState.retryCount >= this.maxRetries) {
+      console.error("Max retry attempts reached. Initialization failed.");
+      return false;
+    }
+
+    this.initializationState.retryCount++;
+    console.log(
+      `Retrying initialization (attempt ${this.initializationState.retryCount})`
+    );
+
+    // Wait before retry
+    await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
+
+    // Reset failed states
+    this.initializationState.failed = false;
+    this.initializationState.lastError = null;
+
+    // Try again
+    return this.initialize();
+  }
+
+  checkCoreDependencies() {
+    const requiredServices = ["eventBus", "config", "encryption", "database"];
+    return requiredServices.every(
+      (service) => this.serviceStates.get(service)?.status === "ready"
+    );
+  }
+
+  updateServiceState(serviceName, status, error = null) {
+    this.serviceStates.set(serviceName, {
+      status,
+      timestamp: Date.now(),
+      error: error
+        ? {
+            message: error.message,
+            stack: error.stack,
+          }
+        : null,
+    });
+
+    // Publish service state change event
+    this.eventBus?.publish("service:stateChanged", {
+      service: serviceName,
+      status,
+      timestamp: Date.now(),
+      error: error?.message,
+    });
+  }
+
+  getService(name) {
+    return this.services.get(name);
+  }
+
+  getServiceState(name) {
+    return this.serviceStates.get(name);
+  }
+
+  getAllServiceStates() {
+    return Object.fromEntries(this.serviceStates);
+  }
+}
+
+// Create singleton instance
+const extensionInitializer = new ExtensionInitializer();
+
+// Handle installation
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === "install") {
+    try {
+      // Initialize database first
+      await initDatabase();
+
+      // Load and set default configuration
+      const config = await loadConfig();
+      config.capture.enabled = true;
+      config.capture.performanceMetrics = true;
+      config.database.autoSave = true;
+
+      // Save the initial configuration
+      await updateConfig(config);
+
+      console.log("Universal Request Analyzer installed successfully");
+    } catch (error) {
+      console.error("Installation failed:", error);
+    }
   }
 });
 
-// Initialize the event bus first
-const eventBus = setupEventBus();
-
-// Initialize configuration
-let config = null;
-
-// Parse URL to extract domain and path
-function parseUrl(url) {
-  try {
-    const parsedUrl = new URL(url);
-    return {
-      domain: parsedUrl.hostname,
-      path: parsedUrl.pathname,
-    };
-  } catch (e) {
-    return {
-      domain: "",
-      path: "",
-    };
-  }
-}
-
-// Listen for web requests
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    // Check if we should capture this request type
-    if (!config.captureFilters.includeTypes.includes(details.type)) return;
-
-    const { domain, path } = parseUrl(details.url);
-
-    // Check domain filters
-    if (config.captureFilters.excludeDomains.includes(domain)) return;
-    if (
-      config.captureFilters.includeDomains.length > 0 &&
-      !config.captureFilters.includeDomains.includes(domain)
-    )
-      return;
-
-    const request = {
-      id: details.requestId,
-      url: details.url,
-      method: details.method,
-      type: details.type,
-      domain: domain,
-      path: path,
-      startTime: details.timeStamp,
-      timestamp: Date.now(),
-      tabId: details.tabId,
-      status: "pending",
-      size: 0,
-      timings: {
-        startTime: details.timeStamp,
-        endTime: null,
-        duration: null,
-        dns: 0,
-        tcp: 0,
-        ssl: 0,
-        ttfb: 0,
-        download: 0,
-      },
-    };
-
-    // Get the page URL
-    chrome.tabs.get(details.tabId, (tab) => {
-      if (chrome.runtime.lastError) {
-        // Tab might not exist anymore
-        return;
-      }
-
-      if (tab && tab.url) {
-        request.pageUrl = tab.url;
-        dbManager.saveRequest(request);
-      }
-    });
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// Listen for headers received
-chrome.webRequest.onHeadersReceived.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    const request = capturedRequests.find(
-      (req) => req.id === details.requestId
-    );
-    if (!request) return;
-
-    // Extract content length from headers
-    const contentLengthHeader = details.responseHeaders.find(
-      (h) => h.name.toLowerCase() === "content-length"
-    );
-
-    if (contentLengthHeader) {
-      request.size = Number.parseInt(contentLengthHeader.value, 10) || 0;
-    }
-
-    // Store headers if needed
-    dbManager.saveRequestHeaders(details.requestId, details.responseHeaders);
-  },
-  { urls: ["<all_urls>"] },
-  ["responseHeaders"]
-);
-
-// Listen for completed requests
-chrome.webRequest.onCompleted.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    const endTime = details.timeStamp;
-    const request = capturedRequests.find(
-      (req) => req.id === details.requestId
-    );
-
-    if (request) {
-      request.status = "completed";
-      request.statusCode = details.statusCode;
-      request.statusText = details.statusLine;
-      request.timings.endTime = endTime;
-      request.timings.duration = endTime - request.timings.startTime;
-
-      dbManager.updateRequest(request);
-
-      // Send updated data to popup if open
-      chrome.runtime
-        .sendMessage({
-          action: "requestUpdated",
-          request: request,
-        })
-        .catch(() => {
-          // Popup might not be open, ignore error
-        });
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// Listen for error requests
-chrome.webRequest.onErrorOccurred.addListener(
-  (details) => {
-    if (!config.captureEnabled) return;
-
-    const request = capturedRequests.find(
-      (req) => req.id === details.requestId
-    );
-
-    if (request) {
-      request.status = "error";
-      request.error = details.error;
-      request.timings.endTime = details.timeStamp;
-      request.timings.duration = details.timeStamp - request.timings.startTime;
-
-      dbManager.updateRequest(request);
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// Main initialization function
-async function initialize() {
-  try {
-    // Load configuration first
-    config = await loadConfig();
-
-    // Set up error monitoring
-    setupErrorMonitoring(eventBus);
-
-    // Set up cross-browser compatibility layer
-    setupCrossBrowserCompat();
-
-    // Initialize encryption system
-    const encryptionManager = await setupEncryption(config.security, eventBus);
-
-    // Initialize database manager
-    const dbManager = await initDatabase(
-      config.database,
-      encryptionManager,
-      eventBus
-    );
-
-    // Set up authentication systems
-    const localAuthManager = await setupAuthSystem(
-      config.security.auth,
-      eventBus
-    );
-    const remoteAuthService = await setupRemoteAuthService(
-      config.security.remoteAuth,
-      eventBus
-    );
-
-    // Choose which auth system to use based on configuration
-    const authManager = config.security.useRemoteAuth
-      ? remoteAuthService
-      : localAuthManager;
-
-    // Set up request capture
-    setupRequestCapture(config.capture, dbManager, eventBus);
-
-    // Set up notification system
-    setupNotifications(config.notifications, eventBus);
-
-    // Set up remote sync
-    if (config.sync.enabled) {
-      setupRemoteSyncService(
-        config.sync,
-        dbManager,
-        authManager,
-        encryptionManager,
-        eventBus
-      );
-    }
-
-    // Set up export manager
-    setupExportManager(dbManager, encryptionManager, eventBus);
-
-    // Set up API service
-    setupApiService(
-      config.api,
-      dbManager,
-      authManager,
-      encryptionManager,
-      eventBus
-    );
-
-    // Set up message handlers (must be last to ensure all systems are initialized)
-    setupMessageHandlers(dbManager, authManager, encryptionManager, eventBus);
-
-    // Watch for configuration changes
-    setupConfigWatcher((newConfig) => {
-      config = newConfig;
-      eventBus.publish("config:updated", newConfig);
-    });
-
-    // Log successful initialization
-    console.log("Universal Request Analyzer initialized successfully");
-
-    // Notify that the system is ready
-    eventBus.publish("system:ready", { timestamp: Date.now() });
-  } catch (error) {
-    console.error("Failed to initialize Universal Request Analyzer:", error);
-
-    // Attempt to report the error
-    try {
-      if (
-        typeof browser !== "undefined" &&
-        browser.runtime &&
-        browser.runtime.getBackgroundPage
-      ) {
-        // browser is available
-        const backgroundPage = await browser.runtime.getBackgroundPage();
-        const errorMonitor = backgroundPage.errorMonitor;
-        if (errorMonitor) {
-          errorMonitor.reportCriticalError("initialization_failed", error);
-        }
-      } else if (
-        typeof chrome !== "undefined" &&
-        chrome.runtime &&
-        chrome.runtime.getBackgroundPage
-      ) {
-        // chrome is available
-        const backgroundPage = await chrome.runtime.getBackgroundPage();
-        const errorMonitor = backgroundPage.errorMonitor;
-        if (errorMonitor) {
-          errorMonitor.reportCriticalError("initialization_failed", error);
-        }
-      } else {
-        console.warn(
-          "Browser runtime not available, cannot report critical error"
-        );
-      }
-    } catch (e) {
-      // Last resort error logging
-      console.error("Could not report initialization error:", e);
-    }
-  }
-}
+// Initialize on startup
+chrome.runtime.onStartup.addListener(() => {
+  extensionInitializer.initialize().catch((error) => {
+    console.error("Startup initialization failed:", error);
+  });
+});
 
 // Start initialization
-initialize();
+extensionInitializer.initialize();

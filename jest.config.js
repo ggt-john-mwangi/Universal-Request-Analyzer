@@ -6,10 +6,16 @@ module.exports = {
   },
   setupFilesAfterEnv: ["<rootDir>/src/tests/setupTests.js"],
   transform: {
-    "^.+\\.(js|jsx)$": "babel-jest",
+    "^.+\\.(js|jsx)$": ["babel-jest", { configFile: "./babel.config.js" }],
   },
+  transformIgnorePatterns: ["/node_modules/(?!(chart\\.js|sql\\.js)/)"],
   collectCoverage: true,
-  collectCoverageFrom: ["src/**/*.{js,jsx}", "!src/tests/**", "!**/node_modules/**", "!**/vendor/**"],
+  collectCoverageFrom: [
+    "src/**/*.{js,jsx}",
+    "!src/tests/**",
+    "!**/node_modules/**",
+    "!**/vendor/**",
+  ],
   coverageThreshold: {
     global: {
       branches: 70,
@@ -18,5 +24,6 @@ module.exports = {
       statements: 70,
     },
   },
-}
-
+  testPathIgnorePatterns: ["/node_modules/"],
+  moduleDirectories: ["node_modules", "src"],
+};
