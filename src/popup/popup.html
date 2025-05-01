@@ -5,7 +5,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css"> <!-- Global styles -->
+  <link rel="stylesheet" href="css/popup.css"> <!-- Popup specific styles -->
+  <link rel="stylesheet" href="css/themes.css"> <!-- Theme styles -->
+  <link rel="stylesheet" href="css/data-visualization.css"> <!-- Visualization styles -->
+  <link rel="stylesheet" href="css/settings.css"> <!-- Settings specific styles -->
   <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css"> -->
   <!-- <link rel="stylesheet" href="lib/chart.min.css"> -->
   <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
@@ -18,23 +22,26 @@
     </div>
     <!-- <h1 class="title">Universal Request Analyzer</h1> -->
     <div class="controls">
-      <button id="configBtn" title="Configuration">
-        <i class="fas fa-cog"></i> Config
-      </button>
-      <button id="clearBtn" title="Clear all requests">
+      <button id="clearBtn" class="control-btn danger-btn" title="Clear all requests">
         <i class="fas fa-trash"></i> Clear
       </button>
-      <button id="exportBtn" title="Export data">
-        <i class="fas fa-file-export"></i> Export
+      <button id="exportBtn" class="control-btn" title="Export Data">
+        <i class="fas fa-download"></i> Export
       </button>
-      <button id="filterBtn" title="Filter requests">
+      <button id="importBtn" class="control-btn" title="Import Data"> <!-- Added Import Button -->
+        <i class="fas fa-upload"></i> Import
+      </button>
+      <button id="filterBtn" class="control-btn" title="Filter requests">
         <i class="fas fa-filter"></i> Filter
       </button>
-      <button id="openOptions">
-        <i class="fas fa-sliders-h"></i> Open_Options
+      <button id="refreshBtn" class="control-btn" title="Refresh Data">
+        <i class="fas fa-sync-alt"></i> Refresh
       </button>
-      <button id="exportDbBtn" title="Export DB">
-        <i class="fas fa-database"></i> Export_Db
+      <button id="openOptions" class="control-btn" title="Open Options Page">
+        <i class="fas fa-cog"></i> Options <!-- Changed icon and text -->
+      </button>
+      <button id="exportDbBtn" class="control-btn" title="Export DB">
+        <i class="fas fa-database"></i> Export DB <!-- Corrected text -->
       </button>
     </div>
   </header>
@@ -94,19 +101,21 @@
     </div>
   </div>
 
-  <div class="export-panel" id="exportPanel">
+  <div class="export-panel" id="exportPanel" style="display: none;"> <!-- Initially hidden -->
+    <h4>Export Data</h4>
     <div class="export-row">
       <label for="exportFormat">Format:</label>
       <select id="exportFormat">
-        <option value="json">JSON</option>
-        <option value="csv">CSV</option>
-        <option value="sqlite">SQLite</option>
-        <option value="pdf">PDF</option>
+        <!-- Options populated by export-manager -->
       </select>
     </div>
     <div class="export-row">
       <label for="exportFilename">Filename:</label>
       <input type="text" id="exportFilename" placeholder="Export filename (without extension)">
+    </div>
+    <div class="export-row">
+      <label>Size (Approx):</label> <!-- Changed label -->
+      <span id="exportDbSize">Loading...</span> <!-- Added element for DB size -->
     </div>
     <div class="export-actions">
       <button id="doExportBtn">Export</button>
@@ -114,93 +123,28 @@
     </div>
   </div>
 
-  <div class="config-panel" id="configPanel">
-    <h3>Configuration</h3>
-
-    <div class="config-section">
-      <h4>Capture Settings</h4>
-      <div class="config-row">
-        <label for="captureEnabled">
-          <input type="checkbox" id="captureEnabled">
-          Enable Request Capture
-        </label>
-      </div>
-      <div class="config-row">
-        <label for="maxStoredRequests">Max Stored Requests:</label>
-        <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
-      </div>
+  <!-- Added Import Panel -->
+  <div class="import-panel" id="importPanel" style="display: none;">
+    <h4>Import Data</h4>
+    <div class="import-row">
+      <label for="importFile">Select File:</label>
+      <input type="file" id="importFile" accept=".json,.csv,.sqlite,.db">
     </div>
-
-    <div class="config-section">
-      <h4>Capture Filters</h4>
-      <div class="config-row">
-        <label>Request Types to Capture:</label>
-        <div class="checkbox-group">
-          <label><input type="checkbox" name="captureType" value="xmlhttprequest"> XHR</label>
-          <label><input type="checkbox" name="captureType" value="fetch"> Fetch</label>
-          <label><input type="checkbox" name="captureType" value="script"> Script</label>
-          <label><input type="checkbox" name="captureType" value="stylesheet"> Stylesheet</label>
-          <label><input type="checkbox" name="captureType" value="image"> Image</label>
-          <label><input type="checkbox" name="captureType" value="font"> Font</label>
-          <label><input type="checkbox" name="captureType" value="other"> Other</label>
-        </div>
-      </div>
-      <div class="config-row">
-        <label for="includeDomains">Include Domains (comma separated):</label>
-        <input type="text" id="includeDomains" placeholder="Leave empty to include all">
-      </div>
-      <div class="config-row">
-        <label for="excludeDomains">Exclude Domains (comma separated):</label>
-        <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
-      </div>
+    <!-- Optional: Add format selection if needed, otherwise detect from extension -->
+    <!-- <div class="import-row">
+      <label for="importFormat">Format:</label>
+      <select id="importFormat">
+        <option value="auto">Auto-detect</option>
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="sqlite">SQLite</option>
+      </select>
+    </div> -->
+    <div class="import-actions">
+      <button id="doImportBtn">Import</button>
+      <button id="cancelImportBtn">Cancel</button>
     </div>
-
-    <div class="config-section">
-      <h4>Auto Export</h4>
-      <div class="config-row">
-        <label for="autoExport">
-          <input type="checkbox" id="autoExport">
-          Enable Auto Export
-        </label>
-      </div>
-      <div class="config-row">
-        <label for="exportFormat">Export Format:</label>
-        <select id="autoExportFormat">
-          <option value="json">JSON</option>
-          <option value="csv">CSV</option>
-          <option value="sqlite">SQLite</option>
-        </select>
-      </div>
-      <div class="config-row">
-        <label for="exportInterval">Export Interval (minutes):</label>
-        <input type="number" id="exportInterval" min="5" max="1440" step="5">
-      </div>
-    </div>
-
-    <div class="config-section">
-      <h4>Visualization</h4>
-      <div class="config-row">
-        <label for="plotEnabled">
-          <input type="checkbox" id="plotEnabled">
-          Enable Plots
-        </label>
-      </div>
-      <div class="config-row">
-        <label>Plot Types:</label>
-        <div class="checkbox-group">
-          <label><input type="checkbox" name="plotType" value="responseTime"> Response Time</label>
-          <label><input type="checkbox" name="plotType" value="statusCodes"> Status Codes</label>
-          <label><input type="checkbox" name="plotType" value="domains"> Domains</label>
-          <label><input type="checkbox" name="plotType" value="requestTypes"> Request Types</label>
-          <label><input type="checkbox" name="plotType" value="timeDistribution"> Time Distribution</label>
-        </div>
-      </div>
-    </div>
-
-    <div class="config-actions">
-      <button id="saveConfigBtn">Save</button>
-      <button id="cancelConfigBtn">Cancel</button>
-    </div>
+    <div id="importStatus" class="import-status" style="margin-top: 5px;"></div>
   </div>
 
   <div class="tabs">
@@ -431,8 +375,7 @@
     </div>
   </div>
 
-  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script> -->
-  <script src="popup.js"></script>
+  <script type="module" src="js/popup.js"></script>
 </body>
 
 </html>

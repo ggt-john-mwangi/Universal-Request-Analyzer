@@ -6,7 +6,7 @@
  */
 
 // Default feature flags configuration
-const DEFAULT_FEATURE_FLAGS = {
+export const defaultFeatureFlags = {
   // Core features
   captureRequests: true,
   filterRequests: true,
@@ -32,119 +32,36 @@ const DEFAULT_FEATURE_FLAGS = {
   aiAnalysis: false,
   predictiveAnalytics: false,
   securityScanning: false,
-}
 
-// Feature dependencies - features that require other features to be enabled
-const FEATURE_DEPENDENCIES = {
-  teamSharing: ["authentication", "onlineSync"],
-  cloudExport: ["authentication"],
-  remoteStorage: ["authentication", "onlineSync"],
-  aiAnalysis: ["statistics"],
-  predictiveAnalytics: ["statistics", "aiAnalysis"],
-  securityScanning: ["requestModification"],
-}
+  // Logging features
+  logErrorsToDatabase: true, // Toggle logging errors to the internal database
+  logErrorsToConsole: true, // Toggle logging errors to the browser console
 
-// Feature permissions - minimum permission level required for each feature
-const FEATURE_PERMISSIONS = {
-  captureRequests: "basic",
-  filterRequests: "basic",
-  exportData: "basic",
-  statistics: "basic",
-  visualization: "basic",
+  enableAdvancedSync: false, // Example: Toggle advanced sync features
+  enableExperimentalUI: false, // Example: Toggle experimental UI elements
+};
 
-  onlineSync: "standard",
-  authentication: "basic",
-  remoteStorage: "standard",
-  cloudExport: "standard",
-
-  requestModification: "advanced",
-  requestMocking: "advanced",
-  automatedTesting: "advanced",
-  performanceAlerts: "advanced",
-
-  teamSharing: "team",
-  customRules: "advanced",
-
-  aiAnalysis: "premium",
-  predictiveAnalytics: "premium",
-  securityScanning: "premium",
-}
-
-// Permission levels in order of increasing access
-const PERMISSION_LEVELS = ["basic", "standard", "advanced", "team", "premium", "admin"]
-
-// Feature descriptions for UI display
-const FEATURE_DESCRIPTIONS = {
-  captureRequests: "Capture and analyze network requests",
-  filterRequests: "Filter and search through captured requests",
-  exportData: "Export captured data to various formats",
-  statistics: "View statistics and analytics about captured requests",
-  visualization: "Visualize request data with charts and graphs",
-
-  onlineSync: "Synchronize data with online storage",
-  authentication: "User authentication and profiles",
-  remoteStorage: "Store captured data in the cloud",
-  cloudExport: "Export data directly to cloud storage services",
-  teamSharing: "Share captured data with team members",
-
-  requestModification: "Modify requests before they are sent",
-  requestMocking: "Create mock responses for requests",
-  automatedTesting: "Run automated tests on captured requests",
-  performanceAlerts: "Get alerts for performance issues",
-  customRules: "Create custom rules for request analysis",
-
-  aiAnalysis: "AI-powered analysis of request patterns",
-  predictiveAnalytics: "Predict future request patterns",
-  securityScanning: "Scan requests for security vulnerabilities",
-}
-
-// Feature categories for UI organization
-const FEATURE_CATEGORIES = {
-  core: ["captureRequests", "filterRequests", "exportData", "statistics", "visualization"],
-  online: ["onlineSync", "authentication", "remoteStorage", "cloudExport", "teamSharing"],
-  advanced: ["requestModification", "requestMocking", "automatedTesting", "performanceAlerts", "customRules"],
-  experimental: ["aiAnalysis", "predictiveAnalytics", "securityScanning"],
-}
-
-// Declare chrome if it's not already defined (e.g., in a testing environment)
-if (typeof chrome === "undefined") {
-  global.chrome = {
-    storage: {
-      local: {
-        get: (keys, callback) => {
-          // Mock implementation for testing
-          const data = {}
-          if (typeof keys === "string") {
-            data[keys] = localStorage.getItem(keys)
-          } else if (Array.isArray(keys)) {
-            keys.forEach((key) => {
-              data[key] = localStorage.getItem(key)
-            })
-          } else if (typeof keys === "object") {
-            Object.keys(keys).forEach((key) => {
-              data[key] = localStorage.getItem(key)
-            })
-          }
-          callback(data)
-        },
-        set: (items, callback) => {
-          // Mock implementation for testing
-          Object.entries(items).forEach(([key, value]) => {
-            localStorage.setItem(key, JSON.stringify(value))
-          })
-          callback()
-        },
-      },
-    },
-  }
-}
+export const FEATURE_FLAGS = {
+  logErrorsToDatabase: {
+    name: "Log Errors to Database",
+    description: "Enable logging of internal extension errors to the database.",
+    defaultValue: true,
+    category: "debugging",
+  },
+  logErrorsToConsole: {
+    name: "Log Errors to Console",
+    description: "Enable logging of internal extension errors to the browser console.",
+    defaultValue: true,
+    category: "debugging",
+  },
+};
 
 /**
  * Feature flags manager class
  */
 class FeatureFlagsManager {
   constructor() {
-    this.flags = { ...DEFAULT_FEATURE_FLAGS }
+    this.flags = { ...defaultFeatureFlags }
     this.userPermissionLevel = "basic" // Default permission level
     this.initialized = false
   }
@@ -167,7 +84,7 @@ class FeatureFlagsManager {
     try {
       const data = await this.loadFromStorage()
       if (data && data.flags) {
-        this.flags = { ...DEFAULT_FEATURE_FLAGS, ...data.flags }
+        this.flags = { ...defaultFeatureFlags, ...data.flags }
       }
 
       // Override with initial flags if provided
@@ -190,7 +107,7 @@ class FeatureFlagsManager {
     } catch (error) {
       console.error("Error initializing feature flags:", error)
       // Fall back to defaults
-      this.flags = { ...DEFAULT_FEATURE_FLAGS }
+      this.flags = { ...defaultFeatureFlags }
       if (options.initialFlags) {
         this.flags = { ...this.flags, ...options.initialFlags }
       }
@@ -228,7 +145,7 @@ class FeatureFlagsManager {
   isEnabled(featureName) {
     if (!this.initialized) {
       console.warn("Feature flags not initialized, using defaults")
-      return DEFAULT_FEATURE_FLAGS[featureName] || false
+      return defaultFeatureFlags[featureName] || false
     }
 
     return this.flags[featureName] || false
@@ -426,7 +343,7 @@ class FeatureFlagsManager {
    * @returns {Promise<void>}
    */
   async resetToDefaults() {
-    this.flags = { ...DEFAULT_FEATURE_FLAGS }
+    this.flags = { ...defaultFeatureFlags }
     this.validateFlags()
     await this.saveToStorage()
 

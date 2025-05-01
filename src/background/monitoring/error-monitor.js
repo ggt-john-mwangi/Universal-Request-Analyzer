@@ -3,10 +3,12 @@
 let eventBus = null
 let errorLog = []
 const MAX_ERROR_LOG_SIZE = 100
+let configManager = null; // Added: To access config
 
 // Set up error monitoring
-export function setupErrorMonitoring(events) {
+export function setupErrorMonitoring(events, cfgManager) { // Added cfgManager
   eventBus = events
+  configManager = cfgManager; // Added: Store config manager
 
   // Set up global error handler
   setupGlobalErrorHandler()
@@ -57,26 +59,40 @@ function reportError(errorType, error) {
   try {
     // Create error entry
     const errorEntry = {
-      type: errorType,
+      type: errorType, // Keep original type for console/event
+      category: errorType, // Use type as category for DB logging
       message: error.message || String(error),
       stack: error.stack,
       timestamp: Date.now(),
+      context: error.context || {}, // Include context if available
     }
 
-    // Add to error log
+    // Add to in-memory error log (optional, could be removed if DB is primary)
     errorLog.unshift(errorEntry)
-
-    // Limit error log size
     if (errorLog.length > MAX_ERROR_LOG_SIZE) {
       errorLog = errorLog.slice(0, MAX_ERROR_LOG_SIZE)
     }
 
-    // Log to console
-    console.error(`[${errorType}]`, error)
+    // Added: Check config before logging to console
+    const logToConsoleEnabled = configManager?.getConfigValue('advanced.logErrorsToConsole', true);
+    if (logToConsoleEnabled) {
+      console.error(`[${errorType}]`, error);
+    }
 
-    // Publish error event
+    // Publish error event (always publish regardless of logging settings)
     if (eventBus) {
       eventBus.publish("error:reported", errorEntry)
+    }
+
+    // Log to database (the function in db-manager will check its own toggle)
+    // Ensure dbManager is available or use messaging to send error to background
+    // Assuming dbManager is accessible via a global or passed reference
+    // This might need adjustment based on how dbManager is exposed/accessed
+    if (typeof window !== 'undefined' && window.dbManager) {
+        window.dbManager.logErrorToDatabase(errorEntry); // Pass the structured entry
+    } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        // If in a context without direct access, send a message
+        chrome.runtime.sendMessage({ action: "logErrorToDb", errorData: errorEntry });
     }
 
     return errorEntry

@@ -18,6 +18,10 @@ export default function renderDatabaseInfo() {
       <span class="info-label">Enable SQLite Export:</span>
       <input type="checkbox" id="enableSqliteExport" />
     </div>
+    <div class="info-row">
+      <label for="exportDbFilename" class="info-label">Export Filename:</label>
+      <input type="text" id="exportDbFilename" placeholder="database-export-{date}.sqlite">
+    </div>
     <div class="actions">
       <button id="exportDbBtn">Export Database</button>
       <button id="clearDbBtn" class="secondary">Clear Database</button>

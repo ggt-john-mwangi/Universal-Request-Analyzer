@@ -9,9 +9,9 @@ let config = null;
 let capturedRequests = [];
 
 // Ensure captureFilters is initialized with default values
-function initializeCaptureFilters(config) {
-  // Ensure config and captureFilters are initialized with default values
-  if (!config || config === null) {
+function initializeCaptureFilters(cfg) {
+  // If cfg is null or undefined, set the global config to defaults
+  if (!cfg || cfg === null) {
     config = {
       captureFilters: {
         includeTypes: [],
@@ -21,28 +21,21 @@ function initializeCaptureFilters(config) {
       enabled: false,
       maxStoredRequests: 10000,
     };
-  } else if (!config.captureFilters) {
-    config.captureFilters = {
-      includeTypes: [],
-      includeDomains: [],
-      excludeDomains: [],
-    };
+    cfg = config;
+  } else {
+    // If captureFilters is missing, add it
+    if (!cfg.captureFilters) {
+      cfg.captureFilters = {
+        includeTypes: [],
+        includeDomains: [],
+        excludeDomains: [],
+      };
+    }
+    // Ensure arrays are always present
+    cfg.captureFilters.includeTypes = cfg.captureFilters.includeTypes || [];
+    cfg.captureFilters.includeDomains = cfg.captureFilters.includeDomains || [];
+    cfg.captureFilters.excludeDomains = cfg.captureFilters.excludeDomains || [];
   }
-
-  config.captureFilters.includeTypes = config.captureFilters.includeTypes || [];
-  config.captureFilters.includeDomains =
-    config.captureFilters.includeDomains || [];
-  config.captureFilters.excludeDomains =
-    config.captureFilters.excludeDomains || [];
-}
-
-// Ensure config.captureFilters has default values
-if (!config.captureFilters) {
-  config.captureFilters = {
-    includeTypes: [],
-    includeDomains: [],
-    excludeDomains: [],
-  };
 }
 
 // Set up request capture

@@ -5,162 +5,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer - Options</title>
+  <link rel="stylesheet" href="css/options.css">
+  <link rel="stylesheet" href="../../styles.css">
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-      color: #333;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    h1 {
-      font-size: 24px;
-      margin-bottom: 20px;
-    }
-
-    .options-container {
-      background-color: #fff;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .option-section {
-      margin-bottom: 30px;
-    }
-
-    .option-section h2 {
-      font-size: 18px;
-      margin-bottom: 15px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #eee;
-    }
-
-    .option-row {
-      margin-bottom: 15px;
-    }
-
-    .option-row label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: 500;
-    }
-
-    .option-row input[type="text"],
-    .option-row input[type="number"],
-    .option-row select {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-
-    .checkbox-group {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 5px;
-    }
-
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-    }
-
-    .checkbox-label input {
-      margin-right: 5px;
-    }
-
-    .actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    button {
-      padding: 8px 16px;
-      background-color: #0066cc;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-
-    button:hover {
-      background-color: #0055aa;
-    }
-
-    button.secondary {
-      background-color: #f5f5f5;
-      color: #333;
-      border: 1px solid #ddd;
-    }
-
-    button.secondary:hover {
-      background-color: #e5e5e5;
-    }
-
-    .notification {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background-color: #4caf50;
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 4px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-      display: none;
-    }
-
-    .notification.error {
-      background-color: #f44336;
-    }
-
-    .notification.visible {
-      display: block;
-      animation: fadeOut 3s forwards;
-      animation-delay: 2s;
-    }
-
-    @keyframes fadeOut {
-      from {
-        opacity: 1;
-      }
-
-      to {
-        opacity: 0;
-      }
-    }
-
-    .database-info {
-      margin-top: 30px;
-      padding: 15px;
+    .db-info-section ul,
+    .sql-executor-section pre,
+    .error-log-section table {
       background-color: #f9f9f9;
       border: 1px solid #ddd;
+      padding: 10px;
       border-radius: 4px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 0.9em;
     }
-
-    .database-info h3 {
-      margin-top: 0;
-      margin-bottom: 10px;
-      font-size: 16px;
+    .error-log-section table {
+      width: 100%;
+      border-collapse: collapse;
     }
-
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 5px;
+    .error-log-section th, .error-log-section td {
+      border: 1px solid #ddd;
+      padding: 4px 8px;
+      text-align: left;
+      vertical-align: top;
     }
-
-    .info-label {
-      font-weight: 500;
+    .error-log-section th {
+      background-color: #eee;
+      position: sticky;
+      top: 0;
+    }
+    .sql-executor-section textarea {
+      width: 100%;
+      min-height: 100px;
+      font-family: monospace;
+    }
+    .sql-executor-section pre.error {
+      color: red;
+      white-space: pre-wrap;
+    }
+    .actions button {
+      margin-right: 5px;
     }
   </style>
 </head>
@@ -168,148 +52,463 @@
 <body>
   <h1>Universal Request Analyzer - Options</h1>
 
-  <div class="options-container">
-    <div class="option-section">
-      <h2>Capture Settings</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="captureEnabled">
-          Enable Request Capture
-        </label>
-      </div>
-      <div class="option-row">
-        <label for="maxStoredRequests">Maximum Stored Requests:</label>
-        <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
-      </div>
-    </div>
+  <div class="options-layout">
+    <!-- Sidebar Navigation -->
+    <nav class="options-sidebar">
+      <ul>
+        <li><a href="#general" class="nav-link active" data-section="general-settings">General</a></li>
+        <li><a href="#theme" class="nav-link" data-section="theme-settings">Theme</a></li>
+        <li><a href="#capture" class="nav-link" data-section="capture-settings">Capture</a></li>
+        <li><a href="#filters" class="nav-link" data-section="capture-filters">Filters</a></li>
+        <li><a href="#export" class="nav-link" data-section="export-settings">Export</a></li>
+        <li><a href="#database" class="nav-link" data-section="database-info">Database</a></li>
+        <li><a href="#database-inspection" class="nav-link" data-section="database-inspection">Database Inspection</a></li>
+        <li><a href="#errors" class="nav-link" data-section="error-log">Error Log</a></li>
+        <li><a href="#raw-sql" class="nav-link" data-section="raw-sql">Raw SQL</a></li>
+        <li><a href="#advanced" class="nav-link" data-section="advanced-settings">Advanced</a></li>
+      </ul>
+    </nav>
 
-    <div class="option-section">
-      <h2>Capture Filters</h2>
-      <div class="option-row">
-        <label>Request Types to Capture:</label>
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="xmlhttprequest"> XHR
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="fetch"> Fetch
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="script"> Script
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="stylesheet"> Stylesheet
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="image"> Image
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="font"> Font
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="captureType" value="other"> Other
+    <!-- Main Content Area -->
+    <main class="options-content">
+      <!-- General Settings Section -->
+      <section id="general-settings" class="option-section active">
+        <h2>General Settings</h2>
+        <div class="option-row">
+          <label for="maxStoredRequests">Maximum Stored Requests:</label>
+          <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="autoStartCapture">
+            Automatically start capturing requests
           </label>
         </div>
-      </div>
-      <div class="option-row">
-        <label for="includeDomains">Include Domains (comma separated):</label>
-        <input type="text" id="includeDomains" placeholder="Leave empty to include all">
-      </div>
-      <div class="option-row">
-        <label for="excludeDomains">Exclude Domains (comma separated):</label>
-        <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
-      </div>
-    </div>
-
-    <div class="option-section">
-      <h2>Auto Export</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="autoExport">
-          Enable Auto Export
-        </label>
-      </div>
-      <div class="option-row">
-        <label for="exportFormat">Export Format:</label>
-        <select id="exportFormat">
-          <option value="json">JSON</option>
-          <option value="csv">CSV</option>
-          <option value="sqlite">SQLite</option>
-        </select>
-      </div>
-      <div class="option-row">
-        <label for="exportInterval">Export Interval (minutes):</label>
-        <input type="number" id="exportInterval" min="5" max="1440" step="5">
-      </div>
-      <div class="option-row">
-        <label for="exportPath">Export Directory (optional):</label>
-        <input type="text" id="exportPath" placeholder="Default downloads directory">
-      </div>
-    </div>
-
-    <div class="option-section">
-      <h2>Visualization</h2>
-      <div class="option-row">
-        <label>
-          <input type="checkbox" id="plotEnabled">
-          Enable Plots
-        </label>
-      </div>
-      <div class="option-row">
-        <label>Plot Types:</label>
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="responseTime"> Response Time
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="statusCodes"> Status Codes
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="domains"> Domains
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="requestTypes"> Request Types
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" name="plotType" value="timeDistribution"> Time Distribution
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="showNotifications">
+            Show notifications (e.g., export complete, errors)
           </label>
         </div>
-      </div>
-    </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="confirmClearRequests">
+            Confirm before clearing requests
+          </label>
+        </div>
+        <div class="option-row">
+          <label for="defaultExportFormat">Default Export Format:</label>
+          <select id="defaultExportFormat">
+            <option value="json">JSON</option>
+            <option value="csv">CSV</option>
+            <option value="sqlite">SQLite</option>
+            <option value="pdf">PDF</option>
+            <option value="excel">Excel</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label for="dateFormat">Date Format:</label>
+          <select id="dateFormat">
+            <option value="MM/DD/YYYY HH:mm:ss">MM/DD/YYYY HH:mm:ss</option>
+            <option value="DD/MM/YYYY HH:mm:ss">DD/MM/YYYY HH:mm:ss</option>
+            <option value="YYYY-MM-DD HH:mm:ss">YYYY-MM-DD HH:mm:ss</option>
+            <option value="HH:mm:ss YYYY-MM-DD">HH:mm:ss YYYY-MM-DD</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label for="timeZone">Time Zone:</label>
+          <select id="timeZone">
+            <option value="local">Local Time Zone</option>
+            <option value="utc">UTC</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label for="notification-duration">Notification Duration (ms):</label>
+          <input type="number" id="notification-duration" name="notification-duration" min="1000" step="500" value="3000">
+        </div>
+      </section>
 
-    <div class="database-info">
-      <h3>Database Information</h3>
-      <div class="info-row">
-        <span class="info-label">Total Requests:</span>
-        <span id="dbTotalRequests">0</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Database Size:</span>
-        <span id="dbSize">0 KB</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Last Export:</span>
-        <span id="lastExport">Never</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Enable SQLite Export:</span>
-        <input type="checkbox" id="enableSqliteExport" />
-      </div>
-      <div class="actions">
-        <button id="exportDbBtn">Export Database</button>
-        <button id="clearDbBtn" class="secondary">Clear Database</button>
-      </div>
-    </div>
+      <!-- Theme Settings Section -->
+      <section id="theme-settings" class="option-section">
+        <h2>Theme Settings</h2>
+        <div class="option-row">
+          <label for="theme-select">Select Theme:</label>
+          <select id="theme-select" name="theme-select">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System Default</option>
+          </select>
+        </div>
+      </section>
 
-    <div class="actions">
-      <button id="saveBtn">Save Options</button>
-      <button id="resetBtn" class="secondary">Reset to Defaults</button>
-    </div>
+      <!-- Capture Settings Section -->
+      <section id="capture-settings" class="option-section">
+        <h2>Capture Settings</h2>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="captureEnabled">
+            Enable Request Capture
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="includeHeaders">
+            Capture request and response headers
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="includeTiming">
+            Capture detailed timing information
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="includeContent">
+            Capture request/response body (up to Max Size)
+          </label>
+        </div>
+        <div class="option-row">
+          <label for="maxContentSize">Max Content Size (bytes):</label>
+          <input type="number" id="maxContentSize" min="0" step="1024">
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="captureWebSockets">
+            Capture WebSocket messages (Experimental)
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="captureServerSentEvents">
+            Capture Server-Sent Events (Experimental)
+          </label>
+        </div>
+      </section>
+
+      <!-- Capture Filters Section -->
+      <section id="capture-filters" class="option-section">
+        <h2>Capture Filters</h2>
+        <div class="option-row">
+          <label>Request Types to Capture:</label>
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="xmlhttprequest"> XHR
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="fetch"> Fetch
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="script"> Script
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="stylesheet"> Stylesheet
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="image"> Image
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="font"> Font
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="captureType" value="other"> Other
+            </label>
+          </div>
+        </div>
+        <div class="option-row">
+          <label for="includeDomains">Include Domains (comma separated):</label>
+          <input type="text" id="includeDomains" placeholder="Leave empty to include all">
+        </div>
+        <div class="option-row">
+          <label for="excludeDomains">Exclude Domains (comma separated):</label>
+          <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
+        </div>
+      </section>
+
+      <!-- Export Settings Section -->
+      <section id="export-settings" class="option-section">
+        <h2>Export Settings</h2>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="autoExport">
+            Enable Auto Export
+          </label>
+        </div>
+        <div class="option-row">
+          <label for="autoExportFormat">Auto Export Format:</label>
+          <select id="autoExportFormat">
+            <option value="json">JSON</option>
+            <option value="csv">CSV</option>
+            <option value="sqlite">SQLite</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label for="autoExportInterval">Auto Export Interval (minutes):</label>
+          <input type="number" id="autoExportInterval" min="5" max="1440" step="5">
+        </div>
+        <div class="option-row">
+          <label for="autoExportPath">Auto Export Directory (optional):</label>
+          <input type="text" id="autoExportPath" placeholder="Default downloads directory">
+        </div>
+        <div class="option-row">
+          <span class="info-label">Last Auto Export:</span>
+          <span id="lastExport">Never</span>
+        </div>
+        <div class="actions">
+          <button id="export-data-button">Export All Data (JSON)</button>
+          <button id="export-csv-button">Export All Data (CSV)</button>
+        </div>
+      </section>
+
+      <!-- Database Info Section -->
+      <section id="database-info" class="option-section db-info-section">
+        <h2>Database Information</h2>
+        <div class="actions">
+          <button id="refreshDbInfoBtn">Refresh Info</button>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Total Requests:</span>
+          <span id="dbTotalRequests">Loading...</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Database Size:</span>
+          <span id="dbSize">Loading...</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Last Manual Export:</span>
+          <span id="lastExport">Loading...</span>
+        </div>
+
+        <h3>Schema Summary</h3>
+        <ul id="dbSchemaSummary">
+          <li>Loading schema...</li>
+        </ul>
+
+        <div class="option-row">
+          <label for="manualExportFilename">Manual Export Filename:</label>
+          <input type="text" id="manualExportFilename" placeholder="ura-export-{date}" title="Enter filename without extension. {date} will be replaced with YYYY-MM-DD.">
+        </div>
+        <div class="actions">
+          <button id="exportDbBtn" class="primary-btn">Export Database (.sqlite)</button>
+          <button id="clearDbBtn" class="secondary">Clear Database</button>
+        </div>
+      </section>
+
+      <!-- Database Diagnostics Section -->
+      <section id="database-diagnostics" class="option-section">
+        <h2>Database Diagnostics</h2>
+
+        <!-- Database Summary -->
+        <h3>Database Summary</h3>
+        <div id="dbSummaryContainer">Loading summary...</div>
+        <button id="refreshDbSummaryBtn">Refresh Summary</button>
+
+        <!-- Error Log -->
+        <h3>Error Log</h3>
+        <div id="errorLogContainer">Loading errors...</div>
+        <button id="refreshErrorLogBtn">Refresh Errors</button>
+        <button id="clearErrorLogBtn" class="secondary">Clear Error Log</button>
+
+        <!-- Raw SQL Executor -->
+        <h3>Raw SQL Executor</h3>
+        <div class="option-row">
+          <label for="rawSqlInput">SQL Query:</label>
+          <textarea id="rawSqlInput" rows="4" placeholder="Enter SQL query (e.g., SELECT * FROM requests LIMIT 10)"></textarea>
+        </div>
+        <button id="executeSqlBtn">Execute SQL</button>
+        <div class="option-row">
+          <label>Results (JSON):</label>
+          <pre id="sqlResultsOutput"><code>Execute a query to see results.</code></pre>
+        </div>
+      </section>
+
+      <!-- Import Section -->
+      <section id="import-export" class="option-section">
+        <h2>Import / Export</h2>
+        <div class="option-row">
+          <label for="importFile">Import Data:</label>
+          <input type="file" id="importFile" accept=".json,.csv,.sqlite,.db">
+          <button id="importDataBtn">Import</button>
+        </div>
+        <div class="option-row">
+          <span class="description">Import requests from JSON, CSV, or replace the entire database from a SQLite file.</span>
+        </div>
+        <div class="option-row">
+          <label for="manualExportFormat">Manual Export Format:</label>
+          <select id="manualExportFormat">
+            <option value="json">JSON</option>
+            <option value="csv">CSV</option>
+          </select>
+          <button id="manualExportBtn">Export Data</button>
+        </div>
+        <div class="option-row">
+          <span class="description">Manually export all data in the selected format using the filename specified above.</span>
+        </div>
+      </section>
+
+      <!-- Error Log Section -->
+      <section id="error-log" class="option-section">
+        <h2>Logged Errors</h2>
+        <div class="actions">
+          <button id="refreshErrorsBtn">Refresh Errors</button>
+        </div>
+        <div class="table-container">
+          <table id="errorLogTable">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Category</th>
+                <th>Message</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="errorLogTableBody">
+              <tr><td colspan="4">Loading errors...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Raw SQL Section -->
+      <section id="raw-sql" class="option-section sql-executor-section">
+        <h2>Execute Raw SQL</h2>
+        <span class="description">Execute `SELECT` or `PRAGMA` queries directly on the database. Use with caution.</span>
+        <div class="option-row">
+          <label for="rawSqlInput">SQL Query:</label>
+          <textarea id="rawSqlInput" rows="5" placeholder="SELECT * FROM requests WHERE status >= 400 ORDER BY timestamp DESC LIMIT 10;"></textarea>
+        </div>
+        <div class="actions">
+          <button id="executeSqlBtn">Execute SQL</button>
+          <button id="clearSqlBtn">Clear</button>
+        </div>
+        <div class="option-row">
+          <label>Results (JSON):</label>
+          <pre id="sqlResultsOutput"></pre>
+        </div>
+      </section>
+
+      <!-- Advanced Settings Section -->
+      <section id="advanced-settings" class="option-section">
+        <h2>Advanced Settings</h2>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="enableDebugMode">
+            Enable debug mode (Logs verbose info to console)
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="logErrorsToDb">
+            Log internal errors to database
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="persistFilters">
+            Persist filters between sessions (Popup)
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="useCompression">
+            Use compression for storage (Experimental)
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="logErrorsToDb">
+            Log internal errors to database table
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="logErrorsToConsole">
+            Log internal errors to browser console
+          </label>
+        </div>
+        <div class="option-row">
+          <label for="backgroundMode">Background Mode:</label>
+          <select id="backgroundMode">
+            <option value="default">Default</option>
+            <option value="optimized">Optimized (Lower resource usage)</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label for="syncInterval">Sync Interval (minutes, if enabled):</label>
+          <input type="number" id="syncInterval" min="1" max="60">
+        </div>
+        <div class="option-row">
+          <label for="api-endpoint">Custom API Endpoint:</label>
+          <input type="text" id="api-endpoint" name="api-endpoint" placeholder="Optional: https://your-api.com/data">
+        </div>
+        <hr>
+        <h3>Error Logging</h3>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="logErrorsToDatabase">
+            Log internal errors to database table (`errors`)
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input type="checkbox" id="logErrorsToConsole">
+            Log internal errors to browser console (`console.error`)
+          </label>
+        </div>
+        <hr>
+        <div class="error-log-section">
+          <h3>Internal Error Log (from Database)</h3>
+          <div class="actions">
+            <button onclick="document.getElementById('refreshDbInfoBtn').click()">Refresh Errors</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Timestamp</th>
+                <th>Category</th>
+                <th>Message</th>
+                <th>Context</th>
+              </tr>
+            </thead>
+            <tbody id="dbErrorsTableBody">
+              <tr><td colspan="5">Loading errors...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <hr>
+        <div class="sql-executor-section">
+          <h3>Raw SQL Executor (Read-Only Queries)</h3>
+          <span class="description">Execute `SELECT` or `PRAGMA` queries directly on the database. Use with caution.</span>
+          <div class="option-row">
+            <label for="rawSqlInput">SQL Query:</label>
+            <textarea id="rawSqlInput" rows="5" placeholder="SELECT * FROM requests WHERE status >= 400 ORDER BY timestamp DESC LIMIT 10;"></textarea>
+          </div>
+          <div class="actions">
+            <button id="executeSqlBtn">Execute SQL</button>
+            <button id="clearSqlBtn">Clear</button>
+          </div>
+          <div class="option-row">
+            <label>Results (JSON):</label>
+            <pre id="sqlResultsOutput"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Global Actions (Save/Reset) -->
+      <div class="actions global-actions">
+        <button id="saveOptionsBtn">Save All Settings</button>
+        <button id="resetBtn" class="secondary">Reset to Defaults</button>
+      </div>
+
+    </main>
   </div>
 
-  <div id="notification" class="notification">Options saved successfully!</div>
+  <!-- Notification Area -->
+  <div id="notification" class="notification"></div>
 
-  <script src="options.js"></script>
+  <!-- Load Main Script -->
+  <script type="module" src="js/options.js"></script>
 </body>
 
 </html>

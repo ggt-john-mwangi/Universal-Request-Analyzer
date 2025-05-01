@@ -4,6 +4,7 @@ import { createTables } from "./schema.js";
 import { migrateDatabase } from "./migrations.js";
 import { DatabaseError } from "../errors/error-types.js";
 import { initSqlJs } from "./sql-js-loader.js";
+import { getConfig } from "../config/config-manager.js"; // Added for feature toggles
 
 let db = null;
 let encryptionManager = null;
@@ -11,6 +12,15 @@ let eventBus = null;
 let isSaving = false;
 let autoSaveInterval = null;
 const DB_FILE_NAME = "universal_request_analyzer.sqlite";
+let configManager = null;
+
+// Helper function for conditional console logging
+async function log(level, ...args) {
+  const config = await getConfig();
+  if (config.enableConsoleLogging !== false) {
+    console[level](...args);
+  }
+}
 
 async function loadDatabaseFromOPFS() {
   try {
@@ -21,10 +31,7 @@ async function loadDatabaseFromOPFS() {
     const file = await fileHandle.getFile();
     return new Uint8Array(await file.arrayBuffer());
   } catch (error) {
-    console.warn(
-      "Failed to load database from OPFS. Creating a new one.",
-      error
-    );
+    log("warn", "Failed to load database from OPFS. Creating a new one.", error);
     return null;
   }
 }
@@ -38,71 +45,100 @@ async function saveDatabaseToOPFS(data) {
     const writable = await fileHandle.createWritable();
     await writable.write(data);
     await writable.close();
-    console.log("Database saved to OPFS.");
+    log("info", "Database saved to OPFS.");
   } catch (error) {
-    console.error("Failed to save database to OPFS.", error);
+    log("error", "Failed to save database to OPFS.", error);
   }
 }
 
 // Add a function to log errors into the database
-export function logErrorToDatabase(db, error) {
+export async function logErrorToDatabase(db, error) {
   if (!db || typeof db.exec !== "function") {
-    console.error("Database is not initialized or invalid. Cannot log error.");
+    log("error", "Database is not initialized or invalid. Cannot log error.");
+    return;
+  }
+
+  const config = await getConfig();
+  if (!config.logErrorsToDatabase) {
     return;
   }
 
   try {
+    const tableCheck = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
+    if (!tableCheck[0] || tableCheck[0].values.length === 0) {
+      log("warn", "Errors table does not exist. Cannot log error.");
+      return;
+    }
+
     db.exec(
-      `INSERT INTO errors (type, message, stack, timestamp) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO errors (category, message, stack, timestamp, context) VALUES (?, ?, ?, ?, ?)`,
       [
         error.name || "UnknownError",
         error.message || "",
         error.stack || "",
         Date.now(),
+        error.context ? JSON.stringify(error.context) : null,
       ]
     );
   } catch (dbError) {
-    console.error("Failed to log error to database:", dbError);
+    log("error", "Failed to log error to database:", dbError);
   }
 }
 
 // Initialize the database
-export async function initDatabase(dbConfig, encryptionMgr, events) {
+export async function initDatabase(dbConfig, encryptionMgr, events, configMgr) {
   try {
     encryptionManager = encryptionMgr;
     eventBus = events;
+    configManager = configMgr;
 
     db = await initializeDatabase();
 
-    // Publish database ready event
+    setupAutoSave(db, configMgr?.getConfig());
+
     eventBus.publish("database:ready", { timestamp: Date.now() });
 
-    return {
-      executeQuery,
-      executeTransaction,
-      getRequests,
-      saveRequest,
-      updateRequest,
-      deleteRequest,
-      getRequestHeaders,
-      saveRequestHeaders,
-      getRequestTimings,
-      saveRequestTimings,
-      getDatabaseSize,
-      getDatabaseStats,
-      exportDatabase,
-      clearDatabase,
-      encryptDatabase,
-      decryptDatabase,
-      backupDatabase,
-    };
+    return createDbInterface(configMgr);
   } catch (error) {
-    console.error("Failed to initialize database:", error);
+    log("error", "Failed to initialize database:", error);
     if (error instanceof DatabaseError) {
-      throw error; // Re-throw if it's already a DatabaseError
+      throw error;
     }
     throw new DatabaseError("Failed to initialize database", error);
   }
+}
+
+// Helper to create the returned DB interface object
+function createDbInterface(configMgr) {
+  return {
+    executeQuery,
+    executeTransaction,
+    getRequests,
+    saveRequest,
+    updateRequest,
+    deleteRequest,
+    getRequestHeaders,
+    saveRequestHeaders,
+    getRequestTimings,
+    saveRequestTimings,
+    saveImportedData,
+    getDatabaseSize,
+    getDatabaseStats,
+    exportDatabase,
+    clearDatabase,
+    encryptDatabase,
+    decryptDatabase,
+    backupDatabase,
+    replaceDatabase,
+    vacuumDatabase,
+    getRequestCount,
+    getTableColumns,
+    getDatabaseSchemaSummary,
+    getLoggedErrors,
+    executeRawSql,
+    logError: (error) => logErrorToDatabase(db, error),
+    close: cleanupDatabase,
+  };
 }
 
 // Vacuum database to optimize storage
@@ -112,8 +148,9 @@ function vacuumDatabase() {
   try {
     db.exec("VACUUM");
     eventBus.publish("database:vacuumed", { timestamp: Date.now() });
+    log("info", "[DB] Database vacuumed successfully.");
   } catch (error) {
-    console.error("Failed to vacuum database:", error);
+    log("error", "Failed to vacuum database:", error);
     eventBus.publish("database:error", {
       error: "vacuum_failed",
       message: error.message,
@@ -123,25 +160,23 @@ function vacuumDatabase() {
 
 // Execute a single query
 function executeQuery(query, params = []) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
   try {
     return db.exec(query, params);
   } catch (error) {
-    console.error("Query execution failed:", error, { query, params });
+    log("error", "Query execution failed:", error, { query, params });
     throw new DatabaseError("Query execution failed", error);
   }
 }
 
 // Execute multiple queries in a transaction
-function executeTransaction(queries) {
-  // Ensure dbManager is initialized before performing operations
+function executeTransaction(queries, config) {
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
@@ -149,24 +184,27 @@ function executeTransaction(queries) {
     db.exec("BEGIN TRANSACTION");
 
     for (const { query, params } of queries) {
-      db.exec(query, params);
+      executeQuery(query, params, config);
     }
 
     db.exec("COMMIT");
     return true;
   } catch (error) {
-    db.exec("ROLLBACK");
-    const dbError = new DatabaseError("Transaction failed", error);
-    logErrorToDatabase(db, dbError);
-    throw dbError;
+    try {
+      db.exec("ROLLBACK");
+    } catch (rollbackError) {
+      const rbError = new DatabaseError("Rollback failed", rollbackError);
+      log("error", "Rollback failed:", rollbackError);
+      logErrorToDatabase(db, rbError, config);
+    }
+    throw error instanceof DatabaseError ? error : new DatabaseError("Transaction failed", error);
   }
 }
 
 // Get requests with pagination and filtering
 function getRequests({ page = 1, limit = 100, filters = {} }) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
@@ -180,7 +218,6 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
 
   const params = [];
 
-  // Apply filters
   if (filters.domain) {
     query += " AND r.domain LIKE ?";
     params.push(`%${filters.domain}%`);
@@ -216,21 +253,17 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
     params.push(filters.method);
   }
 
-  // Add order and pagination
   query += " ORDER BY r.timestamp DESC LIMIT ? OFFSET ?";
   params.push(limit, offset);
 
-  // Execute query
   const results = executeQuery(query, params);
 
-  // Get total count for pagination
   let countQuery = `
     SELECT COUNT(*) as count
     FROM requests r
     WHERE 1=1
   `;
 
-  // Apply the same filters to count query
   if (filters.domain) {
     countQuery += " AND r.domain LIKE ?";
   }
@@ -272,9 +305,8 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
 
 // Save a request to the database
 function saveRequest(requestData) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
@@ -307,23 +339,22 @@ function saveRequest(requestData) {
     );
 
     eventBus.publish("request:saved", { id: requestData.id });
+    log("info", `[DB] Request ${requestData.id} saved successfully.`);
     return true;
   } catch (error) {
-    console.error("Failed to save request:", error);
+    log("error", "Failed to save request:", error);
     throw new DatabaseError("Failed to save request", error);
   }
 }
 
 // Update an existing request
 function updateRequest(id, updates) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
   try {
-    // Build update query dynamically based on provided updates
     const fields = [];
     const values = [];
 
@@ -332,7 +363,6 @@ function updateRequest(id, updates) {
       values.push(value);
     });
 
-    // Add ID to values
     values.push(id);
 
     db.exec(
@@ -345,42 +375,39 @@ function updateRequest(id, updates) {
     );
 
     eventBus.publish("request:updated", { id });
+    log("info", `[DB] Request ${id} updated successfully.`);
     return true;
   } catch (error) {
-    console.error("Failed to update request:", error);
+    log("error", "Failed to update request:", error);
     throw new DatabaseError("Failed to update request", error);
   }
 }
 
 // Delete a request
 function deleteRequest(id) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
   try {
-    // Delete related data first
     db.exec("DELETE FROM request_headers WHERE requestId = ?", [id]);
     db.exec("DELETE FROM request_timings WHERE requestId = ?", [id]);
-
-    // Delete the request
     db.exec("DELETE FROM requests WHERE id = ?", [id]);
 
     eventBus.publish("request:deleted", { id });
+    log("info", `[DB] Request ${id} deleted successfully.`);
     return true;
   } catch (error) {
-    console.error("Failed to delete request:", error);
+    log("error", "Failed to delete request:", error);
     throw new DatabaseError("Failed to delete request", error);
   }
 }
 
 // Get headers for a request
 function getRequestHeaders(requestId) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
@@ -394,24 +421,21 @@ function getRequestHeaders(requestId) {
 
     return result[0].values.map(([name, value]) => ({ name, value }));
   } catch (error) {
-    console.error("Failed to get request headers:", error);
+    log("error", "Failed to get request headers:", error);
     throw new DatabaseError("Failed to get request headers", error);
   }
 }
 
 // Save headers for a request
 function saveRequestHeaders(requestId, headers) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
   try {
-    // Delete existing headers first
     db.exec("DELETE FROM request_headers WHERE requestId = ?", [requestId]);
 
-    // Insert new headers
     for (const header of headers) {
       db.exec(
         "INSERT INTO request_headers (requestId, name, value) VALUES (?, ?, ?)",
@@ -419,18 +443,18 @@ function saveRequestHeaders(requestId, headers) {
       );
     }
 
+    log("info", `[DB] Headers for request ${requestId} saved successfully.`);
     return true;
   } catch (error) {
-    console.error("Failed to save request headers:", error);
+    log("error", "Failed to save request headers:", error);
     throw new DatabaseError("Failed to save request headers", error);
   }
 }
 
 // Get timing data for a request
 function getRequestTimings(requestId) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
@@ -445,21 +469,20 @@ function getRequestTimings(requestId) {
     const [dns, tcp, ssl, ttfb, download] = result[0].values[0];
     return { dns, tcp, ssl, ttfb, download };
   } catch (error) {
-    console.error("Failed to get request timings:", error);
+    log("error", "Failed to get request timings:", error);
     throw new DatabaseError("Failed to get request timings", error);
   }
 }
 
 // Save timing data for a request
-function saveRequestTimings(requestId, timings) {
-  // Ensure dbManager is initialized before performing operations
+function saveRequestTimings(requestId, timings, config) {
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
   try {
-    db.exec(
+    executeQuery(
       `
       INSERT OR REPLACE INTO request_timings (
         requestId, dns, tcp, ssl, ttfb, download
@@ -472,149 +495,133 @@ function saveRequestTimings(requestId, timings) {
         timings.ssl || 0,
         timings.ttfb || 0,
         timings.download || 0,
-      ]
+      ],
+      config
     );
 
+    log("info", `[DB] Timings for request ${requestId} saved successfully.`);
     return true;
   } catch (error) {
-    console.error("Failed to save request timings:", error);
+    log("error", "Failed to save request timings:", error);
     throw new DatabaseError("Failed to save request timings", error);
   }
 }
 
-// Get database size in bytes
-function getDatabaseSize() {
-  // Ensure dbManager is initialized before performing operations
+// Save imported data (requests, headers, timings) in a transaction
+async function saveImportedData(data, config) {
   if (!db) {
-    console.error("Database is not initialized or invalid.");
-    return;
+    log("error", "Database is not initialized or invalid.");
+    throw new DatabaseError("Database not initialized");
   }
 
   try {
-    const data = db.export();
-    return data.length;
+    db.exec("BEGIN TRANSACTION");
+
+    const requestStmt = db.prepare(`
+      INSERT OR IGNORE INTO requests (
+        id, url, method, type, status, statusText, domain, path,
+        startTime, endTime, duration, size, timestamp, tabId, pageUrl, error
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    data.requests.forEach(req => {
+      requestStmt.run([
+        req.id,
+        req.url,
+        req.method,
+        req.type,
+        req.status || 0,
+        req.statusText || "",
+        req.domain || "",
+        req.path || "",
+        req.startTime || 0,
+        req.endTime || 0,
+        req.duration || 0,
+        req.size || 0,
+        req.timestamp || Date.now(),
+        req.tabId || 0,
+        req.pageUrl || "",
+        req.error || "",
+      ]);
+    });
+    requestStmt.free();
+
+    const headerStmt = db.prepare(
+      "INSERT OR IGNORE INTO request_headers (requestId, name, value) VALUES (?, ?, ?)"
+    );
+    data.headers.forEach(header => {
+      headerStmt.run([header.requestId, header.name, header.value]);
+    });
+    headerStmt.free();
+
+    const timingStmt = db.prepare(`
+      INSERT OR IGNORE INTO request_timings (
+        requestId, dns, tcp, ssl, ttfb, download
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    data.timings.forEach(timing => {
+      timingStmt.run([
+        timing.requestId,
+        timing.dns || 0,
+        timing.tcp || 0,
+        timing.ssl || 0,
+        timing.ttfb || 0,
+        timing.download || 0,
+      ]);
+    });
+    timingStmt.free();
+
+    db.exec("COMMIT");
+    eventBus.publish("database:imported", { count: data.requests.length });
+    log("info", `[DB] Successfully imported ${data.requests.length} requests.`);
+    return { success: true, count: data.requests.length };
+
   } catch (error) {
-    console.error("Failed to get database size:", error);
-    throw new DatabaseError("Failed to get database size", error);
+    log("error", "Failed to save imported data:", error);
+    try {
+      db.exec("ROLLBACK");
+    } catch (rollbackError) {
+      log("error", "Rollback failed:", rollbackError);
+      logErrorToDatabase(db, new DatabaseError("Rollback failed during import", rollbackError), config);
+    }
+    const importError = new DatabaseError("Failed to save imported data", error);
+    logErrorToDatabase(db, importError, config);
+    throw importError;
+  }
+}
+
+// Get database size in bytes
+async function getDatabaseSize() {
+  if (!db) return 0;
+  try {
+    const data = db.export();
+    return data.byteLength;
+  } catch (error) {
+    log("error", "Failed to get database size:", error);
+    return 0;
   }
 }
 
 // Get database statistics
-function getDatabaseStats() {
-  // Ensure dbManager is initialized before performing operations
+async function getDatabaseStats(config) {
   if (!db) {
-    console.error("Database is not initialized or invalid.");
-    return;
+    return { size: 0, requestCount: 0 };
   }
-
   try {
-    const stats = {
-      totalRequests: 0,
-      avgResponseTime: 0,
-      statusCodes: {},
-      topDomains: [],
-      requestTypes: {},
-      timeDistribution: {},
-    };
-
-    // Get total requests
-    const totalResult = executeQuery("SELECT COUNT(*) FROM requests");
-    stats.totalRequests = totalResult[0] ? totalResult[0].values[0][0] : 0;
-
-    // Get average response time
-    const avgResult = executeQuery(
-      "SELECT AVG(duration) FROM requests WHERE duration > 0"
-    );
-    stats.avgResponseTime = avgResult[0]
-      ? Math.round(avgResult[0].values[0][0] || 0)
-      : 0;
-
-    // Get status code distribution
-    const statusResult = executeQuery(`
-      SELECT status, COUNT(*) as count
-      FROM requests
-      WHERE status > 0
-      GROUP BY status
-      ORDER BY count DESC
-    `);
-
-    if (statusResult[0]) {
-      statusResult[0].values.forEach((row) => {
-        stats.statusCodes[row[0]] = row[1];
-      });
-    }
-
-    // Get top domains
-    const domainResult = executeQuery(`
-      SELECT domain, COUNT(*) as count
-      FROM requests
-      WHERE domain != ''
-      GROUP BY domain
-      ORDER BY count DESC
-      LIMIT 10
-    `);
-
-    if (domainResult[0]) {
-      stats.topDomains = domainResult[0].values.map((row) => ({
-        domain: row[0],
-        count: row[1],
-      }));
-    }
-
-    // Get request type distribution
-    const typeResult = executeQuery(`
-      SELECT type, COUNT(*) as count
-      FROM requests
-      GROUP BY type
-      ORDER BY count DESC
-    `);
-
-    if (typeResult[0]) {
-      typeResult[0].values.forEach((row) => {
-        stats.requestTypes[row[0]] = row[1];
-      });
-    }
-
-    // Get time distribution (last 24 hours by hour)
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
-
-    const timeResult = executeQuery(`
-      SELECT 
-        CAST((timestamp - ${oneDayAgo}) / (3600 * 1000) AS INTEGER) as hour,
-        COUNT(*) as count
-      FROM requests
-      WHERE timestamp >= ${oneDayAgo}
-      GROUP BY hour
-      ORDER BY hour
-    `);
-
-    if (timeResult[0]) {
-      // Initialize all hours with 0
-      for (let i = 0; i < 24; i++) {
-        stats.timeDistribution[i] = 0;
-      }
-
-      // Fill in actual data
-      timeResult[0].values.forEach((row) => {
-        const hour = Math.min(Math.max(0, row[0]), 23);
-        stats.timeDistribution[hour] = row[1];
-      });
-    }
-
-    return stats;
+    const size = await getDatabaseSize();
+    const countResult = executeQuery("SELECT COUNT(*) FROM requests", [], config);
+    const requestCount = countResult[0]?.values[0]?.[0] || 0;
+    return { size, requestCount };
   } catch (error) {
-    console.error("Failed to get database stats:", error);
-    throw new DatabaseError("Failed to get database stats", error);
+    log("error", "Failed to get database stats:", error);
+    return { size: 0, requestCount: 0 };
   }
 }
 
 // Export database in various formats
-function exportDatabase(format) {
-  // Ensure dbManager is initialized before performing operations
+async function exportDatabase(format, config) {
   if (!db) {
-    console.error("Database is not initialized or invalid.");
-    return;
+    log("error", "Database is not initialized or invalid.");
+    throw new DatabaseError("Database not initialized");
   }
 
   try {
@@ -623,19 +630,20 @@ function exportDatabase(format) {
         return db.export();
 
       case "json":
-        const requests = executeQuery("SELECT * FROM requests");
-        const timings = executeQuery("SELECT * FROM request_timings");
-        const headers = executeQuery("SELECT * FROM request_headers");
+        const requests = executeQuery("SELECT * FROM requests", [], config);
+        const timings = executeQuery("SELECT * FROM request_timings", [], config);
+        const headers = executeQuery("SELECT * FROM request_headers", [], config);
+        const stats = await getDatabaseStats(config);
 
         return JSON.stringify(
           {
-            requests: requests[0] ? requests[0].values : [],
-            requestColumns: requests[0] ? requests[0].columns : [],
-            timings: timings[0] ? timings[0].values : [],
-            timingColumns: timings[0] ? timings[0].columns : [],
-            headers: headers[0] ? headers[0].values : [],
-            headerColumns: headers[0] ? headers[0].columns : [],
-            exportDate: new Date().toISOString(),
+            metadata: {
+              exportDate: new Date().toISOString(),
+              requestCount: stats.requestCount,
+            },
+            requests: requests?.[0] ? mapRowsToObjects(requests[0]) : [],
+            timings: timings?.[0] ? mapRowsToObjects(timings[0]) : [],
+            headers: headers?.[0] ? mapRowsToObjects(headers[0]) : [],
           },
           null,
           2
@@ -646,7 +654,7 @@ function exportDatabase(format) {
           SELECT r.*, t.dns, t.tcp, t.ssl, t.ttfb, t.download
           FROM requests r
           LEFT JOIN request_timings t ON r.id = t.requestId
-        `);
+        `, [], config);
 
         if (!result[0]) return "";
 
@@ -654,13 +662,14 @@ function exportDatabase(format) {
         let csv = columns.join(",") + "\n";
 
         result[0].values.forEach((row) => {
-          // Escape fields that might contain commas
           const escapedRow = row.map((field) => {
             if (field === null || field === undefined) return "";
             const str = String(field);
-            return str.includes(",") ? `"${str}"` : str;
+            if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
           });
-
           csv += escapedRow.join(",") + "\n";
         });
 
@@ -670,94 +679,147 @@ function exportDatabase(format) {
         throw new Error(`Unsupported export format: ${format}`);
     }
   } catch (error) {
-    console.error(`Failed to export database as ${format}:`, error);
-    throw new DatabaseError(`Failed to export database as ${format}`, error);
+    log("error", `Failed to export database as ${format}:`, error);
+    const exportError = new DatabaseError(`Failed to export database as ${format}`, error);
+    logErrorToDatabase(db, exportError, config);
+    throw exportError;
   }
 }
 
 // Clear all data from the database
-function clearDatabase() {
-  // Ensure dbManager is initialized before performing operations
+async function clearDatabase(config) {
   if (!db) {
-    console.error("Database is not initialized or invalid.");
-    return;
+    log("error", "Database is not initialized or invalid.");
+    throw new DatabaseError("Database not initialized");
   }
 
   try {
-    db.exec("DELETE FROM request_headers");
-    db.exec("DELETE FROM request_timings");
-    db.exec("DELETE FROM requests");
+    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", [], config);
+    const tables = tablesResult[0]?.values.map(row => row[0]) || [];
 
-    // Vacuum to reclaim space
-    db.exec("VACUUM");
+    db.exec("BEGIN TRANSACTION");
+    for (const table of tables) {
+      executeQuery(`DELETE FROM ${table};`, [], config);
+    }
+    executeQuery("VACUUM;", [], config);
+    db.exec("COMMIT");
 
     eventBus.publish("database:cleared", { timestamp: Date.now() });
+
+    await getDatabaseStats(config);
+
+    log("info", "[DB] Database cleared successfully.");
     return true;
   } catch (error) {
-    console.error("Failed to clear database:", error);
-    throw new DatabaseError("Failed to clear database", error);
+    log("error", "Failed to clear database:", error);
+    try { db.exec("ROLLBACK"); } catch (rbError) { }
+    const clearError = new DatabaseError("Failed to clear database", error);
+    logErrorToDatabase(db, clearError, config);
+    throw clearError;
+  }
+}
+
+// Replace the current database with data from a Uint8Array (SQLite file)
+async function replaceDatabase(dataBuffer, config) {
+  if (!db) {
+    log("error", "Database is not initialized or invalid.");
+    throw new DatabaseError("Database not initialized");
+  }
+
+  isSaving = true;
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+    autoSaveInterval = null;
+  }
+
+  try {
+    db.close();
+    db = null;
+
+    const SQL = await initSqlJs();
+    db = new SQL.Database(dataBuffer);
+
+    await migrateDatabase(db);
+
+    const data = db.export();
+    await saveDatabaseToOPFS(data);
+
+    setupAutoSave(db, config);
+
+    eventBus.publish("database:replaced", { timestamp: Date.now() });
+    log("info", "[DB] Database replaced successfully.");
+    return true;
+  } catch (error) {
+    log("error", "Failed to replace database:", error);
+    db = null;
+    const replaceError = new DatabaseError("Failed to replace database", error);
+    eventBus.publish("database:error", {
+      error: "replace_failed",
+      message: error.message,
+    });
+    throw replaceError;
+  } finally {
+    isSaving = false;
+    if (db && !autoSaveInterval) {
+      setupAutoSave(db, config);
+    }
   }
 }
 
 // Encrypt the database with a new key
 function encryptDatabase(key) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
   if (!encryptionManager)
     throw new DatabaseError("Encryption manager not initialized");
 
   try {
-    // Enable encryption with the provided key
     encryptionManager.setKey(key);
     encryptionManager.enable();
 
-    // Save the database to apply encryption
     const data = db.export();
     saveDatabaseToOPFS(data);
 
     eventBus.publish("database:encrypted", { timestamp: Date.now() });
+    log("info", "[DB] Database encrypted successfully.");
     return true;
   } catch (error) {
-    console.error("Failed to encrypt database:", error);
+    log("error", "Failed to encrypt database:", error);
     throw new DatabaseError("Failed to encrypt database", error);
   }
 }
 
 // Decrypt the database
 function decryptDatabase(key) {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
   if (!encryptionManager)
     throw new DatabaseError("Encryption manager not initialized");
 
   try {
-    // Set the key and disable encryption
     encryptionManager.setKey(key);
     encryptionManager.disable();
 
-    // Save the database to apply decryption
     const data = db.export();
     saveDatabaseToOPFS(data);
 
     eventBus.publish("database:decrypted", { timestamp: Date.now() });
+    log("info", "[DB] Database decrypted successfully.");
     return true;
   } catch (error) {
-    console.error("Failed to decrypt database:", error);
+    log("error", "Failed to decrypt database:", error);
     throw new DatabaseError("Failed to decrypt database", error);
   }
 }
 
 // Create a backup of the database
 function backupDatabase() {
-  // Ensure dbManager is initialized before performing operations
   if (!db) {
-    console.error("Database is not initialized or invalid.");
+    log("error", "Database is not initialized or invalid.");
     return;
   }
 
@@ -771,7 +833,6 @@ function backupDatabase() {
       chrome.storage &&
       chrome.storage.local
     ) {
-      // Save backup to storage
       chrome.storage.local.set({ [backupKey]: data });
 
       eventBus.publish("database:backup_created", {
@@ -779,130 +840,221 @@ function backupDatabase() {
         backupKey,
         size: data.length,
       });
+      log("info", `[DB] Backup created with key: ${backupKey}`);
     } else {
-      console.warn("Chrome storage API not available.");
+      log("warn", "Chrome storage API not available.");
     }
 
     return backupKey;
   } catch (error) {
-    console.error("Failed to backup database:", error);
+    log("error", "Failed to backup database:", error);
     throw new DatabaseError("Failed to backup database", error);
   }
 }
 
 // Initialize the database with proper handling of OPFS
 
-/**
- * Initializes the SQLite database using SQL.js and optionally loads from OPFS.
- * Handles retries, migration, and periodic auto-saving.
- *
- * @returns {Promise<SQL.Database>} The initialized database instance
- */
 export async function initializeDatabase() {
-  const MAX_RETRIES = 3;
-  const AUTO_SAVE_INTERVAL_MS = 60000;
-  let retryCount = 0;
-
-  while (retryCount < MAX_RETRIES) {
+  let retries = 3;
+  while (retries > 0) {
     try {
-      // Initialize SQL.js with correct wasm path handling
-      const SQL = await initSqlJs({
-        locateFile: (file) => {
-          if (typeof chrome !== "undefined" && chrome.runtime) {
-            return chrome.runtime.getURL(`assets/wasm/${file}`);
-          } else if (typeof browser !== "undefined" && browser.runtime) {
-            return browser.runtime.getURL(`assets/wasm/${file}`);
-          } else {
-            return `assets/wasm/${file}`;
-          }
-        },
-      });
+      log("info", "Initializing database...");
+      const SQL = await initSqlJs({ locateFile: file => `assets/wasm/${file}` });
+      let dbInstance = null;
+      let dbData = null;
 
-      // Load from OPFS if supported and available
-      if (await opfsSupported()) {
-        const savedDb = await loadDatabaseFromOPFS();
+      dbData = await loadDatabaseFromOPFS();
 
-        if (savedDb) {
-          db = new SQL.Database(savedDb);
-          console.log("[DB] Loaded existing database from OPFS.");
-        } else {
-          db = new SQL.Database();
-          console.log("[DB] Created new in-memory database.");
-          await createTables(db);
-          await saveDatabaseToOPFS(db.export());
-        }
+      if (dbData && dbData.length > 0) {
+        log("info", `Loaded database from OPFS (${dbData.length} bytes).`);
+        dbInstance = new SQL.Database(dbData);
+        log("info", "Database instance created from OPFS data.");
       } else {
-        db = new SQL.Database();
-        console.warn("[DB] OPFS not supported — using in-memory only.");
-        await createTables(db);
+        log("info", "No existing database found in OPFS, creating new one.");
+        dbInstance = new SQL.Database();
+        log("info", "New database instance created.");
+        await createTables(dbInstance);
+        const initialData = dbInstance.export();
+        await saveDatabaseToOPFS(initialData);
       }
 
-      // Run migrations (optional)
-      try {
-        await migrateDatabase(db);
-      } catch (migrationError) {
-        throw new Error(`Migration failed: ${migrationError.message}`);
+      await migrateDatabase(dbInstance);
+
+      setupAutoSave(dbInstance);
+
+      log("info", "Database initialized successfully.");
+      db = dbInstance;
+      return dbInstance;
+
+    } catch (error) {
+      log("error", `Database initialization failed: ${error.message}. Retries left: ${retries - 1}`);
+      retries--;
+      if (retries === 0) {
+        logErrorToDatabase(db, error);
+        eventBus.publish("database:error", {
+          error: "init_failed",
+          message: error.message,
+        });
+        throw new DatabaseError("Database initialization failed after multiple retries", error);
       }
-
-      // Start auto-save
-      autoSaveInterval = setInterval(async () => {
-        if (!db || isSaving || !(await opfsSupported())) return;
-        isSaving = true;
-        try {
-          const data = db.export();
-          await saveDatabaseToOPFS(data);
-        } catch (err) {
-          console.error("[DB] Auto-save failed:", err);
-        } finally {
-          isSaving = false;
-        }
-      }, AUTO_SAVE_INTERVAL_MS);
-
-      return db;
-    } catch (err) {
-      retryCount++;
-      console.error(`[DB] Initialization failed (attempt ${retryCount}):`, err);
-
-      if (retryCount >= MAX_RETRIES) {
-        throw new Error(
-          "Database failed to initialize after multiple retries."
-        );
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
 }
 
-/**
- * Stops the auto-save interval and cleans up resources
- */
-export function cleanupDatabase() {
+// Setup auto-save interval
+function setupAutoSave(dbInstance = db, config) {
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+  }
+  const interval = 60000;
+
+  autoSaveInterval = setInterval(async () => {
+    if (!isSaving && dbInstance) {
+      isSaving = true;
+      try {
+        const data = dbInstance.export();
+        await saveDatabaseToOPFS(data);
+        log("info", "[DB] Auto-save completed successfully.");
+      } catch (error) {
+        log("error", "Auto-save failed:", error);
+        logErrorToDatabase(dbInstance, new DatabaseError("Auto-save failed", error), config);
+        eventBus.publish("database:error", {
+          error: "autosave_failed",
+          message: error.message,
+        });
+      } finally {
+        isSaving = false;
+      }
+    }
+  }, interval);
+  log("info", `Database auto-save configured with interval: ${interval / 1000}s`);
+}
+
+// Stops the auto-save interval and cleans up resources
+export async function cleanupDatabase(config) {
+  log("info", "Cleaning up database resources...");
   if (autoSaveInterval) {
     clearInterval(autoSaveInterval);
     autoSaveInterval = null;
+    log("info", "Auto-save interval cleared.");
+  }
+  if (db) {
+    try {
+      if (!isSaving) {
+        log("info", "Performing final save before closing DB...");
+        const data = db.export();
+        await saveDatabaseToOPFS(data);
+      }
+      db.close();
+      db = null;
+      log("info", "Database connection closed.");
+    } catch (error) {
+      log("error", "Error closing database:", error);
+      db = null;
+    }
   }
 }
-/**
- * Checks whether the browser supports the Origin Private File System (OPFS).
- *
- * @returns {Promise<boolean>} True if OPFS is supported and usable
- */
-export async function opfsSupported() {
-  try {
-    if (
-      typeof navigator === "undefined" ||
-      typeof navigator.storage === "undefined" ||
-      typeof navigator.storage.getDirectory !== "function"
-    ) {
-      return false;
-    }
 
-    // Try requesting access to the OPFS root directory
-    const dirHandle = await navigator.storage.getDirectory();
-    return !!dirHandle;
-  } catch (err) {
-    console.warn("[OPFS] Not supported or inaccessible:", err);
-    return false;
+// Add helper functions if they don't exist
+async function getRequestCount() {
+  if (!db) return 0;
+  try {
+    const result = executeQuery("SELECT COUNT(*) FROM requests");
+    return result[0]?.values[0]?.[0] || 0;
+  } catch (error) {
+    log("error", "Failed to get request count:", error);
+    return 0;
+  }
+}
+
+async function getTableColumns(tableName) {
+  if (!db) return [];
+  try {
+    const result = executeQuery(`PRAGMA table_info(${tableName})`);
+    if (result[0] && result[0].values) {
+      return result[0].values.map(colInfo => colInfo[1]);
+    }
+    const sample = executeQuery(`SELECT * FROM ${tableName} LIMIT 0`);
+    if (sample[0] && sample[0].columns) {
+      return sample[0].columns;
+    }
+    return [];
+  } catch (error) {
+    log("error", `Failed to get columns for table ${tableName}:`, error);
+    return [];
+  }
+}
+
+// Get database schema summary (table names and row counts)
+function getDatabaseSchemaSummary(config) {
+  if (!db) {
+    throw new DatabaseError("Database not initialized");
+  }
+  try {
+    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", [], config);
+    if (!tablesResult[0] || !tablesResult[0].values) {
+      return [];
+    }
+    const tables = tablesResult[0].values.map(row => row[0]);
+    const summary = [];
+    for (const tableName of tables) {
+      try {
+        const countResult = executeQuery(`SELECT COUNT(*) FROM ${tableName};`, [], config);
+        const rowCount = countResult[0]?.values[0]?.[0] || 0;
+        summary.push({ name: tableName, rows: rowCount });
+      } catch (countError) {
+        log("warn", `Could not get row count for table ${tableName}:`, countError);
+        summary.push({ name: tableName, rows: 'Error' });
+      }
+    }
+    return summary;
+  } catch (error) {
+    log("error", "Failed to get database schema summary:", error);
+    throw new DatabaseError("Failed to get database schema summary", error);
+  }
+}
+
+// Get logged errors from the errors table
+function getLoggedErrors(limit = 100, config) {
+  if (!db) {
+    throw new DatabaseError("Database not initialized");
+  }
+  try {
+    const tableCheck = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'", [], config);
+    if (!tableCheck[0] || tableCheck[0].values.length === 0) {
+      log("info", "Errors table does not exist. No errors to fetch.");
+      return [];
+    }
+    const result = executeQuery(`SELECT id, category, message, stack, timestamp, context FROM errors ORDER BY timestamp DESC LIMIT ${limit}`, [], config);
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (error) {
+    log("error", "Failed to get logged errors:", error);
+    return [];
+  }
+}
+
+// Execute raw SQL query (Use with caution!)
+function executeRawSql(sql, config) {
+  if (!db) {
+    throw new DatabaseError("Database not initialized");
+  }
+  const lowerSql = sql.toLowerCase().trim();
+  if (!lowerSql.startsWith("select ") && !lowerSql.startsWith("pragma ") && !lowerSql.startsWith("explain ")) {
+    const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN query: ${sql}`);
+    log("warn", "Attempting to execute potentially harmful SQL:", sql);
+    logErrorToDatabase(db, securityError, config);
+    throw securityError;
+  }
+
+  try {
+    const results = executeQuery(sql, [], config);
+    return results.map(result => ({
+      columns: result.columns,
+      values: result.values
+    }));
+  } catch (error) {
+    log("error", "Raw SQL execution failed:", error, { sql });
+    throw new DatabaseError(`Raw SQL execution failed: ${error.message}`, error);
   }
 }

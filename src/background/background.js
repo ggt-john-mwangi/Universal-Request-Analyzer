@@ -7,14 +7,14 @@ import { setupAuthSystem } from "./auth/auth-manager";
 import { setupRemoteAuthService } from "./auth/remote-auth-service";
 import { setupEncryption } from "./security/encryption-manager";
 import { setupRemoteSyncService } from "./sync/remote-sync-service";
-import { setupErrorMonitoring } from "./monitoring/error-monitor";
+import { setupErrorMonitoring } from "./monitoring/error-monitor.js";
 import { loadConfig, setupConfigWatcher } from "./config/config-manager";
 import { setupExportManager } from "./export/export-manager";
+import { setupImportManager } from "./import/import-manager.js";
 import { setupEventBus } from "./messaging/event-bus";
 import { setupCrossBrowserCompat } from "./compat/browser-compat";
 import { setupApiService } from "./api/api-service";
-// import { getInitSqlJs } from "./database/sql-js-loader.js";
-// import initSqlJs from "../assets/wasm/sql-wasm.js";
+import { setupApiEndpoints } from "./api/api-manager.js";
 
 // Initialize the database when the extension starts
 chrome.runtime.onStartup.addListener(async () => {
@@ -188,72 +188,37 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 // Main initialization function
 async function initialize() {
+  console.log("Initializing background script...");
+
   try {
-    // Load configuration first
-    config = await loadConfig();
-
-    // Set up error monitoring
-    setupErrorMonitoring(eventBus);
-
-    // Set up cross-browser compatibility layer
-    setupCrossBrowserCompat();
-
-    // Initialize encryption system
-    const encryptionManager = await setupEncryption(config.security, eventBus);
-
-    // Initialize database manager
+    const eventBus = setupEventBus();
+    const configManager = await setupConfigManager(eventBus); // Wait for config to load
+    const encryptionManager = setupEncryptionManager(configManager); // Pass config if needed for keys etc.
     const dbManager = await initDatabase(
-      config.database,
+      configManager.getConfigValue("database"), // Pass DB specific config
       encryptionManager,
-      eventBus
+      eventBus,
+      configManager // Pass config manager
     );
+    const authManager = setupAuthManager(dbManager, configManager, eventBus); // Pass dbManager for user/token checks
+    const errorMonitor = setupErrorMonitoring(eventBus, configManager); // Pass config manager
+    const captureManager = setupRequestCapture(dbManager, configManager, eventBus);
+    const exportManager = setupExportManager(dbManager, encryptionManager, eventBus); // Pass dbManager
+    const importManager = setupImportManager(dbManager, eventBus); // Pass dbManager
+    const apiManager = setupApiEndpoints(dbManager, authManager, encryptionManager, eventBus); // Setup API endpoints
 
-    // Set up authentication systems
-    const localAuthManager = await setupAuthSystem(
-      config.security.auth,
-      eventBus
-    );
-    const remoteAuthService = await setupRemoteAuthService(
-      config.security.remoteAuth,
-      eventBus
-    );
-
-    // Choose which auth system to use based on configuration
-    const authManager = config.security.useRemoteAuth
-      ? remoteAuthService
-      : localAuthManager;
-
-    // Set up request capture
-    setupRequestCapture(config.capture, dbManager, eventBus);
-
-    // Set up notification system
-    setupNotifications(config.notifications, eventBus);
-
-    // Set up remote sync
-    if (config.sync.enabled) {
-      setupRemoteSyncService(
-        config.sync,
-        dbManager,
-        authManager,
-        encryptionManager,
-        eventBus
-      );
-    }
-
-    // Set up export manager
-    setupExportManager(dbManager, encryptionManager, eventBus);
-
-    // Set up API service
-    setupApiService(
-      config.api,
+    // Setup message handler last, passing all managers
+    setupMessageHandlers(
       dbManager,
+      configManager,
+      captureManager,
+      exportManager,
+      importManager,
       authManager,
       encryptionManager,
-      eventBus
+      errorMonitor,
+      apiManager // Pass API manager
     );
-
-    // Set up message handlers (must be last to ensure all systems are initialized)
-    setupMessageHandlers(dbManager, authManager, encryptionManager, eventBus);
 
     // Watch for configuration changes
     setupConfigWatcher((newConfig) => {
@@ -262,45 +227,15 @@ async function initialize() {
     });
 
     // Log successful initialization
-    console.log("Universal Request Analyzer initialized successfully");
+    console.log("Background script initialized successfully.");
 
     // Notify that the system is ready
     eventBus.publish("system:ready", { timestamp: Date.now() });
   } catch (error) {
-    console.error("Failed to initialize Universal Request Analyzer:", error);
-
-    // Attempt to report the error
-    try {
-      if (
-        typeof browser !== "undefined" &&
-        browser.runtime &&
-        browser.runtime.getBackgroundPage
-      ) {
-        // browser is available
-        const backgroundPage = await browser.runtime.getBackgroundPage();
-        const errorMonitor = backgroundPage.errorMonitor;
-        if (errorMonitor) {
-          errorMonitor.reportCriticalError("initialization_failed", error);
-        }
-      } else if (
-        typeof chrome !== "undefined" &&
-        chrome.runtime &&
-        chrome.runtime.getBackgroundPage
-      ) {
-        // chrome is available
-        const backgroundPage = await chrome.runtime.getBackgroundPage();
-        const errorMonitor = backgroundPage.errorMonitor;
-        if (errorMonitor) {
-          errorMonitor.reportCriticalError("initialization_failed", error);
-        }
-      } else {
-        console.warn(
-          "Browser runtime not available, cannot report critical error"
-        );
-      }
-    } catch (e) {
-      // Last resort error logging
-      console.error("Could not report initialization error:", e);
+    console.error("Background script initialization failed:", error);
+    // Use error monitor if available, otherwise basic console log
+    if (typeof errorMonitor !== 'undefined' && errorMonitor.reportCriticalError) {
+        errorMonitor.reportCriticalError("initialization_failed", error);
     }
   }
 }

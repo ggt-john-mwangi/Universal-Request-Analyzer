@@ -1,3 +1,8 @@
+import { setupCrossBrowserCompat } from "../background/compat/browser-compat";
+
+// Ensure compatibility layer is set up if needed (though likely not necessary for just runtime)
+setupCrossBrowserCompat();
+
 // Content script to capture performance metrics from the page
 
 // Create a performance observer to monitor resource timing entries
@@ -137,23 +142,18 @@ window.addEventListener("load", () => {
       const duration = endTime - this._requestStartTime
 
       try {
-        // Check if chrome is defined before using it
-        if (typeof chrome !== "undefined" && chrome.runtime) {
-          chrome.runtime.sendMessage({
-            action: "xhrCompleted",
-            method: this._requestMethod,
-            url: this._requestUrl,
-            status: this.status,
-            statusText: this.statusText,
-            duration: duration,
-            responseSize: this.responseText ? this.responseText.length : 0,
-            requestSize: this._requestBody ? this._requestBody.length : 0,
-            startTime: this._requestStartTime,
-            endTime: endTime,
-          })
-        } else {
-          console.warn("chrome.runtime is not available.")
-        }
+        chrome.runtime.sendMessage({
+          action: "xhrCompleted",
+          method: this._requestMethod,
+          url: this._requestUrl,
+          status: this.status,
+          statusText: this.statusText,
+          duration: duration,
+          responseSize: this.responseText ? this.responseText.length : 0,
+          requestSize: this._requestBody ? this._requestBody.length : 0,
+          startTime: this._requestStartTime,
+          endTime: endTime,
+        })
       } catch (e) {
         console.error("Error sending message:", e)
       }
@@ -180,23 +180,18 @@ window.addEventListener("load", () => {
         // Get response size
         clonedResponse.text().then((text) => {
           try {
-            // Check if chrome is defined before using it
-            if (typeof chrome !== "undefined" && chrome.runtime) {
-              chrome.runtime.sendMessage({
-                action: "fetchCompleted",
-                method: method,
-                url: url,
-                status: response.status,
-                statusText: response.statusText,
-                duration: duration,
-                responseSize: text.length,
-                requestSize: init && init.body ? init.body.length : 0,
-                startTime: startTime,
-                endTime: endTime,
-              })
-            } else {
-              console.warn("chrome.runtime is not available.")
-            }
+            chrome.runtime.sendMessage({
+              action: "fetchCompleted",
+              method: method,
+              url: url,
+              status: response.status,
+              statusText: response.statusText,
+              duration: duration,
+              responseSize: text.length,
+              requestSize: init && init.body ? init.body.length : 0,
+              startTime: startTime,
+              endTime: endTime,
+            })
           } catch (e) {
             console.error("Error sending message:", e)
           }
@@ -209,20 +204,15 @@ window.addEventListener("load", () => {
         const duration = endTime - startTime
 
         try {
-          // Check if chrome is defined before using it
-          if (typeof chrome !== "undefined" && chrome.runtime) {
-            chrome.runtime.sendMessage({
-              action: "fetchError",
-              method: method,
-              url: url,
-              error: error.message,
-              duration: duration,
-              startTime: startTime,
-              endTime: endTime,
-            })
-          } else {
-            console.warn("chrome.runtime is not available.")
-          }
+          chrome.runtime.sendMessage({
+            action: "fetchError",
+            method: method,
+            url: url,
+            error: error.message,
+            duration: duration,
+            startTime: startTime,
+            endTime: endTime,
+          })
         } catch (e) {
           console.error("Error sending message:", e)
         }

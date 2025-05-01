@@ -127,6 +127,11 @@ export async function loadConfig() {
   }
 }
 
+// Get current configuration - alias for loadConfig for backward compatibility
+export async function getConfig() {
+  return loadConfig();
+}
+
 // Get stored configuration
 async function getStoredConfig() {
   return new Promise((resolve) => {

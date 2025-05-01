@@ -117,29 +117,20 @@ const migrations = [
   },
   {
     version: 4,
-    description: "Add tags support",
+    description: "Add errors table for logging",
     migrate: (db) => {
-      // Create tags table if it doesn't exist
       db.exec(`
-        CREATE TABLE IF NOT EXISTS tags (
+        CREATE TABLE IF NOT EXISTS errors (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT UNIQUE,
-          color TEXT,
-          createdAt INTEGER
-        )
+          category TEXT,
+          message TEXT,
+          stack TEXT,
+          timestamp INTEGER,
+          context TEXT -- Store additional context as JSON string
+        );
       `);
-
-      // Create request_tags table if it doesn't exist
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS request_tags (
-          requestId TEXT,
-          tagId INTEGER,
-          PRIMARY KEY (requestId, tagId),
-          FOREIGN KEY(requestId) REFERENCES requests(id) ON DELETE CASCADE,
-          FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
-        )
-      `);
-
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors(timestamp);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_errors_category ON errors(category);`);
       return true;
     },
   },

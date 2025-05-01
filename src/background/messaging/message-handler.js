@@ -4,6 +4,8 @@
 
 import { ApiError } from "../errors/error-types.js";
 import { logErrorToDatabase } from "../database/db-manager.js";
+import { handleImportData } from "../import/import-manager.js";
+import * as exportManager from "../export/export-manager.js"; // Import export manager
 
 let dbManager = null;
 let authManager = null;
@@ -27,7 +29,7 @@ export function setupMessageHandlers(database, auth, encryption, events) {
 }
 
 // Handle messages from popup and content scripts
-function handleMessage(message, sender, sendResponse) {
+async function handleMessage(message, sender, sendResponse) {
   try {
     // Database-related messages
     if (
@@ -36,80 +38,68 @@ function handleMessage(message, sender, sendResponse) {
     ) {
       handleGetRequests(message, sendResponse);
       return true; // Keep the message channel open for async response
-    } else if (message.action === "clearRequests") {
-      handleClearRequests(sendResponse);
-      return true;
-    } else if (message.action === "getRequestHeaders") {
-      handleGetRequestHeaders(message, sendResponse);
-      return true;
-    } else if (message.action === "getStats") {
-      handleGetStats(sendResponse);
-      return true;
-    } else if (message.action === "getDatabaseInfo") {
-      handleGetDatabaseInfo(sendResponse);
-      return true;
-    } else if (message.action === "getNetworkStats") {
-      handleGetNetworkStats(sendResponse);
-      return true;
-    } else if (message.action === "exportDatabase") {
-      const { format, filename } = message;
-      try {
-        const data = dbManager.exportDatabase(format);
-        const blob = new Blob([data], { type: "application/x-sqlite3" });
-
-        // Check if chrome.fileSystem is available before using it
-        if (
-          typeof chrome.fileSystem !== "undefined" &&
-          chrome.fileSystem.chooseEntry
-        ) {
-          chrome.fileSystem.chooseEntry(
-            { type: "saveFile", suggestedName: filename },
-            (fileEntry) => {
-              if (chrome.runtime.lastError) {
-                sendResponse({
-                  success: false,
-                  error: chrome.runtime.lastError.message,
-                });
-                return;
-              }
-
-              fileEntry.createWriter((fileWriter) => {
-                fileWriter.onwriteend = () => {
-                  sendResponse({ success: true });
-                };
-
-                fileWriter.onerror = (error) => {
-                  console.error("Failed to write file:", error);
-                  sendResponse({ success: false, error: error.message });
-                };
-
-                fileWriter.write(blob);
-              });
-            }
-          );
-        } else {
-          console.error("chrome.fileSystem API is not available.");
-          sendResponse({
-            success: false,
-            error: "File system API is not available.",
-          });
-        }
-      } catch (error) {
-        console.error("Failed to export database:", error);
-        sendResponse({ success: false, error: error.message });
-      }
-      return true; // Keep the message channel open for async response
     }
 
-    // Export-related messages
-    else if (
-      message.action === "exportData" &&
-      config.export.enableSqliteExport
-    ) {
-      handleExportData(message, sendResponse);
+    // Export-related messages - Consolidate all export types under 'exportData'
+    else if (message.action === "exportData") {
+      // Ensure exportManager is initialized
+      if (!exportManager) {
+        console.error("Export manager is not initialized.");
+        sendResponse({ success: false, error: "Export manager not initialized." });
+        return false; // Indicate sync response
+      }
+
+      try {
+        // Use filename from message or generate a default
+        const filename = message.filename || `request-analyzer-export-${new Date().toISOString().slice(0, 10)}`;
+        const format = message.format || 'json'; // Default to json if not specified
+
+        console.log(`[MessageHandler] Received exportData request: format=${format}, filename=${filename}`); // Added logging
+
+        const result = await exportManager.exportData({
+          format: format,
+          filename: filename,
+          filters: message.filters, // Pass filters if provided
+          // Add other options from exportManager if needed (e.g., prettyPrint, compression)
+          prettyPrint: message.prettyPrint !== undefined ? message.prettyPrint : true,
+          compression: message.compression !== undefined ? message.compression : false,
+          includeHeaders: message.includeHeaders !== undefined ? message.includeHeaders : true, // For CSV
+        });
+        console.log("[MessageHandler] Export result:", result); // Added logging
+        sendResponse({ success: true, ...result });
+      } catch (error) {
+        console.error(`[MessageHandler] Failed to export data as ${message.format}:`, error);
+        // Ensure the error object is properly structured
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        sendResponse({ success: false, error: errorMessage || "Unknown export error" });
+      }
+      return true; // Keep channel open for async response
+    }
+
+    // Import-related messages
+    else if (message.action === "importData") {
+      handleImportData(message, sendResponse);
       return true;
-    } else if (message.action === "exportData") {
-      sendResponse({ error: "SQLite export is disabled by configuration." });
+    } else if (message.action === "importDatabaseFile") {
+      handleImportDatabaseFile(message, sendResponse);
+      return true;
+    }
+
+    // Clear requests
+    else if (message.action === "clearRequests") {
+      handleClearRequests(sendResponse);
+      return true;
+    }
+
+    // Get database stats
+    else if (message.action === "getDatabaseStats") {
+      handleGetDatabaseStats(sendResponse);
+      return true;
+    }
+
+    // Get database size
+    else if (message.action === "getDatabaseSize") {
+      handleGetDatabaseSize(sendResponse);
       return true;
     }
 
@@ -183,16 +173,72 @@ function handleMessage(message, sender, sendResponse) {
   }
 }
 
+// Handle importDatabaseFile message
+async function handleImportDatabaseFile(message, sendResponse) {
+  if (!dbManager) {
+    sendResponse({ success: false, error: "Database manager not initialized" });
+    return;
+  }
+  if (!(message.data instanceof ArrayBuffer)) {
+    sendResponse({ success: false, error: "Invalid data format for SQLite import. Expected ArrayBuffer." });
+    return;
+  }
+
+  try {
+    const success = await dbManager.replaceDatabase(new Uint8Array(message.data));
+    if (success) {
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: "Failed to replace database." });
+    }
+  } catch (error) {
+    console.error("Error importing SQLite database file:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// Handle getDatabaseStats message
+function handleGetDatabaseStats(sendResponse) {
+  if (!dbManager) {
+    sendResponse({ success: false, error: "Database not initialized" });
+    return;
+  }
+  (async () => {
+    try {
+      const stats = await dbManager.getDatabaseStats();
+      sendResponse({ success: true, stats });
+    } catch (error) {
+      console.error("Error getting database stats:", error);
+      sendResponse({ success: false, error: error.message });
+    }
+  })(); // Immediately invoke async function
+}
+
+// Handle getDatabaseSize message
+function handleGetDatabaseSize(sendResponse) {
+  if (!dbManager) {
+    sendResponse({ success: false, error: "Database not initialized" });
+    return;
+  }
+  (async () => {
+    try {
+      const size = await dbManager.getDatabaseSize();
+      sendResponse({ success: true, size });
+    } catch (error) {
+      console.error("Error getting database size:", error);
+      sendResponse({ success: false, error: error.message });
+    }
+  })(); // Immediately invoke async function
+}
+
 // Handle external messages (from websites)
 function handleExternalMessage(message, sender, sendResponse) {
   try {
-    // Validate sender
     if (!isValidExternalSender(sender.url)) {
       sendResponse({ error: "Unauthorized sender" });
       return false;
     }
 
-    // API-related messages
     if (message.action === "api:getRequests") {
       handleApiGetRequests(message, sender, sendResponse);
       return true;
@@ -201,7 +247,6 @@ function handleExternalMessage(message, sender, sendResponse) {
       return true;
     }
 
-    // Unknown action
     sendResponse({ error: `Unknown action: ${message.action}` });
     return false;
   } catch (error) {
@@ -217,7 +262,6 @@ function isValidExternalSender(url) {
     const allowedDomains = ["example.com"];
     const urlObj = new URL(url);
 
-    // Check if domain or subdomain is allowed
     return allowedDomains.some(
       (domain) =>
         urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`)
@@ -311,7 +355,7 @@ function handleGetDatabaseInfo(sendResponse) {
     sendResponse({
       databaseSize,
       totalRequests: stats.totalRequests,
-      lastExport: null, // This would be stored in config
+      lastExport: null,
     });
   } catch (error) {
     console.error("Error getting database info:", error);
@@ -336,78 +380,6 @@ function handleGetNetworkStats(sendResponse) {
   }
 }
 
-// Handle exportData message
-function handleExportData(message, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
-  try {
-    const { format, filename } = message;
-
-    // Export data
-    const data = dbManager.exportDatabase(format);
-
-    // Create blob
-    let blob;
-    let mimeType;
-
-    switch (format) {
-      case "sqlite":
-        blob = new Blob([data], { type: "application/x-sqlite3" });
-        mimeType = "application/x-sqlite3";
-        break;
-      case "json":
-        blob = new Blob([data], { type: "application/json" });
-        mimeType = "application/json";
-        break;
-      case "csv":
-        blob = new Blob([data], { type: "text/csv" });
-        mimeType = "text/csv";
-        break;
-      default:
-        sendResponse({ error: `Unsupported format: ${format}` });
-        return;
-    }
-
-    // Create download URL
-    const blobUrl = URL.createObjectURL(blob);
-
-    // Download file
-    chrome.downloads.download(
-      {
-        url: blobUrl,
-        filename: `${filename}.${format}`,
-        saveAs: true,
-        conflictAction: "uniquify",
-      },
-      (downloadId) => {
-        if (chrome.runtime.lastError) {
-          sendResponse({ error: chrome.runtime.lastError.message });
-        } else {
-          // Show notification
-          chrome.notifications.create({
-            type: "basic",
-            iconUrl: chrome.runtime.getURL("assets/icons/icon128.png"),
-            title: "Export Complete",
-            message: `Data exported successfully as ${format.toUpperCase()}`,
-            priority: 0,
-          });
-
-          // Update last export time in config
-          // This would be handled by the config manager
-
-          sendResponse({ success: true, downloadId });
-        }
-      }
-    );
-  } catch (error) {
-    console.error("Error exporting data:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
 // Handle getConfig message
 function handleGetConfig(sendResponse) {
   chrome.storage.local.get("analyzerConfig", (result) => {
@@ -425,9 +397,7 @@ function handleUpdateConfig(message, sendResponse) {
     if (chrome.runtime.lastError) {
       sendResponse({ error: chrome.runtime.lastError.message });
     } else {
-      // Publish config updated event
       eventBus.publish("config:updated", message.config);
-
       sendResponse({ success: true });
     }
   });
@@ -663,7 +633,6 @@ function handleGetDistinctValues(message, sendResponse) {
       return;
     }
 
-    // Extract values from result
     const values = result[0].values.map((row) => row[0]);
 
     sendResponse({ values });
@@ -681,7 +650,6 @@ function handleGetApiPaths(sendResponse) {
   }
 
   try {
-    // Query for paths that look like APIs
     const query = `
       SELECT DISTINCT path 
       FROM requests 
@@ -703,7 +671,6 @@ function handleGetApiPaths(sendResponse) {
       return;
     }
 
-    // Extract paths from result
     const paths = result[0].values.map((row) => row[0]);
 
     sendResponse({ paths });
@@ -714,203 +681,19 @@ function handleGetApiPaths(sendResponse) {
 }
 
 // Handle getFilteredStats message
-function handleGetFilteredStats(message, sendResponse) {
+async function handleGetFilteredStats(message, sendResponse) {
   if (!dbManager) {
     sendResponse({ error: "Database not initialized" });
     return;
   }
-
   try {
-    const filters = message.filters || {};
-
-    // Build WHERE clause based on filters
-    let whereClause = "1=1";
-    const params = [];
-
-    if (filters.domain) {
-      whereClause += " AND domain = ?";
-      params.push(filters.domain);
-    }
-
-    if (filters.pageUrl) {
-      whereClause += " AND pageUrl = ?";
-      params.push(filters.pageUrl);
-    }
-
-    if (filters.path) {
-      whereClause += " AND path = ?";
-      params.push(filters.path);
-    }
-
-    if (filters.method) {
-      whereClause += " AND method = ?";
-      params.push(filters.method);
-    }
-
-    if (filters.status) {
-      whereClause += " AND status = ?";
-      params.push(filters.status);
-    }
-
-    if (filters.statusPrefix) {
-      whereClause += " AND status >= ? AND status < ?";
-      params.push(Number.parseInt(filters.statusPrefix) * 100);
-      params.push((Number.parseInt(filters.statusPrefix) + 1) * 100);
-    }
-
-    if (filters.startDate) {
-      whereClause += " AND timestamp >= ?";
-      params.push(filters.startDate);
-    }
-
-    if (filters.endDate) {
-      whereClause += " AND timestamp <= ?";
-      params.push(filters.endDate);
-    }
-
-    // Get total requests
-    const totalResult = dbManager.executeQuery(
-      `SELECT COUNT(*) FROM requests WHERE ${whereClause}`,
-      params
-    );
-
-    const totalRequests = totalResult[0] ? totalResult[0].values[0][0] : 0;
-
-    // Get average response time
-    const avgTimeResult = dbManager.executeQuery(
-      `SELECT AVG(duration) FROM requests WHERE ${whereClause} AND duration > 0`,
-      params
-    );
-
-    const avgResponseTime = avgTimeResult[0]
-      ? Math.round(avgTimeResult[0].values[0][0] || 0)
-      : 0;
-
-    // Get success rate
-    const successResult = dbManager.executeQuery(
-      `SELECT COUNT(*) FROM requests WHERE ${whereClause} AND status >= 200 AND status < 400`,
-      params
-    );
-
-    const successCount = successResult[0] ? successResult[0].values[0][0] : 0;
-    const successRate =
-      totalRequests > 0 ? Math.round((successCount / totalRequests) * 100) : 0;
-
-    // Get status code distribution
-    const statusResult = dbManager.executeQuery(
-      `SELECT status, COUNT(*) as count
-       FROM requests
-       WHERE ${whereClause} AND status > 0
-       GROUP BY status
-       ORDER BY count DESC`,
-      params
-    );
-
-    const statusCodes = {};
-    if (statusResult[0]) {
-      statusResult[0].values.forEach((row) => {
-        statusCodes[row[0]] = row[1];
-      });
-    }
-
-    // Get request type distribution
-    const typeResult = dbManager.executeQuery(
-      `SELECT type, COUNT(*) as count
-       FROM requests
-       WHERE ${whereClause}
-       GROUP BY type
-       ORDER BY count DESC`,
-      params
-    );
-
-    const requestTypes = {};
-    if (typeResult[0]) {
-      typeResult[0].values.forEach((row) => {
-        requestTypes[row[0]] = row[1];
-      });
-    }
-
-    // Get time distribution (last 24 hours by hour)
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
-
-    const timeResult = dbManager.executeQuery(
-      `SELECT 
-         CAST((timestamp - ${oneDayAgo}) / (3600 * 1000) AS INTEGER) as hour,
-         COUNT(*) as count
-       FROM requests
-       WHERE ${whereClause} AND timestamp >= ${oneDayAgo}
-       GROUP BY hour
-       ORDER BY hour`,
-      params
-    );
-
-    const timeDistribution = {};
-    // Initialize all hours with 0
-    for (let i = 0; i < 24; i++) {
-      timeDistribution[i] = 0;
-    }
-
-    // Fill in actual data
-    if (timeResult[0]) {
-      timeResult[0].values.forEach((row) => {
-        const hour = Math.min(Math.max(0, row[0]), 23);
-        timeDistribution[hour] = row[1];
-      });
-    }
-
-    // Get response times for histogram
-    const responseTimeResult = dbManager.executeQuery(
-      `SELECT duration
-       FROM requests
-       WHERE ${whereClause} AND duration > 0
-       ORDER BY duration`,
-      params
-    );
-
-    const responseTimes = responseTimeResult[0]
-      ? responseTimeResult[0].values.map((row) => row[0])
-      : [];
-
-    // Get response sizes for histogram
-    const sizeResult = dbManager.executeQuery(
-      `SELECT size
-       FROM requests
-       WHERE ${whereClause} AND size > 0
-       ORDER BY size`,
-      params
-    );
-
-    const sizes = sizeResult[0]
-      ? sizeResult[0].values.map((row) => row[0])
-      : [];
-
-    // Get average size
-    const avgSizeResult = dbManager.executeQuery(
-      `SELECT AVG(size) FROM requests WHERE ${whereClause} AND size > 0`,
-      params
-    );
-
-    const avgSize = avgSizeResult[0]
-      ? Math.round(avgSizeResult[0].values[0][0] || 0)
-      : 0;
-
-    // Return all stats
-    sendResponse({
-      totalRequests,
-      avgResponseTime,
-      successRate,
-      statusCodes,
-      requestTypes,
-      timeDistribution,
-      responseTimes,
-      sizes,
-      avgSize,
-      filters: message.filters,
-    });
+    const { filters } = message;
+    // Assuming dbManager.getFilteredStats exists and accepts filters
+    const stats = await dbManager.getFilteredStats(filters);
+    sendResponse({ success: true, ...stats, filters });
   } catch (error) {
     console.error("Error getting filtered stats:", error);
-    sendResponse({ error: error.message });
+    sendResponse({ success: false, error: error.message });
   }
 }
 
