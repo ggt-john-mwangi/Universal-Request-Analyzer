@@ -12,9 +12,10 @@ import "../components/data-loader.js";
 import "../components/data-visualization.js";
 import "../components/filters.js";
 import "./settings-manager.js";
-import "./settings-ui.js";
+import { initSettingsUI } from "./settings-ui.js";
 
 // --- Global Variables ---
+console.log("popup.js: Script start"); // Log script start
 
 // Pagination
 let currentPage = 1; // Current page number for pagination
@@ -61,7 +62,6 @@ let cancelExportBtn = null;
 let prevPageBtn = null;
 let nextPageBtn = null;
 let pageInfoEl = null;
-let tabButtons = null;
 let tabContents = null;
 let vizApplyFilterBtn = null;
 let vizResetFilterBtn = null;
@@ -73,7 +73,6 @@ let doImportBtn = null;
 let cancelImportBtn = null;
 let importFile = null;
 let importStatus = null;
-let exportDbBtn = null;
 let refreshBtn = null;
 let statusFilter = null;
 let typeFilter = null;
@@ -83,417 +82,456 @@ let startDateFilter = null;
 let endDateFilter = null;
 
 let activePanel = null; // Keep track of the currently open panel
+let tabsContainer = null; // Added for tab switching
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // Initialize theme manager and apply theme
-  await themeManager.initialize({
-    initialTheme: "light", // Or load from storage if preferred
-  });
+  try { // Add try block
+    console.log("popup.js: DOMContentLoaded event fired"); // Log DOM ready
 
-  // Initialize Settings UI if the settings tab exists
-  if (document.getElementById("settings-tab")) {
-    initSettingsUI();
-  }
+    // Initialize theme manager first
+    try {
+      await themeManager.initialize({
+        initialTheme: "light", // Or load from storage
+      });
+      console.log("popup.js: Theme manager initialized");
+    } catch (error) {
+      console.error("popup.js: Error initializing theme manager:", error);
+    }
 
-  // Assign DOM elements inside DOMContentLoaded
-  requestsTableBody = document.getElementById("requestsTableBody");
-  totalRequestsEl = document.getElementById("totalRequests");
-  avgResponseTimeEl = document.getElementById("avgResponseTime");
-  successRateEl = document.getElementById("successRate");
-  filterBtn = document.getElementById("filterBtn");
-  filterPanel = document.getElementById("filterPanel");
-  clearBtn = document.getElementById("clearBtn");
-  exportBtn = document.getElementById("exportBtn");
-  exportPanel = document.getElementById("exportPanel");
-  exportDbSizeSpan = document.getElementById("exportDbSize");
-  exportFormatSelect = document.getElementById("exportFormat");
-  exportFilenameInput = document.getElementById("exportFilename");
-  requestDetails = document.getElementById("requestDetails");
-  closeDetails = document.getElementById("closeDetails");
-  applyFilterBtn = document.getElementById("applyFilterBtn");
-  resetFilterBtn = document.getElementById("resetFilterBtn");
-  doExportBtn = document.getElementById("doExportBtn");
-  cancelExportBtn = document.getElementById("cancelExportBtn");
-  prevPageBtn = document.getElementById("prevPageBtn");
-  nextPageBtn = document.getElementById("nextPageBtn");
-  pageInfoEl = document.getElementById("pageInfo");
-  tabButtons = document.querySelectorAll(".tab-btn");
-  tabContents = document.querySelectorAll(".tab-content");
-  vizApplyFilterBtn = document.getElementById("vizApplyFilterBtn");
-  vizResetFilterBtn = document.getElementById("vizResetFilterBtn");
-  OptionsPage = document.getElementById("openOptions");
-  notificationElement = document.getElementById("notification");
-  importBtn = document.getElementById("importBtn");
-  importPanel = document.getElementById("importPanel");
-  doImportBtn = document.getElementById("doImportBtn");
-  cancelImportBtn = document.getElementById("cancelImportBtn");
-  importFile = document.getElementById("importFile");
-  importStatus = document.getElementById("importStatus");
-  exportDbBtn = document.getElementById("exportDbBtn");
-  refreshBtn = document.getElementById("refreshBtn");
-  statusFilter = document.getElementById("statusFilter");
-  typeFilter = document.getElementById("typeFilter");
-  domainFilter = document.getElementById("domainFilter");
-  urlFilter = document.getElementById("urlFilter");
-  startDateFilter = document.getElementById("startDateFilter");
-  endDateFilter = document.getElementById("endDateFilter");
+    // Assign DOM elements *before* initializing UI components that need them
+    console.log("popup.js: Assigning DOM elements...");
+    requestsTableBody = document.getElementById("requestsTableBody");
+    totalRequestsEl = document.getElementById("totalRequests");
+    avgResponseTimeEl = document.getElementById("avgResponseTime");
+    successRateEl = document.getElementById("successRate");
+    filterBtn = document.getElementById("filterBtn");
+    filterPanel = document.getElementById("filterPanel");
+    clearBtn = document.getElementById("clearBtn");
+    exportBtn = document.getElementById("exportBtn");
+    exportPanel = document.getElementById("exportPanel");
+    exportDbSizeSpan = document.getElementById("exportDbSize");
+    exportFormatSelect = document.getElementById("exportFormat");
+    exportFilenameInput = document.getElementById("exportFilename");
+    requestDetails = document.getElementById("requestDetails");
+    closeDetails = document.getElementById("closeDetails");
+    applyFilterBtn = document.getElementById("applyFilterBtn");
+    resetFilterBtn = document.getElementById("resetFilterBtn");
+    doExportBtn = document.getElementById("doExportBtn");
+    cancelExportBtn = document.getElementById("cancelExportBtn");
+    prevPageBtn = document.getElementById("prevPageBtn");
+    nextPageBtn = document.getElementById("nextPageBtn");
+    pageInfoEl = document.getElementById("pageInfo");
+    tabContents = document.querySelectorAll(".tab-content"); // Select all potential tab content panels
+    vizApplyFilterBtn = document.getElementById("vizApplyFilterBtn");
+    vizResetFilterBtn = document.getElementById("vizResetFilterBtn");
+    OptionsPage = document.getElementById("openOptions");
+    notificationElement = document.getElementById("notification");
+    importBtn = document.getElementById("importBtn");
+    importPanel = document.getElementById("importPanel");
+    doImportBtn = document.getElementById("doImportBtn");
+    cancelImportBtn = document.getElementById("cancelImportBtn");
+    importFile = document.getElementById("importFile");
+    importStatus = document.getElementById("importStatus");
+    refreshBtn = document.getElementById("refreshBtn");
+    statusFilter = document.getElementById("statusFilter");
+    typeFilter = document.getElementById("typeFilter");
+    domainFilter = document.getElementById("domainFilter");
+    urlFilter = document.getElementById("urlFilter");
+    startDateFilter = document.getElementById("startDateFilter");
+    endDateFilter = document.getElementById("endDateFilter");
+    tabsContainer = document.querySelector(".tabs"); // Get tabs container
+    console.log("popup.js: DOM elements assigned.");
+    console.log("popup.js: clearBtn element:", clearBtn); // Check if button elements are found
+    console.log("popup.js: exportBtn element:", exportBtn);
+    console.log("popup.js: importBtn element:", importBtn);
+    console.log("popup.js: filterBtn element:", filterBtn);
+    console.log("popup.js: refreshBtn element:", refreshBtn);
 
-  // --- Utility Functions ---
-  function formatBytes(bytes, decimals = 2) {
-    if (!bytes || bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    const size = parseFloat((bytes / Math.pow(k, i)).toFixed(dm));
-    return size + " " + sizes[i];
-  }
+    // Initialize Settings UI *after* DOM elements are assigned
+    try {
+      console.log("popup.js: Initializing Settings UI...");
+      initSettingsUI();
+      console.log("popup.js: Settings UI initialized.");
+    } catch (error) {
+      console.error("popup.js: Error initializing Settings UI:", error);
+    }
 
-  function showNotification(message, isError = false) {
-    if (notificationElement) {
-      notificationElement.textContent = message;
-      notificationElement.className = `notification ${
-        isError ? "error" : "success"
-      }`;
-      notificationElement.style.display = "block";
-      setTimeout(
-        () => {
-          notificationElement.style.display = "none";
-        },
-        isError ? 6000 : 4000
-      );
-    } else {
-      console.warn("Notification element not found in popup.html");
-      if (isError) {
-        console.error("Notification:", message);
+    // --- Utility Functions ---
+
+    // Function to format bytes
+    function formatBytes(bytes, decimals = 2) {
+      if (bytes === 0) return "0 Bytes";
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+    }
+
+    // Function to show notifications
+    function showNotification(message, isError = false) {
+      if (notificationElement) {
+        notificationElement.textContent = message;
+        notificationElement.classList.remove("success", "error");
+        notificationElement.classList.add(isError ? "error" : "success");
+        notificationElement.classList.add("visible");
+
+        setTimeout(() => {
+          notificationElement.classList.remove("visible");
+        }, isError ? 6000 : 4000);
       } else {
-        console.log("Notification:", message);
-      }
-    }
-  }
-
-  // --- Panel Management ---
-
-  function togglePanel(panelElement) {
-    if (!panelElement) return; // Safety check
-
-    const isOpening =
-      panelElement.style.display === "none" ||
-      panelElement.style.display === "";
-
-    // Close currently active panel if it's different
-    if (activePanel && activePanel !== panelElement) {
-      activePanel.style.display = "none";
-    }
-
-    // Toggle the target panel
-    if (isOpening) {
-      panelElement.style.display = "block";
-      activePanel = panelElement;
-      // Special handling when opening specific panels
-      if (panelElement === exportPanel) {
-        loadExportPanelData();
-      } else if (panelElement === importPanel) {
-        resetImportPanel();
-      }
-    } else {
-      panelElement.style.display = "none";
-      activePanel = null;
-    }
-  }
-
-  // --- Export Panel Logic ---
-
-  // Load data needed for the export panel (formats, db size)
-  function loadExportPanelData() {
-    if (!exportFormatSelect || !exportDbSizeSpan) return;
-
-    // Set default filename
-    if (exportFilenameInput) {
-      exportFilenameInput.value = `request-analyzer-export-${new Date()
-        .toISOString()
-        .slice(0, 10)}`;
-    }
-
-    // Fetch DB Stats (including size)
-    exportDbSizeSpan.textContent = "Loading...";
-    chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => {
-      if (response && response.success && response.stats) {
-        exportDbSizeSpan.textContent = formatBytes(response.stats.size || 0);
-      } else {
-        exportDbSizeSpan.textContent = "Error";
-        console.error(
-          "Failed to get DB stats for export panel:",
-          response?.error
-        );
-      }
-    });
-
-    // Fetch Export Formats
-    chrome.runtime.sendMessage({ action: "getExportFormats" }, (response) => {
-      exportFormatSelect.innerHTML = ""; // Clear existing options
-      if (response && response.formats && response.formats.length > 0) {
-        response.formats.forEach((format) => {
-          const option = document.createElement("option");
-          option.value = format.id;
-          option.textContent = `${format.name} (.${format.id})`;
-          exportFormatSelect.appendChild(option);
-        });
-      } else {
-        // Add a default/error option if formats fail to load
-        const option = document.createElement("option");
-        option.value = "json";
-        option.textContent = "JSON (.json)";
-        exportFormatSelect.appendChild(option);
-        console.error("Failed to get export formats:", response?.error);
-      }
-    });
-  }
-
-  // Handle the export data action (using exportData message)
-  function handleExportData() {
-    const format = exportFormatSelect ? exportFormatSelect.value : "json";
-    const filename =
-      (exportFilenameInput && exportFilenameInput.value.trim()) ||
-      `request-analyzer-export-${new Date().toISOString().slice(0, 10)}`;
-    const dbSizeText = exportDbSizeSpan
-      ? exportDbSizeSpan.textContent
-      : "Unknown size";
-
-    const confirmMessage = `Export data as ${format.toUpperCase()} (${dbSizeText}) with filename "${filename}.${format}"?`;
-
-    if (confirm(confirmMessage)) {
-      showNotification(`Starting data export as ${filename}.${format}...`);
-      chrome.runtime.sendMessage(
-        {
-          action: "exportData",
-          format: format,
-          filename: filename,
-          prettyPrint: true,
-          compression: false,
-          includeHeaders: true,
-        },
-        (response) => {
-          if (response && response.success) {
-            togglePanel(exportPanel); // Close panel on success
-            showNotification(
-              `Data exported successfully. Download ID: ${
-                response.downloadId || "N/A"
-              }`
-            );
-          } else {
-            showNotification(
-              `Error exporting data: ${response?.error || "Unknown error"}`,
-              true
-            );
-            console.error("Export Error Response:", response);
-          }
+        console.warn("Notification element not found in popup.html");
+        if (isError) {
+          console.error("Notification:", message);
+        } else {
+          console.log("Notification:", message);
         }
-      );
-    } else {
-      showNotification("Data export cancelled.");
-    }
-  }
-
-  // --- Database Export Logic ---
-
-  // Handle the export database action
-  function handleExportDatabase() {
-    // Optional: Add confirmation if desired
-    // if (!confirm("Export the entire request database?")) {
-    //   showNotification("Database export cancelled.");
-    //   return;
-    // }
-
-    showNotification("Starting database export..."); // Provide immediate feedback
-
-    chrome.runtime.sendMessage({ action: "exportDatabase" }, (response) => {
-      if (response && response.success) {
-        showNotification(
-          `Database exported successfully. Download ID: ${
-            response.downloadId || "N/A"
-          }`
-        );
-      } else {
-        showNotification(
-          `Error exporting database: ${response?.error || "Unknown error"}`,
-          true
-        );
-        console.error("Database Export Error Response:", response);
       }
-    });
-  }
-
-  // --- Import Panel Logic ---
-
-  function resetImportPanel() {
-    if (importFile) importFile.value = ""; // Clear file input
-    if (importStatus) importStatus.textContent = ""; // Clear status message
-  }
-
-  // Handle the import data action
-  function handleImportData() {
-    const file = importFile ? importFile.files[0] : null;
-
-    if (!file) {
-      showNotification("Please select a file to import.", true);
-      if (importStatus) importStatus.textContent = "No file selected.";
-      return;
     }
 
-    if (importStatus) importStatus.textContent = `Reading ${file.name}...`;
+    // --- Panel Management ---
 
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const fileContent = event.target.result;
-      const fileType = file.name.split(".").pop().toLowerCase();
-      let format;
-      let action;
-      let dataToSend;
+    function togglePanel(panelElement) {
+      if (!panelElement) return;
 
-      if (fileType === "json") {
-        format = "json";
-        action = "importData";
-        dataToSend = fileContent.toString();
-      } else if (fileType === "csv") {
-        format = "csv";
-        action = "importData";
-        dataToSend = fileContent.toString();
-      } else if (fileType === "sqlite" || fileType === "db") {
-        format = "sqlite";
-        action = "importDatabaseFile";
-        dataToSend = fileContent;
-      } else {
-        showNotification(
-          "Unsupported file type. Please select JSON, CSV, or SQLite.",
-          true
-        );
-        if (importStatus) importStatus.textContent = "Unsupported file type.";
-        resetImportPanel();
-        return;
+      const isOpening =
+        panelElement.style.display === "none" || panelElement.style.display === "";
+
+      if (activePanel && activePanel !== panelElement) {
+        activePanel.style.display = "none";
       }
 
-      if (importStatus)
-        importStatus.textContent = `Importing data as ${format.toUpperCase()}...`;
-      showNotification(`Starting data import from ${file.name}...`);
+      if (isOpening) {
+        panelElement.style.display = "block";
+        activePanel = panelElement;
+        if (panelElement === exportPanel) {
+          loadExportPanelData();
+        } else if (panelElement === importPanel) {
+          resetImportPanel();
+        }
+      } else {
+        panelElement.style.display = "none";
+        activePanel = null;
+      }
+    }
 
-      chrome.runtime.sendMessage(
-        {
-          action: action,
-          format: format,
-          data: dataToSend,
-        },
-        (response) => {
-          if (response && response.success) {
-            let successMsg = `Successfully imported data from ${file.name}.`;
-            if (format === "sqlite") {
-              successMsg = `Successfully imported database from ${file.name}. Reloading...`;
-              loadRequests();
-            } else if (response.importedCount !== undefined) {
-              successMsg += ` Imported ${response.importedCount} records.`;
+    // --- Tab Switching Logic ---
+    if (tabsContainer) {
+      tabsContainer.addEventListener("click", (event) => {
+        const clickedButton = event.target.closest(".tab-btn");
+        if (clickedButton && !clickedButton.classList.contains("active")) {
+          const targetTab = clickedButton.getAttribute("data-tab");
+
+          tabsContainer.querySelectorAll(".tab-btn").forEach((btn) => {
+            btn.classList.remove("active");
+          });
+          clickedButton.classList.add("active");
+
+          document.querySelectorAll(".tab-content").forEach((content) => {
+            content.classList.remove("active");
+          });
+          const targetContent = document.getElementById(`${targetTab}-tab`);
+          if (targetContent) {
+            targetContent.classList.add("active");
+
+            if (targetTab === "stats") {
+              loadStats();
+            } else if (targetTab === "requests") {
               loadRequests();
             }
-            showNotification(successMsg);
-            if (importStatus) importStatus.textContent = successMsg;
-            togglePanel(importPanel);
           } else {
-            const errorMsg = `Error importing data: ${
-              response?.error || "Unknown error"
-            }`;
-            showNotification(errorMsg, true);
-            if (importStatus) importStatus.textContent = errorMsg;
+            console.warn(`Tab content not found for tab: ${targetTab}`);
+          }
+
+          if (activePanel) {
+            activePanel.style.display = "none";
+            activePanel = null;
           }
         }
-      );
-    };
-
-    reader.onerror = function () {
-      const errorMsg = "Error reading the selected file.";
-      showNotification(errorMsg, true);
-      if (importStatus) importStatus.textContent = errorMsg;
-      resetImportPanel();
-    };
-
-    if (file.name.endsWith(".sqlite") || file.name.endsWith(".db")) {
-      reader.readAsArrayBuffer(file);
+      });
     } else {
-      reader.readAsText(file);
+      console.error("Tabs container (.tabs) not found.");
+    }
+
+    // --- Refresh Logic ---
+    function handleRefresh() {
+      console.log("Refreshing data...");
+      const activeTabButton = document.querySelector(".tab-btn.active");
+      if (activeTabButton) {
+        const activeTabId = activeTabButton.getAttribute("data-tab");
+        if (activeTabId === "requests") {
+          loadRequests();
+        } else if (activeTabId === "stats") {
+          loadStats();
+        }
+      } else {
+        loadRequests();
+      }
+      showNotification("Data refreshed.");
+    }
+
+    // --- Event Listeners ---
+    console.log("popup.js: Attaching event listeners...");
+
+    if (filterBtn && filterPanel) {
+      filterBtn.addEventListener("click", () => {
+        console.log("popup.js: Filter button clicked"); // Log button click
+        togglePanel(filterPanel);
+      });
+    } else {
+      console.warn("popup.js: Filter button or panel not found for listener.");
+    }
+    if (exportBtn && exportPanel) {
+      exportBtn.addEventListener("click", () => {
+        console.log("popup.js: Export button clicked"); // Log button click
+        togglePanel(exportPanel);
+      });
+    } else {
+      console.warn("popup.js: Export button or panel not found for listener.");
+    }
+    if (importBtn && importPanel) {
+      importBtn.addEventListener("click", () => {
+        console.log("popup.js: Import button clicked"); // Log button click
+        togglePanel(importPanel);
+      });
+    } else {
+      console.warn("popup.js: Import button or panel not found for listener.");
+    }
+
+    const closeFilterBtn = filterPanel?.querySelector(".close-btn");
+    const closeExportBtn = exportPanel?.querySelector(".close-btn"); // Assuming export panel has one
+    const closeImportBtn = importPanel?.querySelector(".close-btn"); // Assuming import panel has one
+
+    if (closeFilterBtn) closeFilterBtn.addEventListener("click", () => togglePanel(filterPanel));
+    if (cancelExportBtn && exportPanel) cancelExportBtn.addEventListener("click", () => togglePanel(exportPanel)); // Keep original cancel
+    if (closeExportBtn && exportPanel && closeExportBtn !== cancelExportBtn) closeExportBtn.addEventListener("click", () => togglePanel(exportPanel)); // Add close if different
+    if (cancelImportBtn && importPanel) cancelImportBtn.addEventListener("click", () => togglePanel(importPanel)); // Keep original cancel
+    if (closeImportBtn && importPanel && closeImportBtn !== cancelImportBtn) closeImportBtn.addEventListener("click", () => togglePanel(importPanel)); // Add close if different
+
+    if (applyFilterBtn) applyFilterBtn.addEventListener("click", applyFilters);
+    if (resetFilterBtn) resetFilterBtn.addEventListener("click", resetFilters);
+    if (doExportBtn) doExportBtn.addEventListener("click", handleExportData);
+    if (doImportBtn) doImportBtn.addEventListener("click", handleImportData);
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        console.log("popup.js: Clear button clicked"); // Log button click
+        clearRequests();
+      });
+    } else {
+      console.warn("popup.js: Clear button not found for listener.");
+    }
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => {
+        console.log("popup.js: Refresh button clicked"); // Log button click
+        handleRefresh();
+      });
+    } else {
+      console.warn("popup.js: Refresh button not found for listener.");
+    }
+    if (OptionsPage) OptionsPage.addEventListener("click", openOptionsPage);
+    if (closeDetails) closeDetails.addEventListener("click", hideRequestDetails);
+
+    if (prevPageBtn) prevPageBtn.addEventListener("click", () => changePage(currentPage - 1));
+    if (nextPageBtn) nextPageBtn.addEventListener("click", () => changePage(currentPage + 1));
+
+    console.log("popup.js: Event listeners attached.");
+
+    loadPopupConfig(); // Load config after listeners are set
+
+    // Initial tab load logic (slightly adjusted)
+    setTimeout(() => {
+      console.log("popup.js: Setting initial tab...");
+      const defaultTabId = config?.display?.defaultTab || "requests";
+      const initialActiveTabButton = tabsContainer?.querySelector(`.tab-btn[data-tab="${defaultTabId}"]`);
+      let activeTabSet = false;
+
+      if (initialActiveTabButton && !initialActiveTabButton.classList.contains("active")) {
+        console.log(`popup.js: Clicking default tab: ${defaultTabId}`);
+        initialActiveTabButton.click();
+        activeTabSet = true;
+      } else if (document.querySelector(".tab-btn.active")) {
+        console.log("popup.js: A tab is already active.");
+        // Ensure data loads for the already active tab if needed
+        const activeTabButton = document.querySelector(".tab-btn.active");
+        const activeTabId = activeTabButton?.getAttribute("data-tab");
+        if (activeTabId === "requests" && requestsTableBody && requestsTableBody.rows.length === 0) {
+          console.log("popup.js: Loading requests for already active requests tab.");
+          loadRequests();
+        } else if (activeTabId === "stats") {
+          console.log("popup.js: Loading stats for already active stats tab.");
+          loadStats();
+        }
+        activeTabSet = true;
+      } else {
+        const firstTabButton = tabsContainer?.querySelector(".tab-btn");
+        if (firstTabButton) {
+          const firstTabId = firstTabButton.getAttribute("data-tab");
+          console.log(`popup.js: Clicking first available tab: ${firstTabId}`);
+          firstTabButton.click();
+          activeTabSet = true;
+        } else {
+          console.warn("popup.js: No tabs found, loading requests by default.");
+          loadRequests(); // Fallback if no tabs exist
+          activeTabSet = true;
+        }
+      }
+      console.log("popup.js: Initial tab setup complete.");
+    }, 150); // Slightly increased timeout just in case
+
+    chrome.runtime.onMessage.addListener((message) => {
+      console.log("popup.js: Received message:", message.action); // Log incoming messages
+      if (
+        message.action === "requestUpdated" ||
+        message.action === "requestsCleared" ||
+        message.action === "database:imported"
+      ) {
+        const activeTabButton = document.querySelector(".tab-btn.active");
+        if (activeTabButton) {
+          const activeTabId = activeTabButton.getAttribute("data-tab");
+          if (activeTabId === "requests") {
+            loadRequests();
+          } else if (activeTabId === "stats") {
+            loadStats();
+          }
+        }
+      }
+      if (message.action === "configUpdated") {
+        loadPopupConfig();
+      }
+    });
+
+    console.log("popup.js: DOMContentLoaded handler finished.");
+  } catch (error) { // Add catch block
+    console.error("Error during popup initialization:", error);
+    // Optionally display an error message to the user in the popup UI
+    const body = document.querySelector('body');
+    if (body) {
+        body.innerHTML = '<div style="padding: 20px; color: red;">Error initializing popup. Please check the console.</div>';
     }
   }
-
-  // --- Refresh Logic ---
-  function handleRefresh() {
-    console.log("Refreshing data...");
-    loadRequests();
-    loadStats();
-    showNotification("Data refreshed.");
-  }
-
-  // --- Event Listeners ---
-
-  // Panel Toggles
-  if (exportBtn && exportPanel) {
-    exportBtn.addEventListener("click", () => togglePanel(exportPanel));
-  }
-  if (cancelExportBtn && exportPanel) {
-    cancelExportBtn.addEventListener("click", () => togglePanel(exportPanel));
-  }
-  if (importBtn && importPanel) {
-    importBtn.addEventListener("click", () => togglePanel(importPanel));
-  }
-  if (cancelImportBtn && importPanel) {
-    cancelImportBtn.addEventListener("click", () => togglePanel(importPanel));
-  }
-  if (filterBtn && filterPanel) {
-    filterBtn.addEventListener("click", () => togglePanel(filterPanel));
-  }
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", handleRefresh);
-  }
-
-  // Panel Actions
-  if (doExportBtn) {
-    doExportBtn.addEventListener("click", handleExportData);
-  }
-  if (doImportBtn) {
-    doImportBtn.addEventListener("click", handleImportData);
-  }
-
-  // Other buttons
-  if (clearBtn) {
-    clearBtn.addEventListener("click", clearRequests);
-  }
-  if (OptionsPage) {
-    OptionsPage.addEventListener("click", openOptionsPage);
-  }
-
-  // Initial data load
-  loadRequests();
-  loadStats();
-
-  // Listen for updates from background
-  chrome.runtime.onMessage.addListener((message) => {
-    if (
-      message.action === "requestUpdated" ||
-      message.action === "requestsCleared" ||
-      message.action === "database:imported"
-    ) {
-      loadRequests();
-      loadStats();
-    }
-  });
 });
 
-// Open options page function
-function openOptionsPage() {
-  if (chrome.runtime.openOptionsPage) {
-    chrome.runtime.openOptionsPage();
-  } else {
-    window.open(chrome.runtime.getURL("src/options/options.html"));
+function applyFilters() {
+  activeFilters.status = statusFilter?.value || "all";
+  activeFilters.type = typeFilter?.value || "all";
+  activeFilters.domain = domainFilter?.value.trim() || "";
+  activeFilters.url = urlFilter?.value.trim() || "";
+  activeFilters.startDate = startDateFilter?.value || "";
+  activeFilters.endDate = endDateFilter?.value || "";
+
+  currentPage = 1;
+  loadRequests();
+  togglePanel(filterPanel);
+  showNotification("Filters applied.");
+}
+
+function resetFilters() {
+  if (statusFilter) statusFilter.value = "all";
+  if (typeFilter) typeFilter.value = "all";
+  if (domainFilter) domainFilter.value = "";
+  if (urlFilter) urlFilter.value = "";
+  if (startDateFilter) startDateFilter.value = "";
+  if (endDateFilter) endDateFilter.value = "";
+
+  activeFilters = { status: "all", type: "all", domain: "", url: "", startDate: "", endDate: "" };
+  currentPage = 1;
+  loadRequests();
+  showNotification("Filters reset.");
+}
+
+function loadExportPanelData() {
+  chrome.runtime.sendMessage({ action: "getDbStats" }, (response) => {
+    if (response && response.size && exportDbSizeSpan) {
+      exportDbSizeSpan.textContent = formatBytes(response.size);
+    } else if (exportDbSizeSpan) {
+      exportDbSizeSpan.textContent = "N/A";
+    }
+  });
+  if (exportFilenameInput) {
+    const date = new Date().toISOString().slice(0, 10);
+    exportFilenameInput.value = `ura-export-${date}`;
+  }
+  if (exportFormatSelect) {
+    exportFormatSelect.value = config?.export?.defaultFormat || config?.display?.defaultExportFormat || "json";
   }
 }
 
-// --- Config Loading ---
+function handleExportData() {
+  const format = exportFormatSelect?.value || "json";
+  const filename = exportFilenameInput?.value.trim() || `ura-export-${Date.now()}`;
+
+  showNotification(`Exporting data as ${format.toUpperCase()}...`);
+  chrome.runtime.sendMessage({ action: "exportData", format: format, filename: filename }, (response) => {
+    if (response && response.success) {
+      showNotification("Data exported successfully.");
+    } else {
+      showNotification(`Error exporting data: ${response?.error || "Unknown error"}`, true);
+    }
+    togglePanel(exportPanel);
+  });
+}
+
+function resetImportPanel() {
+  if (importFile) importFile.value = null;
+  if (importStatus) importStatus.textContent = "";
+}
+
+function handleImportData() {
+  const fileInput = importFile;
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    showNotification("Please select a file to import.", true);
+    return;
+  }
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+
+  reader.onload = (event) => {
+    const fileContent = event.target.result;
+    let format = file.name.split(".").pop().toLowerCase();
+    if (format === "db") format = "sqlite";
+
+    if (!["json", "csv", "sqlite"].includes(format)) {
+      showNotification(`Unsupported import format: ${format}. Use JSON, CSV, or SQLite.`, true);
+      return;
+    }
+
+    if (importStatus) importStatus.textContent = "Importing... please wait.";
+    showNotification("Importing data...");
+
+    const messagePayload = {
+      action: "importData",
+      format: format,
+      data: fileContent,
+    };
+
+    chrome.runtime.sendMessage(messagePayload, (response) => {
+      if (response && response.success) {
+        showNotification(`Import successful! ${response.count || 0} records added.`);
+        if (importStatus) importStatus.textContent = `Import successful! ${response.count || 0} records added.`;
+        loadRequests();
+        loadStats();
+      } else {
+        const errorMsg = `Import failed: ${response?.error || "Unknown error"}`;
+        showNotification(errorMsg, true);
+        if (importStatus) importStatus.textContent = errorMsg;
+      }
+    });
+  };
+
+  reader.onerror = () => {
+    const errorMsg = "Error reading file.";
+    showNotification(errorMsg, true);
+    if (importStatus) importStatus.textContent = errorMsg;
+  };
+
+  if (format === "sqlite") {
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.readAsText(file);
+  }
+}
+
 function loadPopupConfig() {
   chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
     if (response && response.config) {
@@ -503,8 +541,24 @@ function loadPopupConfig() {
       console.warn("Failed to load config, using defaults.");
       itemsPerPage = 50;
     }
-    loadRequests();
+    const activeTabButton = document.querySelector(".tab-btn.active");
+    const activeTabId = activeTabButton?.getAttribute("data-tab");
+    if (activeTabId === "requests") {
+      loadRequests();
+    } else if (activeTabId === "stats") {
+      loadStats();
+    }
+    updatePagination();
   });
+}
+
+// Open options page function
+function openOptionsPage() {
+  if (chrome.runtime.openOptionsPage) {
+    chrome.runtime.openOptionsPage();
+  } else {
+    window.open(chrome.runtime.getURL("src/options/options.html"));
+  }
 }
 
 // Load requests from background script
@@ -517,16 +571,29 @@ function loadRequests() {
       filters: activeFilters,
     },
     (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("Error loading requests (connection):", chrome.runtime.lastError.message);
+        if (requestsTableBody) {
+          requestsTableBody.innerHTML =
+            '<tr><td colspan="8">Error connecting to background service. Please try again.</td></tr>';
+        }
+        return;
+      }
+
       if (response && response.requests) {
-        totalItems = response.totalItems;
+        totalItems = response.total || 0;
         totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
         renderRequestsTable(response.requests);
         updatePagination();
-        updateStatsSummary(response.stats);
+        if (typeof updateStatsSummary === "function" && response.stats) {
+          updateStatsSummary(response.stats);
+        }
       } else {
-        console.error("Error loading requests:", response?.error);
-        requestsTableBody.innerHTML =
-          '<tr><td colspan="8">Error loading requests.</td></tr>';
+        const errorMessage = response?.error || "Unknown error loading requests.";
+        console.error("Error loading requests (response):", errorMessage);
+        if (requestsTableBody) {
+          requestsTableBody.innerHTML = `<tr><td colspan="8">Error loading requests: ${errorMessage}</td></tr>`;
+        }
       }
     }
   );
@@ -534,7 +601,7 @@ function loadRequests() {
 
 // Update pagination UI
 function updatePagination() {
-  if (!pageInfoEl || !prevPageBtn || !nextPageBtn) return; // Add checks
+  if (!pageInfoEl || !prevPageBtn || !nextPageBtn) return;
   pageInfoEl.textContent = `Page ${currentPage} of ${totalPages} (${totalItems} items)`;
   prevPageBtn.disabled = currentPage <= 1;
   nextPageBtn.disabled = currentPage >= totalPages;
@@ -550,7 +617,7 @@ function changePage(page) {
 
 // Render the requests table
 function renderRequestsTable(requests) {
-  if (!requestsTableBody) return; // Add check
+  if (!requestsTableBody) return;
   requestsTableBody.innerHTML = "";
 
   if (requests.length === 0) {
@@ -597,18 +664,23 @@ function renderRequestsTable(requests) {
 
 // Update stats summary panel
 function updateStatsSummary(stats) {
-  if (!totalRequestsEl || !avgResponseTimeEl || !successRateEl) return; // Add checks
-  if (stats) {
-    totalRequestsEl.textContent = stats.totalRequests.toLocaleString();
-    avgResponseTimeEl.textContent = `${Math.round(
-      stats.avgResponseTime || 0
-    )}ms`;
-    successRateEl.textContent = `${(stats.successRate || 0).toFixed(1)}%`;
-  } else {
-    totalRequestsEl.textContent = "0";
-    avgResponseTimeEl.textContent = "0ms";
-    successRateEl.textContent = "0.0%";
+  if (!totalRequestsEl || !avgResponseTimeEl || !successRateEl) return;
+
+  if (stats?.error) {
+    totalRequestsEl.textContent = "Error";
+    avgResponseTimeEl.textContent = "Error";
+    successRateEl.textContent = "Error";
+    return;
   }
+
+  totalRequestsEl.textContent =
+    (stats?.totalRequests ?? totalItems)?.toLocaleString() || "0";
+  avgResponseTimeEl.textContent = stats?.avgResponseTime
+    ? `${Math.round(stats.avgResponseTime)} ms`
+    : "0 ms";
+  successRateEl.textContent = stats?.successRate
+    ? `${stats.successRate.toFixed(1)}%`
+    : "0%";
 }
 
 // Load overall stats for the stats tab
@@ -618,7 +690,7 @@ function loadStats() {
 
 // Show request details panel
 function showRequestDetails(request) {
-  if (!requestDetails) return; // Add check
+  if (!requestDetails) return;
   document.getElementById("detailUrl").textContent = request.url;
   document.getElementById("detailMethod").textContent = request.method;
 
@@ -713,7 +785,7 @@ function updateTimingBar(barId, timeId, duration, maxDuration) {
 
 // Hide request details panel
 function hideRequestDetails() {
-  if (!requestDetails) return; // Add check
+  if (!requestDetails) return;
   requestDetails.classList.remove("visible");
 }
 

@@ -3,6 +3,7 @@
  *
  * This module provides the UI for managing settings, feature flags, ACLs, and themes.
  */
+;
 
 /**
  * Initialize the settings UI
@@ -345,15 +346,7 @@ export function initSettingsUI() {
     // Add event listeners for settings actions
     document
       .getElementById("resetSettingsBtn")
-      .addEventListener("click", () => {
-        // Add confirmation dialog
-        if (confirm("Are you sure you want to reset all settings to default values?")) {
-          optionsManager.resetAllSettings();
-          // Optionally, show a notification after reset
-          // showNotification("Settings reset to defaults."); 
-          // Note: showNotification might need to be imported or available in scope
-        }
-      });
+      .addEventListener("click", optionsManager.resetAllSettings);
     document
       .getElementById("saveGeneralSettingsBtn")
       .addEventListener("click", optionsManager.saveGeneralSettings);
