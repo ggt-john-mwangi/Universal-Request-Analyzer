@@ -343,7 +343,7 @@ function loadDatabaseInfo() {
   showNotification("Loading database info...");
 
   // 1. Load Stats
-  chrome.runtime.sendMessage({ action: "getDbStats" }, (response) => {
+  chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => { // Corrected action name
     if (response && response.success) {
       dbTotalRequests.textContent = response.stats.requestCount?.toLocaleString() || "0"; // Use requestCount
       if (dbSize) {
@@ -368,7 +368,7 @@ function loadDatabaseInfo() {
   // 2. Load Schema Summary
   if (dbSchemaSummary) {
       dbSchemaSummary.innerHTML = '<li>Loading schema...</li>'; // Clear previous
-      chrome.runtime.sendMessage({ action: "getDbSchemaSummary" }, (response) => {
+      chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummary" }, (response) => { // Corrected action name
           if (response && response.success && response.summary) {
               dbSchemaSummary.innerHTML = ''; // Clear loading message
               if (response.summary.length > 0) {

@@ -81,6 +81,13 @@ let urlFilter = null;
 let startDateFilter = null;
 let endDateFilter = null;
 
+// Settings Tab Elements
+let themeSelector = null;
+let requestsPerPagePopupInput = null;
+let showTimingBarsPopupCheckbox = null;
+let savePopupSettingsBtn = null;
+let openOptionsPageLink = null;
+
 let activePanel = null; // Keep track of the currently open panel
 let tabsContainer = null; // Added for tab switching
 
@@ -140,6 +147,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     startDateFilter = document.getElementById("startDateFilter");
     endDateFilter = document.getElementById("endDateFilter");
     tabsContainer = document.querySelector(".tabs"); // Get tabs container
+
+    // Settings Tab Elements
+    themeSelector = document.getElementById("themeSelector");
+    requestsPerPagePopupInput = document.getElementById("requestsPerPagePopup");
+    showTimingBarsPopupCheckbox = document.getElementById("showTimingBarsPopup");
+    savePopupSettingsBtn = document.getElementById("savePopupSettingsBtn");
+    openOptionsPageLink = document.getElementById("openOptionsPageLink");
+
     console.log("popup.js: DOM elements assigned.");
     console.log("popup.js: clearBtn element:", clearBtn); // Check if button elements are found
     console.log("popup.js: exportBtn element:", exportBtn);
@@ -238,6 +253,8 @@ document.addEventListener("DOMContentLoaded", async () => {
               loadStats();
             } else if (targetTab === "requests") {
               loadRequests();
+            } else if (targetTab === "settings") {
+              loadPopupSettings(); // Load settings when tab is activated
             }
           } else {
             console.warn(`Tab content not found for tab: ${targetTab}`);
@@ -334,6 +351,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (prevPageBtn) prevPageBtn.addEventListener("click", () => changePage(currentPage - 1));
     if (nextPageBtn) nextPageBtn.addEventListener("click", () => changePage(currentPage + 1));
+
+    // Settings Tab Listeners
+    if (savePopupSettingsBtn) savePopupSettingsBtn.addEventListener("click", savePopupSettings);
+    if (openOptionsPageLink) openOptionsPageLink.addEventListener("click", openOptionsPage);
 
     console.log("popup.js: Event listeners attached.");
 
@@ -441,18 +462,41 @@ function resetFilters() {
 }
 
 function loadExportPanelData() {
-  chrome.runtime.sendMessage({ action: "getDbStats" }, (response) => {
-    if (response && response.size && exportDbSizeSpan) {
-      exportDbSizeSpan.textContent = formatBytes(response.size);
+  // Fetch DB Stats for size
+  chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error("Error fetching DB stats for export panel:", chrome.runtime.lastError.message);
+      if (exportDbSizeSpan) exportDbSizeSpan.textContent = "Error";
+      return;
+    }
+    if (response && response.success && response.stats && exportDbSizeSpan) {
+      exportDbSizeSpan.textContent = formatBytes(response.stats.dbSize || 0);
     } else if (exportDbSizeSpan) {
       exportDbSizeSpan.textContent = "N/A";
+      if (response && !response.success) {
+        console.error("Failed to load DB stats for export panel:", response.error);
+      }
     }
   });
+
+  // Set default filename
   if (exportFilenameInput) {
     const date = new Date().toISOString().slice(0, 10);
     exportFilenameInput.value = `ura-export-${date}`;
   }
+
+  // Populate export format options (assuming exportManager provides these)
+  // For now, let's hardcode common options. Ideally, this comes from background.
   if (exportFormatSelect) {
+    exportFormatSelect.innerHTML = ''; // Clear existing options
+    const formats = ['json', 'csv', 'sqlite']; // Example formats
+    formats.forEach(format => {
+        const option = document.createElement('option');
+        option.value = format;
+        option.textContent = format.toUpperCase();
+        exportFormatSelect.appendChild(option);
+    });
+    // Set default format from config if available
     exportFormatSelect.value = config?.export?.defaultFormat || config?.display?.defaultExportFormat || "json";
   }
 }
@@ -551,6 +595,64 @@ function loadPopupConfig() {
     updatePagination();
   });
 }
+
+// --- Settings Tab Functions ---
+
+function loadPopupSettings() {
+  console.log("Loading popup settings...");
+  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+    if (response && response.config) {
+      const currentConfig = response.config;
+      if (themeSelector) {
+        themeSelector.value = currentConfig.display?.theme || "system";
+      }
+      if (requestsPerPagePopupInput) {
+        requestsPerPagePopupInput.value = currentConfig.display?.requestsPerPagePopup || 50;
+      }
+      if (showTimingBarsPopupCheckbox) {
+        showTimingBarsPopupCheckbox.checked = currentConfig.display?.showTimingBarsPopup ?? true;
+      }
+      console.log("Popup settings loaded into UI.");
+    } else {
+      console.warn("Failed to load config for popup settings tab.", response?.error);
+      // Optionally disable controls or show an error
+    }
+  });
+}
+
+function savePopupSettings() {
+  console.log("Saving popup settings...");
+  const newSettings = {
+    display: {
+      ...(config.display || {}), // Preserve other display settings
+      theme: themeSelector?.value || "system",
+      requestsPerPagePopup: parseInt(requestsPerPagePopupInput?.value, 10) || 50,
+      showTimingBarsPopup: showTimingBarsPopupCheckbox?.checked ?? true,
+    }
+  };
+
+  // Send only the updated part of the config
+  chrome.runtime.sendMessage({ action: "updateConfig", config: newSettings }, (response) => {
+    if (response && response.success) {
+      showNotification("Popup settings saved.");
+      // Update local config variable if needed, or rely on configUpdated message
+      config = { ...config, ...newSettings }; // Simple merge
+      // Re-apply theme immediately
+      if (themeManager && newSettings.display.theme) {
+        themeManager.applyTheme(newSettings.display.theme);
+      }
+      // Update itemsPerPage if it changed
+      itemsPerPage = newSettings.display.requestsPerPagePopup;
+      updatePagination(); // Update pagination based on new itemsPerPage
+      loadRequests(); // Reload requests with new page size
+
+    } else {
+      showNotification(`Error saving settings: ${response?.error || "Unknown error"}`, true);
+    }
+  });
+}
+
+// --- End Settings Tab Functions ---
 
 // Open options page function
 function openOptionsPage() {

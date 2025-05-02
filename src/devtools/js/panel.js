@@ -46,12 +46,17 @@ export class DevToolsPanel {
 
   setupUI() {
     const container = document.getElementById("panel-container");
+    // Add the full structure including the metrics panel and chart canvas
     container.innerHTML = `
-      <div class="metrics-panel">
+      <div class="panel-header">
         <div class="url-info">
           <span>Current Domain: </span>
-          <span id="currentDomain">${this.currentDomain || 'N/A'}</span> <!-- Display domain -->
+          <span id="currentDomain">${this.currentDomain || 'N/A'}</span>
         </div>
+        <button id="toggleNetworkStats">Toggle Stats</button> <!-- Add toggle button -->
+      </div>
+      <div id="networkStatsPanel" style="display: none;"> <!-- Add panel, initially hidden -->
+        <canvas id="networkStatsChart"></canvas> <!-- Add chart canvas -->
       </div>
     `;
     // Ensure the domain is updated in the UI after innerHTML overwrite

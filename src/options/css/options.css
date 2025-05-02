@@ -5,9 +5,9 @@ body {
   line-height: 1.5;
   color: #333;
   background-color: #f4f4f4; /* Light grey background */
-  max-width: 800px;
   margin: 20px auto; /* Center the content with margin */
   padding: 0 20px; /* Add horizontal padding */
+  width: 100%; /* Full width */
 }
 
 h1 {

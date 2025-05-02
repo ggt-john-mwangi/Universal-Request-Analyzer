@@ -2,7 +2,8 @@
 .settings-container {
   width:100%;
   display: flex;
-  height: 100%;
+  flex-direction: column; /* Stack header, tabs, content vertically */
+  height: 100%; /* Ensure it takes full height if needed */
 }
 
 /* Settings Sidebar */
@@ -13,6 +14,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  flex-shrink: 0; /* Prevent sidebar from shrinking */
 }
 
 .settings-nav {
@@ -41,8 +43,9 @@
 
 .settings-nav-item.active {
   border-left-color: var(--primary-color, #0066cc);
-  background-color: rgba(0, 0, 0, 0.05);
-  font-weight: 500;
+  background-color: var(--surface-color);
+  color: var(--primary-color);
+  font-weight: bold;
 }
 
 .settings-actions {
@@ -52,17 +55,19 @@
 
 /* Settings Content */
 .settings-content {
-  flex: 1;
+  flex-grow: 1;
   padding: 20px;
   overflow-y: auto;
 }
 
 .settings-section {
-  display: none;
+  display: none; /* Hide sections by default */
+  padding: 15px;
+  border-top: 1px solid var(--border-color);
 }
 
 .settings-section.active {
-  display: block;
+  display: block; /* Show active section */
 }
 
 .settings-section h2 {
@@ -446,4 +451,12 @@
   border: 1px solid var(--border-color, #ddd);
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* Import Panel */
+.import-panel {
+  display: none; /* Keep initially hidden */
+  padding: 15px;
+  border-top: 1px solid var(--divider-color);
+  background-color: var(--surface-color);
 }

@@ -2,733 +2,591 @@
  * Message handler for communication with popup and content scripts
  */
 
-import { ApiError } from "../errors/error-types.js";
-import { logErrorToDatabase } from "../database/db-manager.js";
+import { DatabaseError, ConfigError, AuthError, EncryptionError } from "../errors/error-types.js";
 import { handleImportData } from "../import/import-manager.js";
-import * as exportManager from "../export/export-manager.js"; // Import export manager
 
+// Declare variables to hold the managers passed from background.js
 let dbManager = null;
+let configManager = null;
+let captureManager = null;
+let exportManager = null;
+let importManager = null;
 let authManager = null;
 let encryptionManager = null;
+let errorMonitor = null;
+let apiService = null;
 let eventBus = null;
+let logErrorToDb = null; // Function to log errors
 
-// Set up message handlers
-export function setupMessageHandlers(database, auth, encryption, events) {
+// Updated setupMessageHandlers to accept all managers/services
+export function setupMessageHandlers(
+  database,
+  config,
+  capture,
+  exporter,
+  importer,
+  auth,
+  encryption,
+  monitor,
+  api,
+  bus
+) {
   dbManager = database;
+  configManager = config;
+  captureManager = capture;
+  exportManager = exporter;
+  importManager = importer;
   authManager = auth;
   encryptionManager = encryption;
-  eventBus = events;
+  errorMonitor = monitor;
+  apiService = api;
+  eventBus = bus;
 
-  // Listen for messages from popup and content scripts
-  chrome.runtime.onMessage.addListener(handleMessage);
-
-  // Listen for external messages (from websites)
-  chrome.runtime.onMessageExternal.addListener(handleExternalMessage);
-
-  console.log("Message handlers initialized");
-}
-
-// Handle messages from popup and content scripts
-async function handleMessage(message, sender, sendResponse) {
-  try {
-    // Database-related messages
+  logErrorToDb = (error) => {
     if (
-      message.action === "getRequests" ||
-      message.action === "getRequestsFromDB"
+      dbManager &&
+      typeof dbManager.logError === "function" &&
+      configManager?.getConfigValue?.("advanced.logErrorsToDatabase")
     ) {
-      handleGetRequests(message, sendResponse);
-      return true; // Keep the message channel open for async response
+      dbManager.logError(error);
     }
+  };
 
-    // Export-related messages - Consolidate all export types under 'exportData'
-    else if (message.action === "exportData") {
-      // Ensure exportManager is initialized
-      if (!exportManager) {
-        console.error("Export manager is not initialized.");
-        sendResponse({ success: false, error: "Export manager not initialized." });
-        return false; // Indicate sync response
-      }
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    return handleMessage(message, sender, sendResponse, logErrorToDb);
+  });
 
-      try {
-        // Use filename from message or generate a default
-        const filename = message.filename || `request-analyzer-export-${new Date().toISOString().slice(0, 10)}`;
-        const format = message.format || 'json'; // Default to json if not specified
-
-        console.log(`[MessageHandler] Received exportData request: format=${format}, filename=${filename}`); // Added logging
-
-        const result = await exportManager.exportData({
-          format: format,
-          filename: filename,
-          filters: message.filters, // Pass filters if provided
-          // Add other options from exportManager if needed (e.g., prettyPrint, compression)
-          prettyPrint: message.prettyPrint !== undefined ? message.prettyPrint : true,
-          compression: message.compression !== undefined ? message.compression : false,
-          includeHeaders: message.includeHeaders !== undefined ? message.includeHeaders : true, // For CSV
-        });
-        console.log("[MessageHandler] Export result:", result); // Added logging
-        sendResponse({ success: true, ...result });
-      } catch (error) {
-        console.error(`[MessageHandler] Failed to export data as ${message.format}:`, error);
-        // Ensure the error object is properly structured
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        sendResponse({ success: false, error: errorMessage || "Unknown export error" });
-      }
-      return true; // Keep channel open for async response
-    }
-
-    // Import-related messages
-    else if (message.action === "importData") {
-      handleImportData(message, sendResponse);
-      return true;
-    } else if (message.action === "importDatabaseFile") {
-      handleImportDatabaseFile(message, sendResponse);
-      return true;
-    }
-
-    // Clear requests
-    else if (message.action === "clearRequests") {
-      handleClearRequests(sendResponse);
-      return true;
-    }
-
-    // Get database stats
-    else if (message.action === "getDatabaseStats") {
-      handleGetDatabaseStats(sendResponse);
-      return true;
-    }
-
-    // Get database size
-    else if (message.action === "getDatabaseSize") {
-      handleGetDatabaseSize(sendResponse);
-      return true;
-    }
-
-    // Config-related messages
-    else if (message.action === "getConfig") {
-      handleGetConfig(sendResponse);
-      return true;
-    } else if (message.action === "updateConfig") {
-      handleUpdateConfig(message, sendResponse);
-      return true;
-    }
-
-    // Auth-related messages
-    else if (message.action === "login") {
-      handleLogin(message, sendResponse);
-      return true;
-    } else if (message.action === "logout") {
-      handleLogout(sendResponse);
-      return true;
-    } else if (message.action === "register") {
-      handleRegister(message, sendResponse);
-      return true;
-    } else if (message.action === "getCurrentUser") {
-      handleGetCurrentUser(sendResponse);
-      return true;
-    } else if (message.action === "refreshToken") {
-      handleRefreshToken(sendResponse);
-      return true;
-    } else if (message.action === "generateCsrfToken") {
-      handleGenerateCsrfToken(sendResponse);
-      return true;
-    }
-
-    // Encryption-related messages
-    else if (message.action === "generateEncryptionKey") {
-      handleGenerateEncryptionKey(sendResponse);
-      return true;
-    } else if (message.action === "setEncryptionKey") {
-      handleSetEncryptionKey(message, sendResponse);
-      return true;
-    } else if (message.action === "exportEncryptionKey") {
-      handleExportEncryptionKey(sendResponse);
-      return true;
-    } else if (message.action === "enableEncryption") {
-      handleEnableEncryption(sendResponse);
-      return true;
-    } else if (message.action === "disableEncryption") {
-      handleDisableEncryption(sendResponse);
-      return true;
-    }
-
-    // Visualization-related messages
-    else if (message.action === "getDistinctValues") {
-      handleGetDistinctValues(message, sendResponse);
-      return true;
-    } else if (message.action === "getApiPaths") {
-      handleGetApiPaths(sendResponse);
-      return true;
-    } else if (message.action === "getFilteredStats") {
-      handleGetFilteredStats(message, sendResponse);
-      return true;
-    }
-
-    // Unknown action
-    sendResponse({ error: `Unknown action: ${message.action}` });
-    return false;
-  } catch (error) {
-    console.error(`Error handling message ${message.action}:`, error);
-    sendResponse({ error: error.message });
-    return false;
+  console.log("[MessageHandler] Initialized with all managers.");
+  if (dbManager) {
+    console.log("[MessageHandler] dbManager is available during setup.");
+  } else {
+    console.warn("[MessageHandler] dbManager is NOT available during setup.");
   }
 }
 
-// Handle importDatabaseFile message
-async function handleImportDatabaseFile(message, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ success: false, error: "Database manager not initialized" });
-    return;
-  }
-  if (!(message.data instanceof ArrayBuffer)) {
-    sendResponse({ success: false, error: "Invalid data format for SQLite import. Expected ArrayBuffer." });
-    return;
+async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
+  if (!logErrorToDb && typeof logErrorToDbFunc === "function") {
+    logErrorToDb = logErrorToDbFunc;
   }
 
   try {
-    const success = await dbManager.replaceDatabase(new Uint8Array(message.data));
-    if (success) {
-      sendResponse({ success: true });
-    } else {
-      sendResponse({ success: false, error: "Failed to replace database." });
-    }
-  } catch (error) {
-    console.error("Error importing SQLite database file:", error);
-    sendResponse({ success: false, error: error.message });
-  }
-}
+    console.log(
+      "[MessageHandler] Received message:",
+      message.action,
+      "from",
+      sender.tab ? "tab " + sender.tab.id : "extension"
+    );
 
-// Handle getDatabaseStats message
-function handleGetDatabaseStats(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ success: false, error: "Database not initialized" });
-    return;
-  }
-  (async () => {
-    try {
-      const stats = await dbManager.getDatabaseStats();
-      sendResponse({ success: true, stats });
-    } catch (error) {
-      console.error("Error getting database stats:", error);
-      sendResponse({ success: false, error: error.message });
-    }
-  })(); // Immediately invoke async function
-}
-
-// Handle getDatabaseSize message
-function handleGetDatabaseSize(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ success: false, error: "Database not initialized" });
-    return;
-  }
-  (async () => {
-    try {
-      const size = await dbManager.getDatabaseSize();
-      sendResponse({ success: true, size });
-    } catch (error) {
-      console.error("Error getting database size:", error);
-      sendResponse({ success: false, error: error.message });
-    }
-  })(); // Immediately invoke async function
-}
-
-// Handle external messages (from websites)
-function handleExternalMessage(message, sender, sendResponse) {
-  try {
-    if (!isValidExternalSender(sender.url)) {
-      sendResponse({ error: "Unauthorized sender" });
+    const requiresDb = [
+      "getRequests",
+      "getRequestsFromDB",
+      "clearRequests",
+      "getRequestHeaders",
+      "getDatabaseInfo",
+      "getDatabaseStats",
+      "getDatabaseSchemaSummary",
+      "getLoggedErrors",
+      "executeRawSql",
+      "getDistinctValues",
+      "getApiPaths",
+      "getFilteredStats",
+      "importDatabaseFile",
+    ];
+    if (requiresDb.includes(message.action) && !dbManager) {
+      console.error(`[MessageHandler] ${message.action}: dbManager is null!`);
+      sendResponse({ success: false, error: "Database not initialized" });
       return false;
     }
 
-    if (message.action === "api:getRequests") {
-      handleApiGetRequests(message, sender, sendResponse);
-      return true;
-    } else if (message.action === "api:getStats") {
-      handleApiGetStats(message, sender, sendResponse);
-      return true;
+    switch (message.action) {
+      case "getRequests":
+      case "getRequestsFromDB":
+        handleGetRequests(message, sendResponse);
+        return true;
+      case "clearRequests":
+        handleClearRequests(sendResponse);
+        return true;
+      case "getRequestHeaders":
+        handleGetRequestHeaders(message, sendResponse);
+        return true;
+      case "getDatabaseInfo":
+        handleGetDatabaseInfo(sendResponse);
+        return true;
+      case "getDatabaseStats":
+        handleGetStats(sendResponse);
+        return true;
+      case "getDatabaseSchemaSummary":
+        handleGetDatabaseSchemaSummary(sendResponse);
+        return true;
+      case "getLoggedErrors":
+        handleGetLoggedErrors(message, sendResponse);
+        return true;
+      case "executeRawSql":
+        handleExecuteRawSql(message, sendResponse);
+        return true;
+      case "getDistinctValues":
+        handleGetDistinctValues(message, sendResponse);
+        return true;
+      case "getApiPaths":
+        handleGetApiPaths(sendResponse);
+        return true;
+      case "getFilteredStats":
+        handleGetFilteredStats(message, sendResponse);
+        return true;
+      case "exportData":
+        handleExportData(message, sendResponse);
+        return true;
+      case "importData":
+        if (
+          !importManager ||
+          typeof importManager.handleImportData !== "function"
+        ) {
+          console.error("[MessageHandler] importManager or handleImportData not available.");
+          sendResponse({ success: false, error: "Import manager not ready." });
+          return false;
+        }
+        importManager.handleImportData(message, sendResponse);
+        return true;
+      case "importDatabaseFile":
+        handleImportDatabaseFile(message, sendResponse);
+        return true;
+      case "getConfig":
+        handleGetConfig(sendResponse);
+        return true;
+      case "updateConfig":
+        handleUpdateConfig(message, sendResponse);
+        return true;
+      case "checkAuth":
+        handleCheckAuth(sendResponse);
+        return true;
+      case "login":
+        handleLogin(message, sendResponse);
+        return true;
+      case "logout":
+        handleLogout(sendResponse);
+        return true;
+      case "encryptData":
+        handleEncryptData(message, sendResponse);
+        return true;
+      case "decryptData":
+        handleDecryptData(message, sendResponse);
+        return true;
+      default:
+        console.warn("[MessageHandler] Unknown action received:", message.action);
+        sendResponse({ error: `Unknown action: ${message.action}` });
+        return false;
     }
-
-    sendResponse({ error: `Unknown action: ${message.action}` });
+  } catch (error) {
+    console.error("[MessageHandler] Uncaught error in handleMessage:", error);
+    if (logErrorToDb) {
+      try {
+        await logErrorToDb(
+          new Error(
+            `Uncaught error in handleMessage for action ${message?.action}: ${error.message}`,
+            { cause: error }
+          )
+        );
+      } catch (logDbError) {
+        console.error("[MessageHandler] Failed to log uncaught error to DB:", logDbError);
+      }
+    }
+    try {
+      sendResponse({
+        success: false,
+        error: `Internal server error processing action ${message?.action}`,
+      });
+    } catch (sendError) {
+      console.error("[MessageHandler] Failed to send error response:", sendError);
+    }
     return false;
-  } catch (error) {
-    console.error(`Error handling external message ${message.action}:`, error);
-    sendResponse({ error: error.message });
-    return false;
   }
 }
 
-// Check if external sender is valid
-function isValidExternalSender(url) {
+async function handleGetRequests(message, sendResponse) {
+  console.log("[MessageHandler] handleGetRequests: Called with filters:", message.filters);
   try {
-    const allowedDomains = ["example.com"];
-    const urlObj = new URL(url);
-
-    return allowedDomains.some(
-      (domain) =>
-        urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`)
-    );
+    const { filters, page = 1, limit = 50, sortBy, sortOrder } = message;
+    const result = await dbManager.getRequests(filters, page, limit, sortBy, sortOrder);
+    console.log(`[MessageHandler] handleGetRequests: Retrieved ${result.requests?.length} requests.`);
+    sendResponse({ success: true, ...result });
   } catch (error) {
-    return false;
+    console.error("[MessageHandler] handleGetRequests: Error getting requests:", error);
+    const apiError = new DatabaseError("Error getting requests", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle getRequests message
-function handleGetRequests(message, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
+async function handleClearRequests(sendResponse) {
+  console.log("[MessageHandler] handleClearRequests: Called");
   try {
-    const filters = message.filters || {};
-    const page = message.page || 1;
-    const limit = message.limit || 100;
-
-    const result = dbManager.getRequests({ page, limit, filters });
-    sendResponse(result);
-  } catch (error) {
-    const apiError = new ApiError("Error getting requests", error);
-    logErrorToDatabase(dbManager, apiError);
-    sendResponse({ error: apiError.message });
-  }
-}
-
-// Handle clearRequests message
-function handleClearRequests(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
-  try {
-    dbManager.clearDatabase();
+    if (typeof dbManager.clearRequests !== "function") {
+      throw new Error("dbManager.clearRequests is not a function");
+    }
+    await dbManager.clearRequests();
+    console.log("[MessageHandler] handleClearRequests: Requests cleared successfully.");
     sendResponse({ success: true });
   } catch (error) {
-    console.error("Error clearing requests:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleClearRequests: Error clearing requests:", error);
+    const apiError = new DatabaseError("Error clearing requests", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle getRequestHeaders message
-function handleGetRequestHeaders(message, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
+async function handleGetRequestHeaders(message, sendResponse) {
+  console.log("[MessageHandler] handleGetRequestHeaders: Called for requestId:", message.requestId);
   try {
-    const headers = dbManager.getRequestHeaders(message.requestId);
-    sendResponse({ headers });
-  } catch (error) {
-    console.error("Error getting request headers:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle getStats message
-function handleGetStats(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
-  try {
-    const stats = dbManager.getDatabaseStats();
-    sendResponse({ stats });
-  } catch (error) {
-    const apiError = new ApiError("Error getting stats", error);
-    logErrorToDatabase(dbManager, apiError);
-    sendResponse({ error: apiError.message });
-  }
-}
-
-// Handle getDatabaseInfo message
-function handleGetDatabaseInfo(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
-  try {
-    const databaseSize = dbManager.getDatabaseSize();
-    const stats = dbManager.getDatabaseStats();
-
-    sendResponse({
-      databaseSize,
-      totalRequests: stats.totalRequests,
-      lastExport: null,
-    });
-  } catch (error) {
-    console.error("Error getting database info:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle getNetworkStats message
-function handleGetNetworkStats(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
-  try {
-    const stats = dbManager.getNetworkStats();
-    sendResponse({ stats });
-  } catch (error) {
-    const apiError = new ApiError("Error fetching network stats", error);
-    logErrorToDatabase(dbManager, apiError);
-    sendResponse({ error: apiError.message });
-  }
-}
-
-// Handle getConfig message
-function handleGetConfig(sendResponse) {
-  chrome.storage.local.get("analyzerConfig", (result) => {
-    if (chrome.runtime.lastError) {
-      sendResponse({ error: chrome.runtime.lastError.message });
-    } else {
-      sendResponse({ config: result.analyzerConfig || {} });
+    if (typeof dbManager.getRequestHeaders !== "function") {
+      throw new Error("dbManager.getRequestHeaders is not a function");
     }
-  });
+    const headers = await dbManager.getRequestHeaders(message.requestId);
+    console.log("[MessageHandler] handleGetRequestHeaders: Retrieved headers:", headers);
+    sendResponse({ success: true, headers });
+  } catch (error) {
+    console.error("[MessageHandler] handleGetRequestHeaders: Error getting headers:", error);
+    const apiError = new DatabaseError("Error getting request headers", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
 }
 
-// Handle updateConfig message
-function handleUpdateConfig(message, sendResponse) {
-  chrome.storage.local.set({ analyzerConfig: message.config }, () => {
-    if (chrome.runtime.lastError) {
-      sendResponse({ error: chrome.runtime.lastError.message });
-    } else {
-      eventBus.publish("config:updated", message.config);
-      sendResponse({ success: true });
+async function handleGetDatabaseInfo(sendResponse) {
+  console.log("[MessageHandler] handleGetDatabaseInfo: Called");
+  try {
+    if (typeof dbManager.getDatabaseInfo !== "function") {
+      throw new Error("dbManager.getDatabaseInfo is not a function");
     }
-  });
-}
-
-// Handle login message
-function handleLogin(message, sendResponse) {
-  if (!authManager) {
-    sendResponse({ error: "Auth manager not initialized" });
-    return;
-  }
-
-  try {
-    authManager
-      .login(message.email, message.password)
-      .then((result) => {
-        sendResponse(result);
-      })
-      .catch((error) => {
-        sendResponse({ error: error.message });
-      });
+    const info = await dbManager.getDatabaseInfo();
+    console.log("[MessageHandler] handleGetDatabaseInfo: Retrieved info:", info);
+    sendResponse({ success: true, info });
   } catch (error) {
-    console.error("Error during login:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleGetDatabaseInfo: Error getting database info:", error);
+    const apiError = new DatabaseError("Error getting database info", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle logout message
-function handleLogout(sendResponse) {
-  if (!authManager) {
-    sendResponse({ error: "Auth manager not initialized" });
-    return;
-  }
-
+async function handleGetStats(sendResponse) {
+  console.log("[MessageHandler] handleGetStats: Called");
   try {
-    authManager
-      .logout()
-      .then((result) => {
-        sendResponse({ success: result });
-      })
-      .catch((error) => {
-        sendResponse({ error: error.message });
-      });
+    if (typeof dbManager.getDatabaseStats !== "function") {
+      throw new Error("dbManager.getDatabaseStats is not a function");
+    }
+    const stats = await dbManager.getDatabaseStats();
+    console.log("[MessageHandler] handleGetStats: Retrieved stats:", stats);
+    sendResponse({ success: true, stats });
   } catch (error) {
-    console.error("Error during logout:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleGetStats: Error getting database stats:", error);
+    const apiError = new DatabaseError("Error getting database stats", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle register message
-function handleRegister(message, sendResponse) {
-  if (!authManager) {
-    sendResponse({ error: "Auth manager not initialized" });
-    return;
-  }
-
+async function handleGetDatabaseSchemaSummary(sendResponse) {
+  console.log("[MessageHandler] handleGetDatabaseSchemaSummary: Called");
   try {
-    authManager
-      .register(message.email, message.password, message.name)
-      .then((result) => {
-        sendResponse(result);
-      })
-      .catch((error) => {
-        sendResponse({ error: error.message });
-      });
+    if (typeof dbManager.getDatabaseSchemaSummary !== "function") {
+      throw new Error("dbManager.getDatabaseSchemaSummary is not a function");
+    }
+    const summary = await dbManager.getDatabaseSchemaSummary();
+    console.log("[MessageHandler] handleGetDatabaseSchemaSummary: Retrieved summary:", summary);
+    sendResponse({ success: true, summary });
   } catch (error) {
-    console.error("Error during registration:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleGetDatabaseSchemaSummary: Error getting schema summary:", error);
+    const apiError = new DatabaseError("Error getting schema summary", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle getCurrentUser message
-function handleGetCurrentUser(sendResponse) {
-  if (!authManager) {
-    sendResponse({ error: "Auth manager not initialized" });
-    return;
-  }
-
+async function handleGetLoggedErrors(message, sendResponse) {
+  console.log("[MessageHandler] handleGetLoggedErrors: Called");
   try {
-    const user = authManager.getCurrentUser();
-    sendResponse({ user, isAuthenticated: authManager.isAuthenticated() });
+    if (typeof dbManager.getLoggedErrors !== "function") {
+      throw new Error("dbManager.getLoggedErrors is not a function");
+    }
+    const { limit = 50, offset = 0 } = message;
+    const errors = await dbManager.getLoggedErrors(limit, offset);
+    console.log(`[MessageHandler] handleGetLoggedErrors: Retrieved ${errors?.length} errors.`);
+    sendResponse({ success: true, errors });
   } catch (error) {
-    console.error("Error getting current user:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleGetLoggedErrors: Error getting logged errors:", error);
+    const apiError = new DatabaseError("Error getting logged errors", error);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle refreshToken message
-function handleRefreshToken(sendResponse) {
-  if (!authManager) {
-    sendResponse({ error: "Auth manager not initialized" });
-    return;
-  }
-
+async function handleExecuteRawSql(message, sendResponse) {
+  console.log("[MessageHandler] handleExecuteRawSql: Called with SQL:", message.sql);
   try {
-    authManager
-      .refreshToken()
-      .then((result) => {
-        sendResponse(result);
-      })
-      .catch((error) => {
-        sendResponse({ error: error.message });
-      });
-  } catch (error) {
-    console.error("Error refreshing token:", error);
-    sendResponse({ error: error.message });
-  }
-}
+    if (typeof dbManager.executeRawSql !== "function") {
+      throw new Error("dbManager.executeRawSql is not a function");
+    }
+    const { sql, params } = message;
 
-// Handle generateCsrfToken message
-function handleGenerateCsrfToken(sendResponse) {
-  if (!authManager) {
-    sendResponse({ error: "Auth manager not initialized" });
-    return;
-  }
-
-  try {
-    const token = authManager.generateCsrfToken();
-    sendResponse({ token });
-  } catch (error) {
-    console.error("Error generating CSRF token:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle generateEncryptionKey message
-function handleGenerateEncryptionKey(sendResponse) {
-  if (!encryptionManager) {
-    sendResponse({ error: "Encryption manager not initialized" });
-    return;
-  }
-
-  try {
-    const key = encryptionManager.generateKey();
-    sendResponse({ key });
-  } catch (error) {
-    console.error("Error generating encryption key:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle setEncryptionKey message
-function handleSetEncryptionKey(message, sendResponse) {
-  if (!encryptionManager) {
-    sendResponse({ error: "Encryption manager not initialized" });
-    return;
-  }
-
-  try {
-    encryptionManager.setKey(message.key);
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error("Error setting encryption key:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle exportEncryptionKey message
-function handleExportEncryptionKey(sendResponse) {
-  if (!encryptionManager) {
-    sendResponse({ error: "Encryption manager not initialized" });
-    return;
-  }
-
-  try {
-    encryptionManager.exportKey();
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error("Error exporting encryption key:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle enableEncryption message
-function handleEnableEncryption(sendResponse) {
-  if (!encryptionManager) {
-    sendResponse({ error: "Encryption manager not initialized" });
-    return;
-  }
-
-  try {
-    encryptionManager.enable();
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error("Error enabling encryption:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle disableEncryption message
-function handleDisableEncryption(sendResponse) {
-  if (!encryptionManager) {
-    sendResponse({ error: "Encryption manager not initialized" });
-    return;
-  }
-
-  try {
-    encryptionManager.disable();
-    sendResponse({ success: true });
-  } catch (error) {
-    console.error("Error disabling encryption:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle getDistinctValues message
-function handleGetDistinctValues(message, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
-  try {
-    const field = message.field;
-    const allowedFields = ["domain", "pageUrl", "method", "type", "path"];
-
-    if (!allowedFields.includes(field)) {
-      sendResponse({ error: `Invalid field: ${field}` });
-      return;
+    let allowExecution = false;
+    if (configManager && typeof configManager.getConfigValue === "function") {
+      try {
+        allowExecution = await configManager.getConfigValue("allowRawSqlExecution");
+      } catch (configError) {
+        console.warn("[MessageHandler] Failed to get 'allowRawSqlExecution' config:", configError);
+      }
     }
 
-    const query = `
-      SELECT DISTINCT ${field} 
-      FROM requests 
-      WHERE ${field} IS NOT NULL AND ${field} != '' 
-      ORDER BY ${field}
-    `;
+    const lowerSql = sql.toLowerCase().trim();
+    const isModificationQuery =
+      lowerSql.startsWith("insert") ||
+      lowerSql.startsWith("update") ||
+      lowerSql.startsWith("delete") ||
+      lowerSql.startsWith("drop") ||
+      lowerSql.startsWith("alter");
 
-    const result = dbManager.executeQuery(query);
-
-    if (!result[0]) {
-      sendResponse({ values: [] });
-      return;
+    if (isModificationQuery && !allowExecution) {
+      throw new Error("Raw SQL execution for modification queries is disabled in configuration.");
     }
 
-    const values = result[0].values.map((row) => row[0]);
-
-    sendResponse({ values });
+    const result = await dbManager.executeRawSql(sql, params);
+    console.log("[MessageHandler] handleExecuteRawSql: Execution successful.");
+    sendResponse({ success: true, result });
   } catch (error) {
-    console.error(`Error getting distinct values for ${message.field}:`, error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleExecuteRawSql: Error executing raw SQL:", error);
+    const apiError = new DatabaseError("Error executing raw SQL", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }
 
-// Handle getApiPaths message
-function handleGetApiPaths(sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
+async function handleGetDistinctValues(message, sendResponse) {
+  console.log("[MessageHandler] handleGetDistinctValues: Called for field:", message.field);
   try {
-    const query = `
-      SELECT DISTINCT path 
-      FROM requests 
-      WHERE 
-        path LIKE '/api/%' OR 
-        path LIKE '/v1/%' OR 
-        path LIKE '/v2/%' OR 
-        path LIKE '/v3/%' OR
-        path LIKE '%.json' OR
-        path LIKE '%.php' OR
-        path LIKE '%.aspx'
-      ORDER BY path
-    `;
-
-    const result = dbManager.executeQuery(query);
-
-    if (!result[0]) {
-      sendResponse({ paths: [] });
-      return;
+    if (typeof dbManager.getDistinctValues !== "function") {
+      throw new Error("dbManager.getDistinctValues is not a function");
     }
-
-    const paths = result[0].values.map((row) => row[0]);
-
-    sendResponse({ paths });
+    const { field, filters } = message;
+    const values = await dbManager.getDistinctValues(field, filters);
+    sendResponse({ success: true, values });
   } catch (error) {
-    console.error("Error getting API paths:", error);
-    sendResponse({ error: error.message });
-  }
-}
-
-// Handle getFilteredStats message
-async function handleGetFilteredStats(message, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-  try {
-    const { filters } = message;
-    // Assuming dbManager.getFilteredStats exists and accepts filters
-    const stats = await dbManager.getFilteredStats(filters);
-    sendResponse({ success: true, ...stats, filters });
-  } catch (error) {
-    console.error("Error getting filtered stats:", error);
+    console.error("[MessageHandler] Error getting distinct values:", error);
+    const apiError = new DatabaseError("Error getting distinct values", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
     sendResponse({ success: false, error: error.message });
   }
 }
 
-// Handle apiGetRequests message
-function handleApiGetRequests(message, sender, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
-    return;
-  }
-
+async function handleGetApiPaths(sendResponse) {
+  console.log("[MessageHandler] handleGetApiPaths: Called");
   try {
-    const filters = message.filters || {};
-    const page = message.page || 1;
-    const limit = message.limit || 100;
-
-    const result = dbManager.getRequests({ page, limit, filters });
-    sendResponse(result);
+    if (typeof dbManager.getApiPaths !== "function") {
+      throw new Error("dbManager.getApiPaths is not a function");
+    }
+    const paths = await dbManager.getApiPaths();
+    sendResponse({ success: true, paths });
   } catch (error) {
-    console.error("Error getting requests:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] Error getting API paths:", error);
+    const apiError = new DatabaseError("Error getting API paths", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: error.message });
   }
 }
 
-// Handle apiGetStats message
-function handleApiGetStats(message, sender, sendResponse) {
-  if (!dbManager) {
-    sendResponse({ error: "Database not initialized" });
+async function handleGetFilteredStats(message, sendResponse) {
+  console.log("[MessageHandler] handleGetFilteredStats: Called with filters:", message.filters);
+  try {
+    if (typeof dbManager.getFilteredStats !== "function") {
+      throw new Error("dbManager.getFilteredStats is not a function");
+    }
+    const { filters } = message;
+    const stats = await dbManager.getFilteredStats(filters);
+    sendResponse({ success: true, stats });
+  } catch (error) {
+    console.error("[MessageHandler] Error getting filtered stats:", error);
+    const apiError = new DatabaseError("Error getting filtered stats", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleExportData(message, sendResponse) {
+  console.log("[MessageHandler] handleExportData: Called with format:", message.format);
+  if (!exportManager || typeof exportManager.handleExportData !== "function") {
+    console.error("[MessageHandler] exportManager or handleExportData not available.");
+    sendResponse({ success: false, error: "Export manager not ready." });
     return;
   }
-
   try {
-    const stats = dbManager.getDatabaseStats();
-    sendResponse({ stats });
+    await exportManager.handleExportData(message, sendResponse);
   } catch (error) {
-    console.error("Error getting stats:", error);
-    sendResponse({ error: error.message });
+    console.error("[MessageHandler] handleExportData: Error exporting data:", error);
+    const apiError = new Error(`Error exporting data: ${error.message}`);
+    if (logErrorToDb) await logErrorToDb(apiError);
+  }
+}
+
+async function handleImportDatabaseFile(message, sendResponse) {
+  console.log("[MessageHandler] handleImportDatabaseFile: Called");
+  try {
+    if (typeof dbManager.importDatabaseFile !== "function") {
+      throw new Error("dbManager.importDatabaseFile is not a function");
+    }
+    const { fileData } = message;
+    if (!fileData) {
+      throw new Error("No file data provided for import.");
+    }
+    await dbManager.importDatabaseFile(fileData);
+    sendResponse({ success: true, message: "Database imported successfully. Reload might be required." });
+  } catch (error) {
+    console.error("[MessageHandler] Error importing database file:", error);
+    const apiError = new DatabaseError("Error importing database file", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleGetConfig(sendResponse) {
+  console.log("[MessageHandler] handleGetConfig: Called");
+  if (!configManager || typeof configManager.getConfig !== "function") {
+    console.error("[MessageHandler] configManager or getConfig not available.");
+    sendResponse({ success: false, error: "Configuration manager not ready." });
+    return;
+  }
+  try {
+    const config = await configManager.getConfig();
+    console.log("[MessageHandler] handleGetConfig: Retrieved config:", config);
+    sendResponse({ success: true, config });
+  } catch (error) {
+    console.error("[MessageHandler] handleGetConfig: Error getting config:", error);
+    const apiError = new ConfigError("Error getting configuration", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleUpdateConfig(message, sendResponse) {
+  console.log("[MessageHandler] handleUpdateConfig: Called with data:", message.data);
+  if (!configManager || typeof configManager.updateConfig !== "function") {
+    console.error("[MessageHandler] configManager or updateConfig not available.");
+    sendResponse({ success: false, error: "Configuration manager not ready." });
+    return;
+  }
+  try {
+    await configManager.updateConfig(message.data);
+    console.log("[MessageHandler] handleUpdateConfig: Config updated successfully.");
+    const updatedConfig = await configManager.getConfig();
+    sendResponse({ success: true, config: updatedConfig });
+  } catch (error) {
+    console.error("[MessageHandler] handleUpdateConfig: Error updating config:", error);
+    const apiError = new ConfigError("Error updating configuration", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleCheckAuth(sendResponse) {
+  console.log("[MessageHandler] handleCheckAuth: Called");
+  if (!authManager || typeof authManager.isAuthenticated !== "function") {
+    console.error("[MessageHandler] authManager or isAuthenticated not available.");
+    sendResponse({ success: true, isAuthenticated: false, error: "Authentication manager not ready." });
+    return;
+  }
+  try {
+    const isAuthenticated = await authManager.isAuthenticated();
+    console.log("[MessageHandler] handleCheckAuth: Status:", isAuthenticated);
+    sendResponse({ success: true, isAuthenticated });
+  } catch (error) {
+    console.error("[MessageHandler] handleCheckAuth: Error checking auth status:", error);
+    const apiError = new AuthError("Error checking authentication status", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message, isAuthenticated: false });
+  }
+}
+
+async function handleLogin(message, sendResponse) {
+  console.log("[MessageHandler] handleLogin: Called");
+  if (!authManager || typeof authManager.login !== "function") {
+    console.error("[MessageHandler] authManager or login not available.");
+    sendResponse({ success: false, error: "Authentication manager not ready." });
+    return;
+  }
+  try {
+    const { password } = message;
+    if (typeof password !== "string" || password.length === 0) {
+      throw new Error("Password is required for login.");
+    }
+    const success = await authManager.login(password);
+    console.log("[MessageHandler] handleLogin: Success:", success);
+    sendResponse({ success });
+  } catch (error) {
+    console.error("[MessageHandler] handleLogin: Error during login:", error);
+    const apiError = new AuthError(`Login failed: ${error.message}`, error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleLogout(sendResponse) {
+  console.log("[MessageHandler] handleLogout: Called");
+  if (!authManager || typeof authManager.logout !== "function") {
+    console.error("[MessageHandler] authManager or logout not available.");
+    sendResponse({ success: false, error: "Authentication manager not ready." });
+    return;
+  }
+  try {
+    await authManager.logout();
+    console.log("[MessageHandler] handleLogout: Success");
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error("[MessageHandler] handleLogout: Error during logout:", error);
+    const apiError = new AuthError("Logout failed", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleEncryptData(message, sendResponse) {
+  console.log("[MessageHandler] handleEncryptData: Called");
+  if (!encryptionManager || typeof encryptionManager.encrypt !== "function") {
+    console.error("[MessageHandler] encryptionManager or encrypt not available.");
+    sendResponse({ success: false, error: "Encryption manager not ready." });
+    return;
+  }
+  try {
+    const { data } = message;
+    if (data === undefined || data === null) {
+      throw new Error("Data to encrypt cannot be null or undefined.");
+    }
+    const encryptedData = await encryptionManager.encrypt(data);
+    console.log("[MessageHandler] handleEncryptData: Success");
+    sendResponse({ success: true, encryptedData });
+  } catch (error) {
+    console.error("[MessageHandler] handleEncryptData: Error encrypting data:", error);
+    const apiError = new EncryptionError("Encryption failed", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleDecryptData(message, sendResponse) {
+  console.log("[MessageHandler] handleDecryptData: Called");
+  if (!encryptionManager || typeof encryptionManager.decrypt !== "function") {
+    console.error("[MessageHandler] encryptionManager or decrypt not available.");
+    sendResponse({ success: false, error: "Encryption manager not ready." });
+    return;
+  }
+  try {
+    const { encryptedData } = message;
+    if (encryptedData === undefined || encryptedData === null) {
+      throw new Error("Encrypted data cannot be null or undefined.");
+    }
+    const data = await encryptionManager.decrypt(encryptedData);
+    console.log("[MessageHandler] handleDecryptData: Success");
+    sendResponse({ success: true, data });
+  } catch (error) {
+    console.error("[MessageHandler] handleDecryptData: Error decrypting data:", error);
+    const apiError = new EncryptionError("Decryption failed", error);
+    if (logErrorToDb) await logErrorToDb(apiError);
+    sendResponse({ success: false, error: apiError.message });
   }
 }

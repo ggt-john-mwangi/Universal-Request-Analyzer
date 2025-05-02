@@ -4,7 +4,7 @@ import { createTables } from "./schema.js";
 import { migrateDatabase } from "./migrations.js";
 import { DatabaseError } from "../errors/error-types.js";
 import { initSqlJs } from "./sql-js-loader.js";
-import { getConfig } from "../config/config-manager.js"; // Added for feature toggles
+import { getConfig } from "../config/config-manager.js";
 
 let db = null;
 let encryptionManager = null;
@@ -16,10 +16,24 @@ let configManager = null;
 
 // Helper function for conditional console logging
 async function log(level, ...args) {
-  const config = await getConfig();
+  const config = configManager ? await configManager.getConfig() : {};
   if (config.enableConsoleLogging !== false) {
     console[level](...args);
   }
+}
+
+// Helper function to map SQL result rows to objects
+function mapRowsToObjects(result) {
+  if (!result || !result.columns || !result.values) {
+    return [];
+  }
+  return result.values.map(row => {
+    const obj = {};
+    result.columns.forEach((col, index) => {
+      obj[col] = row[index];
+    });
+    return obj;
+  });
 }
 
 async function loadDatabaseFromOPFS() {
@@ -52,25 +66,25 @@ async function saveDatabaseToOPFS(data) {
 }
 
 // Add a function to log errors into the database
-export async function logErrorToDatabase(db, error) {
-  if (!db || typeof db.exec !== "function") {
+export async function logErrorToDatabase(dbInstance, error) {
+  if (!dbInstance || typeof dbInstance.exec !== "function") {
     log("error", "Database is not initialized or invalid. Cannot log error.");
     return;
   }
 
-  const config = await getConfig();
+  const config = configManager ? await configManager.getConfig() : {};
   if (!config.logErrorsToDatabase) {
     return;
   }
 
   try {
-    const tableCheck = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
+    const tableCheck = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
     if (!tableCheck[0] || tableCheck[0].values.length === 0) {
       log("warn", "Errors table does not exist. Cannot log error.");
       return;
     }
 
-    db.exec(
+    dbInstance.exec(
       `INSERT INTO errors (category, message, stack, timestamp, context) VALUES (?, ?, ?, ?, ?)`,
       [
         error.name || "UnknownError",
@@ -94,11 +108,11 @@ export async function initDatabase(dbConfig, encryptionMgr, events, configMgr) {
 
     db = await initializeDatabase();
 
-    setupAutoSave(db, configMgr?.getConfig());
+    setupAutoSave(db);
 
     eventBus.publish("database:ready", { timestamp: Date.now() });
 
-    return createDbInterface(configMgr);
+    return createDbInterface();
   } catch (error) {
     log("error", "Failed to initialize database:", error);
     if (error instanceof DatabaseError) {
@@ -109,7 +123,7 @@ export async function initDatabase(dbConfig, encryptionMgr, events, configMgr) {
 }
 
 // Helper to create the returned DB interface object
-function createDbInterface(configMgr) {
+function createDbInterface() {
   return {
     executeQuery,
     executeTransaction,
@@ -169,22 +183,23 @@ function executeQuery(query, params = []) {
     return db.exec(query, params);
   } catch (error) {
     log("error", "Query execution failed:", error, { query, params });
+    logErrorToDatabase(db, new DatabaseError("Query execution failed", error));
     throw new DatabaseError("Query execution failed", error);
   }
 }
 
 // Execute multiple queries in a transaction
-function executeTransaction(queries, config) {
+function executeTransaction(queries) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
-    return;
+    throw new DatabaseError("Database not initialized");
   }
 
   try {
     db.exec("BEGIN TRANSACTION");
 
     for (const { query, params } of queries) {
-      executeQuery(query, params, config);
+      executeQuery(query, params);
     }
 
     db.exec("COMMIT");
@@ -195,9 +210,11 @@ function executeTransaction(queries, config) {
     } catch (rollbackError) {
       const rbError = new DatabaseError("Rollback failed", rollbackError);
       log("error", "Rollback failed:", rollbackError);
-      logErrorToDatabase(db, rbError, config);
+      logErrorToDatabase(db, rbError);
     }
-    throw error instanceof DatabaseError ? error : new DatabaseError("Transaction failed", error);
+    const transactionError = error instanceof DatabaseError ? error : new DatabaseError("Transaction failed", error);
+    logErrorToDatabase(db, transactionError);
+    throw transactionError;
   }
 }
 
@@ -475,7 +492,7 @@ function getRequestTimings(requestId) {
 }
 
 // Save timing data for a request
-function saveRequestTimings(requestId, timings, config) {
+function saveRequestTimings(requestId, timings) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     return;
@@ -495,8 +512,7 @@ function saveRequestTimings(requestId, timings, config) {
         timings.ssl || 0,
         timings.ttfb || 0,
         timings.download || 0,
-      ],
-      config
+      ]
     );
 
     log("info", `[DB] Timings for request ${requestId} saved successfully.`);
@@ -508,7 +524,7 @@ function saveRequestTimings(requestId, timings, config) {
 }
 
 // Save imported data (requests, headers, timings) in a transaction
-async function saveImportedData(data, config) {
+async function saveImportedData(data) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     throw new DatabaseError("Database not initialized");
@@ -581,10 +597,10 @@ async function saveImportedData(data, config) {
       db.exec("ROLLBACK");
     } catch (rollbackError) {
       log("error", "Rollback failed:", rollbackError);
-      logErrorToDatabase(db, new DatabaseError("Rollback failed during import", rollbackError), config);
+      logErrorToDatabase(db, new DatabaseError("Rollback failed during import", rollbackError));
     }
     const importError = new DatabaseError("Failed to save imported data", error);
-    logErrorToDatabase(db, importError, config);
+    logErrorToDatabase(db, importError);
     throw importError;
   }
 }
@@ -602,13 +618,13 @@ async function getDatabaseSize() {
 }
 
 // Get database statistics
-async function getDatabaseStats(config) {
+async function getDatabaseStats() {
   if (!db) {
     return { size: 0, requestCount: 0 };
   }
   try {
     const size = await getDatabaseSize();
-    const countResult = executeQuery("SELECT COUNT(*) FROM requests", [], config);
+    const countResult = executeQuery("SELECT COUNT(*) FROM requests", []);
     const requestCount = countResult[0]?.values[0]?.[0] || 0;
     return { size, requestCount };
   } catch (error) {
@@ -618,7 +634,7 @@ async function getDatabaseStats(config) {
 }
 
 // Export database in various formats
-async function exportDatabase(format, config) {
+async function exportDatabase(format) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     throw new DatabaseError("Database not initialized");
@@ -630,10 +646,10 @@ async function exportDatabase(format, config) {
         return db.export();
 
       case "json":
-        const requests = executeQuery("SELECT * FROM requests", [], config);
-        const timings = executeQuery("SELECT * FROM request_timings", [], config);
-        const headers = executeQuery("SELECT * FROM request_headers", [], config);
-        const stats = await getDatabaseStats(config);
+        const requests = executeQuery("SELECT * FROM requests", []);
+        const timings = executeQuery("SELECT * FROM request_timings", []);
+        const headers = executeQuery("SELECT * FROM request_headers", []);
+        const stats = await getDatabaseStats();
 
         return JSON.stringify(
           {
@@ -654,7 +670,7 @@ async function exportDatabase(format, config) {
           SELECT r.*, t.dns, t.tcp, t.ssl, t.ttfb, t.download
           FROM requests r
           LEFT JOIN request_timings t ON r.id = t.requestId
-        `, [], config);
+        `, []);
 
         if (!result[0]) return "";
 
@@ -681,32 +697,32 @@ async function exportDatabase(format, config) {
   } catch (error) {
     log("error", `Failed to export database as ${format}:`, error);
     const exportError = new DatabaseError(`Failed to export database as ${format}`, error);
-    logErrorToDatabase(db, exportError, config);
+    logErrorToDatabase(db, exportError);
     throw exportError;
   }
 }
 
 // Clear all data from the database
-async function clearDatabase(config) {
+async function clearDatabase() {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     throw new DatabaseError("Database not initialized");
   }
 
   try {
-    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", [], config);
+    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
     const tables = tablesResult[0]?.values.map(row => row[0]) || [];
 
     db.exec("BEGIN TRANSACTION");
     for (const table of tables) {
-      executeQuery(`DELETE FROM ${table};`, [], config);
+      executeQuery(`DELETE FROM ${table};`);
     }
-    executeQuery("VACUUM;", [], config);
+    executeQuery("VACUUM;");
     db.exec("COMMIT");
 
     eventBus.publish("database:cleared", { timestamp: Date.now() });
 
-    await getDatabaseStats(config);
+    await getDatabaseStats();
 
     log("info", "[DB] Database cleared successfully.");
     return true;
@@ -714,13 +730,13 @@ async function clearDatabase(config) {
     log("error", "Failed to clear database:", error);
     try { db.exec("ROLLBACK"); } catch (rbError) { }
     const clearError = new DatabaseError("Failed to clear database", error);
-    logErrorToDatabase(db, clearError, config);
+    logErrorToDatabase(db, clearError);
     throw clearError;
   }
 }
 
 // Replace the current database with data from a Uint8Array (SQLite file)
-async function replaceDatabase(dataBuffer, config) {
+async function replaceDatabase(dataBuffer) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     throw new DatabaseError("Database not initialized");
@@ -744,7 +760,7 @@ async function replaceDatabase(dataBuffer, config) {
     const data = db.export();
     await saveDatabaseToOPFS(data);
 
-    setupAutoSave(db, config);
+    setupAutoSave(db);
 
     eventBus.publish("database:replaced", { timestamp: Date.now() });
     log("info", "[DB] Database replaced successfully.");
@@ -761,7 +777,7 @@ async function replaceDatabase(dataBuffer, config) {
   } finally {
     isSaving = false;
     if (db && !autoSaveInterval) {
-      setupAutoSave(db, config);
+      setupAutoSave(db);
     }
   }
 }
@@ -903,11 +919,11 @@ export async function initializeDatabase() {
 }
 
 // Setup auto-save interval
-function setupAutoSave(dbInstance = db, config) {
+function setupAutoSave(dbInstance = db) {
   if (autoSaveInterval) {
     clearInterval(autoSaveInterval);
   }
-  const interval = 60000;
+  const interval = configManager?.getConfig()?.autoSaveInterval || 60000;
 
   autoSaveInterval = setInterval(async () => {
     if (!isSaving && dbInstance) {
@@ -915,10 +931,9 @@ function setupAutoSave(dbInstance = db, config) {
       try {
         const data = dbInstance.export();
         await saveDatabaseToOPFS(data);
-        log("info", "[DB] Auto-save completed successfully.");
       } catch (error) {
         log("error", "Auto-save failed:", error);
-        logErrorToDatabase(dbInstance, new DatabaseError("Auto-save failed", error), config);
+        logErrorToDatabase(dbInstance, new DatabaseError("Auto-save failed", error));
         eventBus.publish("database:error", {
           error: "autosave_failed",
           message: error.message,
@@ -932,7 +947,7 @@ function setupAutoSave(dbInstance = db, config) {
 }
 
 // Stops the auto-save interval and cleans up resources
-export async function cleanupDatabase(config) {
+export async function cleanupDatabase() {
   log("info", "Cleaning up database resources...");
   if (autoSaveInterval) {
     clearInterval(autoSaveInterval);
@@ -987,12 +1002,12 @@ async function getTableColumns(tableName) {
 }
 
 // Get database schema summary (table names and row counts)
-function getDatabaseSchemaSummary(config) {
+function getDatabaseSchemaSummary() {
   if (!db) {
     throw new DatabaseError("Database not initialized");
   }
   try {
-    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';", [], config);
+    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
     if (!tablesResult[0] || !tablesResult[0].values) {
       return [];
     }
@@ -1000,7 +1015,7 @@ function getDatabaseSchemaSummary(config) {
     const summary = [];
     for (const tableName of tables) {
       try {
-        const countResult = executeQuery(`SELECT COUNT(*) FROM ${tableName};`, [], config);
+        const countResult = executeQuery(`SELECT COUNT(*) FROM ${tableName};`);
         const rowCount = countResult[0]?.values[0]?.[0] || 0;
         summary.push({ name: tableName, rows: rowCount });
       } catch (countError) {
@@ -1016,17 +1031,17 @@ function getDatabaseSchemaSummary(config) {
 }
 
 // Get logged errors from the errors table
-function getLoggedErrors(limit = 100, config) {
+function getLoggedErrors(limit = 100) {
   if (!db) {
     throw new DatabaseError("Database not initialized");
   }
   try {
-    const tableCheck = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'", [], config);
+    const tableCheck = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
     if (!tableCheck[0] || tableCheck[0].values.length === 0) {
       log("info", "Errors table does not exist. No errors to fetch.");
       return [];
     }
-    const result = executeQuery(`SELECT id, category, message, stack, timestamp, context FROM errors ORDER BY timestamp DESC LIMIT ${limit}`, [], config);
+    const result = executeQuery(`SELECT id, category, message, stack, timestamp, context FROM errors ORDER BY timestamp DESC LIMIT ${limit}`);
     return result[0] ? mapRowsToObjects(result[0]) : [];
   } catch (error) {
     log("error", "Failed to get logged errors:", error);
@@ -1035,7 +1050,7 @@ function getLoggedErrors(limit = 100, config) {
 }
 
 // Execute raw SQL query (Use with caution!)
-function executeRawSql(sql, config) {
+function executeRawSql(sql) {
   if (!db) {
     throw new DatabaseError("Database not initialized");
   }
@@ -1043,12 +1058,12 @@ function executeRawSql(sql, config) {
   if (!lowerSql.startsWith("select ") && !lowerSql.startsWith("pragma ") && !lowerSql.startsWith("explain ")) {
     const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN query: ${sql}`);
     log("warn", "Attempting to execute potentially harmful SQL:", sql);
-    logErrorToDatabase(db, securityError, config);
+    logErrorToDatabase(db, securityError);
     throw securityError;
   }
 
   try {
-    const results = executeQuery(sql, [], config);
+    const results = executeQuery(sql, []);
     return results.map(result => ({
       columns: result.columns,
       values: result.values

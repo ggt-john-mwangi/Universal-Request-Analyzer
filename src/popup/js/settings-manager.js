@@ -10,6 +10,295 @@ import aclManager from "../../auth/acl-manager.js"
 import themeManager from "../../config/theme-manager.js"
 
 /**
+ * Sends a message to the background script.
+ * @param {object} message - The message object to send.
+ * @returns {Promise<any>} - A promise that resolves with the response.
+ */
+function sendMessage(message) {
+  return new Promise((resolve, reject) => {
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("SettingsManager Error:", chrome.runtime.lastError.message, "for action:", message.action);
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (response && response.error) {
+          console.error("SettingsManager Background Error:", response.error, "for action:", message.action);
+          reject(new Error(response.error));
+        } else {
+          resolve(response);
+        }
+      });
+    } else {
+      console.warn("chrome.runtime.sendMessage is not available. Running in a non-extension context?");
+      reject(new Error("Extension context not available."));
+    }
+  });
+}
+
+/**
+ * Gets the current configuration from the background script.
+ * @returns {Promise<object>} - The configuration object.
+ */
+export async function getConfig() {
+  try {
+    const response = await sendMessage({ action: "getConfig" });
+    // Fallback to an empty object if config is null/undefined
+    return response?.config || {};
+  } catch (error) {
+    console.error("Failed to get config:", error);
+    // Return default or handle error appropriately
+    return {}; // Return empty object on error to avoid breaking UI expecting an object
+  }
+}
+
+/**
+ * Updates the configuration in the background script.
+ * @param {object} newConfig - The partial or full configuration object to update.
+ * @returns {Promise<boolean>} - True if successful, false otherwise.
+ */
+export async function updateConfig(newConfig) {
+  try {
+    const response = await sendMessage({ action: "updateConfig", config: newConfig });
+    return response?.success;
+  } catch (error) {
+    console.error("Failed to update config:", error);
+    return false;
+  }
+}
+
+/**
+ * Resets the configuration to defaults.
+ * @returns {Promise<boolean>} - True if successful, false otherwise.
+ */
+export async function resetConfig() {
+    if (!confirm("Are you sure you want to reset ALL settings to their defaults? This cannot be undone.")) {
+        return false;
+    }
+  try {
+    const response = await sendMessage({ action: "resetConfig" });
+    return response?.success;
+  } catch (error) {
+    console.error("Failed to reset config:", error);
+    return false;
+  }
+}
+
+// Specific settings save/reset functions (called by settings-ui.js)
+
+export async function saveGeneralSettings() {
+  // 1. Read values from general settings inputs
+  const generalSettings = {
+    maxStoredRequests: parseInt(document.getElementById('maxStoredRequests')?.value, 10) || 10000,
+    autoStartCapture: document.getElementById('autoStartCapture')?.checked ?? false,
+    showNotifications: document.getElementById('showNotifications')?.checked ?? true,
+    confirmClearRequests: document.getElementById('confirmClearRequests')?.checked ?? true,
+    defaultExportFormat: document.getElementById('defaultExportFormat')?.value || 'json',
+    dateFormat: document.getElementById('dateFormat')?.value || 'MM/DD/YYYY HH:mm:ss',
+    timeZone: document.getElementById('timeZone')?.value || 'local',
+  };
+  // 2. Call updateConfig
+  const success = await updateConfig({ general: generalSettings });
+  showNotification(success ? "General settings saved." : "Failed to save general settings.", !success);
+}
+
+export async function saveCaptureSettings() {
+  const captureSettings = {
+    includeHeaders: document.getElementById('includeHeaders')?.checked ?? true,
+    includeTiming: document.getElementById('includeTiming')?.checked ?? false,
+    includeContent: document.getElementById('includeContent')?.checked ?? false,
+    maxContentSize: parseInt(document.getElementById('maxContentSize')?.value, 10) || 1048576, // 1MB default
+    captureWebSockets: document.getElementById('captureWebSockets')?.checked ?? false,
+    captureServerSentEvents: document.getElementById('captureServerSentEvents')?.checked ?? false,
+  };
+  const success = await updateConfig({ capture: captureSettings });
+   showNotification(success ? "Capture settings saved." : "Failed to save capture settings.", !success);
+}
+
+export async function saveDisplaySettings() {
+    const displaySettings = {
+        requestsPerPage: parseInt(document.getElementById('requestsPerPage')?.value, 10) || 50,
+        expandedDetails: document.getElementById('expandedDetails')?.checked ?? false,
+        showStatusColors: document.getElementById('showStatusColors')?.checked ?? true,
+        showTimingBars: document.getElementById('showTimingBars')?.checked ?? false,
+        defaultTab: document.getElementById('defaultTab')?.value || 'requests',
+        // columnOrder: ... // Need UI for this
+    };
+    const success = await updateConfig({ display: displaySettings });
+    showNotification(success ? "Display settings saved." : "Failed to save display settings.", !success);
+}
+
+export async function saveFeatureSettings() {
+    const featureFlags = {};
+    document.querySelectorAll('.feature-toggle input[type="checkbox"]').forEach(checkbox => {
+        // Only include flags that the user has permission to change (not disabled)
+        if (!checkbox.disabled) {
+            featureFlags[checkbox.dataset.featureId] = checkbox.checked;
+        }
+    });
+    // Send message to background to update feature flags
+    try {
+        const response = await sendMessage({ action: "updateFeatureFlags", flags: featureFlags });
+        showNotification(response?.success ? "Feature flags saved." : "Failed to save feature flags.", !response?.success);
+        // Optionally reload the section to reflect dependency changes
+    } catch (error) {
+        showNotification("Error saving feature flags.", true);
+    }
+}
+
+export async function resetFeatureSettings() {
+    if (!confirm("Reset feature flags to defaults?")) return;
+    try {
+        const response = await sendMessage({ action: "resetFeatureFlags" });
+        if (response?.success) {
+            showNotification("Feature flags reset to defaults.");
+            // Reload UI or update checkboxes based on response.defaultFlags
+            // For now, recommend refreshing the extension popup or re-opening settings
+            // A full reload might be needed.
+        } else {
+            showNotification("Failed to reset feature flags.", true);
+        }
+    } catch (error) {
+        showNotification("Error resetting feature flags.", true);
+    }
+}
+
+export async function savePermissionSettings() {
+    // This likely involves setting the current role
+    const selectedRole = document.getElementById('currentRole')?.value;
+    if (!selectedRole || document.getElementById('currentRole')?.disabled) return;
+
+    try {
+        const response = await sendMessage({ action: "setCurrentRole", role: selectedRole });
+        showNotification(response?.success ? "Role changed successfully." : "Failed to change role.", !response?.success);
+         if (response?.success) {
+            // Reload settings UI to reflect new permissions/features state
+            showNotification("Reloading settings to apply new role...", false);
+            // Find the settings tab content and re-initialize
+            const settingsTabContent = document.querySelector('.tab-content[data-tab="settings"]');
+            if (settingsTabContent && typeof window.initSettingsUI === 'function') {
+                await window.initSettingsUI(); // Re-run init function if available globally
+            }
+         }
+    } catch (error) {
+        showNotification("Error changing role.", true);
+    }
+}
+
+export async function resetPermissionSettings() {
+     if (!confirm("Reset permissions/roles to defaults? (Requires Admin privileges)")) return;
+     try {
+        const response = await sendMessage({ action: "resetAcl" });
+        showNotification(response?.success ? "Permissions reset to defaults." : "Failed to reset permissions.", !response?.success);
+        // Reload UI
+        if (response?.success) {
+             const settingsTabContent = document.querySelector('.tab-content[data-tab="settings"]');
+            if (settingsTabContent && typeof window.initSettingsUI === 'function') {
+                await window.initSettingsUI();
+            }
+        }
+     } catch (error) {
+        showNotification("Error resetting permissions.", true);
+     }
+}
+
+export async function saveThemeSettings() {
+    const selectedTheme = document.getElementById('currentTheme')?.value;
+    if (!selectedTheme) return;
+    try {
+        const response = await sendMessage({ action: "setTheme", theme: selectedTheme });
+        showNotification(response?.success ? "Theme applied." : "Failed to apply theme.", !response?.success);
+        // Theme application should happen automatically via themeManager applying styles
+    } catch (error) {
+        showNotification("Error applying theme.", true);
+    }
+}
+
+export async function resetThemeSettings() {
+    if (!confirm("Reset theme to default (System Preference)?")) return;
+    try {
+        const response = await sendMessage({ action: "resetThemes" });
+        showNotification(response?.success ? "Theme reset to default." : "Failed to reset theme.", !response?.success);
+        // Update dropdown selection
+        const themeSelect = document.getElementById('currentTheme');
+        if (themeSelect) themeSelect.value = 'system';
+    } catch (error) {
+        showNotification("Error resetting theme.", true);
+    }
+}
+
+export async function saveAdvancedSettings() {
+    const advancedSettings = {
+        enableDebugMode: document.getElementById('enableDebugMode')?.checked ?? false,
+        persistFilters: document.getElementById('persistFilters')?.checked ?? true,
+        useCompression: document.getElementById('useCompression')?.checked ?? false,
+        backgroundMode: document.getElementById('backgroundMode')?.value || 'default',
+        syncInterval: parseInt(document.getElementById('syncInterval')?.value, 10) || 60,
+    };
+    const success = await updateConfig({ advanced: advancedSettings });
+    showNotification(success ? "Advanced settings saved." : "Failed to save advanced settings.", !success);
+}
+
+// Reset All Settings
+export async function resetAllSettings() {
+    const success = await resetConfig(); // Uses the generic resetConfig
+    showNotification(success ? "All settings reset to defaults." : "Failed to reset settings.", !success);
+    if (success) {
+        // Reload the entire settings UI to reflect defaults
+         const settingsTabContent = document.querySelector('.tab-content[data-tab="settings"]');
+        if (settingsTabContent && typeof window.initSettingsUI === 'function') {
+            await window.initSettingsUI();
+        }
+    }
+}
+
+
+// Helper function to show notifications (assuming popup.js has one)
+function showNotification(message, isError = false) {
+  // Use the globally exposed function from popup.js
+  if (typeof window.showNotification === 'function') {
+      window.showNotification(message, isError);
+  } else {
+      // Fallback to console if global function not found
+      if (isError) {
+          console.error("Notification:", message);
+      } else {
+          console.log("Notification:", message);
+      }
+  }
+}
+
+// Load initial data for settings UI (called from settings-ui.js)
+export async function loadSettingsData() {
+    // Use Promise.all to fetch data concurrently
+    try {
+        const [configResponse, featuresResponse, permissionsResponse, themesResponse] = await Promise.all([
+            sendMessage({ action: "getConfig" }),
+            sendMessage({ action: "getFeatureFlagsInfo" }),
+            sendMessage({ action: "getPermissionsInfo" }),
+            sendMessage({ action: "getThemesInfo" })
+        ]);
+
+        // Check for errors in responses
+        if (!configResponse?.success) console.error("Failed to load config:", configResponse?.error);
+        if (!featuresResponse?.success) console.error("Failed to load features info:", featuresResponse?.error);
+        if (!permissionsResponse?.success) console.error("Failed to load permissions info:", permissionsResponse?.error);
+        if (!themesResponse?.success) console.error("Failed to load themes info:", themesResponse?.error);
+
+        return {
+            config: configResponse?.config || {}, // Provide default empty object
+            features: featuresResponse?.features || {},
+            permissions: permissionsResponse?.permissions || {},
+            themes: themesResponse?.themes || {}
+        };
+    } catch (error) {
+        console.error("Error loading settings data:", error);
+        showNotification("Error loading settings data. Some settings may not be available.", true);
+        // Return default structure on catastrophic failure
+        return { config: {}, features: {}, permissions: {}, themes: {} };
+    }
+}
+
+/**
  * Settings manager class
  */
 class SettingsManager {

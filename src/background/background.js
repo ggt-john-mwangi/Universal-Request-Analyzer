@@ -87,14 +87,41 @@ async function initialize() {
     // Setup message handler last, passing all managers/services
     setupMessageHandlers(
       dbManager,
-      { getConfig: () => config, updateConfig: (newConf) => { config = {...config, ...newConf}; /* TODO: Save config */ return config; } }, // Provide config access/update
+      { // Pass a config manager object with necessary methods/access
+        getConfig: () => config, // Provide function to get current config
+        getConfigValue: (key) => {
+            // Helper to get nested config values like 'capture.enabled'
+            return key.split('.').reduce((o, i) => (o ? o[i] : undefined), config);
+        },
+        updateConfig: async (newPartialConfig) => {
+            // TODO: Implement robust config update logic (merge, validate, save)
+            console.log("Attempting to update config with:", newPartialConfig);
+            const oldConfig = { ...config };
+            // Simple merge for now, needs proper implementation
+            config = { ...config, ...newPartialConfig };
+            // Persist the updated config
+            try {
+                await chrome.storage.local.set({ analyzerConfig: config });
+                console.log("Config updated and saved.");
+                // Notify listeners about the change
+                eventBus.publish("config:updated", { newConfig: config, oldConfig });
+                return config;
+            } catch (error) {
+                console.error("Failed to save updated config:", error);
+                // Optionally revert config change
+                config = oldConfig;
+                throw error; // Re-throw error
+            }
+        }
+      },
       captureManager,
       exportManager,
       importManager,
       authManager,
       encryptionManager,
       errorMonitor,
-      apiService // Pass apiService
+      apiService,
+      eventBus // Pass eventBus
     );
 
     // Watch for configuration changes
