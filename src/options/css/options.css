@@ -39,6 +39,7 @@ h1 {
   background-color: var(--surface-color);
   border-right: 1px solid var(--border-color);
   padding: 15px 0;
+  min-height: calc(100dvh - 100px); /* Full height minus header/footer */
 }
 
 .options-sidebar ul {
