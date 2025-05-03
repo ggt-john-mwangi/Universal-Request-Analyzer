@@ -92,6 +92,13 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
       "getFilteredStats",
       "importDatabaseFile",
       "getDistinctDomains",
+      "backupDatabase",
+      "restoreDatabase",
+      "vacuumDatabase",
+      "getTableContents",
+      "getEncryptionStatus",
+      "encryptDatabase",
+      "decryptDatabase",
     ];
     if (requiresDb.includes(message.action) && !dbManager) {
       console.error(`[MessageHandler] ${message.action}: dbManager is null!`);
@@ -174,6 +181,27 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         return true;
       case "getDistinctDomains":
         handleGetDistinctDomains(sendResponse);
+        return true;
+      case "backupDatabase":
+        handleBackupDatabase(sendResponse);
+        return true;
+      case "restoreDatabase":
+        handleRestoreDatabase(message, sendResponse);
+        return true;
+      case "vacuumDatabase":
+        handleVacuumDatabase(sendResponse);
+        return true;
+      case "getTableContents":
+        handleGetTableContents(message, sendResponse);
+        return true;
+      case "getEncryptionStatus":
+        handleGetEncryptionStatus(sendResponse);
+        return true;
+      case "encryptDatabase":
+        handleEncryptDatabase(message, sendResponse);
+        return true;
+      case "decryptDatabase":
+        handleDecryptDatabase(message, sendResponse);
         return true;
       default:
         console.warn("[MessageHandler] Unknown action received:", message.action);
@@ -640,5 +668,84 @@ async function handleGetDistinctDomains(sendResponse) {
   } catch (error) {
     console.error("[MessageHandler] handleGetDistinctDomains: Error handling GET_DISTINCT_DOMAINS:", error);
     sendResponse({ error: error.message, domains: [] });
+  }
+}
+
+async function handleBackupDatabase(sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.backupDatabase !== "function") throw new Error("dbManager.backupDatabase not available");
+    const backupKey = await dbManager.backupDatabase();
+    sendResponse({ success: true, backupKey });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleRestoreDatabase(message, sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.replaceDatabase !== "function") throw new Error("dbManager.replaceDatabase not available");
+    const { data } = message;
+    if (!data) throw new Error("No backup data provided");
+    await dbManager.replaceDatabase(data);
+    sendResponse({ success: true });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleVacuumDatabase(sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.vacuumDatabase !== "function") throw new Error("dbManager.vacuumDatabase not available");
+    await dbManager.vacuumDatabase();
+    sendResponse({ success: true });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleGetTableContents(message, sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.executeRawSql !== "function") throw new Error("dbManager.executeRawSql not available");
+    const { table } = message;
+    if (!table) throw new Error("No table specified");
+    const sql = `SELECT * FROM ${table} LIMIT 100`;
+    const results = await dbManager.executeRawSql(sql);
+    sendResponse({ success: true, data: results[0] });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleGetEncryptionStatus(sendResponse) {
+  try {
+    if (!dbManager || !dbManager.encryptionManager) throw new Error("encryptionManager not available");
+    const enabled = dbManager.encryptionManager.isEnabled && dbManager.encryptionManager.isEnabled();
+    sendResponse({ success: true, enabled });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleEncryptDatabase(message, sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.encryptDatabase !== "function") throw new Error("dbManager.encryptDatabase not available");
+    const { key } = message;
+    if (!key) throw new Error("No encryption key provided");
+    await dbManager.encryptDatabase(key);
+    sendResponse({ success: true });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleDecryptDatabase(message, sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.decryptDatabase !== "function") throw new Error("dbManager.decryptDatabase not available");
+    const { key } = message;
+    if (!key) throw new Error("No decryption key provided");
+    await dbManager.decryptDatabase(key);
+    sendResponse({ success: true });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
   }
 }

@@ -5,19 +5,23 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
 }
 
 .visualization-container {
   display: flex;
   flex: 1;
   overflow: hidden;
+  background-color: var(--background-color);
 }
 
 .filter-container {
   width: 250px;
-  border-right: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   padding: 15px;
   overflow-y: auto;
+  background-color: var(--surface-color);
 }
 
 .charts-container {
@@ -25,12 +29,14 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
 }
 
 .chart-tabs {
   display: flex;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #ddd;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 }
 
@@ -41,11 +47,17 @@
   border-bottom: 2px solid transparent;
   cursor: pointer;
   white-space: nowrap;
+  color: var(--text-secondary-color);
+}
+
+.chart-tab:hover {
+  background-color: var(--surface-hover-color, #f1f1f1);
+  color: var(--text-primary-color);
 }
 
 .chart-tab.active {
-  border-bottom-color: #0066cc;
-  color: #0066cc;
+  background-color: var(--primary-color);
+  color: #fff;
   font-weight: 500;
 }
 
@@ -53,6 +65,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
+  background-color: var(--background-color);
 }
 
 .chart-panel {
@@ -165,7 +178,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -176,8 +189,8 @@
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #0066cc;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 10px;
@@ -197,7 +210,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: #fff;
+  background-color: var(--error-color);
+  color: #fff;
   padding: 20px;
   border: 1px solid #ddd;
   border-radius: 4px;

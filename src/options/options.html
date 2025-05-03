@@ -7,46 +7,7 @@
   <title>Universal Request Analyzer - Options</title>
   <link rel="stylesheet" href="css/options.css">
   <link rel="stylesheet" href="../../styles.css">
-  <style>
-    .db-info-section ul,
-    .sql-executor-section pre,
-    .error-log-section table {
-      background-color: #f9f9f9;
-      border: 1px solid #ddd;
-      padding: 10px;
-      border-radius: 4px;
-      max-height: 300px;
-      overflow-y: auto;
-      font-size: 0.9em;
-    }
-    .error-log-section table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    .error-log-section th, .error-log-section td {
-      border: 1px solid #ddd;
-      padding: 4px 8px;
-      text-align: left;
-      vertical-align: top;
-    }
-    .error-log-section th {
-      background-color: #eee;
-      position: sticky;
-      top: 0;
-    }
-    .sql-executor-section textarea {
-      width: 100%;
-      min-height: 100px;
-      font-family: monospace;
-    }
-    .sql-executor-section pre.error {
-      color: red;
-      white-space: pre-wrap;
-    }
-    .actions button {
-      margin-right: 5px;
-    }
-  </style>
+
 </head>
 
 <body>
@@ -61,10 +22,8 @@
         <li><a href="#capture" class="nav-link" data-section="capture-settings">Capture</a></li>
         <li><a href="#filters" class="nav-link" data-section="capture-filters">Filters</a></li>
         <li><a href="#export" class="nav-link" data-section="export-settings">Export</a></li>
+        <li><a href="#analytics" class="nav-link" data-section="analytics-section">Analytics</a></li>
         <li><a href="#database" class="nav-link" data-section="database-info">Database</a></li>
-        <li><a href="#database-diagnostics" class="nav-link" data-section="database-diagnostics">Database Diagnostics</a></li>
-        <li><a href="#errors" class="nav-link" data-section="database-diagnostics">Error Log</a></li>
-        <li><a href="#raw-sql" class="nav-link" data-section="database-diagnostics">Raw SQL</a></li>
         <li><a href="#advanced" class="nav-link" data-section="advanced-settings">Advanced</a></li>
       </ul>
     </nav>
@@ -260,6 +219,11 @@
         </div>
       </section>
 
+      <!-- Analytics Section -->
+      <section id="analytics-section" class="option-section">
+        <!-- Content will be rendered by analytics.js -->
+      </section>
+
       <!-- Database Info Section -->
       <section id="database-info" class="option-section db-info-section">
         <h2>Database Information</h2>
@@ -292,11 +256,6 @@
           <button id="exportDbBtn" class="primary-btn">Export Database (.sqlite)</button>
           <button id="clearDbBtn" class="secondary">Clear Database</button>
         </div>
-      </section>
-
-      <!-- Database Diagnostics Section -->
-      <section id="database-diagnostics" class="option-section">
-        <h2>Database Diagnostics</h2>
 
         <!-- Database Summary -->
         <h3>Database Summary</h3>
@@ -306,8 +265,8 @@
         <!-- Error Log -->
         <h3>Error Log</h3>
         <div id="errorLogContainer">
-          <div id="errorLogTableContainer"> <!-- Added container for potential scrolling -->
-            <table id="errorLogTable"> <!-- Added table element -->
+          <div id="errorLogTableContainer">
+            <table id="errorLogTable">
               <thead>
                 <tr>
                   <th>ID</th>
@@ -317,7 +276,7 @@
                   <th>Details</th>
                 </tr>
               </thead>
-              <tbody id="dbErrorsTableBody"> <!-- Added the missing tbody element -->
+              <tbody id="dbErrorsTableBody">
                 <tr><td colspan="5">Loading errors...</td></tr>
               </tbody>
             </table>
@@ -326,18 +285,61 @@
         <button id="refreshErrorLogBtn">Refresh Errors</button>
         <button id="clearErrorLogBtn" class="secondary">Clear Error Log</button>
 
-        <!-- Raw SQL Executor -->
-        <h3>Raw SQL Executor</h3>
-        <div class="option-row">
-          <label for="rawSqlInput">SQL Query:</label>
-          <textarea id="rawSqlInput" rows="4" placeholder="Enter SQL query (e.g., SELECT * FROM requests LIMIT 10)"></textarea>
-        </div>
-        <button id="executeSqlBtn">Execute SQL</button>
-        <button id="clearSqlBtn" class="secondary">Clear Results</button> <!-- Added Clear Button -->
-        <div class="option-row">
-          <label>Results (JSON):</label>
-          <pre id="sqlResultsOutput"><code>Execute a query to see results.</code></pre>
-        </div>
+        <!-- Database Tools -->
+        <section class="db-section">
+          <h3>Database Tools <span title="Backup, restore, optimize, and check health of your database."><i class="fas fa-database"></i></span></h3>
+          <div class="db-tools-grid">
+            <button id="backupDbBtn" title="Create a backup of the current database."><i class="fas fa-save"></i> Backup</button>
+            <select id="restoreBackupSelect" title="Select a backup to restore.">
+              <option value="" disabled selected>No backups found</option>
+            </select>
+            <button id="restoreBackupBtn" title="Restore the selected backup."><i class="fas fa-undo"></i> Restore</button>
+            <button id="deleteBackupBtn" title="Delete selected backup."><i class="fas fa-trash"></i></button>
+            <button id="vacuumDbBtn" title="Optimize the database by reclaiming unused space (VACUUM)."><i class="fas fa-broom"></i> Optimize</button>
+            <span id="dbHealthStatus" class="db-health" title="Database health status."><i class="fas fa-circle" style="font-size:12px;"></i> Checking...</span>
+          </div>
+        </section>
+        <div class="db-section-divider"></div>
+
+        <!-- Encryption Controls -->
+        <section class="db-section">
+          <h3>Encryption <span title="Encrypt or decrypt your database for extra security."><i class="fas fa-lock"></i></span></h3>
+          <div class="db-encryption-grid">
+            <span id="encryptionStatus"><i class="fas fa-lock-open"></i> Status: Unknown</span>
+            <input type="password" id="encryptionKeyInput" placeholder="Enter encryption key..." autocomplete="new-password" />
+            <button id="toggleKeyVisibility" title="Show/hide key"><i class="fas fa-eye"></i></button>
+            <button id="encryptDbBtn" title="Encrypt the database with a password."><i class="fas fa-lock"></i> Encrypt</button>
+            <button id="decryptDbBtn" title="Decrypt the database with a password."><i class="fas fa-unlock"></i> Decrypt</button>
+            <span id="encryptionWarning" class="warning" style="display:none;"><i class="fas fa-exclamation-triangle"></i> Database is not encrypted!</span>
+          </div>
+        </section>
+        <div class="db-section-divider"></div>
+
+        <!-- Table Browser -->
+        <section class="db-section">
+          <h3>Table Browser <span title="Browse and export table data."><i class="fas fa-table"></i></span></h3>
+          <div class="db-table-grid">
+            <input type="text" id="tableSearch" placeholder="Search table..." title="Filter tables by name">
+            <label for="tableSelect">Table:</label>
+            <select id="tableSelect">
+              <option value="" disabled selected>No tables found</option>
+            </select>
+            <button id="viewTableBtn" title="View selected table."><i class="fas fa-eye"></i> View</button>
+            <button id="exportTableBtn" title="Export this table as CSV."><i class="fas fa-file-csv"></i> Export</button>
+          </div>
+          <div id="tableViewContainer"></div>
+          <div id="tablePagination" class="table-pagination"></div>
+        </section>
+        <div class="db-section-divider"></div>
+
+        <!-- Export/Import History Log -->
+        <section class="db-section">
+          <h3>Export/Import History <span title="Recent export, import, and backup events."><i class="fas fa-history"></i></span></h3>
+          <div class="db-history-grid">
+            <ul id="historyLogList"><li>No history found.</li></ul>
+            <button id="clearHistoryLogBtn" title="Clear the export/import history log."><i class="fas fa-trash"></i> Clear Log</button>
+          </div>
+        </section>
       </section>
 
       <!-- Import Section -->
@@ -433,6 +435,16 @@
           </label>
         </div>
         <hr>
+        <h3>Raw SQL Executor <span title="Directly execute SQL queries on the database. Use with caution!"><i class="fas fa-terminal"></i></span></h3>
+        <div class="sql-executor-section">
+          <textarea id="rawSqlInput" placeholder="Enter SQL query (SELECT, PRAGMA, EXPLAIN, INSERT only)..." rows="4"></textarea>
+          <div style="margin-top:8px; display:flex; gap:10px;">
+            <button id="executeSqlBtn"><i class="fas fa-play"></i> Execute</button>
+            <button id="clearSqlBtn" class="secondary"><i class="fas fa-eraser"></i> Clear</button>
+          </div>
+          <div id="sqlResultsOutput" style="margin-top:12px; min-height:32px;"></div>
+        </div>
+        <hr>
       </section>
 
       <!-- Global Actions (Save/Reset) -->
@@ -447,6 +459,8 @@
   <!-- Notification Area -->
   <div id="notification" class="notification"></div>
 
+  <!-- Load Chart.js library -->
+  <script src="../lib/chart.min.js"></script>
   <!-- Load Main Script -->
   <script type="module" src="js/options.js"></script>
 </body>

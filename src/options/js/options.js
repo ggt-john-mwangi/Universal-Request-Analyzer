@@ -9,6 +9,7 @@ import "../components/capture-filters.js";
 import "../components/auto-export.js";
 import "../components/database-info.js";
 import "../components/visualization.js";
+import renderAnalyticsSection from "../components/analytics.js";
 
 // DOM elements - General
 const maxStoredRequests = document.getElementById("maxStoredRequests");
@@ -81,6 +82,51 @@ const clearSqlBtn = document.getElementById("clearSqlBtn"); // Added selector fo
 const importFile = document.getElementById("importFile");
 const importDataBtn = document.getElementById("importDataBtn");
 const exportFilenameInput = document.getElementById("exportFilename"); // Added filename input
+
+// DOM elements - Theme
+const themeSelect = document.getElementById("theme-select");
+if (themeSelect) {
+  themeSelect.addEventListener("change", (e) => {
+    const selectedTheme = e.target.value;
+    // Save to config
+    chrome.runtime.sendMessage({ action: "updateConfig", config: { ui: { theme: selectedTheme } } }, (response) => {
+      if (response && response.success) {
+        // Apply theme immediately if themeManager is available
+        if (window.themeManager && window.themeManager.applyTheme) {
+          window.themeManager.setTheme(selectedTheme);
+        }
+      }
+    });
+  });
+}
+
+// --- Database Tools & Advanced Features ---
+const backupDbBtn = document.getElementById("backupDbBtn");
+const restoreBackupSelect = document.getElementById("restoreBackupSelect");
+const restoreBackupBtn = document.getElementById("restoreBackupBtn");
+const vacuumDbBtn = document.getElementById("vacuumDbBtn");
+const dbHealthStatus = document.getElementById("dbHealthStatus");
+const tableSelect = document.getElementById("tableSelect");
+const viewTableBtn = document.getElementById("viewTableBtn");
+const tableViewContainer = document.getElementById("tableViewContainer");
+const historyLogList = document.getElementById("historyLogList");
+const encryptDbBtn = document.getElementById("encryptDbBtn");
+const decryptDbBtn = document.getElementById("decryptDbBtn");
+const encryptionStatus = document.getElementById("encryptionStatus");
+const deleteBackupBtn = document.getElementById("deleteBackupBtn");
+const tableSearch = document.getElementById("tableSearch");
+const tablePagination = document.getElementById("tablePagination");
+const exportTableBtn = document.getElementById("exportTableBtn");
+const clearHistoryLogBtn = document.getElementById("clearHistoryLogBtn");
+const encryptionWarning = document.getElementById("encryptionWarning");
+const encryptionKeyInput = document.getElementById("encryptionKeyInput");
+const toggleKeyVisibility = document.getElementById("toggleKeyVisibility");
+
+let backupMetaCache = {};
+let allTables = [];
+let currentTableRows = [];
+let currentTablePage = 1;
+const ROWS_PER_PAGE = 100;
 
 // Default configuration
 const localDefaultConfig = {
@@ -166,6 +212,20 @@ document.addEventListener("DOMContentLoaded", () => {
   loadDatabaseInfo(); // Initial load of DB stats, schema, errors
 
   setupEventListeners(); // Ensure event listeners are attached correctly
+
+  // Render analytics if Analytics is the default active section
+  const analyticsSection = document.getElementById("analytics-section");
+  if (analyticsSection && analyticsSection.classList.contains("active")) {
+    analyticsSection.innerHTML = "";
+    analyticsSection.appendChild(renderAnalyticsSection());
+  }
+
+  // Initial Load for new features
+  loadBackupList();
+  checkDbHealth();
+  loadTableList();
+  loadHistoryLog();
+  updateEncryptionStatus();
 });
 
 // Add event listeners for buttons if they exist
@@ -215,6 +275,12 @@ function setupSidebarNavigation() {
       sections.forEach(section => section.classList.remove("active"));
       if (targetSection) {
         targetSection.classList.add("active");
+
+        // If analytics-section, render analytics content
+        if (targetSectionId === "analytics-section") {
+          targetSection.innerHTML = "";
+          targetSection.appendChild(renderAnalyticsSection());
+        }
 
         // Scroll to sub-section if applicable (within the activated section)
         if (subSectionAnchor && subSectionAnchor.startsWith("#")) {
@@ -723,7 +789,7 @@ function executeRawSql() {
     return;
   }
 
-  sqlResultsOutput.textContent = 'Executing query...';
+  sqlResultsOutput.innerHTML = '<span>Executing query...</span>';
   sqlResultsOutput.classList.remove('error');
   executeSqlBtn.disabled = true;
   clearSqlBtn.disabled = true;
@@ -732,7 +798,7 @@ function executeRawSql() {
     console.log("[Options] Received response for executeRawSql:", response);
     if (chrome.runtime.lastError) {
         console.error("[Options] executeRawSql runtime error:", chrome.runtime.lastError.message);
-        sqlResultsOutput.textContent = `Error: ${chrome.runtime.lastError.message}`;
+        sqlResultsOutput.innerHTML = `<pre class='error'>Error: ${chrome.runtime.lastError.message}</pre>`;
         sqlResultsOutput.classList.add('error');
         showNotification(`Error executing SQL: ${chrome.runtime.lastError.message}`, true);
         executeSqlBtn.disabled = false;
@@ -744,17 +810,36 @@ function executeRawSql() {
     clearSqlBtn.disabled = false;
     if (response && response.success && response.results) {
       try {
-        // Pretty print the JSON result
-        sqlResultsOutput.textContent = JSON.stringify(response.results, null, 2);
+        // If SELECT, render as table
+        const firstResult = response.results[0];
+        if (firstResult && Array.isArray(firstResult.columns) && Array.isArray(firstResult.values)) {
+          let html = '<div style="overflow:auto"><table class="sql-result-table"><thead><tr>';
+          firstResult.columns.forEach(col => {
+            html += `<th>${col}</th>`;
+          });
+          html += '</tr></thead><tbody>';
+          if (firstResult.values.length === 0) {
+            html += `<tr><td colspan="${firstResult.columns.length}"><em>No rows returned.</em></td></tr>`;
+          } else {
+            firstResult.values.forEach(row => {
+              html += '<tr>' + row.map(cell => `<td>${cell === null ? '<em>null</em>' : cell}</td>`).join('') + '</tr>';
+            });
+          }
+          html += '</tbody></table></div>';
+          sqlResultsOutput.innerHTML = html;
+        } else {
+          // Non-SELECT (e.g., INSERT, UPDATE)
+          sqlResultsOutput.innerHTML = `<div class="sql-nonselect-msg">Query executed successfully.</div>`;
+        }
         showNotification("SQL query executed successfully.", false);
       } catch (jsonError) {
-        sqlResultsOutput.textContent = `Error formatting results: ${jsonError.message}\n\nRaw Results:\n${response.results}`;
+        sqlResultsOutput.innerHTML = `<pre class='error'>Error formatting results: ${jsonError.message}\n\nRaw Results:\n${JSON.stringify(response.results)}</pre>`;
         sqlResultsOutput.classList.add('error');
         showNotification("SQL query executed, but result formatting failed.", true);
       }
     } else {
       const errorMsg = response?.error || 'Unknown error executing SQL.';
-      sqlResultsOutput.textContent = `Error: ${errorMsg}\n${response?.stack || ''}`;
+      sqlResultsOutput.innerHTML = `<pre class='error'>Error: ${errorMsg}\n${response?.stack || ''}</pre>`;
       sqlResultsOutput.classList.add('error');
       showNotification(`Error executing SQL: ${errorMsg}`, true);
       console.error("Raw SQL Execution Error:", response);
@@ -778,4 +863,312 @@ function setupEventListeners() {
       rawSqlInput.value = ''; // Optionally clear the input too
     });
   }
+}
+
+// --- Backup/Restore UI: handle empty state ---
+function loadBackupList() {
+  chrome.storage.local.get(null, (items) => {
+    const backups = Object.keys(items).filter(k => k.startsWith("database_backup_"));
+    backupMetaCache = {};
+    if (backups.length === 0) {
+      restoreBackupSelect.innerHTML = '<option value="" disabled selected>No backups found</option>';
+      return;
+    }
+    const options = backups.map(k => {
+      const meta = items[k]?.meta || {};
+      backupMetaCache[k] = meta;
+      return `<option value="${k}">${formatBackupOption(k, meta)}</option>`;
+    });
+    restoreBackupSelect.innerHTML = options.join("");
+  });
+}
+
+if (backupDbBtn) {
+  backupDbBtn.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "backupDatabase" }, (response) => {
+      if (response && response.success) {
+        showNotification("Backup created.");
+        loadBackupList();
+      } else {
+        showNotification("Backup failed: " + (response?.error || "Unknown error"), true);
+      }
+    });
+  });
+}
+
+if (deleteBackupBtn) {
+  deleteBackupBtn.addEventListener("click", () => {
+    const key = restoreBackupSelect.value;
+    if (!key) return showNotification("No backup selected.", true);
+    if (!confirm("Delete this backup?")) return;
+    chrome.storage.local.remove(key, () => {
+      showNotification("Backup deleted.");
+      loadBackupList();
+    });
+  });
+}
+
+if (restoreBackupBtn) {
+  restoreBackupBtn.addEventListener("click", () => {
+    const key = restoreBackupSelect.value;
+    if (!key) return showNotification("No backup selected.", true);
+    chrome.storage.local.get([key], (items) => {
+      const data = items[key];
+      if (!data) return showNotification("Backup not found.", true);
+      chrome.runtime.sendMessage({ action: "restoreDatabase", data }, (response) => {
+        if (response && response.success) {
+          showNotification("Database restored from backup.");
+          loadDatabaseInfo();
+        } else {
+          showNotification("Restore failed: " + (response?.error || "Unknown error"), true);
+        }
+      });
+    });
+  });
+}
+
+// --- Vacuum/Optimize Spinner ---
+if (vacuumDbBtn) {
+  vacuumDbBtn.addEventListener("click", () => {
+    vacuumDbBtn.disabled = true;
+    vacuumDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Optimizing...';
+    chrome.runtime.sendMessage({ action: "vacuumDatabase" }, (response) => {
+      vacuumDbBtn.disabled = false;
+      vacuumDbBtn.innerHTML = '<i class="fas fa-broom"></i> Optimize';
+      if (response && response.success) {
+        showNotification("Database optimized (VACUUM complete).");
+        loadDatabaseInfo();
+      } else {
+        showNotification("VACUUM failed: " + (response?.error || "Unknown error"), true);
+      }
+    });
+  });
+}
+
+// --- Health Check Icon/Tooltip ---
+function checkDbHealth() {
+  chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => {
+    const icon = dbHealthStatus.querySelector("i");
+    let status = "";
+    let color = "#aaa";
+    let tooltip = "";
+    if (response && response.success) {
+      status = "Healthy";
+      color = "#28a745";
+      tooltip = `Healthy\nLast checked: ${new Date().toLocaleTimeString()}`;
+    } else {
+      status = "Error";
+      color = "#dc3545";
+      tooltip = `Error: ${response?.error || "Unknown"}`;
+    }
+    icon.style.color = color;
+    dbHealthStatus.title = tooltip;
+    dbHealthStatus.innerHTML = `<i class="fas fa-circle" style="color:${color};font-size:12px;"></i> ${status}`;
+  });
+}
+
+// --- Table Browser: handle empty state ---
+function loadTableList() {
+  chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummary" }, (response) => {
+    if (response && response.success && response.summary && response.summary.length > 0) {
+      allTables = response.summary;
+      renderTableDropdown();
+    } else {
+      allTables = [];
+      tableSelect.innerHTML = '<option value="" disabled selected>No tables found</option>';
+    }
+  });
+}
+
+function renderTableDropdown(filter = "") {
+  const filtered = allTables.filter(t => t.name.toLowerCase().includes(filter.toLowerCase()));
+  if (filtered.length === 0) {
+    tableSelect.innerHTML = '<option value="" disabled selected>No tables found</option>';
+    return;
+  }
+  tableSelect.innerHTML = filtered.map(t => `<option value="${t.name}">${t.name} (${t.rows})</option>`).join("");
+}
+
+if (tableSearch) {
+  tableSearch.addEventListener("input", (e) => {
+    renderTableDropdown(e.target.value);
+  });
+}
+
+if (viewTableBtn) {
+  viewTableBtn.addEventListener("click", () => {
+    const table = tableSelect.value;
+    if (!table) return;
+    chrome.runtime.sendMessage({ action: "getTableContents", table }, (response) => {
+      if (response && response.success && response.data) {
+        currentTableRows = response.data.values || [];
+        currentTablePage = 1;
+        renderTableView(response.data, 1);
+        renderTablePagination(response.data);
+      } else {
+        tableViewContainer.innerHTML = `<div class='error'>Failed to load table: ${response?.error || "Unknown error"}</div>`;
+      }
+    });
+  });
+}
+
+// --- Table Browser: handle empty table data ---
+function renderTableView(data, page = 1) {
+  if (!data || !data.columns) {
+    tableViewContainer.innerHTML = '<em>No data</em>';
+    return;
+  }
+  let html = '<div style="overflow:auto"><table class="sql-result-table"><thead><tr>';
+  data.columns.forEach(col => { html += `<th>${col}</th>`; });
+  html += '</tr></thead><tbody>';
+  const start = (page - 1) * ROWS_PER_PAGE;
+  const end = start + ROWS_PER_PAGE;
+  const rows = data.values ? data.values.slice(start, end) : [];
+  if (!rows.length) {
+    html += `<tr><td colspan="${data.columns.length}"><em>No data in this table</em></td></tr>`;
+  } else {
+    rows.forEach(row => {
+      html += '<tr>' + row.map(cell => `<td>${cell === null ? '<em>null</em>' : cell}</td>`).join('') + '</tr>';
+    });
+  }
+  html += '</tbody></table></div>';
+  tableViewContainer.innerHTML = html;
+}
+
+function renderTablePagination(data) {
+  if (!data || !data.values) { tablePagination.innerHTML = ""; return; }
+  const total = data.values.length;
+  const pages = Math.ceil(total / ROWS_PER_PAGE);
+  if (pages <= 1) { tablePagination.innerHTML = ""; return; }
+  let html = `<span>Page </span>`;
+  for (let i = 1; i <= pages; i++) {
+    html += `<button class="table-page-btn" data-page="${i}"${i === currentTablePage ? ' disabled' : ''}>${i}</button>`;
+  }
+  tablePagination.innerHTML = html;
+  tablePagination.querySelectorAll(".table-page-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      currentTablePage = Number(btn.dataset.page);
+      renderTableView({ columns: data.columns, values: data.values }, currentTablePage);
+    });
+  });
+}
+
+if (exportTableBtn) {
+  exportTableBtn.addEventListener("click", () => {
+    const table = tableSelect.value;
+    if (!table) return;
+    chrome.runtime.sendMessage({ action: "getTableContents", table }, (response) => {
+      if (response && response.success && response.data) {
+        exportTableAsCSV(response.data);
+      } else {
+        showNotification("Failed to export table: " + (response?.error || "Unknown error"), true);
+      }
+    });
+  });
+}
+
+function exportTableAsCSV(data) {
+  if (!data || !data.columns) return;
+  const csvRows = [data.columns.join(",")];
+  (data.values || []).forEach(row => {
+    csvRows.push(row.map(cell => '"' + (cell === null ? '' : String(cell).replace(/"/g, '""')) + '"').join(","));
+  });
+  const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${tableSelect.value}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+// --- Export/Import History: handle empty state ---
+function loadHistoryLog() {
+  chrome.storage.local.get(null, (items) => {
+    const events = Object.keys(items)
+      .filter(k => k.startsWith("export:") || k.startsWith("import:") || k.startsWith("database_backup_"))
+      .map(k => items[k]);
+    if (!events.length) {
+      historyLogList.innerHTML = '<li>No history found.</li>';
+      return;
+    }
+    historyLogList.innerHTML = events.sort((a, b) => b.timestamp - a.timestamp).map(e => {
+      let icon = '<i class="fas fa-file-export"></i>';
+      if (e.action === 'import') icon = '<i class="fas fa-file-import"></i>';
+      if (e.backupKey) icon = '<i class="fas fa-save"></i>';
+      const size = e.size ? ` (${formatBytes(e.size)})` : '';
+      const fmt = e.format ? ` [${e.format}]` : '';
+      return `<li>${icon} ${new Date(e.timestamp).toLocaleString()}${fmt}${size}</li>`;
+    }).join("");
+  });
+}
+
+if (clearHistoryLogBtn) {
+  clearHistoryLogBtn.addEventListener("click", () => {
+    if (!confirm("Clear export/import history log?")) return;
+    chrome.storage.local.get(null, (items) => {
+      const keys = Object.keys(items).filter(k => k.startsWith("export:") || k.startsWith("import:") || k.startsWith("database_backup_"));
+      chrome.storage.local.remove(keys, () => {
+        showNotification("History log cleared.");
+        loadHistoryLog();
+      });
+    });
+  });
+}
+
+// --- Encryption: single input, show/hide toggle, grid logic ---
+if (toggleKeyVisibility && encryptionKeyInput) {
+  toggleKeyVisibility.addEventListener("click", () => {
+    if (encryptionKeyInput.type === "password") {
+      encryptionKeyInput.type = "text";
+      toggleKeyVisibility.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    } else {
+      encryptionKeyInput.type = "password";
+      toggleKeyVisibility.innerHTML = '<i class="fas fa-eye"></i>';
+    }
+  });
+}
+
+if (encryptDbBtn && encryptionKeyInput) {
+  encryptDbBtn.addEventListener("click", () => {
+    const key = encryptionKeyInput.value;
+    if (!key) return showNotification("No key entered.", true);
+    chrome.runtime.sendMessage({ action: "encryptDatabase", key }, (response) => {
+      if (response && response.success) {
+        showNotification("Database encrypted.");
+        updateEncryptionStatus();
+      } else {
+        showNotification("Encryption failed: " + (response?.error || "Unknown error"), true);
+      }
+    });
+  });
+}
+
+if (decryptDbBtn && encryptionKeyInput) {
+  decryptDbBtn.addEventListener("click", () => {
+    const key = encryptionKeyInput.value;
+    if (!key) return showNotification("No key entered.", true);
+    chrome.runtime.sendMessage({ action: "decryptDatabase", key }, (response) => {
+      if (response && response.success) {
+        showNotification("Database decrypted.");
+        updateEncryptionStatus();
+      } else {
+        showNotification("Decryption failed: " + (response?.error || "Unknown error"), true);
+      }
+    });
+  });
+}
+
+function updateEncryptionStatus() {
+  chrome.runtime.sendMessage({ action: "getEncryptionStatus" }, (response) => {
+    const statusEl = encryptionStatus;
+    if (response && response.enabled) {
+      statusEl.innerHTML = '<i class="fas fa-lock"></i> Status: Encrypted';
+      encryptionWarning.style.display = "none";
+    } else {
+      statusEl.innerHTML = '<i class="fas fa-lock-open"></i> Status: Unencrypted';
+      encryptionWarning.style.display = "inline-block";
+    }
+  });
 }

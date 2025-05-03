@@ -449,6 +449,12 @@ export async function initSettingsUI() {
       });
     }
 
+    // Add event listener for theme change
+    document.getElementById('currentTheme')?.addEventListener('change', async (e) => {
+      const selectedTheme = e.target.value;
+      await optionsManager.saveThemeSettings(); // This will save and apply the theme
+    });
+
   } catch (error) {
     console.error("Error initializing settings UI:", error);
     tabsContent.innerHTML = `<div class="error-message">Error loading settings: ${error.message}. Please try again later or reset settings.</div>`;

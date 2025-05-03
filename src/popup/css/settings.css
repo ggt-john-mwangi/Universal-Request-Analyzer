@@ -4,6 +4,8 @@
   display: flex;
   flex-direction: column; /* Stack header, tabs, content vertically */
   height: 100%; /* Ensure it takes full height if needed */
+  background-color: var(--surface-color, #f5f5f5);
+  color: var(--text-primary-color, #333);
 }
 
 /* Settings Sidebar */
@@ -38,13 +40,14 @@
 }
 
 .settings-nav-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--surface-hover-color, #e9ecef);
+  color: var(--accent-color, #0056b3);
 }
 
 .settings-nav-item.active {
   border-left-color: var(--primary-color, #0066cc);
-  background-color: var(--surface-color);
-  color: var(--primary-color);
+  background-color: var(--accent-color, #0066cc);
+  color: white;
   font-weight: bold;
 }
 
@@ -53,17 +56,50 @@
   border-top: 1px solid var(--border-color, #ddd);
 }
 
+.settings-actions button,
+.settings-section .settings-actions button {
+  background-color: var(--surface-color, #fff);
+  color: var(--text-primary-color, #333);
+  border: 1px solid var(--border-color, #ccc);
+}
+
+.settings-actions button.primary-btn,
+.settings-section .settings-actions button.primary-btn {
+  background-color: var(--primary-color, #007bff);
+  color: white;
+  border-color: var(--primary-color, #007bff);
+}
+
+.settings-actions button.primary-btn:hover,
+.settings-section .settings-actions button.primary-btn:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+
+.settings-sidebar .settings-actions .danger-btn {
+  background-color: var(--error-color, #dc3545);
+  color: white;
+  border: 1px solid var(--error-color, #dc3545);
+}
+
+.settings-sidebar .settings-actions .danger-btn:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
 /* Settings Content */
 .settings-content {
   flex-grow: 1;
   padding: 20px;
   overflow-y: auto;
+  background-color: var(--background-color, #fff);
 }
 
 .settings-section {
   display: none; /* Hide sections by default */
   padding: 15px;
   border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--divider-color, #eee);
 }
 
 .settings-section.active {
@@ -75,6 +111,7 @@
   margin-bottom: 16px;
   font-size: 20px;
   font-weight: 600;
+  color: var(--text-primary-color, #333);
 }
 
 .settings-description {
@@ -101,6 +138,7 @@
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
+  color: var(--text-primary-color, #444);
 }
 
 .setting-item input[type="checkbox"] {
@@ -112,8 +150,10 @@
 .setting-item select {
   width: 100%;
   padding: 8px;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--border-color, #ccc);
   border-radius: 4px;
+  background-color: var(--background-color, #fff);
+  color: var(--text-primary-color, #333);
 }
 
 /* Column Order */
