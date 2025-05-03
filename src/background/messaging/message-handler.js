@@ -91,6 +91,7 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
       "getApiPaths",
       "getFilteredStats",
       "importDatabaseFile",
+      "getDistinctDomains",
     ];
     if (requiresDb.includes(message.action) && !dbManager) {
       console.error(`[MessageHandler] ${message.action}: dbManager is null!`);
@@ -170,6 +171,9 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         return true;
       case "decryptData":
         handleDecryptData(message, sendResponse);
+        return true;
+      case "getDistinctDomains":
+        handleGetDistinctDomains(sendResponse);
         return true;
       default:
         console.warn("[MessageHandler] Unknown action received:", message.action);
@@ -320,43 +324,71 @@ async function handleGetLoggedErrors(message, sendResponse) {
 }
 
 async function handleExecuteRawSql(message, sendResponse) {
-  console.log("[MessageHandler] handleExecuteRawSql: Called with SQL:", message.sql);
-  try {
-    if (typeof dbManager.executeRawSql !== "function") {
-      throw new Error("dbManager.executeRawSql is not a function");
-    }
-    const { sql, params } = message;
+  console.log("[MessageHandler] handleExecuteRawSql: Received request with SQL:", message.sql);
+  const logErrorToDb = dbManager?.logError;
 
-    let allowExecution = false;
-    if (configManager && typeof configManager.getConfigValue === "function") {
-      try {
-        allowExecution = await configManager.getConfigValue("allowRawSqlExecution");
-      } catch (configError) {
-        console.warn("[MessageHandler] Failed to get 'allowRawSqlExecution' config:", configError);
+  // Wrap the core logic in an immediately invoked async function expression (IIAFE)
+  // to ensure the promise chain is properly handled and sendResponse is called.
+  (async () => {
+    try {
+      if (!dbManager || typeof dbManager.executeRawSql !== "function") {
+        console.error("[MessageHandler] handleExecuteRawSql: dbManager or executeRawSql function is missing.");
+        throw new Error("Database manager is not properly initialized.");
       }
+
+      const { sql } = message;
+      if (typeof sql !== 'string' || !sql.trim()) {
+          throw new Error("No SQL query provided.");
+      }
+      console.log("[MessageHandler] handleExecuteRawSql: Calling dbManager.executeRawSql...");
+
+      const result = await dbManager.executeRawSql(sql);
+
+      // Log the result structure before sending
+      try {
+        const resultString = JSON.stringify(result);
+        console.log("[MessageHandler] handleExecuteRawSql: Result structure before sending:", resultString);
+      } catch (e) {
+        console.error("[MessageHandler] handleExecuteRawSql: Result is not JSON serializable:", e);
+        if (Array.isArray(result)) {
+          console.log("[MessageHandler] handleExecuteRawSql: Result is array, length:", result.length);
+          if (result.length > 0) {
+            console.log("[MessageHandler] handleExecuteRawSql: First item columns:", result[0]?.columns);
+            console.log("[MessageHandler] handleExecuteRawSql: First item values (first row only):", result[0]?.values?.[0]);
+          }
+        }
+      }
+
+      console.log("[MessageHandler] handleExecuteRawSql: Execution successful. Sending response...");
+      sendResponse({ success: true, results: result });
+      console.log("[MessageHandler] handleExecuteRawSql: sendResponse called successfully."); // Added log
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error executing raw SQL.";
+      console.error("[MessageHandler] handleExecuteRawSql: Error executing raw SQL:", errorMessage, error.stack);
+
+      // Log error to DB if possible
+      if (logErrorToDb && error instanceof Error) {
+        try {
+          await logErrorToDb(new DatabaseError(`Raw SQL execution failed in handler: ${errorMessage}`, error));
+        } catch (logDbError) {
+          console.error("[MessageHandler] handleExecuteRawSql: Failed to log error to database:", logDbError);
+        }
+      }
+
+      // Send error response
+      console.log("[MessageHandler] handleExecuteRawSql: Sending error response..."); // Added log
+      sendResponse({
+        success: false,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : null
+      });
+      console.log("[MessageHandler] handleExecuteRawSql: Error response sent."); // Added log
     }
+  })(); // Immediately invoke the async function
 
-    const lowerSql = sql.toLowerCase().trim();
-    const isModificationQuery =
-      lowerSql.startsWith("insert") ||
-      lowerSql.startsWith("update") ||
-      lowerSql.startsWith("delete") ||
-      lowerSql.startsWith("drop") ||
-      lowerSql.startsWith("alter");
-
-    if (isModificationQuery && !allowExecution) {
-      throw new Error("Raw SQL execution for modification queries is disabled in configuration.");
-    }
-
-    const result = await dbManager.executeRawSql(sql, params);
-    console.log("[MessageHandler] handleExecuteRawSql: Execution successful.");
-    sendResponse({ success: true, result });
-  } catch (error) {
-    console.error("[MessageHandler] handleExecuteRawSql: Error executing raw SQL:", error);
-    const apiError = new DatabaseError("Error executing raw SQL", error);
-    if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
-  }
+  // Indicate that the response will be sent asynchronously
+  return true;
 }
 
 async function handleGetDistinctValues(message, sendResponse) {
@@ -588,5 +620,16 @@ async function handleDecryptData(message, sendResponse) {
     const apiError = new EncryptionError("Decryption failed", error);
     if (logErrorToDb) await logErrorToDb(apiError);
     sendResponse({ success: false, error: apiError.message });
+  }
+}
+
+async function handleGetDistinctDomains(sendResponse) {
+  console.log("[MessageHandler] handleGetDistinctDomains: Called");
+  try {
+    const domains = await dbManager.getDistinctDomains();
+    sendResponse({ domains: domains || [] });
+  } catch (error) {
+    console.error("[MessageHandler] handleGetDistinctDomains: Error handling GET_DISTINCT_DOMAINS:", error);
+    sendResponse({ error: error.message, domains: [] });
   }
 }

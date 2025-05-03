@@ -14,10 +14,9 @@ module.exports = (env, argv) => {
       popup: "./src/popup/js/popup.js",
       options: "./src/options/js/options.js",
       background: "./src/background/background.js",
-      // contentScript: "./src/content/content.js",
       content: "./src/content/content.js",
-      // styles: "./src/styles.css", // Add styles.css as an entry point
-      devtools: ["./src/devtools/js/devtools.js", "./src/devtools/js/panel.js"],
+      devtools: "./src/devtools/js/devtools.js", // Separate entry point
+      panel: "./src/devtools/js/panel.js",     // Separate entry point for panel script
     },
     output: {
       path: path.resolve(__dirname, "dist"),
@@ -42,13 +41,6 @@ module.exports = (env, argv) => {
             "css-loader",
           ],
         },
-        // {
-        //   test: /\.css$/,
-        //   use: [
-        //     isProduction ? MiniCssExtractPlugin.loader : "style-loader", // Use MiniCssExtractPlugin.loader in production
-        //     "css-loader",
-        //   ],
-        // },
         {
           test: /\.(png|svg|jpg|jpeg|gif)$/i,
           type: "asset/resource",
@@ -86,7 +78,6 @@ module.exports = (env, argv) => {
             from: "./src/assets/wasm/**/*",
             to: "assets/wasm/[name][ext]",
           },
-          // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
           { from: "./src/devtools/js/**/*", to: "[name][ext]" },
         ],
@@ -104,7 +95,12 @@ module.exports = (env, argv) => {
       new HtmlWebpackPlugin({
         template: "./src/devtools/devtools.html",
         filename: "devtools.html",
-        chunks: ["devtools"],
+        chunks: ["devtools"], // Only include the devtools script
+      }),
+      new HtmlWebpackPlugin({
+        template: "./src/devtools/panel.html",
+        filename: "panel.html", // Output to dist/panel.html
+        chunks: ["panel"], // Inject the panel script
       }),
     ],
     resolve: {

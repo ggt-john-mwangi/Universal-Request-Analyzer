@@ -2,7 +2,7 @@
 chrome.devtools.panels.create(
   "Universal Analyzer", // Title
   "assets/icons/icon16.png", // Icon path (adjust if needed)
-  "devtools/panel.html", // Page path
+  "panel.html", // Page path
   (panel) => {
     // Panel creation callback
     console.log("Universal Analyzer panel created");

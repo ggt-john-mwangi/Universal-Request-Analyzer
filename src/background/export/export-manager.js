@@ -63,14 +63,21 @@ export function getExportFormats() {
 // Set up auto-export
 function setupAutoExport() {
   chrome.storage.local.get("analyzerConfig", (result) => {
-    if (result.analyzerConfig && result.analyzerConfig.export) {
+    // Add check for result and result.analyzerConfig
+    if (result && result.analyzerConfig && result.analyzerConfig.export) {
       const exportConfig = result.analyzerConfig.export
 
       if (exportConfig.autoExport && exportConfig.autoExportInterval > 0) {
+        // Clear existing interval just in case setup is called multiple times
+        if (autoExportInterval) {
+          clearInterval(autoExportInterval);
+        }
         autoExportInterval = setInterval(() => {
           autoExportData(exportConfig)
         }, exportConfig.autoExportInterval)
       }
+    } else {
+      console.warn("Could not setup auto-export: analyzerConfig or export config missing from storage.");
     }
   })
 }

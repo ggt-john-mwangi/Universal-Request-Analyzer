@@ -190,8 +190,14 @@ function mergeConfigs(defaultConfig, userConfig) {
 export function setupConfigWatcher(callback) {
   if (typeof chrome !== "undefined" && chrome.storage) {
     chrome.storage.onChanged.addListener((changes, namespace) => {
+      // Add check for changes.analyzerConfig
       if (namespace === "local" && changes.analyzerConfig) {
-        callback(changes.analyzerConfig.newValue);
+        // Add check for newValue
+        if (changes.analyzerConfig.newValue) {
+          callback(changes.analyzerConfig.newValue);
+        } else {
+          console.warn("Config watcher received change event but newValue was missing or falsy.");
+        }
       }
     });
   }

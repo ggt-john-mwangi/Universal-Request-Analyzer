@@ -258,8 +258,8 @@ function handleGetConfig(request) {
           if (chrome.runtime.lastError) {
             reject(new ApiError(chrome.runtime.lastError.message))
           } else {
-            // Filter sensitive information
-            const config = result.analyzerConfig || {}
+            // Add check for result
+            const config = result?.analyzerConfig || {}
 
             // Remove sensitive fields
             const filteredConfig = { ...config }
@@ -300,7 +300,8 @@ function handleUpdateConfig(request) {
           if (chrome.runtime.lastError) {
             reject(new ApiError(chrome.runtime.lastError.message))
           } else {
-            const currentConfig = result.analyzerConfig || {}
+            // Add check for result
+            const currentConfig = result?.analyzerConfig || {}
 
             // Merge with new config
             const newConfig = { ...currentConfig }

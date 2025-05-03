@@ -138,6 +138,8 @@ function createDbInterface() {
     saveImportedData,
     getDatabaseSize,
     getDatabaseStats,
+    getFilteredStats,
+    getDistinctDomains,
     exportDatabase,
     clearDatabase,
     encryptDatabase,
@@ -633,6 +635,81 @@ async function getDatabaseStats() {
   }
 }
 
+// Get filtered database statistics
+async function getFilteredStats(filters = {}) {
+  if (!db) {
+    return { error: "Database not initialized" };
+  }
+  try {
+    const params = [];
+    let whereClause = "WHERE 1=1";
+
+    if (filters.domain) {
+      whereClause += " AND domain LIKE ?";
+      params.push(`%${filters.domain}%`);
+    }
+
+    const size = await getDatabaseSize();
+
+    const countResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause}`, params);
+    const requestCount = countResult[0]?.values[0]?.[0] || 0;
+
+    const avgDurationResult = executeQuery(`SELECT AVG(duration) FROM requests ${whereClause} AND duration > 0`, params);
+    const avgResponseTime = avgDurationResult[0]?.values[0]?.[0] || 0;
+
+    const successCountResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause} AND status >= 200 AND status < 300`, params);
+    const successCount = successCountResult[0]?.values[0]?.[0] || 0;
+
+    const errorCountResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause} AND status >= 400`, params);
+    const errorCount = errorCountResult[0]?.values[0]?.[0] || 0;
+
+    const statusCodesResult = executeQuery(`SELECT status, COUNT(*) as count FROM requests ${whereClause} GROUP BY status ORDER BY count DESC`, params);
+    const statusCodes = mapRowsToObjects(statusCodesResult[0]);
+
+    const typesResult = executeQuery(`SELECT type, COUNT(*) as count FROM requests ${whereClause} GROUP BY type ORDER BY count DESC`, params);
+    const requestTypes = mapRowsToObjects(typesResult[0]);
+
+    const timesResult = executeQuery(`SELECT timestamp, duration FROM requests ${whereClause} ORDER BY timestamp DESC LIMIT 100`, params);
+    const responseTimes = mapRowsToObjects(timesResult[0]).reverse();
+
+    return {
+      size,
+      requestCount,
+      avgResponseTime,
+      successCount,
+      errorCount,
+      successRate: requestCount > 0 ? (successCount / requestCount) * 100 : 0,
+      statusCodes,
+      requestTypes,
+      responseTimesData: {
+        timestamps: responseTimes.map(r => new Date(r.timestamp).toLocaleTimeString()),
+        durations: responseTimes.map(r => r.duration),
+      }
+    };
+  } catch (error) {
+    log("error", "Failed to get filtered database stats:", error);
+    return { error: "Failed to get filtered stats" };
+  }
+}
+
+// Get distinct domains
+async function getDistinctDomains() {
+  if (!db) {
+    log("error", "Database is not initialized or invalid.");
+    return [];
+  }
+  try {
+    const result = executeQuery("SELECT DISTINCT domain FROM requests WHERE domain IS NOT NULL AND domain != '' ORDER BY domain");
+    if (!result[0] || !result[0].values) {
+      return [];
+    }
+    return result[0].values.map(row => row[0]);
+  } catch (error) {
+    log("error", "Failed to get distinct domains:", error);
+    throw new DatabaseError("Failed to get distinct domains", error);
+  }
+}
+
 // Export database in various formats
 async function exportDatabase(format) {
   if (!db) {
@@ -1050,26 +1127,58 @@ function getLoggedErrors(limit = 100) {
 }
 
 // Execute raw SQL query (Use with caution!)
-function executeRawSql(sql) {
+async function executeRawSql(sql) { // Make async to potentially await checks
   if (!db) {
-    throw new DatabaseError("Database not initialized");
+    log("error", "executeRawSql: Database is not initialized.");
+    throw new DatabaseError("Database is not initialized");
   }
   const lowerSql = sql.toLowerCase().trim();
-  if (!lowerSql.startsWith("select ") && !lowerSql.startsWith("pragma ") && !lowerSql.startsWith("explain ")) {
-    const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN query: ${sql}`);
+  // Allow SELECT, PRAGMA, EXPLAIN, and INSERT queries
+  // Ensure comments are stripped before checking the start
+  const firstWord = lowerSql.split(/\s+|;/)[0]; // Get the first word
+  if (firstWord !== "select" &&
+      firstWord !== "pragma" &&
+      firstWord !== "explain" &&
+      firstWord !== "insert") { // Check the first word
+    const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN/INSERT query.`);
     log("warn", "Attempting to execute potentially harmful SQL:", sql);
-    logErrorToDatabase(db, securityError);
+    // Log the error attempt to the DB if possible
+    try {
+      await logErrorToDatabase(db, securityError);
+    } catch (logDbError) {
+      log("error", "Failed to log denied raw SQL attempt to DB:", logDbError);
+    }
     throw securityError;
   }
 
   try {
+    log("info", "[DB] executeRawSql: Calling executeQuery..."); // Log before executeQuery
     const results = executeQuery(sql, []);
-    return results.map(result => ({
-      columns: result.columns,
-      values: result.values
+    log("info", "[DB] executeRawSql: executeQuery finished. Raw results:", results); // Log after executeQuery
+
+    // Check if executeQuery returned undefined (which happens if db was null inside it)
+    if (results === undefined) {
+      log("error", "executeRawSql: executeQuery returned undefined, likely DB was null.");
+      throw new DatabaseError("Query execution failed, database might be unavailable.");
+    }
+
+    // Ensure results is an array before mapping
+    if (!Array.isArray(results)) {
+      log("error", "executeRawSql: executeQuery returned non-array result:", results);
+      throw new DatabaseError("Unexpected result format from query execution.");
+    }
+
+    log("info", "[DB] executeRawSql: Mapping results..."); // Log before mapping
+    const mappedResults = results.map(result => ({
+      columns: result.columns || [], // Ensure columns is always an array
+      values: result.values || []    // Ensure values is always an array
     }));
+    log("info", "[DB] executeRawSql: Mapping finished. Returning mapped results."); // Log after mapping
+    return mappedResults;
+
   } catch (error) {
-    log("error", "Raw SQL execution failed:", error, { sql });
-    throw new DatabaseError(`Raw SQL execution failed: ${error.message}`, error);
+    log("error", "Raw SQL execution failed:", error.message, { sql });
+    // Re-throw a DatabaseError, preserving the original message if possible
+    throw new DatabaseError(`Raw SQL execution failed: ${error.message || 'Unknown reason'}`, error);
   }
 }

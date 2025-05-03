@@ -75,7 +75,7 @@ const refreshDbInfoBtn = document.getElementById("refreshDbInfoBtn"); // Button 
 const rawSqlInput = document.getElementById("rawSqlInput");
 const executeSqlBtn = document.getElementById("executeSqlBtn");
 const sqlResultsOutput = document.getElementById("sqlResultsOutput");
-const clearSqlBtn = document.getElementById("clearSqlBtn");
+const clearSqlBtn = document.getElementById("clearSqlBtn"); // Added selector for clear button
 
 // DOM elements - Import
 const importFile = document.getElementById("importFile");
@@ -165,32 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupSidebarNavigation();
   loadDatabaseInfo(); // Initial load of DB stats, schema, errors
 
-  // Ensure event listeners are attached correctly
-  if (exportDbBtn) {
-    exportDbBtn.addEventListener("click", exportDatabase);
-  } else {
-    console.error("Export DB button not found!");
-  }
-
-  if (importDataBtn) {
-    importDataBtn.addEventListener("click", importData);
-  } else {
-    console.error("Import Data button not found!");
-  }
-
-  if (refreshDbInfoBtn) {
-    refreshDbInfoBtn.addEventListener("click", loadDatabaseInfo);
-  }
-  if (executeSqlBtn) {
-    executeSqlBtn.addEventListener("click", executeRawSql);
-  }
-  if (clearSqlBtn) {
-    clearSqlBtn.addEventListener("click", () => {
-      rawSqlInput.value = '';
-      sqlResultsOutput.textContent = '';
-      sqlResultsOutput.classList.remove('error');
-    });
-  }
+  setupEventListeners(); // Ensure event listeners are attached correctly
 });
 
 // Add event listeners for buttons if they exist
@@ -230,6 +205,7 @@ function setupSidebarNavigation() {
 
       const targetSectionId = link.getAttribute("data-section");
       const targetSection = document.getElementById(targetSectionId);
+      const subSectionAnchor = link.getAttribute("href"); // Get the href like #errors, #raw-sql
 
       // Update active link
       navLinks.forEach(navLink => navLink.classList.remove("active"));
@@ -239,9 +215,42 @@ function setupSidebarNavigation() {
       sections.forEach(section => section.classList.remove("active"));
       if (targetSection) {
         targetSection.classList.add("active");
+
+        // Scroll to sub-section if applicable (within the activated section)
+        if (subSectionAnchor && subSectionAnchor.startsWith("#")) {
+          // Find the corresponding h3 within the target section
+          let targetElement = null;
+          if (subSectionAnchor === "#errors") {
+            targetElement = targetSection.querySelector("h3:nth-of-type(2)"); // Assuming Error Log is the 2nd h3
+          } else if (subSectionAnchor === "#raw-sql") {
+            targetElement = targetSection.querySelector("h3:nth-of-type(3)"); // Assuming Raw SQL is the 3rd h3
+          } else if (subSectionAnchor === "#database-diagnostics") {
+             targetElement = targetSection.querySelector("h3:nth-of-type(1)"); // Assuming Summary is the 1st h3
+          }
+          
+          if (targetElement) {
+            targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
       }
     });
   });
+
+  // Activate section based on initial hash or default
+  const initialHash = window.location.hash;
+  let foundActive = false;
+  if (initialHash) {
+    navLinks.forEach(link => {
+      if (link.getAttribute('href') === initialHash) {
+        link.click(); // Simulate click to activate section and scroll
+        foundActive = true;
+      }
+    });
+  }
+  // If no hash or hash didn't match, activate the first link/section
+  if (!foundActive) {
+     navLinks[0]?.click();
+  }
 }
 
 // Load options from storage
@@ -369,6 +378,14 @@ function loadDatabaseInfo() {
   if (dbSchemaSummary) {
       dbSchemaSummary.innerHTML = '<li>Loading schema...</li>'; // Clear previous
       chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummary" }, (response) => { // Corrected action name
+          console.log("[Options] Received response for getDatabaseSchemaSummary:", response);
+          if (chrome.runtime.lastError) {
+              console.error("[Options] getDatabaseSchemaSummary runtime error:", chrome.runtime.lastError.message);
+              dbSchemaSummary.innerHTML = `<li>Error loading schema: ${chrome.runtime.lastError.message}</li>`;
+              showNotification(`Error loading DB schema: ${chrome.runtime.lastError.message}`, true);
+              return;
+          }
+
           if (response && response.success && response.summary) {
               dbSchemaSummary.innerHTML = ''; // Clear loading message
               if (response.summary.length > 0) {
@@ -394,6 +411,14 @@ function loadDatabaseInfo() {
   if (dbErrorsTableBody) {
       dbErrorsTableBody.innerHTML = '<tr><td colspan="5">Loading errors...</td></tr>'; // Clear previous
       chrome.runtime.sendMessage({ action: "getLoggedErrors", limit: 50 }, (response) => { // Limit initial load
+          console.log("[Options] Received response for getLoggedErrors:", response);
+          if (chrome.runtime.lastError) {
+              console.error("[Options] getLoggedErrors runtime error:", chrome.runtime.lastError.message);
+              dbErrorsTableBody.innerHTML = `<tr><td colspan="5">Error loading logged errors: ${chrome.runtime.lastError.message}</td></tr>`;
+              showNotification(`Error loading logged errors: ${chrome.runtime.lastError.message}`, true);
+              return;
+          }
+
           if (response && response.success && response.errors) {
               dbErrorsTableBody.innerHTML = ''; // Clear loading message
               if (response.errors.length > 0) {
@@ -704,6 +729,17 @@ function executeRawSql() {
   clearSqlBtn.disabled = true;
 
   chrome.runtime.sendMessage({ action: "executeRawSql", sql: sql }, (response) => {
+    console.log("[Options] Received response for executeRawSql:", response);
+    if (chrome.runtime.lastError) {
+        console.error("[Options] executeRawSql runtime error:", chrome.runtime.lastError.message);
+        sqlResultsOutput.textContent = `Error: ${chrome.runtime.lastError.message}`;
+        sqlResultsOutput.classList.add('error');
+        showNotification(`Error executing SQL: ${chrome.runtime.lastError.message}`, true);
+        executeSqlBtn.disabled = false;
+        clearSqlBtn.disabled = false;
+        return;
+    }
+
     executeSqlBtn.disabled = false;
     clearSqlBtn.disabled = false;
     if (response && response.success && response.results) {
@@ -724,4 +760,22 @@ function executeRawSql() {
       console.error("Raw SQL Execution Error:", response);
     }
   });
+}
+
+// Setup event listeners
+function setupEventListeners() {
+  // Database Diagnostics Listeners
+  if (refreshDbInfoBtn) {
+    refreshDbInfoBtn.addEventListener("click", loadDatabaseInfo);
+  }
+  if (executeSqlBtn) {
+    executeSqlBtn.addEventListener("click", executeRawSql);
+  }
+  if (clearSqlBtn) {
+    clearSqlBtn.addEventListener("click", () => {
+      sqlResultsOutput.textContent = 'Execute a query to see results.';
+      sqlResultsOutput.classList.remove('error');
+      rawSqlInput.value = ''; // Optionally clear the input too
+    });
+  }
 }

@@ -62,9 +62,9 @@
         <li><a href="#filters" class="nav-link" data-section="capture-filters">Filters</a></li>
         <li><a href="#export" class="nav-link" data-section="export-settings">Export</a></li>
         <li><a href="#database" class="nav-link" data-section="database-info">Database</a></li>
-        <li><a href="#database-inspection" class="nav-link" data-section="database-inspection">Database Inspection</a></li>
-        <li><a href="#errors" class="nav-link" data-section="error-log">Error Log</a></li>
-        <li><a href="#raw-sql" class="nav-link" data-section="raw-sql">Raw SQL</a></li>
+        <li><a href="#database-diagnostics" class="nav-link" data-section="database-diagnostics">Database Diagnostics</a></li>
+        <li><a href="#errors" class="nav-link" data-section="database-diagnostics">Error Log</a></li>
+        <li><a href="#raw-sql" class="nav-link" data-section="database-diagnostics">Raw SQL</a></li>
         <li><a href="#advanced" class="nav-link" data-section="advanced-settings">Advanced</a></li>
       </ul>
     </nav>
@@ -305,7 +305,24 @@
 
         <!-- Error Log -->
         <h3>Error Log</h3>
-        <div id="errorLogContainer">Loading errors...</div>
+        <div id="errorLogContainer">
+          <div id="errorLogTableContainer"> <!-- Added container for potential scrolling -->
+            <table id="errorLogTable"> <!-- Added table element -->
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Timestamp</th>
+                  <th>Category</th>
+                  <th>Message</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="dbErrorsTableBody"> <!-- Added the missing tbody element -->
+                <tr><td colspan="5">Loading errors...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
         <button id="refreshErrorLogBtn">Refresh Errors</button>
         <button id="clearErrorLogBtn" class="secondary">Clear Error Log</button>
 
@@ -316,6 +333,7 @@
           <textarea id="rawSqlInput" rows="4" placeholder="Enter SQL query (e.g., SELECT * FROM requests LIMIT 10)"></textarea>
         </div>
         <button id="executeSqlBtn">Execute SQL</button>
+        <button id="clearSqlBtn" class="secondary">Clear Results</button> <!-- Added Clear Button -->
         <div class="option-row">
           <label>Results (JSON):</label>
           <pre id="sqlResultsOutput"><code>Execute a query to see results.</code></pre>
@@ -343,47 +361,6 @@
         </div>
         <div class="option-row">
           <span class="description">Manually export all data in the selected format using the filename specified above.</span>
-        </div>
-      </section>
-
-      <!-- Error Log Section -->
-      <section id="error-log" class="option-section">
-        <h2>Logged Errors</h2>
-        <div class="actions">
-          <button id="refreshErrorsBtn">Refresh Errors</button>
-        </div>
-        <div class="table-container">
-          <table id="errorLogTable">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Category</th>
-                <th>Message</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody id="errorLogTableBody">
-              <tr><td colspan="4">Loading errors...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- Raw SQL Section -->
-      <section id="raw-sql" class="option-section sql-executor-section">
-        <h2>Execute Raw SQL</h2>
-        <span class="description">Execute `SELECT` or `PRAGMA` queries directly on the database. Use with caution.</span>
-        <div class="option-row">
-          <label for="rawSqlInput">SQL Query:</label>
-          <textarea id="rawSqlInput" rows="5" placeholder="SELECT * FROM requests WHERE status >= 400 ORDER BY timestamp DESC LIMIT 10;"></textarea>
-        </div>
-        <div class="actions">
-          <button id="executeSqlBtn">Execute SQL</button>
-          <button id="clearSqlBtn">Clear</button>
-        </div>
-        <div class="option-row">
-          <label>Results (JSON):</label>
-          <pre id="sqlResultsOutput"></pre>
         </div>
       </section>
 
@@ -456,43 +433,6 @@
           </label>
         </div>
         <hr>
-        <div class="error-log-section">
-          <h3>Internal Error Log (from Database)</h3>
-          <div class="actions">
-            <button onclick="document.getElementById('refreshDbInfoBtn').click()">Refresh Errors</button>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Timestamp</th>
-                <th>Category</th>
-                <th>Message</th>
-                <th>Context</th>
-              </tr>
-            </thead>
-            <tbody id="dbErrorsTableBody">
-              <tr><td colspan="5">Loading errors...</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <hr>
-        <div class="sql-executor-section">
-          <h3>Raw SQL Executor (Read-Only Queries)</h3>
-          <span class="description">Execute `SELECT` or `PRAGMA` queries directly on the database. Use with caution.</span>
-          <div class="option-row">
-            <label for="rawSqlInput">SQL Query:</label>
-            <textarea id="rawSqlInput" rows="5" placeholder="SELECT * FROM requests WHERE status >= 400 ORDER BY timestamp DESC LIMIT 10;"></textarea>
-          </div>
-          <div class="actions">
-            <button id="executeSqlBtn">Execute SQL</button>
-            <button id="clearSqlBtn">Clear</button>
-          </div>
-          <div class="option-row">
-            <label>Results (JSON):</label>
-            <pre id="sqlResultsOutput"></pre>
-          </div>
-        </div>
       </section>
 
       <!-- Global Actions (Save/Reset) -->
