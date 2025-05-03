@@ -102,11 +102,11 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
     switch (message.action) {
       case "getRequests":
       case "getRequestsFromDB":
-        handleGetRequests(message, sendResponse);
-        return true;
+        handleGetRequests(message, sendResponse); // Async handler
+        return true; // Indicates async response
       case "clearRequests":
-        handleClearRequests(sendResponse);
-        return true;
+        handleClearRequests(sendResponse); // Async handler
+        return true; // Indicates async response
       case "getRequestHeaders":
         handleGetRequestHeaders(message, sendResponse);
         return true;
@@ -123,8 +123,8 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         handleGetLoggedErrors(message, sendResponse);
         return true;
       case "executeRawSql":
-        handleExecuteRawSql(message, sendResponse);
-        return true;
+        handleExecuteRawSql(message, sendResponse); // Calls the async handler
+        return true; // <--- This is the important part!
       case "getDistinctValues":
         handleGetDistinctValues(message, sendResponse);
         return true;
@@ -212,6 +212,7 @@ async function handleGetRequests(message, sendResponse) {
     const { filters, page = 1, limit = 50, sortBy, sortOrder } = message;
     const result = await dbManager.getRequests(filters, page, limit, sortBy, sortOrder);
     console.log(`[MessageHandler] handleGetRequests: Retrieved ${result.requests?.length} requests.`);
+    // Directly send the response
     sendResponse({ success: true, ...result });
   } catch (error) {
     console.error("[MessageHandler] handleGetRequests: Error getting requests:", error);
@@ -280,12 +281,19 @@ async function handleGetStats(sendResponse) {
     }
     const stats = await dbManager.getDatabaseStats();
     console.log("[MessageHandler] handleGetStats: Retrieved stats:", stats);
-    sendResponse({ success: true, stats });
+    try {
+      console.log("[MessageHandler] Attempting sendResponse for getStats:", { success: true, stats });
+      sendResponse({ success: true, stats });
+      console.log("[MessageHandler] sendResponse for getStats succeeded.");
+    } catch (sendError) {
+      console.error("[MessageHandler] Error during sendResponse for getStats:", sendError, "Data:", stats);
+      try { sendResponse({ success: false, error: `Failed to send stats response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback stats error:", e); }
+    }
   } catch (error) {
     console.error("[MessageHandler] handleGetStats: Error getting database stats:", error);
     const apiError = new DatabaseError("Error getting database stats", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send stats error response after catch:", e); }
   }
 }
 
@@ -297,12 +305,19 @@ async function handleGetDatabaseSchemaSummary(sendResponse) {
     }
     const summary = await dbManager.getDatabaseSchemaSummary();
     console.log("[MessageHandler] handleGetDatabaseSchemaSummary: Retrieved summary:", summary);
-    sendResponse({ success: true, summary });
+    try {
+      console.log("[MessageHandler] Attempting sendResponse for getSchemaSummary:", { success: true, summary });
+      sendResponse({ success: true, summary });
+      console.log("[MessageHandler] sendResponse for getSchemaSummary succeeded.");
+    } catch (sendError) {
+      console.error("[MessageHandler] Error during sendResponse for getSchemaSummary:", sendError, "Data:", summary);
+      try { sendResponse({ success: false, error: `Failed to send schema summary response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback schema summary error:", e); }
+    }
   } catch (error) {
     console.error("[MessageHandler] handleGetDatabaseSchemaSummary: Error getting schema summary:", error);
     const apiError = new DatabaseError("Error getting schema summary", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send schema summary error response after catch:", e); }
   }
 }
 
@@ -314,81 +329,68 @@ async function handleGetLoggedErrors(message, sendResponse) {
     }
     const { limit = 50, offset = 0 } = message;
     const errors = await dbManager.getLoggedErrors(limit, offset);
-    console.log(`[MessageHandler] handleGetLoggedErrors: Retrieved ${errors?.length} errors.`);
-    sendResponse({ success: true, errors });
+    console.log(`[MessageHandler] handleGetLoggedErrors: Retrieved ${errors?.length} errors.`, errors); // Log errors data
+    try {
+      console.log("[MessageHandler] Attempting sendResponse for getLoggedErrors:", { success: true, errors });
+      sendResponse({ success: true, errors });
+      console.log("[MessageHandler] sendResponse for getLoggedErrors succeeded.");
+    } catch (sendError) {
+      console.error("[MessageHandler] Error during sendResponse for getLoggedErrors:", sendError, "Data:", errors);
+      try { sendResponse({ success: false, error: `Failed to send logged errors response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback logged errors error:", e); }
+    }
   } catch (error) {
     console.error("[MessageHandler] handleGetLoggedErrors: Error getting logged errors:", error);
     const apiError = new DatabaseError("Error getting logged errors", error);
-    sendResponse({ success: false, error: apiError.message });
+    if (logErrorToDb) await logErrorToDb(apiError);
+    try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send logged errors error response after catch:", e); }
   }
 }
 
 async function handleExecuteRawSql(message, sendResponse) {
   console.log("[MessageHandler] handleExecuteRawSql: Received request with SQL:", message.sql);
-  const logErrorToDb = dbManager?.logError;
+  // Removed redundant logErrorToDb assignment
 
-  // Wrap the core logic in an immediately invoked async function expression (IIAFE)
-  // to ensure the promise chain is properly handled and sendResponse is called.
-  (async () => {
-    try {
-      if (!dbManager || typeof dbManager.executeRawSql !== "function") {
-        console.error("[MessageHandler] handleExecuteRawSql: dbManager or executeRawSql function is missing.");
-        throw new Error("Database manager is not properly initialized.");
-      }
-
-      const { sql } = message;
-      if (typeof sql !== 'string' || !sql.trim()) {
-          throw new Error("No SQL query provided.");
-      }
-      console.log("[MessageHandler] handleExecuteRawSql: Calling dbManager.executeRawSql...");
-
-      const result = await dbManager.executeRawSql(sql);
-
-      // Log the result structure before sending
-      try {
-        const resultString = JSON.stringify(result);
-        console.log("[MessageHandler] handleExecuteRawSql: Result structure before sending:", resultString);
-      } catch (e) {
-        console.error("[MessageHandler] handleExecuteRawSql: Result is not JSON serializable:", e);
-        if (Array.isArray(result)) {
-          console.log("[MessageHandler] handleExecuteRawSql: Result is array, length:", result.length);
-          if (result.length > 0) {
-            console.log("[MessageHandler] handleExecuteRawSql: First item columns:", result[0]?.columns);
-            console.log("[MessageHandler] handleExecuteRawSql: First item values (first row only):", result[0]?.values?.[0]);
-          }
-        }
-      }
-
-      console.log("[MessageHandler] handleExecuteRawSql: Execution successful. Sending response...");
-      sendResponse({ success: true, results: result });
-      console.log("[MessageHandler] handleExecuteRawSql: sendResponse called successfully."); // Added log
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error executing raw SQL.";
-      console.error("[MessageHandler] handleExecuteRawSql: Error executing raw SQL:", errorMessage, error.stack);
-
-      // Log error to DB if possible
-      if (logErrorToDb && error instanceof Error) {
-        try {
-          await logErrorToDb(new DatabaseError(`Raw SQL execution failed in handler: ${errorMessage}`, error));
-        } catch (logDbError) {
-          console.error("[MessageHandler] handleExecuteRawSql: Failed to log error to database:", logDbError);
-        }
-      }
-
-      // Send error response
-      console.log("[MessageHandler] handleExecuteRawSql: Sending error response..."); // Added log
-      sendResponse({
-        success: false,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : null
-      });
-      console.log("[MessageHandler] handleExecuteRawSql: Error response sent."); // Added log
+  try {
+    if (!dbManager || typeof dbManager.executeRawSql !== "function") {
+      console.error("[MessageHandler] handleExecuteRawSql: dbManager or executeRawSql function is missing.");
+      throw new Error("Database manager is not properly initialized.");
     }
-  })(); // Immediately invoke the async function
 
-  // Indicate that the response will be sent asynchronously
-  return true;
+    const { sql } = message;
+    if (typeof sql !== 'string' || !sql.trim()) {
+        throw new Error("No SQL query provided.");
+    }
+    console.log("[MessageHandler] handleExecuteRawSql: Calling dbManager.executeRawSql...");
+
+    const result = await dbManager.executeRawSql(sql);
+
+    console.log("[MessageHandler] handleExecuteRawSql: Execution successful. Preparing to send success response...");
+    // Directly send the response
+    sendResponse({ success: true, results: result });
+    console.log("[MessageHandler] handleExecuteRawSql: Success response sent.");
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("[MessageHandler] handleExecuteRawSql: Error executing raw SQL:", errorMessage, error.stack);
+
+    // Log error to DB if configured
+    if (logErrorToDb && error instanceof Error && configManager?.getConfigValue?.("advanced.logErrorsToDatabase")) {
+      try {
+        await logErrorToDb(new DatabaseError(`Raw SQL execution failed in handler: ${errorMessage}`, error));
+      } catch (logDbError) {
+        console.error("[MessageHandler] handleExecuteRawSql: Failed to log error to database:", logDbError);
+      }
+    }
+
+    // Send error response
+    console.log("[MessageHandler] handleExecuteRawSql: Preparing to send error response...");
+    const errorResponse = { success: false, error: errorMessage };
+    if (error instanceof Error && error.stack) {
+        errorResponse.stack = error.stack;
+    }
+    sendResponse(errorResponse);
+    console.log("[MessageHandler] handleExecuteRawSql: Error response sent.");
+  }
 }
 
 async function handleGetDistinctValues(message, sendResponse) {
@@ -481,18 +483,25 @@ async function handleGetConfig(sendResponse) {
   console.log("[MessageHandler] handleGetConfig: Called");
   if (!configManager || typeof configManager.getConfig !== "function") {
     console.error("[MessageHandler] configManager or getConfig not available.");
-    sendResponse({ success: false, error: "Configuration manager not ready." });
+    try { sendResponse({ success: false, error: "Configuration manager not ready." }); } catch (e) { console.error("Failed to send config error response:", e); }
     return;
   }
   try {
     const config = await configManager.getConfig();
     console.log("[MessageHandler] handleGetConfig: Retrieved config:", config);
-    sendResponse({ success: true, config });
+    try {
+      console.log("[MessageHandler] Attempting sendResponse for getConfig:", { success: true, config });
+      sendResponse({ success: true, config });
+      console.log("[MessageHandler] sendResponse for getConfig succeeded.");
+    } catch (sendError) {
+      console.error("[MessageHandler] Error during sendResponse for getConfig:", sendError, "Data:", config);
+      try { sendResponse({ success: false, error: `Failed to send config response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback config error:", e); }
+    }
   } catch (error) {
     console.error("[MessageHandler] handleGetConfig: Error getting config:", error);
     const apiError = new ConfigError("Error getting configuration", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send config error response after catch:", e); }
   }
 }
 

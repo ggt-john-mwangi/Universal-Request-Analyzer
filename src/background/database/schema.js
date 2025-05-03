@@ -110,6 +110,18 @@ export async function createTables(db) {
     )
   `)
 
+  // Create errors table for logging
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS errors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT,
+      message TEXT,
+      stack TEXT,
+      timestamp INTEGER,
+      context TEXT -- Store additional context as JSON string
+    );
+  `)
+
   // Create indexes for better query performance
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_domain ON requests(domain)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`)
@@ -118,6 +130,8 @@ export async function createTables(db) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_userId ON requests(userId)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_projectId ON requests(projectId)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_headers_requestId ON request_headers(requestId)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors(timestamp)`) // Added from migration 4
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_errors_category ON errors(category)`) // Added from migration 4
 
   // Create sessions table for authentication
   db.exec(`

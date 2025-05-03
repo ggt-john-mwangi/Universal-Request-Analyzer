@@ -12,6 +12,17 @@ export function loadData(filters, renderCharts, setError, setLoading) {
       chrome.runtime.sendMessage(
         { action: "getFilteredStats", filters: queryFilters },
         (response) => {
+          if (chrome.runtime.lastError) {
+            setError(chrome.runtime.lastError.message);
+            setLoading(false);
+            return;
+          }
+          // Handle stringified JSON response
+          if (response && typeof response === 'string') {
+            try {
+              response = JSON.parse(response);
+            } catch (e) {}
+          }
           if (response && !response.error) {
             renderCharts(response);
           } else {
