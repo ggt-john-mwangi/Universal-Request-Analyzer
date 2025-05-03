@@ -122,6 +122,18 @@ export async function createTables(db) {
     );
   `)
 
+  // Create sql_history table for storing executed SQL queries
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sql_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      query TEXT NOT NULL,
+      executed_at INTEGER NOT NULL,
+      success INTEGER NOT NULL,
+      error_message TEXT,
+      duration_ms INTEGER
+    )
+  `)
+
   // Create indexes for better query performance
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_domain ON requests(domain)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`)

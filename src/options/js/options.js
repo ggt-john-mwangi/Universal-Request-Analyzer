@@ -781,37 +781,138 @@ function showNotification(message, isError = false) {
   }, 5000)
 }
 
-// Execute Raw SQL
+// --- Raw SQL Executor Enhancements (Backend-integrated) ---
+let sqlHistory = [];
+let pendingSqlRequests = {};
+
+// Listen for event-based SQL results
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.action === "executeRawSqlResult" && message.requestId) {
+    const cb = pendingSqlRequests[message.requestId];
+    if (cb) {
+      cb(message);
+      delete pendingSqlRequests[message.requestId];
+    }
+  }
+});
+
+function generateRequestId() {
+  return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+
+function fetchSqlHistory() {
+  chrome.runtime.sendMessage({ action: "getSqlHistory" }, (response) => {
+    if (response && response.success && Array.isArray(response.history)) {
+      sqlHistory = response.history;
+      renderSqlHistory();
+    } else {
+      sqlHistory = [];
+      renderSqlHistory();
+    }
+  });
+}
+
+function renderSqlHistory() {
+  let container = document.getElementById('sqlHistoryContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'sqlHistoryContainer';
+    container.style.marginTop = '10px';
+    container.style.fontSize = '13px';
+    container.style.color = 'var(--text-secondary-color)';
+    sqlResultsOutput.parentElement.insertBefore(container, sqlResultsOutput);
+  }
+  if (!sqlHistory.length) {
+    container.innerHTML = '<em>No recent queries.</em>';
+    return;
+  }
+  container.innerHTML = '<b>Recent Queries:</b> ' + sqlHistory.map((q, i) =>
+    `<span class="sql-history-item" style="cursor:pointer; margin-right:8px;" data-idx="${i}">${q.replace(/\s+/g,' ').slice(0,60)}${q.length>60?'...':''}</span>`
+  ).join('');
+  container.querySelectorAll('.sql-history-item').forEach(el => {
+    el.onclick = () => {
+      const idx = Number(el.dataset.idx);
+      rawSqlInput.value = sqlHistory[idx];
+      rawSqlInput.focus();
+    };
+  });
+}
+
+// Keyboard shortcut: Ctrl+Enter to execute
+rawSqlInput.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    executeSqlBtn.click();
+    e.preventDefault();
+  }
+});
+
+// Export results as CSV (via backend if possible)
+function exportSqlResultsAsCSV() {
+  const sql = rawSqlInput.value.trim();
+  if (!sql) return showNotification('No SQL query to export.', true);
+  chrome.runtime.sendMessage({ action: "executeRawSql", sql, exportCsv: true }, (response) => {
+    if (response && response.success && response.results && response.results.csv) {
+      const csv = response.results.csv;
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sql-results.csv';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    } else {
+      showNotification('No CSV results to export.', true);
+    }
+  });
+}
+
+// Add export button dynamically if table result
+function maybeAddExportButton() {
+  let btn = document.getElementById('exportSqlResultsBtn');
+  if (sqlResultsOutput.querySelector('table')) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'exportSqlResultsBtn';
+      btn.innerHTML = '<i class="fas fa-file-csv"></i> Export Results as CSV';
+      btn.className = 'secondary';
+      btn.style.margin = '10px 0 0 0';
+      btn.onclick = exportSqlResultsAsCSV;
+      sqlResultsOutput.parentElement.insertBefore(btn, sqlResultsOutput.nextSibling);
+    }
+  } else if (btn) {
+    btn.remove();
+  }
+}
+
+// Basic syntax highlighting for SQL keywords
+function highlightSql(sql) {
+  const keywords = [
+    'select','from','where','insert','into','update','delete','create','drop','table','values','set','and','or','not','null','is','in','as','on','join','left','right','inner','outer','group','by','order','limit','offset','having','distinct','union','all','case','when','then','else','end','like','between','exists','primary','key','foreign','references','default','if','exists','alter','add','column','index','view','trigger','pragma','explain'
+  ];
+  let re = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'gi');
+  return sql.replace(re, '<span class="sql-keyword">$1</span>');
+}
+
 function executeRawSql() {
   const sql = rawSqlInput.value.trim();
   if (!sql) {
     showNotification("Please enter a SQL query.", true);
     return;
   }
-
   sqlResultsOutput.innerHTML = '<span>Executing query...</span>';
   sqlResultsOutput.classList.remove('error');
   executeSqlBtn.disabled = true;
   clearSqlBtn.disabled = true;
 
-  chrome.runtime.sendMessage({ action: "executeRawSql", sql: sql }, (response) => {
-    console.log("[Options] Received response for executeRawSql:", response);
-    if (chrome.runtime.lastError) {
-        console.error("[Options] executeRawSql runtime error:", chrome.runtime.lastError.message);
-        sqlResultsOutput.innerHTML = `<pre class='error'>Error: ${chrome.runtime.lastError.message}</pre>`;
-        sqlResultsOutput.classList.add('error');
-        showNotification(`Error executing SQL: ${chrome.runtime.lastError.message}`, true);
-        executeSqlBtn.disabled = false;
-        clearSqlBtn.disabled = false;
-        return;
-    }
-
+  const requestId = generateRequestId();
+  pendingSqlRequests[requestId] = (response) => {
     executeSqlBtn.disabled = false;
     clearSqlBtn.disabled = false;
+    fetchSqlHistory(); // Refresh history from backend
     if (response && response.success && response.results) {
       try {
-        // If SELECT, render as table
-        const firstResult = response.results[0];
+        const firstResult = Array.isArray(response.results) ? response.results[0] : response.results.mappedResults?.[0];
         if (firstResult && Array.isArray(firstResult.columns) && Array.isArray(firstResult.values)) {
           let html = '<div style="overflow:auto"><table class="sql-result-table"><thead><tr>';
           firstResult.columns.forEach(col => {
@@ -822,13 +923,12 @@ function executeRawSql() {
             html += `<tr><td colspan="${firstResult.columns.length}"><em>No rows returned.</em></td></tr>`;
           } else {
             firstResult.values.forEach(row => {
-              html += '<tr>' + row.map(cell => `<td>${cell === null ? '<em>null</em>' : cell}</td>`).join('') + '</tr>';
+              html += '<tr>' + row.map(cell => `<td>${cell === null ? '<em>null</em>' : highlightSql(String(cell))}</td>`).join('') + '</tr>';
             });
           }
           html += '</tbody></table></div>';
           sqlResultsOutput.innerHTML = html;
         } else {
-          // Non-SELECT (e.g., INSERT, UPDATE)
           sqlResultsOutput.innerHTML = `<div class="sql-nonselect-msg">Query executed successfully.</div>`;
         }
         showNotification("SQL query executed successfully.", false);
@@ -844,26 +944,14 @@ function executeRawSql() {
       showNotification(`Error executing SQL: ${errorMsg}`, true);
       console.error("Raw SQL Execution Error:", response);
     }
-  });
+    maybeAddExportButton();
+  };
+
+  chrome.runtime.sendMessage({ action: "executeRawSql", sql, requestId });
 }
 
-// Setup event listeners
-function setupEventListeners() {
-  // Database Diagnostics Listeners
-  if (refreshDbInfoBtn) {
-    refreshDbInfoBtn.addEventListener("click", loadDatabaseInfo);
-  }
-  if (executeSqlBtn) {
-    executeSqlBtn.addEventListener("click", executeRawSql);
-  }
-  if (clearSqlBtn) {
-    clearSqlBtn.addEventListener("click", () => {
-      sqlResultsOutput.textContent = 'Execute a query to see results.';
-      sqlResultsOutput.classList.remove('error');
-      rawSqlInput.value = ''; // Optionally clear the input too
-    });
-  }
-}
+// Initial fetch of SQL history from backend
+fetchSqlHistory();
 
 // --- Backup/Restore UI: handle empty state ---
 function loadBackupList() {
@@ -1171,4 +1259,22 @@ function updateEncryptionStatus() {
       encryptionWarning.style.display = "inline-block";
     }
   });
+}
+
+// Setup event listeners
+function setupEventListeners() {
+  // Database Diagnostics Listeners
+  if (refreshDbInfoBtn) {
+    refreshDbInfoBtn.addEventListener("click", loadDatabaseInfo);
+  }
+  if (executeSqlBtn) {
+    executeSqlBtn.addEventListener("click", executeRawSql);
+  }
+  if (clearSqlBtn) {
+    clearSqlBtn.addEventListener("click", () => {
+      sqlResultsOutput.textContent = 'Execute a query to see results.';
+      sqlResultsOutput.classList.remove('error');
+      rawSqlInput.value = ''; // Optionally clear the input too
+    });
+  }
 }

@@ -192,6 +192,28 @@ const migrations = [
       }
     },
   },
+  {
+    version: 7,
+    description: "Add sql_history table for executed SQL queries",
+    migrate: (db) => {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS sql_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query TEXT NOT NULL,
+            executed_at INTEGER NOT NULL,
+            success INTEGER NOT NULL,
+            error_message TEXT,
+            duration_ms INTEGER
+          )
+        `);
+        return true;
+      } catch (error) {
+        console.error("Migration version 7 failed:", error);
+        return false;
+      }
+    },
+  },
 ];
 
 // Get current database version

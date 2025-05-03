@@ -152,6 +152,7 @@ function createDbInterface() {
     getDatabaseSchemaSummary,
     getLoggedErrors,
     executeRawSql,
+    getSqlHistory,
     logError: (error) => logErrorToDatabase(db, error),
     close: cleanupDatabase,
   };
@@ -1114,7 +1115,7 @@ function getLoggedErrors(limit = 100) {
   }
   try {
     const tableCheck = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
-    if (!tableCheck[0] || tableCheck[0].values.length === 0) {
+    if (!tableCheck[0] || !tableCheck[0].values.length === 0) {
       log("info", "Errors table does not exist. No errors to fetch.");
       return [];
     }
@@ -1126,59 +1127,97 @@ function getLoggedErrors(limit = 100) {
   }
 }
 
-// Execute raw SQL query (Use with caution!)
-async function executeRawSql(sql) { // Make async to potentially await checks
+// --- SQL Query History (persisted in database) ---
+const MAX_HISTORY = 10;
+
+async function saveSqlToHistoryDb(sql, success, errorMessage, durationMs) {
+  if (!db) return;
+  try {
+    db.exec(
+      `INSERT INTO sql_history (query, executed_at, success, error_message, duration_ms) VALUES (?, ?, ?, ?, ?)`,
+      [sql, Date.now(), success ? 1 : 0, errorMessage || null, durationMs || null]
+    );
+  } catch (e) {
+    log("warn", "Failed to save SQL to history table", e);
+  }
+}
+
+function getSqlHistory(limit = MAX_HISTORY) {
+  if (!db) return [];
+  try {
+    const result = executeQuery(
+      `SELECT id, query, executed_at, success, error_message, duration_ms FROM sql_history ORDER BY executed_at DESC LIMIT ?`,
+      [limit]
+    );
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (e) {
+    log("warn", "Failed to fetch SQL history from table", e);
+    return [];
+  }
+}
+
+// --- Enhanced Raw SQL Execution: Multi-statement, CSV export ---
+async function executeRawSql(sql, opts = {}) {
   if (!db) {
     log("error", "executeRawSql: Database is not initialized.");
     throw new DatabaseError("Database is not initialized");
   }
   const lowerSql = sql.toLowerCase().trim();
-  // Allow SELECT, PRAGMA, EXPLAIN, and INSERT queries
-  // Ensure comments are stripped before checking the start
-  const firstWord = lowerSql.split(/\s+|;/)[0]; // Get the first word
-  if (firstWord !== "select" &&
-      firstWord !== "pragma" &&
-      firstWord !== "explain" &&
-      firstWord !== "insert") { // Check the first word
-    const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN/INSERT query.`);
-    log("warn", "Attempting to execute potentially harmful SQL:", sql);
-    // Log the error attempt to the DB if possible
-    try {
-      await logErrorToDatabase(db, securityError);
-    } catch (logDbError) {
-      log("error", "Failed to log denied raw SQL attempt to DB:", logDbError);
+  const allowed = ["select", "pragma", "explain", "insert"];
+  const statements = lowerSql
+    .split(';')
+    .map(s => s.replace(/--.*$/gm, '').trim())
+    .filter(Boolean);
+  for (const stmt of statements) {
+    const firstWord = stmt.split(/\s+/)[0];
+    if (!allowed.includes(firstWord)) {
+      const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN/INSERT query.`);
+      log("warn", "Attempting to execute potentially harmful SQL:", stmt);
+      try { await logErrorToDatabase(db, securityError); } catch {}
+      // Save failed attempt to history
+      await saveSqlToHistoryDb(sql, false, securityError.message, null);
+      throw securityError;
     }
-    throw securityError;
   }
-
+  // Save to history (with status)
+  const start = Date.now();
   try {
-    log("info", "[DB] executeRawSql: Calling executeQuery..."); // Log before executeQuery
-    const results = executeQuery(sql, []);
-    log("info", "[DB] executeRawSql: executeQuery finished. Raw results:", results); // Log after executeQuery
-
-    // Check if executeQuery returned undefined (which happens if db was null inside it)
-    if (results === undefined) {
-      log("error", "executeRawSql: executeQuery returned undefined, likely DB was null.");
-      throw new DatabaseError("Query execution failed, database might be unavailable.");
+    let results = [];
+    db.exec("BEGIN TRANSACTION");
+    for (const stmt of statements) {
+      if (stmt) {
+        const res = executeQuery(stmt, []);
+        if (res) results = results.concat(res);
+      }
     }
-
-    // Ensure results is an array before mapping
-    if (!Array.isArray(results)) {
-      log("error", "executeRawSql: executeQuery returned non-array result:", results);
-      throw new DatabaseError("Unexpected result format from query execution.");
-    }
-
-    log("info", "[DB] executeRawSql: Mapping results..."); // Log before mapping
+    db.exec("COMMIT");
+    const duration = Date.now() - start;
+    await saveSqlToHistoryDb(sql, true, null, duration);
     const mappedResults = results.map(result => ({
-      columns: result.columns || [], // Ensure columns is always an array
-      values: result.values || []    // Ensure values is always an array
+      columns: result.columns || [],
+      values: result.values || []
     }));
-    log("info", "[DB] executeRawSql: Mapping finished. Returning mapped results."); // Log after mapping
+    if (opts.exportCsv && mappedResults[0]) {
+      const columns = mappedResults[0].columns;
+      let csv = columns.join(",") + "\n";
+      mappedResults[0].values.forEach(row => {
+        const escapedRow = row.map(field => {
+          if (field === null || field === undefined) return "";
+          const str = String(field);
+          if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        });
+        csv += escapedRow.join(",") + "\n";
+      });
+      return { csv, mappedResults };
+    }
     return mappedResults;
-
   } catch (error) {
+    try { db.exec("ROLLBACK"); } catch {}
     log("error", "Raw SQL execution failed:", error.message, { sql });
-    // Re-throw a DatabaseError, preserving the original message if possible
+    await saveSqlToHistoryDb(sql, false, error.message, null);
     throw new DatabaseError(`Raw SQL execution failed: ${error.message || 'Unknown reason'}`, error);
   }
 }

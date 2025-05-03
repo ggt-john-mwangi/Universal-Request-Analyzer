@@ -693,3 +693,85 @@ button.secondary:hover {
 .db-health .fa-circle[style*="color:#28a745"] { color: var(--success-color) !important; }
 .db-health .fa-circle[style*="color:#dc3545"] { color: var(--error-color) !important; }
 .db-health .fa-circle[style*="color:#aaa"] { color: var(--text-disabled-color) !important; }
+
+/* Raw SQL Executor Section Styling */
+.sql-executor-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 18px 16px 14px 16px;
+  margin: 18px 0 24px 0;
+  box-shadow: 0 1px 4px var(--shadow-color);
+}
+
+.sql-executor-section textarea {
+  width: 100%;
+  min-height: 90px;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
+  font-size: 15px;
+  background: var(--background-color);
+  color: var(--text-primary-color);
+  border: 1.5px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+
+.sql-executor-section textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.sql-executor-section button {
+  padding: 7px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary-color);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sql-executor-section button:hover {
+  background: var(--surface-hover-color, #e0e0e0);
+  color: var(--primary-color);
+}
+
+#sqlResultsOutput {
+  margin-top: 12px;
+  min-height: 32px;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
+  font-size: 14px;
+  color: var(--text-primary-color);
+  overflow-x: auto;
+  word-break: break-word;
+}
+
+#sqlResultsOutput pre.error {
+  color: var(--error-color);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+#sqlResultsOutput .sql-nonselect-msg {
+  color: var(--success-color);
+  font-weight: 500;
+}
+
+.sql-executor-section .fa-play {
+  color: var(--primary-color);
+}
+.sql-executor-section .fa-eraser {
+  color: var(--text-secondary-color);
+}

@@ -99,6 +99,7 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
       "getEncryptionStatus",
       "encryptDatabase",
       "decryptDatabase",
+      "getSqlHistory",
     ];
     if (requiresDb.includes(message.action) && !dbManager) {
       console.error(`[MessageHandler] ${message.action}: dbManager is null!`);
@@ -130,7 +131,7 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         handleGetLoggedErrors(message, sendResponse);
         return true;
       case "executeRawSql":
-        handleExecuteRawSql(message, sendResponse); // Calls the async handler
+        handleExecuteRawSql(message, sender).then(sendResponse); // Calls the async handler
         return true; // <--- This is the important part!
       case "getDistinctValues":
         handleGetDistinctValues(message, sendResponse);
@@ -202,6 +203,9 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         return true;
       case "decryptDatabase":
         handleDecryptDatabase(message, sendResponse);
+        return true;
+      case "getSqlHistory":
+        handleGetSqlHistory(message, sendResponse);
         return true;
       default:
         console.warn("[MessageHandler] Unknown action received:", message.action);
@@ -374,29 +378,35 @@ async function handleGetLoggedErrors(message, sendResponse) {
   }
 }
 
-async function handleExecuteRawSql(message, sendResponse) {
+// --- Enhanced Raw SQL Execution Handler ---
+async function handleExecuteRawSql(message, sender) {
   console.log("[MessageHandler] handleExecuteRawSql: Received request with SQL:", message.sql);
-  // Removed redundant logErrorToDb assignment
-
   try {
     if (!dbManager || typeof dbManager.executeRawSql !== "function") {
       console.error("[MessageHandler] handleExecuteRawSql: dbManager or executeRawSql function is missing.");
       throw new Error("Database manager is not properly initialized.");
     }
 
-    const { sql } = message;
+    const { sql, exportCsv, requestId } = message;
     if (typeof sql !== 'string' || !sql.trim()) {
         throw new Error("No SQL query provided.");
     }
     console.log("[MessageHandler] handleExecuteRawSql: Calling dbManager.executeRawSql...");
 
-    const result = await dbManager.executeRawSql(sql);
+    const result = await dbManager.executeRawSql(sql, { exportCsv });
 
-    console.log("[MessageHandler] handleExecuteRawSql: Execution successful. Preparing to send success response...");
-    // Directly send the response
-    sendResponse({ success: true, results: result });
-    console.log("[MessageHandler] handleExecuteRawSql: Success response sent.");
-
+    console.log("[MessageHandler] handleExecuteRawSql: Execution successful. Returning success response...",result);
+    // If requestId is present, send event-based response
+    if (requestId && sender && sender.id) {
+      chrome.tabs.sendMessage(sender.tab.id, {
+        action: "executeRawSqlResult",
+        requestId,
+        success: true,
+        results: result
+      });
+      return; // Do not call sendResponse
+    }
+    return { success: true, results: result };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("[MessageHandler] handleExecuteRawSql: Error executing raw SQL:", errorMessage, error.stack);
@@ -409,15 +419,21 @@ async function handleExecuteRawSql(message, sendResponse) {
         console.error("[MessageHandler] handleExecuteRawSql: Failed to log error to database:", logDbError);
       }
     }
-
-    // Send error response
-    console.log("[MessageHandler] handleExecuteRawSql: Preparing to send error response...");
+    if (message.requestId && sender && sender.id) {
+      chrome.tabs.sendMessage(sender.tab.id, {
+        action: "executeRawSqlResult",
+        requestId: message.requestId,
+        success: false,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      return;
+    }
     const errorResponse = { success: false, error: errorMessage };
     if (error instanceof Error && error.stack) {
         errorResponse.stack = error.stack;
     }
-    sendResponse(errorResponse);
-    console.log("[MessageHandler] handleExecuteRawSql: Error response sent.");
+    return errorResponse;
   }
 }
 
@@ -745,6 +761,17 @@ async function handleDecryptDatabase(message, sendResponse) {
     if (!key) throw new Error("No decryption key provided");
     await dbManager.decryptDatabase(key);
     sendResponse({ success: true });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// --- Raw SQL Query History Handler ---
+async function handleGetSqlHistory(message, sendResponse) {
+  try {
+    if (!dbManager || typeof dbManager.getSqlHistory !== "function") throw new Error("dbManager.getSqlHistory not available");
+    const history = await dbManager.getSqlHistory();
+    sendResponse({ success: true, history });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
   }
