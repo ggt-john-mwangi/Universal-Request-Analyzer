@@ -171,24 +171,26 @@
     </div>
 
     <div class="requests-container">
+      <div class="requests-table-toolbar">
+        <input type="text" id="requestsTableSearch" placeholder="Search requests..." autocomplete="off" style="margin-bottom:8px;width:100%;max-width:300px;">
+      </div>
       <table id="requestsTable">
         <thead>
           <tr>
-            <th>Method</th>
-            <th>Domain</th>
-            <th>Path</th>
-            <th>Status</th>
-            <th>Type</th>
-            <th>Size</th>
-            <th>Duration</th>
-            <th>Time</th>
+            <th data-sort="method" class="sortable">Method</th>
+            <th data-sort="domain" class="sortable">Domain</th>
+            <th data-sort="path" class="sortable">Path</th>
+            <th data-sort="status" class="sortable">Status</th>
+            <th data-sort="type" class="sortable">Type</th>
+            <th data-sort="size" class="sortable">Size</th>
+            <th data-sort="duration" class="sortable">Duration</th>
+            <th data-sort="time" class="sortable">Time</th>
           </tr>
         </thead>
         <tbody id="requestsTableBody">
           <!-- Request rows will be added here dynamically -->
         </tbody>
       </table>
-
       <div class="pagination">
         <button id="prevPageBtn" disabled>&laquo; Previous</button>
         <span id="pageInfo">Page 1 of 1</span>
@@ -218,28 +220,46 @@
             <span class="stat-name">Failed Requests:</span>
             <span class="stat-value" id="statsFailedRequests">0</span>
           </div>
+          <div class="stat-row">
+            <span class="stat-name">Database Size:</span>
+            <span class="stat-value" id="statsDbSize">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Avg. DNS Time:</span>
+            <span class="stat-value" id="statsAvgDns">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Avg. TCP Time:</span>
+            <span class="stat-value" id="statsAvgTcp">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Avg. SSL Time:</span>
+            <span class="stat-value" id="statsAvgSsl">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Avg. TTFB:</span>
+            <span class="stat-value" id="statsAvgTtfb">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Avg. Download Time:</span>
+            <span class="stat-value" id="statsAvgDownload">-</span>
+          </div>
         </div>
       </div>
 
       <div class="stats-card">
         <h3>Status Codes</h3>
-        <div class="stats-data" id="statsStatusCodes">
-          <!-- Status code data will be added here dynamically -->
-        </div>
+        <div id="statsStatusCodes">-</div>
       </div>
 
       <div class="stats-card">
         <h3>Top Domains</h3>
-        <div class="stats-data" id="statsTopDomains">
-          <!-- Domain data will be added here dynamically -->
-        </div>
+        <div id="statsTopDomains">-</div>
       </div>
 
       <div class="stats-card">
         <h3>Request Types</h3>
-        <div class="stats-data" id="statsRequestTypes">
-          <!-- Request type data will be added here dynamically -->
-        </div>
+        <div id="statsRequestTypes">-</div>
       </div>
     </div>
   </div>
@@ -374,7 +394,7 @@
   <!-- Notification Element -->
   <div id="notification" class="notification"></div>
 
-  <script type="module" src="js/popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 
 </html>

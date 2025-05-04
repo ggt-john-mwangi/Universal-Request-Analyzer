@@ -345,10 +345,11 @@ async function handleGetDatabaseInfo(sendResponse) {
 async function handleGetStats(sendResponse) {
   console.log("[MessageHandler] handleGetStats: Called");
   try {
-    if (typeof dbManager.getDatabaseStats !== "function") {
-      throw new Error("dbManager.getDatabaseStats is not a function");
+    if (typeof dbManager.getFilteredStats !== "function") {
+      throw new Error("dbManager.getFilteredStats is not a function");
     }
-    const stats = await dbManager.getDatabaseStats();
+    // Fetch all metrics with no filters
+    const stats = await dbManager.getFilteredStats({});
     console.log("[MessageHandler] handleGetStats: Retrieved stats:", stats);
     try {
       console.log("[MessageHandler] Attempting sendResponse for getStats:", { success: true, stats });

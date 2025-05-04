@@ -33,6 +33,11 @@ let activeFilters = {
   endDate: "",
 };
 
+// Sorting and Search State
+let sortState = { column: null, direction: 'asc' };
+let searchQuery = '';
+let lastLoadedRequests = [];
+
 // Config - Load relevant parts needed for popup operation (like itemsPerPage)
 let config = {
   ui: {
@@ -92,6 +97,7 @@ let activePanel = null; // Keep track of the currently open panel
 let tabsContainer = null; // Added for tab switching
 
 let pendingGetRequests = {};
+let pendingGetStats = {};
 
 // Listen for event-based getRequests results
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -100,6 +106,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (cb) {
       cb(message);
       delete pendingGetRequests[message.requestId];
+    }
+  }
+});
+
+// Listen for event-based getStats results
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.action === "getStatsResult" && message.requestId) {
+    const cb = pendingGetStats[message.requestId];
+    if (cb) {
+      cb(message);
+      delete pendingGetStats[message.requestId];
     }
   }
 });
@@ -372,6 +389,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Settings Tab Listeners
     if (savePopupSettingsBtn) savePopupSettingsBtn.addEventListener("click", savePopupSettings);
     if (openOptionsPageLink) openOptionsPageLink.addEventListener("click", openOptionsPage);
+
+    const requestsTable = document.getElementById("requestsTable");
+    const requestsTableSearch = document.getElementById("requestsTableSearch");
+    if (requestsTable) {
+      requestsTable.addEventListener("click", (e) => {
+        const th = e.target.closest("th.sortable");
+        if (!th) return;
+        const column = th.getAttribute("data-sort");
+        if (sortState.column === column) {
+          sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortState.column = column;
+          sortState.direction = 'asc';
+        }
+        renderRequestsTable(lastLoadedRequests);
+        updateSortIndicators();
+      });
+    }
+    if (requestsTableSearch) {
+      requestsTableSearch.addEventListener("input", (e) => {
+        searchQuery = e.target.value.trim().toLowerCase();
+        renderRequestsTable(lastLoadedRequests);
+      });
+    }
 
     console.log("popup.js: Event listeners attached.");
 
@@ -740,18 +781,47 @@ function changePage(page) {
 // Render the requests table
 function renderRequestsTable(requests) {
   if (!requestsTableBody) return;
+  lastLoadedRequests = requests;
+  let filtered = requests;
+  if (searchQuery) {
+    filtered = filtered.filter(r =>
+      (r.method && r.method.toLowerCase().includes(searchQuery)) ||
+      (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
+      (r.path && r.path.toLowerCase().includes(searchQuery)) ||
+      (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
+      (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
+      (r.type && r.type.toLowerCase().includes(searchQuery)) ||
+      (r.url && r.url.toLowerCase().includes(searchQuery))
+    );
+  }
+  if (sortState.column) {
+    filtered = filtered.slice().sort((a, b) => {
+      let valA = a[sortState.column];
+      let valB = b[sortState.column];
+      if (sortState.column === 'size' || sortState.column === 'duration') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+      } else if (sortState.column === 'time') {
+        valA = a.startTime;
+        valB = b.startTime;
+      } else {
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+      }
+      if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
   requestsTableBody.innerHTML = "";
-
-  if (requests.length === 0) {
+  if (filtered.length === 0) {
     requestsTableBody.innerHTML =
       '<tr><td colspan="8">No requests captured yet.</td></tr>';
     return;
   }
-
-  requests.forEach((request) => {
+  filtered.forEach((request) => {
     const row = document.createElement("tr");
     row.dataset.requestId = request.id;
-
     let statusClass = "";
     if (request.statusCode >= 200 && request.statusCode < 300) {
       statusClass = "status-success";
@@ -762,7 +832,6 @@ function renderRequestsTable(requests) {
     } else if (request.status === "pending") {
       statusClass = "status-pending";
     }
-
     row.innerHTML = `
       <td>${request.method}</td>
       <td>${request.domain || "-"}</td>
@@ -777,37 +846,66 @@ function renderRequestsTable(requests) {
       <td>${request.duration ? `${Math.round(request.duration)}ms` : "-"}</td>
       <td>${new Date(request.startTime).toLocaleTimeString()}</td>
     `;
-
     row.addEventListener("click", () => showRequestDetails(request));
-
     requestsTableBody.appendChild(row);
   });
 }
 
-// Update stats summary panel
+// Update stats summary panel (Requests tab)
 function updateStatsSummary(stats) {
   if (!totalRequestsEl || !avgResponseTimeEl || !successRateEl) return;
-
   if (stats?.error) {
     totalRequestsEl.textContent = "Error";
     avgResponseTimeEl.textContent = "Error";
     successRateEl.textContent = "Error";
     return;
   }
-
-  totalRequestsEl.textContent =
-    (stats?.totalRequests ?? totalItems)?.toLocaleString() || "0";
-  avgResponseTimeEl.textContent = stats?.avgResponseTime
-    ? `${Math.round(stats.avgResponseTime)} ms`
-    : "0 ms";
-  successRateEl.textContent = stats?.successRate
-    ? `${stats.successRate.toFixed(1)}%`
-    : "0%";
+  totalRequestsEl.textContent = (stats?.requestCount ?? stats?.totalRequests ?? totalItems)?.toLocaleString() || "0";
+  avgResponseTimeEl.textContent = stats?.avgResponseTime ? `${Math.round(stats.avgResponseTime)} ms` : "0 ms";
+  successRateEl.textContent = stats?.successRate ? `${stats.successRate.toFixed(1)}%` : "0%";
 }
 
-// Load overall stats for the stats tab
+// Update statistics tab UI
+function updateStatisticsTab(stats) {
+  document.getElementById("statsTotalRequests").textContent = stats?.requestCount?.toLocaleString() || "0";
+  document.getElementById("statsAvgResponseTime").textContent = stats?.avgResponseTime ? `${Math.round(stats.avgResponseTime)} ms` : "0 ms";
+  document.getElementById("statsSuccessfulRequests").textContent = stats?.successCount?.toLocaleString() || "0";
+  document.getElementById("statsFailedRequests").textContent = stats?.errorCount?.toLocaleString() || "0";
+  // Advanced metrics
+  document.getElementById("statsDbSize").textContent = stats?.size ? `${(stats.size/1024/1024).toFixed(2)} MB` : "-";
+  document.getElementById("statsAvgDns").textContent = stats?.avgTimings?.avgDns ? `${Math.round(stats.avgTimings.avgDns)} ms` : "-";
+  document.getElementById("statsAvgTcp").textContent = stats?.avgTimings?.avgTcp ? `${Math.round(stats.avgTimings.avgTcp)} ms` : "-";
+  document.getElementById("statsAvgSsl").textContent = stats?.avgTimings?.avgSsl ? `${Math.round(stats.avgTimings.avgSsl)} ms` : "-";
+  document.getElementById("statsAvgTtfb").textContent = stats?.avgTimings?.avgTtfb ? `${Math.round(stats.avgTimings.avgTtfb)} ms` : "-";
+  document.getElementById("statsAvgDownload").textContent = stats?.avgTimings?.avgDownload ? `${Math.round(stats.avgTimings.avgDownload)} ms` : "-";
+  // Status codes
+  const statusCodesEl = document.getElementById("statsStatusCodes");
+  statusCodesEl.innerHTML = stats?.statusCodes?.length ? stats.statusCodes.map(s => `<div>${s.status}: ${s.count}</div>`).join("") : "-";
+  // Request types
+  const typesEl = document.getElementById("statsRequestTypes");
+  typesEl.innerHTML = stats?.requestTypes?.length ? stats.requestTypes.map(t => `<div>${t.type}: ${t.count}</div>`).join("") : "-";
+  // Top domains (if available)
+  const domainsEl = document.getElementById("statsTopDomains");
+  domainsEl.innerHTML = stats?.topDomains?.length ? stats.topDomains.map(d => `<div>${d.domain}: ${d.count}</div>`).join("") : "-";
+}
+
+// Load overall stats for the stats tab (event-based)
 function loadStats() {
-  console.log("Loading overall stats...");
+  const requestId = generateRequestId();
+  pendingGetStats[requestId] = (response) => {
+    if (chrome.runtime.lastError) {
+      updateStatisticsTab({ error: chrome.runtime.lastError.message });
+      return;
+    }
+    if (response && response.stats) {
+      updateStatisticsTab(response.stats);
+      // Also update requests tab summary if present
+      updateStatsSummary(response.stats);
+    } else {
+      updateStatisticsTab({ error: response?.error || "Unknown error loading stats." });
+    }
+  };
+  chrome.runtime.sendMessage({ action: "getStats", requestId });
 }
 
 // Show request details panel
@@ -929,6 +1027,16 @@ function clearRequests() {
           showNotification("All requests cleared successfully");
         }
       });
+    }
+  });
+}
+
+function updateSortIndicators() {
+  const ths = document.querySelectorAll('#requestsTable th.sortable');
+  ths.forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.getAttribute('data-sort') === sortState.column) {
+      th.classList.add(sortState.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
     }
   });
 }
