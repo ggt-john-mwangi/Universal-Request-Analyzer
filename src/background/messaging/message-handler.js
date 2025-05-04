@@ -110,7 +110,7 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
     switch (message.action) {
       case "getRequests":
       case "getRequestsFromDB":
-        handleGetRequests(message, sendResponse); // Async handler
+        handleGetRequests(message, sender, sendResponse); // Async handler
         return true; // Indicates async response
       case "clearRequests":
         handleClearRequests(sendResponse); // Async handler
@@ -238,19 +238,56 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
   }
 }
 
-async function handleGetRequests(message, sendResponse) {
+async function handleGetRequests(message, sender) {
   console.log("[MessageHandler] handleGetRequests: Called with filters:", message.filters);
   try {
-    const { filters, page = 1, limit = 50, sortBy, sortOrder } = message;
+    const { filters, page = 1, limit = 50, sortBy, sortOrder, requestId } = message;
     const result = await dbManager.getRequests(filters, page, limit, sortBy, sortOrder);
     console.log(`[MessageHandler] handleGetRequests: Retrieved ${result.requests?.length} requests.`);
-    // Directly send the response
-    sendResponse({ success: true, ...result });
+    if (requestId) {
+      // If sender.tab is defined, use tabs.sendMessage, else use runtime.sendMessage
+      if (sender && sender.tab && sender.tab.id !== undefined) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          action: "getRequestsResult",
+          requestId,
+          ...result,
+          success: true
+        });
+      } else {
+        chrome.runtime.sendMessage({
+          action: "getRequestsResult",
+          requestId,
+          ...result,
+          success: true
+        });
+      }
+      return;
+    }
+    // Directly send the response (legacy)
+    return { success: true, ...result };
   } catch (error) {
     console.error("[MessageHandler] handleGetRequests: Error getting requests:", error);
     const apiError = new DatabaseError("Error getting requests", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    if (message.requestId) {
+      if (sender && sender.tab && sender.tab.id !== undefined) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          action: "getRequestsResult",
+          requestId: message.requestId,
+          success: false,
+          error: apiError.message
+        });
+      } else {
+        chrome.runtime.sendMessage({
+          action: "getRequestsResult",
+          requestId: message.requestId,
+          success: false,
+          error: apiError.message
+        });
+      }
+      return;
+    }
+    return { success: false, error: apiError.message };
   }
 }
 

@@ -91,6 +91,23 @@ let openOptionsPageLink = null;
 let activePanel = null; // Keep track of the currently open panel
 let tabsContainer = null; // Added for tab switching
 
+let pendingGetRequests = {};
+
+// Listen for event-based getRequests results
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.action === "getRequestsResult" && message.requestId) {
+    const cb = pendingGetRequests[message.requestId];
+    if (cb) {
+      cb(message);
+      delete pendingGetRequests[message.requestId];
+    }
+  }
+});
+
+function generateRequestId() {
+  return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   try { // Add try block
     console.log("popup.js: DOMContentLoaded event fired"); // Log DOM ready
@@ -665,38 +682,41 @@ function openOptionsPage() {
 
 // Load requests from background script
 function loadRequests() {
+  const requestId = generateRequestId();
+  pendingGetRequests[requestId] = (response) => {
+    if (chrome.runtime.lastError) {
+      console.error("Error loading requests (connection):", chrome.runtime.lastError.message);
+      if (requestsTableBody) {
+        requestsTableBody.innerHTML =
+          '<tr><td colspan="8">Error connecting to background service. Please try again.</td></tr>';
+      }
+      return;
+    }
+
+    if (response && response.requests) {
+      totalItems = response.total || 0;
+      totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+      renderRequestsTable(response.requests);
+      updatePagination();
+      if (typeof updateStatsSummary === "function" && response.stats) {
+        updateStatsSummary(response.stats);
+      }
+    } else {
+      const errorMessage = response?.error || "Unknown error loading requests.";
+      console.error("Error loading requests (response):", errorMessage);
+      if (requestsTableBody) {
+        requestsTableBody.innerHTML = `<tr><td colspan="8">Error loading requests: ${errorMessage}</td></tr>`;
+      }
+    }
+  };
+
   chrome.runtime.sendMessage(
     {
       action: "getRequests",
       page: currentPage,
       limit: itemsPerPage,
       filters: activeFilters,
-    },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        console.error("Error loading requests (connection):", chrome.runtime.lastError.message);
-        if (requestsTableBody) {
-          requestsTableBody.innerHTML =
-            '<tr><td colspan="8">Error connecting to background service. Please try again.</td></tr>';
-        }
-        return;
-      }
-
-      if (response && response.requests) {
-        totalItems = response.total || 0;
-        totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-        renderRequestsTable(response.requests);
-        updatePagination();
-        if (typeof updateStatsSummary === "function" && response.stats) {
-          updateStatsSummary(response.stats);
-        }
-      } else {
-        const errorMessage = response?.error || "Unknown error loading requests.";
-        console.error("Error loading requests (response):", errorMessage);
-        if (requestsTableBody) {
-          requestsTableBody.innerHTML = `<tr><td colspan="8">Error loading requests: ${errorMessage}</td></tr>`;
-        }
-      }
+      requestId
     }
   );
 }
