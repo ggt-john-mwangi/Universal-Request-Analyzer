@@ -13,8 +13,8 @@ import {
 } from "./chart-components.js";
 
 // Main entry point for data visualization
-function DataVisualization() {
-  const filters = {};
+function DataVisualization(globalFilters = {}) {
+  let filters = { ...globalFilters };
   let loading = false;
   let error = null;
   let activeChart = "responseTime";
@@ -57,10 +57,6 @@ function DataVisualization() {
   visualizationContainer.className = "visualization-container";
   container.appendChild(visualizationContainer);
 
-  const filterContainer = document.createElement("div");
-  filterContainer.className = "filter-container";
-  visualizationContainer.appendChild(filterContainer);
-
   const chartsContainer = document.createElement("div");
   chartsContainer.className = "charts-container";
   visualizationContainer.appendChild(chartsContainer);
@@ -81,6 +77,7 @@ function DataVisualization() {
     button.textContent = chartType;
     button.addEventListener("click", () => {
       activeChart = chartType;
+      showActiveChart();
     });
     chartTabs.appendChild(button);
   });
@@ -96,8 +93,42 @@ function DataVisualization() {
   chartContent.appendChild(timeDistributionChartRef);
   chartContent.appendChild(sizeDistributionChartRef);
 
+  function showActiveChart() {
+    [
+      responseTimeChartRef,
+      statusCodeChartRef,
+      requestTypeChartRef,
+      timeDistributionChartRef,
+      sizeDistributionChartRef,
+    ].forEach((chart, idx) => {
+      if (chart) chart.style.display = "none";
+    });
+    const chartMap = {
+      responseTime: responseTimeChartRef,
+      statusCode: statusCodeChartRef,
+      requestType: requestTypeChartRef,
+      timeDistribution: timeDistributionChartRef,
+      sizeDistribution: sizeDistributionChartRef,
+    };
+    if (chartMap[activeChart]) chartMap[activeChart].style.display = "block";
+    // Update tab active state
+    const tabs = chartTabs.querySelectorAll(".chart-tab");
+    tabs.forEach((tab, idx) => {
+      tab.classList.toggle("active", tab.textContent === activeChart);
+    });
+  }
+
+  // Initial chart display
+  showActiveChart();
+
   // Load data initially
   loadData(filters, renderCharts, setError, setLoading);
+
+  // Expose a reload method for tab activation and filter changes
+  container.reload = (newFilters) => {
+    filters = { ...newFilters };
+    loadData(filters, renderCharts, setError, setLoading);
+  };
 
   return container;
 }

@@ -13,6 +13,7 @@ import "../components/data-visualization.js";
 import "../components/filters.js";
 import "./settings-manager.js";
 import { initSettingsUI } from "./settings-ui.js";
+import DataVisualization from "../components/data-visualization.js";
 
 // --- Global Variables ---
 console.log("popup.js: Script start"); // Log script start
@@ -289,6 +290,16 @@ document.addEventListener("DOMContentLoaded", async () => {
               loadRequests();
             } else if (targetTab === "settings") {
               loadPopupSettings(); // Load settings when tab is activated
+            } else if (targetTab === "plots") {
+              // Mount or reload the Plots tab visualization
+              if (!targetContent._vizMounted) {
+                const viz = DataVisualization(activeFilters);
+                targetContent.innerHTML = "";
+                targetContent.appendChild(viz);
+                targetContent._vizMounted = viz;
+              } else if (targetContent._vizMounted && typeof targetContent._vizMounted.reload === "function") {
+                targetContent._vizMounted.reload(activeFilters);
+              }
             }
           } else {
             console.warn(`Tab content not found for tab: ${targetTab}`);
@@ -314,6 +325,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           loadRequests();
         } else if (activeTabId === "stats") {
           loadStats();
+        } else if (activeTabId === "plots") {
+          // If plots tab, reload visualization if possible
+          const plotsTab = document.getElementById("plots-tab");
+          if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+            plotsTab._vizMounted.reload(activeFilters);
+          }
         }
       } else {
         loadRequests();
@@ -324,30 +341,60 @@ document.addEventListener("DOMContentLoaded", async () => {
     // --- Event Listeners ---
     console.log("popup.js: Attaching event listeners...");
 
-    if (filterBtn && filterPanel) {
-      filterBtn.addEventListener("click", () => {
-        console.log("popup.js: Filter button clicked"); // Log button click
-        togglePanel(filterPanel);
-      });
-    } else {
-      console.warn("popup.js: Filter button or panel not found for listener.");
+    // Helper to attach and log event listeners for header controls
+    function attachHeaderButtonListener(btn, handler, name) {
+      if (btn) {
+        btn.addEventListener("click", handler);
+        console.log(`popup.js: ${name} button listener attached.`);
+      } else {
+        console.warn(`popup.js: ${name} button not found for listener.`);
+      }
     }
-    if (exportBtn && exportPanel) {
-      exportBtn.addEventListener("click", () => {
-        console.log("popup.js: Export button clicked"); // Log button click
-        togglePanel(exportPanel);
-      });
-    } else {
-      console.warn("popup.js: Export button or panel not found for listener.");
-    }
-    if (importBtn && importPanel) {
-      importBtn.addEventListener("click", () => {
-        console.log("popup.js: Import button clicked"); // Log button click
-        togglePanel(importPanel);
-      });
-    } else {
-      console.warn("popup.js: Import button or panel not found for listener.");
-    }
+
+    attachHeaderButtonListener(filterBtn, () => {
+      console.log("popup.js: Filter button clicked");
+      togglePanel(filterPanel);
+    }, 'Filter');
+
+    attachHeaderButtonListener(exportBtn, () => {
+      console.log("popup.js: Export button clicked");
+      togglePanel(exportPanel);
+    }, 'Export');
+
+    attachHeaderButtonListener(importBtn, () => {
+      console.log("popup.js: Import button clicked");
+      togglePanel(importPanel);
+    }, 'Import');
+
+    attachHeaderButtonListener(clearBtn, () => {
+      console.log("popup.js: Clear button clicked");
+      clearRequests();
+    }, 'Clear');
+
+    attachHeaderButtonListener(refreshBtn, () => {
+      console.log("popup.js: Refresh button clicked");
+      // Always refresh the current active tab
+      const activeTabButton = document.querySelector(".tab-btn.active");
+      if (activeTabButton) {
+        const activeTabId = activeTabButton.getAttribute("data-tab");
+        if (activeTabId === "requests") {
+          loadRequests();
+        } else if (activeTabId === "stats") {
+          loadStats();
+        } else if (activeTabId === "plots") {
+          // If plots tab, reload visualization if possible
+          const plotsTab = document.getElementById("plots-tab");
+          if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+            plotsTab._vizMounted.reload(activeFilters);
+          }
+        }
+      } else {
+        loadRequests();
+      }
+      showNotification("Data refreshed.");
+    }, 'Refresh');
+
+    attachHeaderButtonListener(OptionsPage, openOptionsPage, 'Options');
 
     const closeFilterBtn = filterPanel?.querySelector(".close-btn");
     const closeExportBtn = exportPanel?.querySelector(".close-btn"); // Assuming export panel has one
@@ -363,32 +410,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (resetFilterBtn) resetFilterBtn.addEventListener("click", resetFilters);
     if (doExportBtn) doExportBtn.addEventListener("click", handleExportData);
     if (doImportBtn) doImportBtn.addEventListener("click", handleImportData);
-
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        console.log("popup.js: Clear button clicked"); // Log button click
-        clearRequests();
-      });
-    } else {
-      console.warn("popup.js: Clear button not found for listener.");
-    }
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => {
-        console.log("popup.js: Refresh button clicked"); // Log button click
-        handleRefresh();
-      });
-    } else {
-      console.warn("popup.js: Refresh button not found for listener.");
-    }
-    if (OptionsPage) OptionsPage.addEventListener("click", openOptionsPage);
-    if (closeDetails) closeDetails.addEventListener("click", hideRequestDetails);
-
-    if (prevPageBtn) prevPageBtn.addEventListener("click", () => changePage(currentPage - 1));
-    if (nextPageBtn) nextPageBtn.addEventListener("click", () => changePage(currentPage + 1));
-
-    // Settings Tab Listeners
-    if (savePopupSettingsBtn) savePopupSettingsBtn.addEventListener("click", savePopupSettings);
-    if (openOptionsPageLink) openOptionsPageLink.addEventListener("click", openOptionsPage);
 
     const requestsTable = document.getElementById("requestsTable");
     const requestsTableSearch = document.getElementById("requestsTableSearch");
@@ -501,6 +522,11 @@ function applyFilters() {
 
   currentPage = 1;
   loadRequests();
+  // Also reload Plots tab if mounted
+  const plotsTab = document.getElementById("plots-tab");
+  if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+    plotsTab._vizMounted.reload(activeFilters);
+  }
   togglePanel(filterPanel);
   showNotification("Filters applied.");
 }
@@ -516,6 +542,11 @@ function resetFilters() {
   activeFilters = { status: "all", type: "all", domain: "", url: "", startDate: "", endDate: "" };
   currentPage = 1;
   loadRequests();
+  // Also reload Plots tab if mounted
+  const plotsTab = document.getElementById("plots-tab");
+  if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+    plotsTab._vizMounted.reload(activeFilters);
+  }
   showNotification("Filters reset.");
 }
 

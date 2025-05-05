@@ -155,6 +155,9 @@ function createDbInterface() {
     getSqlHistory,
     logError: (error) => logErrorToDatabase(db, error),
     close: cleanupDatabase,
+    saveConfig: saveConfigToDb,
+    loadConfig: loadConfigFromDb,
+    updateConfig: updateConfigInDb,
   };
 }
 
@@ -1221,3 +1224,66 @@ async function executeRawSql(sql, opts = {}) {
     throw new DatabaseError(`Raw SQL execution failed: ${error.message || 'Unknown reason'}`, error);
   }
 }
+
+// --- Config Table Persistence ---
+
+/**
+ * Save the config object to the config table in the database.
+ * @param {object} config - The configuration object to save.
+ * @param {string} [key='main'] - The config key (default: 'main').
+ */
+export function saveConfigToDb(config, key = 'main') {
+  if (!db) throw new DatabaseError('Database not initialized');
+  try {
+    db.exec(
+      `INSERT OR REPLACE INTO config (key, value, updatedAt) VALUES (?, ?, ?)`,
+      [key, JSON.stringify(config), Date.now()]
+    );
+    eventBus && eventBus.publish('config:saved', { key, timestamp: Date.now() });
+    log('info', `[DB] Config saved to DB (key: ${key})`);
+    return true;
+  } catch (error) {
+    log('error', 'Failed to save config to DB:', error);
+    throw new DatabaseError('Failed to save config to DB', error);
+  }
+}
+
+/**
+ * Load the config object from the config table in the database.
+ * @param {string} [key='main'] - The config key (default: 'main').
+ * @returns {object|null}
+ */
+export function loadConfigFromDb(key = 'main') {
+  if (!db) throw new DatabaseError('Database not initialized');
+  try {
+    const result = executeQuery('SELECT value FROM config WHERE key = ?', [key]);
+    if (result[0] && result[0].values.length > 0) {
+      return JSON.parse(result[0].values[0][0]);
+    }
+    return null;
+  } catch (error) {
+    log('error', 'Failed to load config from DB:', error);
+    return null;
+  }
+}
+
+/**
+ * Update the config object in the config table in the database.
+ * @param {object} newConfig - The new configuration object to merge and update.
+ * @param {string} [key='main'] - The config key (default: 'main').
+ */
+export function updateConfigInDb(newConfig, key = 'main') {
+  if (!db) throw new DatabaseError('Database not initialized');
+  try {
+    const current = loadConfigFromDb(key) || {};
+    const updated = { ...current, ...newConfig };
+    saveConfigToDb(updated, key);
+    eventBus && eventBus.publish('config:updated', { key, timestamp: Date.now() });
+    log('info', `[DB] Config updated in DB (key: ${key})`);
+    return true;
+  } catch (error) {
+    log('error', 'Failed to update config in DB:', error);
+    throw new DatabaseError('Failed to update config in DB', error);
+  }
+}
+

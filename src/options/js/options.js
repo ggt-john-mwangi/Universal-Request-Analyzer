@@ -205,6 +205,23 @@ const localDefaultConfig = {
   lastExportTime: null,
 };
 
+// --- Event-based Data Call System ---
+const pendingRequests = {};
+function generateRequestId() {
+  return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.requestId && pendingRequests[message.requestId]) {
+    pendingRequests[message.requestId](message);
+    delete pendingRequests[message.requestId];
+  }
+});
+function eventRequest(action, payload, callback) {
+  const requestId = generateRequestId();
+  pendingRequests[requestId] = callback;
+  chrome.runtime.sendMessage({ ...payload, action, requestId });
+}
+
 // Load options when the page loads
 document.addEventListener("DOMContentLoaded", () => {
   loadOptions();
@@ -321,7 +338,7 @@ function setupSidebarNavigation() {
 
 // Load options from storage
 function loadOptions() {
-  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+  eventRequest("getConfig", {}, (response) => {
     if (response && response.config) {
       console.log("Loaded config from background:", response.config);
       updateUIFromConfig(response.config); // Use loaded config
@@ -418,7 +435,7 @@ function loadDatabaseInfo() {
   showNotification("Loading database info...");
 
   // 1. Load Stats
-  chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => { // Corrected action name
+  eventRequest("getDatabaseStats", {}, (response) => {
     if (response && response.success) {
       dbTotalRequests.textContent = response.stats.requestCount?.toLocaleString() || "0"; // Use requestCount
       if (dbSize) {
@@ -443,7 +460,7 @@ function loadDatabaseInfo() {
   // 2. Load Schema Summary
   if (dbSchemaSummary) {
       dbSchemaSummary.innerHTML = '<li>Loading schema...</li>'; // Clear previous
-      chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummary" }, (response) => { // Corrected action name
+      eventRequest("getDatabaseSchemaSummary", {}, (response) => {
           console.log("[Options] Received response for getDatabaseSchemaSummary:", response);
           if (chrome.runtime.lastError) {
               console.error("[Options] getDatabaseSchemaSummary runtime error:", chrome.runtime.lastError.message);
@@ -476,7 +493,7 @@ function loadDatabaseInfo() {
   // 3. Load Logged Errors
   if (dbErrorsTableBody) {
       dbErrorsTableBody.innerHTML = '<tr><td colspan="5">Loading errors...</td></tr>'; // Clear previous
-      chrome.runtime.sendMessage({ action: "getLoggedErrors", limit: 50 }, (response) => { // Limit initial load
+      eventRequest("getLoggedErrors", { limit: 50 }, (response) => {
           console.log("[Options] Received response for getLoggedErrors:", response);
           if (chrome.runtime.lastError) {
               console.error("[Options] getLoggedErrors runtime error:", chrome.runtime.lastError.message);
@@ -635,7 +652,7 @@ function resetOptions() {
 // Export database
 function exportDatabase() {
   // First, get database stats to show size in confirmation
-  chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (statsResponse) => {
+  eventRequest("getDatabaseStats", {}, (statsResponse) => {
     let dbSizeBytes = 0;
     let dbSizeFormatted = "Unknown size";
     if (statsResponse && statsResponse.success && statsResponse.stats) {
@@ -655,12 +672,11 @@ function exportDatabase() {
 
     if (confirm(confirmMessage)) {
       showNotification(`Starting database export as ${filename}.sqlite...`);
-      chrome.runtime.sendMessage(
+      eventRequest(
+        "exportData",
         {
-          action: "exportData", // Use unified exportData action
           format: "sqlite",
           filename: filename, // Pass the user-provided or default filename
-          // Add other options if needed by exportManager for sqlite
         },
         (response) => {
           if (response && response.success) {
@@ -682,7 +698,7 @@ function exportDatabase() {
 function clearDatabase() {
   if (!confirmClearRequests.checked || confirm("Are you sure you want to clear all captured requests? This action cannot be undone.")) {
     showNotification("Clearing database...");
-    chrome.runtime.sendMessage({ action: "clearRequests" }, (response) => {
+    eventRequest("clearRequests", {}, (response) => {
       if (response && response.success) {
         showNotification("Database cleared successfully.");
         loadDatabaseInfo(); // Refresh stats
@@ -731,9 +747,9 @@ function importData() {
 
     showNotification(`Starting data import from ${file.name}...`);
 
-    chrome.runtime.sendMessage(
+    eventRequest(
+      action,
       {
-        action: action,
         format: format,
         data: dataToSend,
       },
@@ -796,12 +812,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-function generateRequestId() {
-  return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-}
-
 function fetchSqlHistory() {
-  chrome.runtime.sendMessage({ action: "getSqlHistory" }, (response) => {
+  eventRequest("getSqlHistory", {}, (response) => {
     if (response && response.success && Array.isArray(response.history)) {
       sqlHistory = response.history;
       renderSqlHistory();
@@ -850,7 +862,7 @@ rawSqlInput.addEventListener('keydown', e => {
 function exportSqlResultsAsCSV() {
   const sql = rawSqlInput.value.trim();
   if (!sql) return showNotification('No SQL query to export.', true);
-  chrome.runtime.sendMessage({ action: "executeRawSql", sql, exportCsv: true }, (response) => {
+  eventRequest("executeRawSql", { sql, exportCsv: true }, (response) => {
     if (response && response.success && response.results && response.results.csv) {
       const csv = response.results.csv;
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -947,7 +959,7 @@ function executeRawSql() {
     maybeAddExportButton();
   };
 
-  chrome.runtime.sendMessage({ action: "executeRawSql", sql, requestId });
+  eventRequest("executeRawSql", { sql, requestId }, pendingSqlRequests[requestId]);
 }
 
 // Initial fetch of SQL history from backend
@@ -973,7 +985,7 @@ function loadBackupList() {
 
 if (backupDbBtn) {
   backupDbBtn.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ action: "backupDatabase" }, (response) => {
+    eventRequest("backupDatabase", {}, (response) => {
       if (response && response.success) {
         showNotification("Backup created.");
         loadBackupList();
@@ -1003,7 +1015,7 @@ if (restoreBackupBtn) {
     chrome.storage.local.get([key], (items) => {
       const data = items[key];
       if (!data) return showNotification("Backup not found.", true);
-      chrome.runtime.sendMessage({ action: "restoreDatabase", data }, (response) => {
+      eventRequest("restoreDatabase", { data }, (response) => {
         if (response && response.success) {
           showNotification("Database restored from backup.");
           loadDatabaseInfo();
@@ -1020,7 +1032,7 @@ if (vacuumDbBtn) {
   vacuumDbBtn.addEventListener("click", () => {
     vacuumDbBtn.disabled = true;
     vacuumDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Optimizing...';
-    chrome.runtime.sendMessage({ action: "vacuumDatabase" }, (response) => {
+    eventRequest("vacuumDatabase", {}, (response) => {
       vacuumDbBtn.disabled = false;
       vacuumDbBtn.innerHTML = '<i class="fas fa-broom"></i> Optimize';
       if (response && response.success) {
@@ -1035,7 +1047,7 @@ if (vacuumDbBtn) {
 
 // --- Health Check Icon/Tooltip ---
 function checkDbHealth() {
-  chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => {
+  eventRequest("getDatabaseStats", {}, (response) => {
     const icon = dbHealthStatus.querySelector("i");
     let status = "";
     let color = "#aaa";
@@ -1057,7 +1069,7 @@ function checkDbHealth() {
 
 // --- Table Browser: handle empty state ---
 function loadTableList() {
-  chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummary" }, (response) => {
+  eventRequest("getDatabaseSchemaSummary", {}, (response) => {
     if (response && response.success && response.summary && response.summary.length > 0) {
       allTables = response.summary;
       renderTableDropdown();
@@ -1087,7 +1099,7 @@ if (viewTableBtn) {
   viewTableBtn.addEventListener("click", () => {
     const table = tableSelect.value;
     if (!table) return;
-    chrome.runtime.sendMessage({ action: "getTableContents", table }, (response) => {
+    eventRequest("getTableContents", { table }, (response) => {
       if (response && response.success && response.data) {
         currentTableRows = response.data.values || [];
         currentTablePage = 1;
@@ -1145,7 +1157,7 @@ if (exportTableBtn) {
   exportTableBtn.addEventListener("click", () => {
     const table = tableSelect.value;
     if (!table) return;
-    chrome.runtime.sendMessage({ action: "getTableContents", table }, (response) => {
+    eventRequest("getTableContents", { table }, (response) => {
       if (response && response.success && response.data) {
         exportTableAsCSV(response.data);
       } else {
@@ -1222,7 +1234,7 @@ if (encryptDbBtn && encryptionKeyInput) {
   encryptDbBtn.addEventListener("click", () => {
     const key = encryptionKeyInput.value;
     if (!key) return showNotification("No key entered.", true);
-    chrome.runtime.sendMessage({ action: "encryptDatabase", key }, (response) => {
+    eventRequest("encryptDatabase", { key }, (response) => {
       if (response && response.success) {
         showNotification("Database encrypted.");
         updateEncryptionStatus();
@@ -1237,7 +1249,7 @@ if (decryptDbBtn && encryptionKeyInput) {
   decryptDbBtn.addEventListener("click", () => {
     const key = encryptionKeyInput.value;
     if (!key) return showNotification("No key entered.", true);
-    chrome.runtime.sendMessage({ action: "decryptDatabase", key }, (response) => {
+    eventRequest("decryptDatabase", { key }, (response) => {
       if (response && response.success) {
         showNotification("Database decrypted.");
         updateEncryptionStatus();
@@ -1249,7 +1261,7 @@ if (decryptDbBtn && encryptionKeyInput) {
 }
 
 function updateEncryptionStatus() {
-  chrome.runtime.sendMessage({ action: "getEncryptionStatus" }, (response) => {
+  eventRequest("getEncryptionStatus", {}, (response) => {
     const statusEl = encryptionStatus;
     if (response && response.enabled) {
       statusEl.innerHTML = '<i class="fas fa-lock"></i> Status: Encrypted';

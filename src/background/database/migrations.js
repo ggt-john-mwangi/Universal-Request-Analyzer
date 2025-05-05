@@ -214,6 +214,24 @@ const migrations = [
       }
     },
   },
+  {
+    version: 8,
+    description: "Add config table for persistent configuration storage",
+    migrate: (db) => {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )
+        `);
+        return true;
+      } catch (error) {
+        console.error("Migration version 8 (config table) failed:", error);
+        return false;
+      }
+    },
+  },
 ];
 
 // Get current database version

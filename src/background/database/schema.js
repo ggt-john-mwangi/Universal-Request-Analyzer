@@ -134,6 +134,14 @@ export async function createTables(db) {
     )
   `)
 
+  // Create config table for persistent configuration
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `)
+
   // Create indexes for better query performance
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_domain ON requests(domain)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`)

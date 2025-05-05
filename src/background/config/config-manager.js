@@ -1,6 +1,7 @@
 // Configuration manager
 
 import { ConfigError } from "../errors/error-types.js";
+import { saveConfigToDb, loadConfigFromDb } from "../database/db-manager.js";
 
 // Default configuration
 const defaultConfig = {
@@ -106,23 +107,39 @@ const defaultConfig = {
   },
 };
 
-// Load configuration
+// Load configuration from DB, fallback to default if not found
 export async function loadConfig() {
   try {
-    // Load from storage
+    // Try to load config from the database table
+    let dbConfig = null;
+    try {
+      dbConfig = loadConfigFromDb && loadConfigFromDb("main");
+      // If loadConfigFromDb is async, await it
+      if (dbConfig instanceof Promise) dbConfig = await dbConfig;
+    } catch (e) {
+      dbConfig = null;
+    }
+    if (!dbConfig) {
+      // Save default config to DB if not found
+      try {
+        saveConfigToDb && saveConfigToDb(defaultConfig, "main");
+      } catch (e) {}
+      dbConfig = defaultConfig;
+    }
+    // Optionally, merge with Chrome storage config for backward compatibility
     const storedConfig = await getStoredConfig();
-
-    // Merge with default config
-    const config = mergeConfigs(defaultConfig, storedConfig);
-
-    // Save merged config
-    await saveConfig(config);
-
+    const config = mergeConfigs(dbConfig, storedConfig);
+    // Save merged config to DB
+    try {
+      saveConfigToDb && saveConfigToDb(config, "main");
+    } catch (e) {}
     return config;
   } catch (error) {
     console.error("Failed to load configuration:", error);
-
-    // Return default config as fallback
+    // Show notification if available
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Failed to load configuration.", isError: true });
+    }
     return defaultConfig;
   }
 }
@@ -151,8 +168,16 @@ async function saveConfig(config) {
     if (typeof chrome !== "undefined" && chrome.storage) {
       chrome.storage.local.set({ analyzerConfig: config }, () => {
         if (chrome.runtime.lastError) {
+          // Show notification if available
+          if (chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({ action: "showNotification", message: "Error saving configuration: " + chrome.runtime.lastError.message, isError: true });
+          }
           reject(new ConfigError(chrome.runtime.lastError.message));
         } else {
+          // Show notification if available
+          if (chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({ action: "showNotification", message: "Configuration saved successfully!", isError: false });
+          }
           resolve(config);
         }
       });
@@ -215,9 +240,17 @@ export async function updateConfig(newConfig) {
     // Save updated config
     await saveConfig(updatedConfig);
 
+    // Show notification if available
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Configuration updated.", isError: false });
+    }
+
     return updatedConfig;
   } catch (error) {
     console.error("Failed to update configuration:", error);
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Failed to update configuration.", isError: true });
+    }
     throw new ConfigError("Failed to update configuration", error);
   }
 }
@@ -228,9 +261,17 @@ export async function resetConfig() {
     // Save default config
     await saveConfig(defaultConfig);
 
+    // Show notification if available
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Configuration reset to defaults.", isError: false });
+    }
+
     return defaultConfig;
   } catch (error) {
     console.error("Failed to reset configuration:", error);
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Failed to reset configuration.", isError: true });
+    }
     throw new ConfigError("Failed to reset configuration", error);
   }
 }
@@ -257,9 +298,17 @@ export async function exportConfig() {
       });
     }
 
+    // Show notification if available
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Configuration exported.", isError: false });
+    }
+
     return true;
   } catch (error) {
     console.error("Failed to export configuration:", error);
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Failed to export configuration.", isError: true });
+    }
     throw new ConfigError("Failed to export configuration", error);
   }
 }
@@ -272,15 +321,26 @@ export async function importConfig(configJson) {
 
     // Validate config
     if (!validateConfig(config)) {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ action: "showNotification", message: "Invalid configuration format.", isError: true });
+      }
       throw new ConfigError("Invalid configuration format");
     }
 
     // Save config
     await saveConfig(config);
 
+    // Show notification if available
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Configuration imported.", isError: false });
+    }
+
     return config;
   } catch (error) {
     console.error("Failed to import configuration:", error);
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action: "showNotification", message: "Failed to import configuration.", isError: true });
+    }
     throw new ConfigError("Failed to import configuration", error);
   }
 }

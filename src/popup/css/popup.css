@@ -18,6 +18,8 @@
   background-color: var(--surface-color);
   padding: 10px 15px;
   border-bottom: 1px solid var(--border-color);
+  z-index: 1300;
+  position: relative;
 }
 
 .popup-header h1 {
@@ -153,7 +155,7 @@
   padding: 12px 16px;
   display: none;
   position: absolute;
-  top: 50px;
+  top: 90px;
   right: 0;
   width: 350px;
   z-index: 100;
@@ -219,46 +221,42 @@
   filter: brightness(90%);
 }
 
-/* Export Panel */
-.export-panel {
-  padding: 12px 16px;
-  display: none;
-  position: absolute;
-  top: 50px;
+/* Overlay style for import/export panels */
+.export-panel,
+.import-panel {
+  position: fixed;
+  top: 90px; /* further below header and controls */
   right: 0;
-  width: 350px;
-  z-index: 100;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  left: 0;
+  margin: 0 auto;
+  width: 370px;
+  max-width: 95vw;
+  z-index: 1200;
+  background: var(--surface-color);
+  box-shadow: 0 4px 32px rgba(0,0,0,0.18);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  display: none;
+  padding: 20px 24px 18px 24px;
 }
-
-.export-panel.visible {
+.export-panel.visible,
+.import-panel.visible {
   display: block;
 }
 
-.export-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
+/* Overlay backdrop for focus (optional, can be toggled with a class if needed) */
+.overlay-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.18);
+  z-index: 1199;
+  display: none;
 }
-
-.export-row label {
-  width: 100px;
-  font-weight: 500;
-}
-
-.export-row select,
-.export-row input {
-  flex: 1;
-  padding: 6px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.export-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+.overlay-backdrop.visible {
+  display: block;
 }
 
 /* Stats Panel */
@@ -665,4 +663,66 @@ h4 {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none; /* Safari and Chrome */
+}
+
+/* Search Input Wrapper */
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 8px;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+  max-width: 320px;
+}
+
+.search-input-wrapper i {
+  color: var(--text-secondary-color);
+  margin-right: 6px;
+  font-size: 1em;
+}
+
+.search-input-wrapper input[type="text"] {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary-color);
+  font-size: 1em;
+  width: 100%;
+  padding: 6px 0;
+}
+
+.search-input-wrapper i.fas.fa-search {
+  position: absolute;
+  left: 12px;
+  color: var(--text-secondary-color, #888);
+  font-size: 1rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.search-input-wrapper input[type="text"] {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 4px;
+  background: var(--background-color, #fff);
+  color: var(--text-primary-color, #222);
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.search-input-wrapper input[type="text"]:focus {
+  outline: none;
+  border-color: var(--primary-color, #007bff);
 }
