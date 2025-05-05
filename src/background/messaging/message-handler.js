@@ -965,14 +965,28 @@ async function handleGetDistinctDomains(sendResponse) {
   }
 }
 
-async function handleBackupDatabase(sendResponse) {
+async function handleBackupDatabase(sendResponse, message = {}) {
   try {
     if (!dbManager || typeof dbManager.backupDatabase !== "function")
       throw new Error("dbManager.backupDatabase not available");
     const backupKey = await dbManager.backupDatabase();
-    sendResponse({ success: true, backupKey });
+    const response = { success: true, backupKey, action: "backupDatabase" };
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
+    } else {
+      sendResponse(response);
+    }
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    const response = {
+      success: false,
+      error: error.message,
+      action: "backupDatabase",
+    };
+    if (message && message.requestId) {
+      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
+    } else {
+      sendResponse(response);
+    }
   }
 }
 
@@ -980,23 +994,51 @@ async function handleRestoreDatabase(message, sendResponse) {
   try {
     if (!dbManager || typeof dbManager.replaceDatabase !== "function")
       throw new Error("dbManager.replaceDatabase not available");
-    const { data } = message;
+    const { data, requestId } = message;
     if (!data) throw new Error("No backup data provided");
     await dbManager.replaceDatabase(data);
-    sendResponse({ success: true });
+    const response = { success: true, action: "restoreDatabase" };
+    if (requestId) {
+      chrome.runtime.sendMessage({ ...response, requestId });
+    } else {
+      sendResponse(response);
+    }
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    const response = {
+      success: false,
+      error: error.message,
+      action: "restoreDatabase",
+    };
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
+    } else {
+      sendResponse(response);
+    }
   }
 }
 
-async function handleVacuumDatabase(sendResponse) {
+async function handleVacuumDatabase(sendResponse, message = {}) {
   try {
     if (!dbManager || typeof dbManager.vacuumDatabase !== "function")
       throw new Error("dbManager.vacuumDatabase not available");
     await dbManager.vacuumDatabase();
-    sendResponse({ success: true });
+    const response = { success: true, action: "vacuumDatabase" };
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
+    } else {
+      sendResponse(response);
+    }
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    const response = {
+      success: false,
+      error: error.message,
+      action: "vacuumDatabase",
+    };
+    if (message && message.requestId) {
+      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
+    } else {
+      sendResponse(response);
+    }
   }
 }
 
