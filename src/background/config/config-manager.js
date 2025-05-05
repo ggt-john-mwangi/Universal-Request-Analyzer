@@ -5,6 +5,17 @@ import { saveConfigToDb, loadConfigFromDb } from "../database/db-manager.js";
 
 // Default configuration
 const defaultConfig = {
+  // General user settings
+  general: {
+    maxStoredRequests: 10000,
+    autoStartCapture: true,
+    showNotifications: true,
+    confirmClearRequests: true,
+    defaultExportFormat: "json", // json, csv, sqlite
+    dateFormat: "MM/DD/YYYY HH:mm:ss",
+    timeZone: "local", // local, utc, or specific timezone
+  },
+
   // Database configuration
   database: {
     autoSaveInterval: 60000, // 1 minute
@@ -70,12 +81,11 @@ const defaultConfig = {
     autoCloseTimeout: 5000, // 5 seconds
   },
 
-  // UI configuration
+  // UI configuration (now only UI-specific fields)
   ui: {
     theme: "system", // system, light, dark
     accentColor: "#0066cc",
     fontSize: "medium", // small, medium, large
-    dateFormat: "MM/DD/YYYY HH:mm:ss",
     defaultTab: "requests", // requests, stats, plots
     requestsPerPage: 50,
     expandedView: false,
@@ -354,6 +364,7 @@ function validateConfig(config) {
 
   // Check for required sections
   const requiredSections = [
+    "general",
     "database",
     "capture",
     "security",

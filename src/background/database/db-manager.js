@@ -79,7 +79,7 @@ export async function logErrorToDatabase(dbInstance, error) {
 
   try {
     const tableCheck = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
-    if (!tableCheck[0] || tableCheck[0].values.length === 0) {
+    if (!tableCheck[0] || !tableCheck[0].values.length === 0) {
       log("warn", "Errors table does not exist. Cannot log error.");
       return;
     }
@@ -140,6 +140,7 @@ function createDbInterface() {
     getDatabaseStats,
     getFilteredStats,
     getDistinctDomains,
+    getDistinctValues,
     exportDatabase,
     clearDatabase,
     encryptDatabase,
@@ -714,6 +715,56 @@ async function getDistinctDomains() {
   }
 }
 
+// Add this function to support analytics tab distinct value queries
+function getDistinctValues(field, filters = {}) {
+  if (!db) {
+    log("error", "Database is not initialized or invalid.");
+    return [];
+  }
+  try {
+    let query = `SELECT DISTINCT ${field} FROM requests WHERE 1=1`;
+    const params = [];
+    // Optionally add filter support here if needed
+    if (filters.domain) {
+      query += " AND domain LIKE ?";
+      params.push(`%${filters.domain}%`);
+    }
+    if (filters.status) {
+      query += " AND status = ?";
+      params.push(filters.status);
+    }
+    if (filters.type) {
+      query += " AND type = ?";
+      params.push(filters.type);
+    }
+    if (filters.startDate) {
+      query += " AND timestamp >= ?";
+      params.push(new Date(filters.startDate).getTime());
+    }
+    if (filters.endDate) {
+      query += " AND timestamp <= ?";
+      params.push(new Date(filters.endDate).getTime());
+    }
+    if (filters.url) {
+      query += " AND url LIKE ?";
+      params.push(`%${filters.url}%`);
+    }
+    if (filters.method) {
+      query += " AND method = ?";
+      params.push(filters.method);
+    }
+    query += ` ORDER BY ${field}`;
+    const result = executeQuery(query, params);
+    if (!result[0] || !result[0].values) {
+      return [];
+    }
+    return result[0].values.map(row => row[0]);
+  } catch (error) {
+    log("error", `Failed to get distinct values for field ${field}:`, error);
+    return [];
+  }
+}
+
 // Export database in various formats
 async function exportDatabase(format) {
   if (!db) {
@@ -747,11 +798,12 @@ async function exportDatabase(format) {
         );
 
       case "csv":
-        const result = executeQuery(`
+        const csvQuery = `
           SELECT r.*, t.dns, t.tcp, t.ssl, t.ttfb, t.download
           FROM requests r
           LEFT JOIN request_timings t ON r.id = t.requestId
-        `, []);
+        `;
+        const result = executeQuery(csvQuery, []);
 
         if (!result[0]) return "";
 

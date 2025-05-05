@@ -131,39 +131,85 @@ export default function renderCaptureSettings() {
     captureSize: true,
   };
 
-  // Initialize event listeners
-  function attachEventListeners() {
-    // ...existing code...
-  }
-
   // Show status message
   function showStatus(message, success = true) {
-    // ...existing code...
-  }
-
-  // Enable/disable settings based on capture enabled state
-  function updateSettingsAvailability(enabled) {
-    // ...existing code...
+    let status = document.getElementById('captureSettingsStatus');
+    if (!status) {
+      status = document.createElement('div');
+      status.id = 'captureSettingsStatus';
+      status.className = 'status-message';
+      container.appendChild(status);
+    }
+    status.textContent = message;
+    status.style.display = 'block';
+    status.style.color = success ? 'green' : 'red';
+    setTimeout(() => { status.style.display = 'none'; }, 3000);
   }
 
   // Save settings
-  async function saveCaptureSettings() {
-    // ...existing code...
+  function saveCaptureSettings() {
+    const settings = {
+      captureEnabled: document.getElementById('captureEnabled').checked,
+      maxStoredRequests: parseInt(document.getElementById('maxStoredRequests').value, 10),
+      autoStartCapture: document.getElementById('autoStartCapture').checked,
+      captureHeaders: document.getElementById('captureHeaders')?.checked ?? true,
+      captureRequestBody: document.getElementById('captureRequestBody')?.checked ?? true,
+      captureResponseBody: document.getElementById('captureResponseBody')?.checked ?? true,
+      maxBodySize: parseInt(document.getElementById('maxBodySize')?.value, 10) || 0,
+      captureXHR: document.getElementById('captureXHR')?.checked ?? true,
+      captureWebSocket: document.getElementById('captureWebSocket')?.checked ?? true,
+      captureEventSource: document.getElementById('captureEventSource')?.checked ?? true,
+      captureResources: document.getElementById('captureResources')?.checked ?? false,
+      captureTimings: document.getElementById('captureTimings')?.checked ?? true,
+      captureSize: document.getElementById('captureSize')?.checked ?? true,
+    };
+    const requestId = 'saveCapture_' + Date.now();
+    chrome.runtime.sendMessage({ action: 'updateConfig', data: { capture: settings }, requestId });
+    chrome.runtime.onMessage.addEventListener(function handler(msg) {
+      if (msg.requestId === requestId) {
+        showStatus(msg.success ? 'Capture settings saved.' : ('Error: ' + (msg.error || 'Failed to save')), msg.success);
+        chrome.runtime.onMessage.removeEventListener(handler);
+      }
+    });
   }
 
   // Load settings
-  async function loadSettings() {
-    // ...existing code...
+  function loadCaptureSettings() {
+    const requestId = 'loadCapture_' + Date.now();
+    chrome.runtime.sendMessage({ action: 'getConfig', requestId });
+    chrome.runtime.onMessage.addEventListener(function handler(msg) {
+      if (msg.requestId === requestId && msg.config) {
+        const settings = msg.config.capture || {};
+        document.getElementById('captureEnabled').checked = settings.captureEnabled ?? false;
+        document.getElementById('maxStoredRequests').value = settings.maxStoredRequests ?? 1000;
+        document.getElementById('autoStartCapture').checked = settings.autoStartCapture ?? false;
+        document.getElementById('captureHeaders').checked = settings.captureHeaders ?? true;
+        document.getElementById('captureRequestBody').checked = settings.captureRequestBody ?? true;
+        document.getElementById('captureResponseBody').checked = settings.captureResponseBody ?? true;
+        document.getElementById('maxBodySize').value = settings.maxBodySize ?? 256;
+        document.getElementById('captureXHR').checked = settings.captureXHR ?? true;
+        document.getElementById('captureWebSocket').checked = settings.captureWebSocket ?? true;
+        document.getElementById('captureEventSource').checked = settings.captureEventSource ?? true;
+        document.getElementById('captureResources').checked = settings.captureResources ?? false;
+        document.getElementById('captureTimings').checked = settings.captureTimings ?? true;
+        document.getElementById('captureSize').checked = settings.captureSize ?? true;
+        chrome.runtime.onMessage.removeEventListener(handler);
+      }
+    });
   }
 
   // Reset settings to defaults
-  async function resetSettings() {
-    // ...existing code...
+  function resetSettings() {
+    loadCaptureSettings();
+    showStatus('Settings reset to last saved.', true);
   }
 
   // Initialize component
-  attachEventListeners();
-  loadSettings();
+  container.querySelector('#saveCaptureSettings').addEventListener('click', saveCaptureSettings);
+  container.querySelector('#resetCaptureSettings').addEventListener('click', resetSettings);
+
+  // Initial load
+  loadCaptureSettings();
 
   return container;
 }

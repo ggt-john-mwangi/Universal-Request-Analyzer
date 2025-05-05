@@ -101,6 +101,25 @@ h1 {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--surface-color);
+  min-width: 700px;
+  width: 100%;
+  min-width: 320px;
+  min-height: 320px;
+  box-shadow: 0 1px 4px var(--shadow-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#analytics-section .chart-container canvas {
+  max-width: 100%;
+  width: 100% !important;
+  height: 320px !important;
+  display: block;
+  margin: 0 auto;
+  background: var(--surface-color);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px var(--shadow-color);
 }
 
 #analytics-section .controls-container {

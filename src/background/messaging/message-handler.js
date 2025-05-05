@@ -145,7 +145,7 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         handleGetApiPaths(sendResponse);
         return true;
       case "getFilteredStats":
-        handleGetFilteredStats(message, sendResponse);
+        handleGetFilteredStats(message, sender, sendResponse);
         return true;
       case "exportData":
         handleExportData(message, sendResponse);
@@ -660,7 +660,7 @@ async function handleGetApiPaths(sendResponse) {
   }
 }
 
-async function handleGetFilteredStats(message, sendResponse) {
+async function handleGetFilteredStats(message, sender, sendResponse) {
   console.log(
     "[MessageHandler] handleGetFilteredStats: Called with filters:",
     message.filters
@@ -669,13 +669,31 @@ async function handleGetFilteredStats(message, sendResponse) {
     if (typeof dbManager.getFilteredStats !== "function") {
       throw new Error("dbManager.getFilteredStats is not a function");
     }
-    const { filters } = message;
+    const { filters, requestId } = message;
     const stats = await dbManager.getFilteredStats(filters);
-    sendResponse({ success: true, stats });
+    if (requestId) {
+      chrome.runtime.sendMessage({
+        action: "getFilteredStatsResult",
+        requestId,
+        success: true,
+        ...stats,
+      });
+      return;
+    }
+    sendResponse({ success: true, ...stats });
   } catch (error) {
     console.error("[MessageHandler] Error getting filtered stats:", error);
     const apiError = new DatabaseError("Error getting filtered stats", error);
     if (logErrorToDb) await logErrorToDb(apiError);
+    if (message.requestId) {
+      chrome.runtime.sendMessage({
+        action: "getFilteredStatsResult",
+        requestId: message.requestId,
+        success: false,
+        error: apiError.message,
+      });
+      return;
+    }
     sendResponse({ success: false, error: error.message });
   }
 }
