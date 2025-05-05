@@ -6,6 +6,18 @@
 -- DELETE FROM requests;
 -- DELETE FROM errors;
 
+-- Sample users
+INSERT INTO users (id, email, name, role, lastLogin, settings) VALUES
+('user_abc', 'user@example.com', 'Alice Example', 'admin', 1678886400000, '{"theme":"dark"}');
+
+-- Sample projects
+INSERT INTO projects (id, name, description, createdAt, updatedAt, ownerId, settings) VALUES
+('proj_123', 'Demo Project', 'A sample project for seeding.', 1678886400000, 1678886400000, 'user_abc', '{"visibility":"public"}');
+
+-- Sample environments
+INSERT INTO environments (id, name, projectId, createdAt, updatedAt, settings) VALUES
+('env_prod', 'Production', 'proj_123', 1678886400000, 1678886400000, '{"region":"us-east-1"}');
+
 -- Sample Request 1
 INSERT INTO requests (id, url, method, type, status, statusText, domain, path, startTime, endTime, duration, size, timestamp, tabId, pageUrl, error, userId, projectId, environmentId, tags)
 VALUES
@@ -37,6 +49,22 @@ INSERT INTO request_headers (requestId, name, value)
 VALUES
 ('req_2', 'Content-Type', 'application/json'),
 ('req_2', 'X-Request-ID', 'abc-123');
+
+-- Sample session
+INSERT INTO sessions (id, userId, token, createdAt, expiresAt, ipAddress, userAgent) VALUES
+('sess_1', 'user_abc', 'token123', 1678886400000, 1678972800000, '127.0.0.1', 'Mozilla/5.0');
+
+-- Sample audit log
+INSERT INTO audit_log (userId, action, resource, resourceId, timestamp, ipAddress, details) VALUES
+('user_abc', 'login', 'session', 'sess_1', 1678886400000, '127.0.0.1', '{"success":true}');
+
+-- Sample config
+INSERT INTO config (key, value) VALUES
+('main', '{"ui":{"theme":"dark"},"export":{"defaultFormat":"json"}}');
+
+-- Sample SQL history
+INSERT INTO sql_history (query, executed_at, success, error_message, duration_ms) VALUES
+('SELECT * FROM requests', 1678886400000, 1, NULL, 12);
 
 -- Sample Tag
 INSERT INTO tags (name, color, createdAt)
