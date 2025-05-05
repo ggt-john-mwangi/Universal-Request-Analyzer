@@ -247,16 +247,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Add event listeners for buttons if they exist
 if (exportDbBtn) {
-  exportDbBtn.addEventListener("click", exportDatabase);
+  exportDbBtn.addEventListener("click", function () {
+    const originalText = exportDbBtn.innerHTML;
+    exportDbBtn.disabled = true;
+    exportDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    exportDatabase();
+    // exportDatabase will call loadDatabaseInfo, which will re-enable the button below
+    setTimeout(() => {
+      exportDbBtn.disabled = false;
+      exportDbBtn.innerHTML = originalText;
+    }, 3000); // fallback in case exportDatabase doesn't re-enable
+  });
 }
 if (clearDbBtn) {
-  clearDbBtn.addEventListener("click", clearDatabase);
+  clearDbBtn.addEventListener("click", function () {
+    const originalText = clearDbBtn.innerHTML;
+    clearDbBtn.disabled = true;
+    clearDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
+    clearDatabase();
+    setTimeout(() => {
+      clearDbBtn.disabled = false;
+      clearDbBtn.innerHTML = originalText;
+    }, 3000);
+  });
 }
 if (importDataBtn) {
-  importDataBtn.addEventListener("click", importData);
+  importDataBtn.addEventListener("click", function () {
+    const originalText = importDataBtn.innerHTML;
+    importDataBtn.disabled = true;
+    importDataBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+    importData();
+    setTimeout(() => {
+      importDataBtn.disabled = false;
+      importDataBtn.innerHTML = originalText;
+    }, 3000);
+  });
 }
-
-// Add event listeners
+if (refreshDbInfoBtn) {
+  refreshDbInfoBtn.addEventListener("click", function () {
+    const originalText = refreshDbInfoBtn.innerHTML;
+    refreshDbInfoBtn.disabled = true;
+    refreshDbInfoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    loadDatabaseInfo();
+    setTimeout(() => {
+      refreshDbInfoBtn.disabled = false;
+      refreshDbInfoBtn.innerHTML = originalText;
+    }, 2000);
+  });
+}
 if (saveButton) {
   saveButton.addEventListener("click", saveOptions);
 } else {
@@ -434,100 +472,92 @@ function updateUIFromConfig(config) {
 function loadDatabaseInfo() {
   showNotification("Loading database info...");
 
-  // 1. Load Stats
-  eventRequest("getDatabaseStats", {}, (response) => {
+  // 1. Load Stats (event-based)
+  const statsRequestId = generateRequestId();
+  pendingRequests[statsRequestId] = (response) => {
     if (response && response.success) {
-      dbTotalRequests.textContent = response.stats.requestCount?.toLocaleString() || "0"; // Use requestCount
-      if (dbSize) {
-        dbSize.textContent = formatBytes(response.stats.size || 0); // Use size
-      }
+      dbTotalRequests.textContent = response.stats.requestCount?.toLocaleString() || "0";
+      if (dbSize) dbSize.textContent = formatBytes(response.stats.size || 0);
       if (lastExport && response.stats.lastExportTime) {
-        lastExport.textContent = new Date(
-          response.stats.lastExportTime
-        ).toLocaleString();
+        lastExport.textContent = new Date(response.stats.lastExportTime).toLocaleString();
       } else if (lastExport) {
         lastExport.textContent = "Never";
       }
     } else {
-      console.error("Failed to load DB stats:", response?.error);
-      dbTotalRequests.textContent = "Error";
-      if (dbSize) dbSize.textContent = "Error";
-      if (lastExport) lastExport.textContent = "Error";
+      dbTotalRequests.textContent = "No data found";
+      if (dbSize) dbSize.textContent = "No data found";
+      if (lastExport) lastExport.textContent = "No data found";
       showNotification(`Error loading DB stats: ${response?.error || 'Unknown error'}`, true);
     }
-  });
+  };
+  chrome.runtime.sendMessage({ action: "getDatabaseStats", requestId: statsRequestId });
 
-  // 2. Load Schema Summary
+  // 2. Load Schema Summary (event-based)
   if (dbSchemaSummary) {
-      dbSchemaSummary.innerHTML = '<li>Loading schema...</li>'; // Clear previous
-      eventRequest("getDatabaseSchemaSummary", {}, (response) => {
-          console.log("[Options] Received response for getDatabaseSchemaSummary:", response);
-          if (chrome.runtime.lastError) {
-              console.error("[Options] getDatabaseSchemaSummary runtime error:", chrome.runtime.lastError.message);
-              dbSchemaSummary.innerHTML = `<li>Error loading schema: ${chrome.runtime.lastError.message}</li>`;
-              showNotification(`Error loading DB schema: ${chrome.runtime.lastError.message}`, true);
-              return;
-          }
-
-          if (response && response.success && response.summary) {
-              dbSchemaSummary.innerHTML = ''; // Clear loading message
-              if (response.summary.length > 0) {
-                  response.summary.forEach(table => {
-                      const li = document.createElement('li');
-                      li.textContent = `${table.name}: ${table.rows.toLocaleString()} rows`;
-                      dbSchemaSummary.appendChild(li);
-                  });
-              } else {
-                  dbSchemaSummary.innerHTML = '<li>No tables found or unable to retrieve schema.</li>';
-              }
-          } else {
-              console.error("Failed to load DB schema:", response?.error);
-              dbSchemaSummary.innerHTML = '<li>Error loading schema.</li>';
-              showNotification(`Error loading DB schema: ${response?.error || 'Unknown error'}`, true);
-          }
-      });
-  } else {
-      console.warn("#dbSchemaSummary element not found.");
+    const schemaRequestId = generateRequestId();
+    dbSchemaSummary.innerHTML = '<li>Loading schema...</li>';
+    pendingRequests[schemaRequestId] = (response) => {
+      if (chrome.runtime.lastError) {
+        dbSchemaSummary.innerHTML = `<li>Error loading schema: ${chrome.runtime.lastError.message}</li>`;
+        showNotification(`Error loading DB schema: ${chrome.runtime.lastError.message}`, true);
+        return;
+      }
+      if (response && response.success && Array.isArray(response.summary)) {
+        dbSchemaSummary.innerHTML = '';
+        if (response.summary.length > 0) {
+          response.summary.forEach(table => {
+            const li = document.createElement('li');
+            li.textContent = `${table.name}: ${table.rows.toLocaleString()} rows`;
+            dbSchemaSummary.appendChild(li);
+          });
+        } else {
+          dbSchemaSummary.innerHTML = '<li>No tables found in the database.</li>';
+        }
+      } else if (response && response.error) {
+        dbSchemaSummary.innerHTML = `<li>Error loading schema: ${response.error}</li>`;
+        showNotification(`Error loading DB schema: ${response.error}`, true);
+      } else {
+        dbSchemaSummary.innerHTML = '<li>Error: No response from background script.</li>';
+        showNotification('No response from background script for schema summary.', true);
+      }
+    };
+    chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummary", requestId: schemaRequestId });
   }
 
-  // 3. Load Logged Errors
+  // 3. Load Logged Errors (event-based)
   if (dbErrorsTableBody) {
-      dbErrorsTableBody.innerHTML = '<tr><td colspan="5">Loading errors...</td></tr>'; // Clear previous
-      eventRequest("getLoggedErrors", { limit: 50 }, (response) => {
-          console.log("[Options] Received response for getLoggedErrors:", response);
-          if (chrome.runtime.lastError) {
-              console.error("[Options] getLoggedErrors runtime error:", chrome.runtime.lastError.message);
-              dbErrorsTableBody.innerHTML = `<tr><td colspan="5">Error loading logged errors: ${chrome.runtime.lastError.message}</td></tr>`;
-              showNotification(`Error loading logged errors: ${chrome.runtime.lastError.message}`, true);
-              return;
-          }
-
-          if (response && response.success && response.errors) {
-              dbErrorsTableBody.innerHTML = ''; // Clear loading message
-              if (response.errors.length > 0) {
-                  response.errors.forEach(error => {
-                      const row = document.createElement('tr');
-                      const contextStr = typeof error.context === 'string' ? error.context : JSON.stringify(error.context);
-                      row.innerHTML = `
-                          <td>${error.id}</td>
-                          <td>${new Date(error.timestamp).toLocaleString()}</td>
-                          <td>${error.category || 'N/A'}</td>
-                          <td title="${error.stack || ''}">${error.message}</td>
-                          <td><pre>${contextStr}</pre></td>
-                      `;
-                      dbErrorsTableBody.appendChild(row);
-                  });
-              } else {
-                  dbErrorsTableBody.innerHTML = '<tr><td colspan="5">No errors logged in the database.</td></tr>';
-              }
-          } else {
-              console.error("Failed to load logged errors:", response?.error);
-              dbErrorsTableBody.innerHTML = '<tr><td colspan="5">Error loading logged errors.</td></tr>';
-              showNotification(`Error loading logged errors: ${response?.error || 'Unknown error'}`, true);
-          }
-      });
-  } else {
-      console.warn("#dbErrorsTableBody element not found.");
+    const errorsRequestId = generateRequestId();
+    dbErrorsTableBody.innerHTML = '<tr><td colspan="5">Loading errors...</td></tr>';
+    pendingRequests[errorsRequestId] = (response) => {
+      if (chrome.runtime.lastError) {
+        dbErrorsTableBody.innerHTML = `<tr><td colspan="5">Error loading logged errors: ${chrome.runtime.lastError.message}</td></tr>`;
+        showNotification(`Error loading logged errors: ${chrome.runtime.lastError.message}`, true);
+        return;
+      }
+      if (response && response.success && response.errors) {
+        dbErrorsTableBody.innerHTML = '';
+        if (response.errors.length > 0) {
+          response.errors.forEach(error => {
+            const row = document.createElement('tr');
+            const contextStr = typeof error.context === 'string' ? error.context : JSON.stringify(error.context);
+            row.innerHTML = `
+                <td>${error.id}</td>
+                <td>${new Date(error.timestamp).toLocaleString()}</td>
+                <td>${error.category || 'N/A'}</td>
+                <td title="${error.stack || ''}">${error.message}</td>
+                <td><pre>${contextStr}</pre></td>
+            `;
+            dbErrorsTableBody.appendChild(row);
+          });
+        } else {
+          dbErrorsTableBody.innerHTML = '<tr><td colspan="5">No errors logged in the database.</td></tr>';
+        }
+      } else {
+        dbErrorsTableBody.innerHTML = '<tr><td colspan="5">Error loading logged errors.</td></tr>';
+        showNotification(`Error loading logged errors: ${response?.error || 'Unknown error'}`, true);
+      }
+    };
+    chrome.runtime.sendMessage({ action: "getLoggedErrors", limit: 50, requestId: errorsRequestId });
   }
 }
 
@@ -1277,7 +1307,16 @@ function updateEncryptionStatus() {
 function setupEventListeners() {
   // Database Diagnostics Listeners
   if (refreshDbInfoBtn) {
-    refreshDbInfoBtn.addEventListener("click", loadDatabaseInfo);
+    refreshDbInfoBtn.addEventListener("click", function () {
+      const originalText = refreshDbInfoBtn.innerHTML;
+      refreshDbInfoBtn.disabled = true;
+      refreshDbInfoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+      loadDatabaseInfo();
+      setTimeout(() => {
+        refreshDbInfoBtn.disabled = false;
+        refreshDbInfoBtn.innerHTML = originalText;
+      }, 2000);
+    });
   }
   if (executeSqlBtn) {
     executeSqlBtn.addEventListener("click", executeRawSql);

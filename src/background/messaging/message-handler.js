@@ -122,13 +122,13 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         handleGetDatabaseInfo(sendResponse);
         return true;
       case "getDatabaseStats":
-        handleGetStats(sendResponse);
+        handleGetStats(message, sender, sendResponse);
         return true;
       case "getDatabaseSchemaSummary":
-        handleGetDatabaseSchemaSummary(sendResponse);
+        handleGetDatabaseSchemaSummary(message, sender, sendResponse);
         return true;
       case "getLoggedErrors":
-        handleGetLoggedErrors(message, sendResponse);
+        handleGetLoggedErrors(message, sender, sendResponse);
         return true;
       case "executeRawSql":
         handleExecuteRawSql(message, sender).then(sendResponse); // Calls the async handler
@@ -342,7 +342,7 @@ async function handleGetDatabaseInfo(sendResponse) {
   }
 }
 
-async function handleGetStats(sendResponse) {
+async function handleGetStats(message, sender, sendResponse) {
   console.log("[MessageHandler] handleGetStats: Called");
   try {
     if (typeof dbManager.getFilteredStats !== "function") {
@@ -351,23 +351,24 @@ async function handleGetStats(sendResponse) {
     // Fetch all metrics with no filters
     const stats = await dbManager.getFilteredStats({});
     console.log("[MessageHandler] handleGetStats: Retrieved stats:", stats);
-    try {
-      console.log("[MessageHandler] Attempting sendResponse for getStats:", { success: true, stats });
-      sendResponse({ success: true, stats });
-      console.log("[MessageHandler] sendResponse for getStats succeeded.");
-    } catch (sendError) {
-      console.error("[MessageHandler] Error during sendResponse for getStats:", sendError, "Data:", stats);
-      try { sendResponse({ success: false, error: `Failed to send stats response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback stats error:", e); }
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ action: "getDatabaseStatsResult", requestId: message.requestId, success: true, stats });
+      return;
     }
+    sendResponse({ success: true, stats });
   } catch (error) {
     console.error("[MessageHandler] handleGetStats: Error getting database stats:", error);
     const apiError = new DatabaseError("Error getting database stats", error);
     if (logErrorToDb) await logErrorToDb(apiError);
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ action: "getDatabaseStatsResult", requestId: message.requestId, success: false, error: apiError.message });
+      return;
+    }
     try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send stats error response after catch:", e); }
   }
 }
 
-async function handleGetDatabaseSchemaSummary(sendResponse) {
+async function handleGetDatabaseSchemaSummary(message, sender, sendResponse) {
   console.log("[MessageHandler] handleGetDatabaseSchemaSummary: Called");
   try {
     if (typeof dbManager.getDatabaseSchemaSummary !== "function") {
@@ -375,23 +376,24 @@ async function handleGetDatabaseSchemaSummary(sendResponse) {
     }
     const summary = await dbManager.getDatabaseSchemaSummary();
     console.log("[MessageHandler] handleGetDatabaseSchemaSummary: Retrieved summary:", summary);
-    try {
-      console.log("[MessageHandler] Attempting sendResponse for getSchemaSummary:", { success: true, summary });
-      sendResponse({ success: true, summary });
-      console.log("[MessageHandler] sendResponse for getSchemaSummary succeeded.");
-    } catch (sendError) {
-      console.error("[MessageHandler] Error during sendResponse for getSchemaSummary:", sendError, "Data:", summary);
-      try { sendResponse({ success: false, error: `Failed to send schema summary response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback schema summary error:", e); }
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummaryResult", requestId: message.requestId, success: true, summary });
+      return;
     }
+    sendResponse({ success: true, summary });
   } catch (error) {
     console.error("[MessageHandler] handleGetDatabaseSchemaSummary: Error getting schema summary:", error);
     const apiError = new DatabaseError("Error getting schema summary", error);
     if (logErrorToDb) await logErrorToDb(apiError);
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ action: "getDatabaseSchemaSummaryResult", requestId: message.requestId, success: false, error: apiError.message });
+      return;
+    }
     try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send schema summary error response after catch:", e); }
   }
 }
 
-async function handleGetLoggedErrors(message, sendResponse) {
+async function handleGetLoggedErrors(message, sender, sendResponse) {
   console.log("[MessageHandler] handleGetLoggedErrors: Called");
   try {
     if (typeof dbManager.getLoggedErrors !== "function") {
@@ -400,18 +402,19 @@ async function handleGetLoggedErrors(message, sendResponse) {
     const { limit = 50, offset = 0 } = message;
     const errors = await dbManager.getLoggedErrors(limit, offset);
     console.log(`[MessageHandler] handleGetLoggedErrors: Retrieved ${errors?.length} errors.`, errors); // Log errors data
-    try {
-      console.log("[MessageHandler] Attempting sendResponse for getLoggedErrors:", { success: true, errors });
-      sendResponse({ success: true, errors });
-      console.log("[MessageHandler] sendResponse for getLoggedErrors succeeded.");
-    } catch (sendError) {
-      console.error("[MessageHandler] Error during sendResponse for getLoggedErrors:", sendError, "Data:", errors);
-      try { sendResponse({ success: false, error: `Failed to send logged errors response: ${sendError.message}` }); } catch (e) { console.error("Failed to send fallback logged errors error:", e); }
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ action: "getLoggedErrorsResult", requestId: message.requestId, success: true, errors });
+      return;
     }
+    sendResponse({ success: true, errors });
   } catch (error) {
     console.error("[MessageHandler] handleGetLoggedErrors: Error getting logged errors:", error);
     const apiError = new DatabaseError("Error getting logged errors", error);
     if (logErrorToDb) await logErrorToDb(apiError);
+    if (message.requestId) {
+      chrome.runtime.sendMessage({ action: "getLoggedErrorsResult", requestId: message.requestId, success: false, error: apiError.message });
+      return;
+    }
     try { sendResponse({ success: false, error: apiError.message }); } catch (e) { console.error("Failed to send logged errors error response after catch:", e); }
   }
 }
