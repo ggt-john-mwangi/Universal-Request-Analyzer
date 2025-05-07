@@ -1,7 +1,20 @@
 import { setupCrossBrowserCompat } from "../background/compat/browser-compat";
+import { getHarmonizedConfig, listenForConfigUpdates } from "../popup/js/settings-manager.js";
 
 // Ensure compatibility layer is set up if needed (though likely not necessary for just runtime)
 setupCrossBrowserCompat();
+
+// --- Harmonized Config/Filters Sync System ---
+// On load, fetch config/filters from background
+getHarmonizedConfig().then((config) => {
+  // Use config for all settings/filters in content script
+  // ...apply config to content script logic if needed...
+});
+
+// Listen for config updates from background
+listenForConfigUpdates((newConfig) => {
+  // Update content script logic with newConfig if needed
+});
 
 // Add debug logging for all outgoing messages
 function debugSendMessage(message, callback) {

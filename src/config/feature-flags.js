@@ -82,9 +82,13 @@ class FeatureFlagsManager {
 
     // Load saved flags from storage
     try {
-      const data = await this.loadFromStorage()
-      if (data && data.flags) {
-        this.flags = { ...defaultFeatureFlags, ...data.flags }
+      const data = await this.loadFromStorage();
+      // Defensive: data may be undefined or not have .flags
+      if (data && typeof data === 'object' && data.flags && typeof data.flags === 'object') {
+        this.flags = { ...defaultFeatureFlags, ...data.flags };
+      } else {
+        // Fallback to defaults if not present
+        this.flags = { ...defaultFeatureFlags };
       }
 
       // Override with initial flags if provided

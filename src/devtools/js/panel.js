@@ -1,6 +1,7 @@
 import "../../styles.css"; // Import the global styles.css
 import "../css/devtools.css"; // Ensure the CSS file is imported
 import "../../lib/chart.min.js";
+import { getHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
 
 export class DevToolsPanel {
   constructor() {
@@ -21,6 +22,17 @@ export class DevToolsPanel {
     this.selectedDomain = this.currentDomain || null;
     this.updateDomainSelectionUI();
     this.refreshMetrics(true);
+
+    // On load, fetch config/filters from background
+    getHarmonizedConfig().then((config) => {
+      // Use config for all settings/filters in devtools UI
+      // ...apply config to UI elements...
+    });
+
+    // Listen for config updates from background
+    listenForConfigUpdates((newConfig) => {
+      // Update UI/state with newConfig
+    });
   }
 
   async fetchAndPopulateDomains() {

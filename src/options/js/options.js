@@ -11,6 +11,28 @@ import "../components/database-info.js";
 import "../components/visualization.js";
 import renderAnalyticsSection from "../components/analytics.js";
 
+// --- Harmonized Config/Filters Sync System ---
+import { getHarmonizedConfig, updateHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
+
+// On load, fetch config/filters from background
+getHarmonizedConfig().then((config) => {
+  // Use config for all settings/filters in options UI
+  updateUIFromConfig(config);
+});
+
+// When user changes config/filters, update via background
+function onUserChangeConfig(newConfig) {
+  updateHarmonizedConfig(newConfig, (response) => {
+    // Optionally handle response
+  });
+}
+
+// Listen for config updates from background
+listenForConfigUpdates((newConfig) => {
+  // Update UI/state with newConfig
+  updateUIFromConfig(newConfig);
+});
+
 // DOM elements - General
 const maxStoredRequests = document.getElementById("maxStoredRequests");
 const autoStartCapture = document.getElementById("autoStartCapture");
@@ -127,6 +149,8 @@ const encryptionWarning = document.getElementById("encryptionWarning");
 const encryptionKeyInput = document.getElementById("encryptionKeyInput");
 const toggleKeyVisibility = document.getElementById("toggleKeyVisibility");
 const saveDbSettingsBtn = document.getElementById("saveDbSettingsBtn");
+
+const analyticsSection = document.getElementById("analytics-section");
 
 let backupMetaCache = {};
 let allTables = [];
@@ -1672,3 +1696,8 @@ function setupEventListeners() {
     });
   }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("setupSidebarNavigation called");
+  setupSidebarNavigation();
+});

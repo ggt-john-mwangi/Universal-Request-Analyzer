@@ -90,6 +90,30 @@ export function resetConfig() {
   });
 }
 
+// --- Harmonized Config/Filters Sync System ---
+// Always fetch config/filters from background on load
+export async function getHarmonizedConfig() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+      resolve(response && response.config ? response.config : {});
+    });
+  });
+}
+
+// Always update config/filters via background
+export function updateHarmonizedConfig(newConfig, callback) {
+  chrome.runtime.sendMessage({ action: "updateConfig", data: newConfig }, callback);
+}
+
+// Listen for config updates from background
+export function listenForConfigUpdates(onUpdate) {
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === "config:updated" && message.newConfig) {
+      onUpdate(message.newConfig);
+    }
+  });
+}
+
 // Specific settings save/reset functions (called by settings-ui.js)
 
 export async function saveGeneralSettings() {

@@ -15,6 +15,27 @@ import "./settings-manager.js";
 import { initSettingsUI } from "./settings-ui.js";
 import DataVisualization from "../components/data-visualization.js";
 
+// --- Harmonized Config/Filters Sync System ---
+import { getHarmonizedConfig, updateHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
+
+// On load, fetch config/filters from background
+getHarmonizedConfig().then((config) => {
+  // Use config for all settings/filters in popup UI
+  // ...apply config to UI elements...
+});
+
+// When user changes config/filters, update via background
+function onUserChangeConfig(newConfig) {
+  updateHarmonizedConfig(newConfig, (response) => {
+    // Optionally handle response
+  });
+}
+
+// Listen for config updates from background
+listenForConfigUpdates((newConfig) => {
+  // Update UI/state with newConfig
+});
+
 // --- Global Variables ---
 console.log("popup.js: Script start"); // Log script start
 
