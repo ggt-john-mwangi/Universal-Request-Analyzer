@@ -3,6 +3,15 @@ import { setupCrossBrowserCompat } from "../background/compat/browser-compat";
 // Ensure compatibility layer is set up if needed (though likely not necessary for just runtime)
 setupCrossBrowserCompat();
 
+// Add debug logging for all outgoing messages
+function debugSendMessage(message, callback) {
+  console.log('[Content] Sending message to background:', message);
+  chrome.runtime.sendMessage(message, (response) => {
+    console.log('[Content] Got response from background:', response);
+    if (callback) callback(response);
+  });
+}
+
 // Content script to capture performance metrics from the page
 
 // Create a performance observer to monitor resource timing entries
@@ -14,7 +23,7 @@ const observer = new PerformanceObserver((list) => {
 
   if (networkRequests.length > 0) {
     // Send the performance data to the background script
-    chrome.runtime.sendMessage({
+    debugSendMessage({
       action: "performanceData",
       entries: networkRequests.map((entry) => ({
         name: entry.name,
@@ -48,7 +57,7 @@ observer.observe({ entryTypes: ["resource"] })
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     // Page is now visible, send current URL to background
-    chrome.runtime.sendMessage({
+    debugSendMessage({
       action: "pageNavigation",
       url: window.location.href,
       title: document.title,
@@ -62,7 +71,7 @@ window.addEventListener("load", () => {
   const navigationTiming = performance.getEntriesByType("navigation")[0]
 
   if (navigationTiming) {
-    chrome.runtime.sendMessage({
+    debugSendMessage({
       action: "pageLoad",
       url: window.location.href,
       title: document.title,
@@ -92,7 +101,7 @@ window.addEventListener("load", () => {
     })
   } else {
     // Fallback for browsers that don't support Navigation Timing API v2
-    chrome.runtime.sendMessage({
+    debugSendMessage({
       action: "pageLoad",
       url: window.location.href,
       title: document.title,
@@ -109,7 +118,7 @@ window.addEventListener("load", () => {
   const resources = performance.getEntriesByType("resource")
 
   if (resources.length > 0) {
-    chrome.runtime.sendMessage({
+    debugSendMessage({
       action: "pageResources",
       url: window.location.href,
       resources: resources.map((resource) => ({
@@ -142,7 +151,7 @@ window.addEventListener("load", () => {
       const duration = endTime - this._requestStartTime
 
       try {
-        chrome.runtime.sendMessage({
+        debugSendMessage({
           action: "xhrCompleted",
           method: this._requestMethod,
           url: this._requestUrl,
@@ -180,7 +189,7 @@ window.addEventListener("load", () => {
         // Get response size
         clonedResponse.text().then((text) => {
           try {
-            chrome.runtime.sendMessage({
+            debugSendMessage({
               action: "fetchCompleted",
               method: method,
               url: url,
@@ -204,7 +213,7 @@ window.addEventListener("load", () => {
         const duration = endTime - startTime
 
         try {
-          chrome.runtime.sendMessage({
+          debugSendMessage({
             action: "fetchError",
             method: method,
             url: url,

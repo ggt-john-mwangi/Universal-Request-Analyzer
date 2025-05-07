@@ -211,10 +211,12 @@ const localDefaultConfig = {
   lastExportTime: null,
 };
 
-// --- Event-based Data Call System ---
+// --- Event-based request/response helpers ---
 const pendingRequests = {};
-function generateRequestId() {
-  return "req_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now();
+function eventRequest(action, payload, callback) {
+  const requestId = generateRequestId();
+  pendingRequests[requestId] = callback;
+  chrome.runtime.sendMessage({ ...payload, action, requestId });
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message && message.requestId && pendingRequests[message.requestId]) {
@@ -222,101 +224,167 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     delete pendingRequests[message.requestId];
   }
 });
-function eventRequest(action, payload, callback) {
-  const requestId = generateRequestId();
-  pendingRequests[requestId] = callback;
-  chrome.runtime.sendMessage({ ...payload, action, requestId });
+
+// Example usage for getConfig:
+function loadConfigEventBased(callback) {
+  eventRequest("getConfig", {}, (response) => {
+    if (response.success) {
+      callback(response.config);
+    } else {
+      // handle error
+      callback(null);
+    }
+  });
 }
 
+// Example usage for getFilteredStats:
+function loadStatsEventBased(filters, callback) {
+  eventRequest("getFilteredStats", { filters }, (response) => {
+    if (response.success) {
+      callback(response);
+    } else {
+      // handle error
+      callback(null);
+    }
+  });
+}
+
+// --- Event-based Data Call System ---
+function generateRequestId() {
+  return "req_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now();
+}
+
+// --- Global event listeners for backend events (config:updated, etc.) ---
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Handle config:updated event from backend (e.g., from another tab or after save)
+  if (message && message.type === "config:updated") {
+    showNotification("Configuration updated.");
+    loadOptions(); // Reload options to reflect new config
+  }
+  // You can add more global event handlers here as needed
+});
+
 // Load options when the page loads
-document.addEventListener("DOMContentLoaded", () => {
-  loadOptions();
-  setupSidebarNavigation();
-  loadDatabaseInfo(); // Initial load of DB stats, schema, errors
-
-  setupEventListeners(); // Ensure event listeners are attached correctly
-
-  // Render analytics if Analytics is the default active section
-  const analyticsSection = document.getElementById("analytics-section");
-  if (analyticsSection && analyticsSection.classList.contains("active")) {
     analyticsSection.innerHTML = "";
     analyticsSection.appendChild(renderAnalyticsSection());
-  }
-
+  
   // Initial Load for new features
   loadBackupList();
   checkDbHealth();
   loadTableList();
   loadHistoryLog();
   updateEncryptionStatus();
-});
+
 
 // Add event listeners for buttons if they exist
 if (exportDbBtn) {
   exportDbBtn.addEventListener("click", function () {
-    const originalText = exportDbBtn.innerHTML;
+    const requestId = `exportDb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(response) {
+      if (response && response.requestId === requestId) {
+        showNotification(response.success ? "Database exported successfully." : ("Export failed: " + (response?.error || "Unknown error")), !response.success);
+        chrome.runtime.onMessage.removeListener(handler);
+        loadDatabaseInfo();
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
     exportDbBtn.disabled = true;
-    exportDbBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> Exporting...';
-    exportDatabase();
-    // exportDatabase will call loadDatabaseInfo, which will re-enable the button below
+    exportDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    chrome.runtime.sendMessage({ action: "exportData", format: "sqlite", requestId });
     setTimeout(() => {
       exportDbBtn.disabled = false;
-      exportDbBtn.innerHTML = originalText;
-    }, 3000); // fallback in case exportDatabase doesn't re-enable
+      exportDbBtn.innerHTML = "Export Database (.sqlite)";
+    }, 3000);
   });
 }
 if (clearDbBtn) {
   clearDbBtn.addEventListener("click", function () {
-    const originalText = clearDbBtn.innerHTML;
+    const requestId = `clearDb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(response) {
+      if (response && response.requestId === requestId) {
+        showNotification(response.success ? "Database cleared successfully." : ("Error clearing database: " + (response?.error || "Unknown error")), !response.success);
+        chrome.runtime.onMessage.removeListener(handler);
+        loadDatabaseInfo();
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
     clearDbBtn.disabled = true;
     clearDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
-    clearDatabase();
+    chrome.runtime.sendMessage({ action: "clearRequests", requestId });
     setTimeout(() => {
       clearDbBtn.disabled = false;
-      clearDbBtn.innerHTML = originalText;
+      clearDbBtn.innerHTML = "Clear Database";
     }, 3000);
   });
 }
 if (importDataBtn) {
   importDataBtn.addEventListener("click", function () {
-    const originalText = importDataBtn.innerHTML;
+    const requestId = `importData_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(response) {
+      if (response && response.requestId === requestId) {
+        showNotification(response.success ? "Data imported successfully." : ("Error importing data: " + (response?.error || "Unknown error")), !response.success);
+        chrome.runtime.onMessage.removeListener(handler);
+        loadDatabaseInfo();
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
     importDataBtn.disabled = true;
-    importDataBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> Importing...';
-    importData();
+    importDataBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+    // You should call your importData logic here and ensure it sends the requestId
+    // For now, just send a dummy message:
+    chrome.runtime.sendMessage({ action: "importData", requestId });
     setTimeout(() => {
       importDataBtn.disabled = false;
-      importDataBtn.innerHTML = originalText;
+      importDataBtn.innerHTML = "Import";
     }, 3000);
   });
 }
 if (refreshDbInfoBtn) {
   refreshDbInfoBtn.addEventListener("click", function () {
-    const originalText = refreshDbInfoBtn.innerHTML;
+    const requestId = `refreshDbInfo_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(response) {
+      if (response && response.requestId === requestId) {
+        showNotification(response.success ? "Database info refreshed." : ("Error refreshing info: " + (response?.error || "Unknown error")), !response.success);
+        chrome.runtime.onMessage.removeListener(handler);
+        loadDatabaseInfo();
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
     refreshDbInfoBtn.disabled = true;
-    refreshDbInfoBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-    loadDatabaseInfo();
+    refreshDbInfoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    chrome.runtime.sendMessage({ action: "getDatabaseInfo", requestId });
     setTimeout(() => {
       refreshDbInfoBtn.disabled = false;
-      refreshDbInfoBtn.innerHTML = originalText;
+      refreshDbInfoBtn.innerHTML = "Refresh Info";
     }, 2000);
   });
 }
 if (saveButton) {
-  saveButton.addEventListener("click", saveOptions);
-} else {
-  document
-    .querySelectorAll(".settings-container input, .settings-container select")
-    .forEach((element) => {
-      element.addEventListener("change", saveOptions);
-    });
-  console.warn(
-    "No #saveOptionsBtn found, saving on every change. Consider adding a dedicated save button."
-  );
+  saveButton.addEventListener("click", function () {
+    const requestId = `saveAll_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(response) {
+      if (response && response.requestId === requestId) {
+        showNotification(response.success ? "All settings saved successfully!" : ("Error saving settings: " + (response?.error || "Unknown error")), !response.success);
+        chrome.runtime.onMessage.removeListener(handler);
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
+    // Call saveOptions but ensure it sends the requestId
+    saveOptions(requestId);
+  });
 }
-resetBtn.addEventListener("click", resetOptions);
+resetBtn.addEventListener("click", function () {
+  const requestId = `resetAll_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(response) {
+    if (response && response.requestId === requestId) {
+      showNotification(response.success ? "Options reset to defaults" : ("Error resetting options: " + (response?.error || "Unknown error")), !response.success);
+      chrome.runtime.onMessage.removeListener(handler);
+      loadOptions();
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "resetConfig", requestId });
+});
 
 // Setup sidebar navigation
 function setupSidebarNavigation() {
@@ -645,45 +713,37 @@ function formatBytes(bytes, decimals = 2) {
 }
 
 // Save options to storage
-function saveOptions() {
+function saveOptions(requestId) {
   const newConfig = {
     general: {
-      maxStoredRequests: Number.parseInt(maxStoredRequests.value, 10) || 10000,
-      autoStartCapture: autoStartCapture.checked,
-      showNotifications: showNotifications.checked,
-      confirmClearRequests: confirmClearRequests.checked,
-      defaultExportFormat: defaultExportFormat.value,
-      dateFormat: dateFormat.value,
-      timeZone: timeZone.value,
+      maxStoredRequests: maxStoredRequests ? Number.parseInt(maxStoredRequests.value, 10) || 10000 : 10000,
+      autoStartCapture: autoStartCapture ? autoStartCapture.checked : false,
+      showNotifications: showNotifications ? showNotifications.checked : true,
+      confirmClearRequests: confirmClearRequests ? confirmClearRequests.checked : true,
+      defaultExportFormat: defaultExportFormat ? defaultExportFormat.value : 'json',
+      dateFormat: dateFormat ? dateFormat.value : 'YYYY-MM-DD HH:mm:ss',
+      timeZone: timeZone ? timeZone.value : 'local',
     },
-    captureEnabled: captureEnabled.checked,
+    captureEnabled: captureEnabled ? captureEnabled.checked : true,
     capture: {
-      includeHeaders: includeHeaders.checked,
-      includeTiming: includeTiming.checked,
-      includeContent: includeContent.checked,
-      maxContentSize: Number.parseInt(maxContentSize.value, 10) || 1024 * 1024,
-      captureWebSockets: captureWebSockets.checked,
-      captureServerSentEvents: captureServerSentEvents.checked,
+      includeHeaders: includeHeaders ? includeHeaders.checked : true,
+      includeTiming: includeTiming ? includeTiming.checked : true,
+      includeContent: includeContent ? includeContent.checked : false,
+      maxContentSize: maxContentSize ? Number.parseInt(maxContentSize.value, 10) || 1024 * 1024 : 1024 * 1024,
+      captureWebSockets: captureWebSockets ? captureWebSockets.checked : false,
+      captureServerSentEvents: captureServerSentEvents ? captureServerSentEvents.checked : false,
     },
     captureFilters: {
-      includeDomains: includeDomains.value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d),
-      excludeDomains: excludeDomains.value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d),
-      includeTypes: Array.from(captureTypeCheckboxes)
-        .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value),
+      includeDomains: includeDomains ? includeDomains.value.split(",").map((d) => d.trim()).filter((d) => d) : [],
+      excludeDomains: excludeDomains ? excludeDomains.value.split(",").map((d) => d.trim()).filter((d) => d) : [],
+      includeTypes: captureTypeCheckboxes ? Array.from(captureTypeCheckboxes).filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value) : [],
     },
     display: {
-      requestsPerPage: Number.parseInt(requestsPerPage.value, 10) || 50,
-      expandedDetails: expandedDetails.checked,
-      showStatusColors: showStatusColors.checked,
-      showTimingBars: showTimingBars.checked,
-      defaultTab: defaultTab.value,
+      requestsPerPage: requestsPerPage ? Number.parseInt(requestsPerPage.value, 10) || 50 : 50,
+      expandedDetails: expandedDetails ? expandedDetails.checked : false,
+      showStatusColors: showStatusColors ? showStatusColors.checked : true,
+      showTimingBars: showTimingBars ? showTimingBars.checked : true,
+      defaultTab: defaultTab ? defaultTab.value : 'requests',
       columnOrder: [
         "method",
         "domain",
@@ -695,38 +755,29 @@ function saveOptions() {
         "time",
       ],
     },
-    autoExport: autoExport.checked,
-    exportFormat: exportFormat.value,
-    exportInterval: Number.parseInt(exportInterval.value, 10) * 60000,
-    exportPath: exportPath.value.trim(),
-    plotEnabled: plotEnabled.checked,
-    plotTypes: Array.from(plotTypeCheckboxes)
-      .filter((checkbox) => checkbox.checked)
-      .map((checkbox) => checkbox.value),
+    autoExport: autoExport ? autoExport.checked : false,
+    exportFormat: exportFormat ? exportFormat.value : 'json',
+    exportInterval: exportInterval ? Number.parseInt(exportInterval.value, 10) * 60000 : 86400000,
+    exportPath: exportPath ? exportPath.value.trim() : '',
+    plotEnabled: plotEnabled ? plotEnabled.checked : true,
+    plotTypes: plotTypeCheckboxes ? Array.from(plotTypeCheckboxes).filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value) : [],
     advanced: {
-      enableDebugMode: enableDebugMode.checked,
-      persistFilters: persistFilters.checked,
-      useCompression: useCompression.checked,
-      backgroundMode: backgroundMode.value,
-      syncInterval: Number.parseInt(syncInterval.value, 10) || 60,
-      logErrorsToDatabase: logErrorsToDatabase.checked,
-      logErrorsToConsole: logErrorsToConsole.checked,
+      enableDebugMode: enableDebugMode ? enableDebugMode.checked : false,
+      persistFilters: persistFilters ? persistFilters.checked : true,
+      useCompression: useCompression ? useCompression.checked : false,
+      backgroundMode: backgroundMode ? backgroundMode.value : 'default',
+      syncInterval: syncInterval ? Number.parseInt(syncInterval.value, 10) || 60 : 60,
+      logErrorsToDatabase: logErrorsToDatabase ? logErrorsToDatabase.checked : true,
+      logErrorsToConsole: logErrorsToConsole ? logErrorsToConsole.checked : true,
     },
   };
 
-  chrome.runtime.sendMessage(
-    {
-      action: "updateConfig",
-      config: newConfig,
-    },
-    (response) => {
-      if (response && response.success) {
-        showNotification("Options saved successfully!");
-      } else {
-        showNotification("Error saving options", true);
-      }
-    }
-  );
+  // Event-based: send request, listen for event response
+  chrome.runtime.sendMessage({
+    action: "updateConfig",
+    data: newConfig, // Use 'data' instead of 'config'
+    requestId,
+  });
 }
 
 // Reset options to defaults
@@ -734,19 +785,19 @@ function resetOptions() {
   if (
     confirm("Are you sure you want to reset all options to default values?")
   ) {
-    chrome.runtime.sendMessage(
-      {
-        action: "resetConfig",
-      },
-      (response) => {
-        if (response && response.success) {
-          loadOptions();
-          showNotification("Options reset to defaults");
-        } else {
-          showNotification("Error resetting options", true);
-        }
+    const requestId = generateRequestId();
+    pendingRequests[requestId] = (response) => {
+      if (response && response.success) {
+        loadOptions();
+        showNotification("Options reset to defaults");
+      } else {
+        showNotification("Error resetting options", true);
       }
-    );
+    };
+    chrome.runtime.sendMessage({
+      action: "resetConfig",
+      requestId,
+    });
   }
 }
 

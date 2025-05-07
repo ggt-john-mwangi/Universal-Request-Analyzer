@@ -25,17 +25,23 @@ export class DevToolsPanel {
 
   async fetchAndPopulateDomains() {
     try {
-      const response = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: "GET_DISTINCT_DOMAINS" }, (res) => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else if (res && res.error) {
-            reject(new Error(res.error));
-          } else {
-            resolve(res);
+      // Event-based: use requestId and onMessage listener
+      const requestId = `devtools_domains_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const getDomains = () => new Promise((resolve, reject) => {
+        function handler(message) {
+          if (message && message.requestId === requestId && message.action === "getDistinctDomainsResult") {
+            chrome.runtime.onMessage.removeListener(handler);
+            if (message.success) {
+              resolve({ domains: message.domains });
+            } else {
+              reject(new Error(message.error || "Failed to fetch domains"));
+            }
           }
-        });
+        }
+        chrome.runtime.onMessage.addListener(handler);
+        chrome.runtime.sendMessage({ action: "getDistinctDomains", requestId });
       });
+      const response = await getDomains();
       this.allDomains = response?.domains || [];
       this.populateDomainDropdown();
     } catch (error) {
@@ -100,6 +106,38 @@ export class DevToolsPanel {
           <div class="chart-item"><canvas id="avgTimingsChart"></canvas></div>
       </div>
     `;
+    // Add chart type dropdown for chart selection
+    const chartsContainer = document.getElementById("charts-container");
+    if (chartsContainer) {
+      const chartTypeDropdown = document.createElement("select");
+      chartTypeDropdown.className = "chart-type-dropdown";
+      const chartTypes = [
+        { value: "responseTimesChart", label: "Response Time" },
+        { value: "statusCodesChart", label: "Status Codes" },
+        { value: "requestTypesChart", label: "Request Types" },
+        { value: "avgTimingsChart", label: "Avg Timings" },
+      ];
+      chartTypes.forEach(({ value, label }) => {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        chartTypeDropdown.appendChild(opt);
+      });
+      chartTypeDropdown.value = "responseTimesChart";
+      chartsContainer.prepend(chartTypeDropdown);
+
+      function showSelectedChart() {
+        chartTypes.forEach(({ value }) => {
+          const chartDiv = chartsContainer.querySelector(`.chart-item > #${value}`)?.parentElement;
+          if (chartDiv) chartDiv.style.display = "none";
+        });
+        const selectedDiv = chartsContainer.querySelector(`.chart-item > #${chartTypeDropdown.value}`)?.parentElement;
+        if (selectedDiv) selectedDiv.style.display = "block";
+      }
+      chartTypeDropdown.addEventListener("change", showSelectedChart);
+      // Hide all but the first chart on load
+      showSelectedChart();
+    }
     // Initialize empty charts or placeholders
     this.initializeCharts();
   }
@@ -145,37 +183,24 @@ export class DevToolsPanel {
     // Use the domain selected in the dropdown for filtering
     const domainFilter = this.selectedDomain;
     console.log(`Collecting metrics for domain filter: ${domainFilter || 'All'}`);
-
     try {
-      const metrics = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          {
-            type: "GET_METRICS", // Ensure this matches the background handler
-            payload: {
-              domain: domainFilter, // Send the selected domain (null for all)
-            },
-          },
-          (response) => {
-            // ... existing error handling ...
-             if (chrome.runtime.lastError) {
-              console.error(
-                "Error fetching metrics:",
-                chrome.runtime.lastError.message
-              );
-              if (chrome.runtime.lastError.message.includes("closed")) {
-                 console.warn("Connection to background script lost.");
-              }
-              reject(chrome.runtime.lastError);
-            } else if (response && response.error) {
-               console.error("Error from background script:", response.error);
-               reject(new Error(response.error));
+      // Event-based: use requestId and onMessage listener
+      const requestId = `devtools_metrics_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const getMetrics = () => new Promise((resolve, reject) => {
+        function handler(message) {
+          if (message && message.requestId === requestId && message.action === "getFilteredStatsResult") {
+            chrome.runtime.onMessage.removeListener(handler);
+            if (message.success) {
+              resolve(message);
             } else {
-              resolve(response);
+              reject(new Error(message.error || "Failed to fetch metrics"));
             }
           }
-        );
+        }
+        chrome.runtime.onMessage.addListener(handler);
+        chrome.runtime.sendMessage({ action: "getFilteredStats", filters: { domain: domainFilter }, requestId });
       });
-
+      const metrics = await getMetrics();
       if (metrics) {
         this.updateMetricsUI(metrics);
       } else {
@@ -396,9 +421,50 @@ export class DevToolsPanel {
       }
     });
   }
-
-  // ... rest of the class ...
 }
+
+// Event-based fetch for request headers and timings in devtools panel
+function fetchRequestHeaders(requestId, callback) {
+  const eventRequestId = `devtools_headers_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === eventRequestId) {
+      callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "getRequestHeaders", requestId, requestIdFor: eventRequestId });
+}
+
+function fetchRequestTimings(requestId, callback) {
+  const eventRequestId = `devtools_timings_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === eventRequestId) {
+      callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "getRequestTimings", requestId, requestIdFor: eventRequestId });
+}
+
+// Event-based fetch for plot data (stats, etc.)
+function fetchPlotData(filters = {}, callback) {
+  const requestId = `devtools_plot_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === requestId) {
+      callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "getFilteredStats", filters, requestId });
+}
+
+// Example usage:
+// fetchRequestHeaders(requestId, (response) => { if (response.success) { /* render headers */ } });
+// fetchRequestTimings(requestId, (response) => { if (response.success) { /* render timings */ } });
+// fetchPlotData(filters, (data) => { if (data.success) { /* render plots */ } });
 
 document.addEventListener("DOMContentLoaded", () => {
   const devToolsPanel = new DevToolsPanel();

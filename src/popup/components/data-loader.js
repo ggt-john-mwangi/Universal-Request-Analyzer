@@ -7,34 +7,21 @@ export function loadData(filters, renderCharts, setError, setLoading) {
 
   try {
     const queryFilters = getQueryFilters(filters);
-
-    if (typeof chrome !== "undefined" && chrome.runtime) {
-      chrome.runtime.sendMessage(
-        { action: "getFilteredStats", filters: queryFilters },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            setError(chrome.runtime.lastError.message);
-            setLoading(false);
-            return;
-          }
-          // Handle stringified JSON response
-          if (response && typeof response === 'string') {
-            try {
-              response = JSON.parse(response);
-            } catch (e) {}
-          }
-          if (response && !response.error) {
-            renderCharts(response);
-          } else {
-            setError(response?.error || "Failed to load data");
-          }
-          setLoading(false);
+    // Event-based: generate requestId and set up listener
+    const requestId = `popup_stats_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(message) {
+      if (message && message.requestId === requestId) {
+        if (message && !message.error) {
+          renderCharts(message);
+        } else {
+          setError(message?.error || "Failed to load data");
         }
-      );
-    } else {
-      setError("Chrome runtime is not available.");
-      setLoading(false);
+        setLoading(false);
+        chrome.runtime.onMessage.removeListener(handler);
+      }
     }
+    chrome.runtime.onMessage.addListener(handler);
+    chrome.runtime.sendMessage({ action: "getFilteredStats", filters: queryFilters, requestId });
   } catch (err) {
     setError("An error occurred while loading data");
     setLoading(false);

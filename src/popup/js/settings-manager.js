@@ -36,51 +36,58 @@ function sendMessage(message) {
 }
 
 /**
- * Gets the current configuration from the background script.
- * @returns {Promise<object>} - The configuration object.
+ * Loads all settings data from the background script using event-based messaging.
+ * Returns a Promise that resolves with the settings data object.
  */
-export async function getConfig() {
-  try {
-    const response = await sendMessage({ action: "getConfig" });
-    // Fallback to an empty object if config is null/undefined
-    return response?.config || {};
-  } catch (error) {
-    console.error("Failed to get config:", error);
-    // Return default or handle error appropriately
-    return {}; // Return empty object on error to avoid breaking UI expecting an object
-  }
+export function loadSettingsData() {
+  return new Promise((resolve) => {
+    const requestId = `loadSettings_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(message) {
+      if (message && message.requestId === requestId) {
+        resolve(message);
+        chrome.runtime.onMessage.removeListener(handler);
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
+    chrome.runtime.sendMessage({ action: "getSettingsData", requestId });
+  });
 }
 
 /**
- * Updates the configuration in the background script.
+ * Updates the configuration in the background script using event-based messaging.
  * @param {object} newConfig - The partial or full configuration object to update.
  * @returns {Promise<boolean>} - True if successful, false otherwise.
  */
-export async function updateConfig(newConfig) {
-  try {
-    const response = await sendMessage({ action: "updateConfig", config: newConfig });
-    return response?.success;
-  } catch (error) {
-    console.error("Failed to update config:", error);
-    return false;
-  }
+export function updateConfig(newConfig) {
+  return new Promise((resolve) => {
+    const requestId = `updateConfig_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(message) {
+      if (message && message.requestId === requestId) {
+        resolve(message.success);
+        chrome.runtime.onMessage.removeListener(handler);
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
+    chrome.runtime.sendMessage({ action: "updateConfig", data: newConfig, requestId });
+  });
 }
 
 /**
- * Resets the configuration to defaults.
+ * Resets the configuration to defaults using event-based messaging.
  * @returns {Promise<boolean>} - True if successful, false otherwise.
  */
-export async function resetConfig() {
-    if (!confirm("Are you sure you want to reset ALL settings to their defaults? This cannot be undone.")) {
-        return false;
+export function resetConfig() {
+  return new Promise((resolve) => {
+    const requestId = `resetConfig_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(message) {
+      if (message && message.requestId === requestId) {
+        resolve(message.success);
+        chrome.runtime.onMessage.removeListener(handler);
+      }
     }
-  try {
-    const response = await sendMessage({ action: "resetConfig" });
-    return response?.success;
-  } catch (error) {
-    console.error("Failed to reset config:", error);
-    return false;
-  }
+    chrome.runtime.onMessage.addListener(handler);
+    chrome.runtime.sendMessage({ action: "resetConfig", requestId });
+  });
 }
 
 // Specific settings save/reset functions (called by settings-ui.js)
@@ -265,37 +272,6 @@ function showNotification(message, isError = false) {
           console.log("Notification:", message);
       }
   }
-}
-
-// Load initial data for settings UI (called from settings-ui.js)
-export async function loadSettingsData() {
-    // Use Promise.all to fetch data concurrently
-    try {
-        const [configResponse, featuresResponse, permissionsResponse, themesResponse] = await Promise.all([
-            sendMessage({ action: "getConfig" }),
-            sendMessage({ action: "getFeatureFlagsInfo" }),
-            sendMessage({ action: "getPermissionsInfo" }),
-            sendMessage({ action: "getThemesInfo" })
-        ]);
-
-        // Check for errors in responses
-        if (!configResponse?.success) console.error("Failed to load config:", configResponse?.error);
-        if (!featuresResponse?.success) console.error("Failed to load features info:", featuresResponse?.error);
-        if (!permissionsResponse?.success) console.error("Failed to load permissions info:", permissionsResponse?.error);
-        if (!themesResponse?.success) console.error("Failed to load themes info:", themesResponse?.error);
-
-        return {
-            config: configResponse?.config || {}, // Provide default empty object
-            features: featuresResponse?.features || {},
-            permissions: permissionsResponse?.permissions || {},
-            themes: themesResponse?.themes || {}
-        };
-    } catch (error) {
-        console.error("Error loading settings data:", error);
-        showNotification("Error loading settings data. Some settings may not be available.", true);
-        // Return default structure on catastrophic failure
-        return { config: {}, features: {}, permissions: {}, themes: {} };
-    }
 }
 
 /**

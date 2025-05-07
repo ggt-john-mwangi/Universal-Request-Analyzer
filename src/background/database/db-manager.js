@@ -450,6 +450,26 @@ function getRequestHeaders(requestId) {
   }
 }
 
+// Get headers for a request (event-based wrapper)
+export async function getRequestHeadersEventBased(requestId, requestIdForEvent) {
+  try {
+    const headers = getRequestHeaders(requestId);
+    chrome.runtime.sendMessage({
+      action: "getRequestHeadersResult",
+      requestId: requestIdForEvent,
+      success: true,
+      headers
+    });
+  } catch (error) {
+    chrome.runtime.sendMessage({
+      action: "getRequestHeadersResult",
+      requestId: requestIdForEvent,
+      success: false,
+      error: error.message
+    });
+  }
+}
+
 // Save headers for a request
 function saveRequestHeaders(requestId, headers) {
   if (!db) {
@@ -495,6 +515,26 @@ function getRequestTimings(requestId) {
   } catch (error) {
     log("error", "Failed to get request timings:", error);
     throw new DatabaseError("Failed to get request timings", error);
+  }
+}
+
+// Get timing data for a request (event-based wrapper)
+export async function getRequestTimingsEventBased(requestId, requestIdForEvent) {
+  try {
+    const timings = getRequestTimings(requestId);
+    chrome.runtime.sendMessage({
+      action: "getRequestTimingsResult",
+      requestId: requestIdForEvent,
+      success: true,
+      timings
+    });
+  } catch (error) {
+    chrome.runtime.sendMessage({
+      action: "getRequestTimingsResult",
+      requestId: requestIdForEvent,
+      success: false,
+      error: error.message
+    });
   }
 }
 

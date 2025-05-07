@@ -449,6 +449,7 @@ export async function initSettingsUI() {
       });
     }
 
+
     // Add event listener for theme change
     document.getElementById('currentTheme')?.addEventListener('change', async (e) => {
       const selectedTheme = e.target.value;

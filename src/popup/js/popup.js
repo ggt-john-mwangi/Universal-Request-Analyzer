@@ -100,30 +100,71 @@ let tabsContainer = null; // Added for tab switching
 let pendingGetRequests = {};
 let pendingGetStats = {};
 
-// Listen for event-based getRequests results
+// --- Event-based request/response helpers ---
+const pendingPopupRequests = {};
+function eventRequest(action, payload, callback) {
+  const requestId = generateRequestId();
+  pendingPopupRequests[requestId] = callback;
+  chrome.runtime.sendMessage({ ...payload, action, requestId });
+}
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message && message.action === "getRequestsResult" && message.requestId) {
-    const cb = pendingGetRequests[message.requestId];
-    if (cb) {
-      cb(message);
-      delete pendingGetRequests[message.requestId];
-    }
-  }
-});
-
-// Listen for event-based getStats results
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message && message.action === "getStatsResult" && message.requestId) {
-    const cb = pendingGetStats[message.requestId];
-    if (cb) {
-      cb(message);
-      delete pendingGetStats[message.requestId];
-    }
+  if (message && message.requestId && pendingPopupRequests[message.requestId]) {
+    pendingPopupRequests[message.requestId](message);
+    delete pendingPopupRequests[message.requestId];
   }
 });
 
 function generateRequestId() {
   return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+
+// Event-based fetch for request headers and timings
+function fetchRequestHeaders(requestId, callback) {
+  const eventRequestId = `popup_headers_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === eventRequestId) {
+      callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "getRequestHeaders", requestId, requestIdFor: eventRequestId });
+}
+
+function fetchRequestTimings(requestId, callback) {
+  const eventRequestId = `popup_timings_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === eventRequestId) {
+      callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "getRequestTimings", requestId, requestIdFor: eventRequestId });
+}
+
+// Example usage for getConfig:
+function loadConfigEventBased(callback) {
+  eventRequest("getConfig", {}, (response) => {
+    if (response.success) {
+      callback(response.config);
+    } else {
+      // handle error
+      callback(null);
+    }
+  });
+}
+
+// Example usage for getFilteredStats:
+function loadStatsEventBased(filters, callback) {
+  eventRequest("getFilteredStats", { filters }, (response) => {
+    if (response.success) {
+      callback(response);
+    } else {
+      // handle error
+      callback(null);
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -593,9 +634,8 @@ function loadExportPanelData() {
 function handleExportData() {
   const format = exportFormatSelect?.value || "json";
   const filename = exportFilenameInput?.value.trim() || `ura-export-${Date.now()}`;
-
   showNotification(`Exporting data as ${format.toUpperCase()}...`);
-  chrome.runtime.sendMessage({ action: "exportData", format: format, filename: filename }, (response) => {
+  eventRequest("exportData", { format, filename }, (response) => {
     if (response && response.success) {
       showNotification("Data exported successfully.");
     } else {
@@ -632,13 +672,7 @@ function handleImportData() {
     if (importStatus) importStatus.textContent = "Importing... please wait.";
     showNotification("Importing data...");
 
-    const messagePayload = {
-      action: "importData",
-      format: format,
-      data: fileContent,
-    };
-
-    chrome.runtime.sendMessage(messagePayload, (response) => {
+    eventRequest("importData", { format, data: fileContent }, (response) => {
       if (response && response.success) {
         showNotification(`Import successful! ${response.count || 0} records added.`);
         if (importStatus) importStatus.textContent = `Import successful! ${response.count || 0} records added.`;
@@ -666,7 +700,7 @@ function handleImportData() {
 }
 
 function loadPopupConfig() {
-  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+  eventRequest("getConfig", {}, (response) => {
     if (response && response.config) {
       config = response.config;
       itemsPerPage = config.display?.requestsPerPage || 50;
@@ -688,8 +722,7 @@ function loadPopupConfig() {
 // --- Settings Tab Functions ---
 
 function loadPopupSettings() {
-  console.log("Loading popup settings...");
-  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+  eventRequest("getConfig", {}, (response) => {
     if (response && response.config) {
       const currentConfig = response.config;
       if (themeSelector) {
@@ -721,7 +754,7 @@ function savePopupSettings() {
   };
 
   // Send only the updated part of the config
-  chrome.runtime.sendMessage({ action: "updateConfig", config: newSettings }, (response) => {
+  eventRequest("updateConfig", { config: newSettings }, (response) => {
     if (response && response.success) {
       showNotification("Popup settings saved.");
       // Update local config variable if needed, or rely on configUpdated message
@@ -980,39 +1013,33 @@ function showRequestDetails(request) {
   const headersContainer = document.getElementById("headersContainer");
   headersContainer.innerHTML = "";
 
-  chrome.runtime.sendMessage(
-    {
-      action: "getRequestHeaders",
-      requestId: request.id,
-    },
-    (response) => {
-      if (response && response.headers && response.headers.length > 0) {
-        const table = document.createElement("table");
-        table.className = "headers-table";
+  fetchRequestHeaders(request.id, (response) => {
+    if (response && response.headers && response.headers.length > 0) {
+      const table = document.createElement("table");
+      table.className = "headers-table";
 
-        const thead = document.createElement("thead");
-        thead.innerHTML = "<tr><th>Name</th><th>Value</th></tr>";
-        table.appendChild(thead);
+      const thead = document.createElement("thead");
+      thead.innerHTML = "<tr><th>Name</th><th>Value</th></tr>";
+      table.appendChild(thead);
 
-        const tbody = document.createElement("tbody");
+      const tbody = document.createElement("tbody");
 
-        response.headers.forEach((header) => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
+      response.headers.forEach((header) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
             <td>${header.name}</td>
             <td>${header.value}</td>
           `;
-          tbody.appendChild(row);
-        });
+        tbody.appendChild(row);
+      });
 
-        table.appendChild(tbody);
-        headersContainer.appendChild(table);
-      } else {
-        headersContainer.innerHTML =
-          '<p class="no-data">No headers available</p>';
-      }
+      table.appendChild(tbody);
+      headersContainer.appendChild(table);
+    } else {
+      headersContainer.innerHTML =
+        '<p class="no-data">No headers available</p>';
     }
-  );
+  });
 
   requestDetails.classList.add("visible");
 }
@@ -1042,7 +1069,7 @@ function hideRequestDetails() {
 
 // Clear all requests
 function clearRequests() {
-  chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
+  eventRequest("getConfig", {}, (response) => {
     const confirmNeeded =
       response?.config?.general?.confirmClearRequests ?? true;
     if (
@@ -1051,8 +1078,8 @@ function clearRequests() {
         "Are you sure you want to clear all captured requests? This cannot be undone."
       )
     ) {
-      chrome.runtime.sendMessage({ action: "clearRequests" }, (response) => {
-        if (response && response.success) {
+      eventRequest("clearRequests", {}, (clearResp) => {
+        if (clearResp && clearResp.success) {
           loadRequests();
           hideRequestDetails();
           showNotification("All requests cleared successfully");

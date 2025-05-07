@@ -12,6 +12,19 @@ import {
   chartInstances,
 } from "./chart-components.js";
 
+// Event-based fetch for plot data (response times, status codes, request types, etc.)
+function fetchPlotData(filters = {}, callback) {
+  const requestId = `plot_data_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === requestId) {
+      callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "getFilteredStats", filters, requestId });
+}
+
 // Main entry point for data visualization
 function DataVisualization(globalFilters = {}) {
   let filters = { ...globalFilters };
@@ -34,19 +47,43 @@ function DataVisualization(globalFilters = {}) {
         chart.destroy();
       }
     });
-
-    // Reset chart instances
     Object.keys(chartInstances).forEach((key) => {
       delete chartInstances[key];
     });
 
     // Render response time chart
-    if (responseTimeChartRef) {
+    if (responseTimeChartRef && data) {
       const ctx = responseTimeChartRef.getContext("2d");
       chartInstances.responseTime = renderResponseTimeChart(ctx, data);
     }
-
-    // Additional chart rendering logic for other charts can be added here
+    // Render status code chart
+    if (statusCodeChartRef && data) {
+      const ctx = statusCodeChartRef.getContext("2d");
+      if (typeof window.renderStatusCodeChart === 'function') {
+        chartInstances.statusCode = window.renderStatusCodeChart(ctx, data);
+      }
+    }
+    // Render request type chart
+    if (requestTypeChartRef && data) {
+      const ctx = requestTypeChartRef.getContext("2d");
+      if (typeof window.renderRequestTypeChart === 'function') {
+        chartInstances.requestType = window.renderRequestTypeChart(ctx, data);
+      }
+    }
+    // Render time distribution chart
+    if (timeDistributionChartRef && data) {
+      const ctx = timeDistributionChartRef.getContext("2d");
+      if (typeof window.renderTimeDistributionChart === 'function') {
+        chartInstances.timeDistribution = window.renderTimeDistributionChart(ctx, data);
+      }
+    }
+    // Render size distribution chart
+    if (sizeDistributionChartRef && data) {
+      const ctx = sizeDistributionChartRef.getContext("2d");
+      if (typeof window.renderSizeDistributionChart === 'function') {
+        chartInstances.sizeDistribution = window.renderSizeDistributionChart(ctx, data);
+      }
+    }
   }
 
   // Create DOM elements
@@ -61,26 +98,70 @@ function DataVisualization(globalFilters = {}) {
   chartsContainer.className = "charts-container";
   visualizationContainer.appendChild(chartsContainer);
 
-  const chartTabs = document.createElement("div");
-  chartTabs.className = "chart-tabs";
-  chartsContainer.appendChild(chartTabs);
+  // Add domain selector for event-based filtering
+  const domainSelector = document.createElement("select");
+  domainSelector.className = "domain-selector";
+  domainSelector.innerHTML = `<option value="">All Domains</option>`;
+  chartsContainer.prepend(domainSelector);
 
-  [
-    "responseTime",
-    "statusCode",
-    "requestType",
-    "timeDistribution",
-    "sizeDistribution",
-  ].forEach((chartType) => {
-    const button = document.createElement("button");
-    button.className = `chart-tab ${activeChart === chartType ? "active" : ""}`;
-    button.textContent = chartType;
-    button.addEventListener("click", () => {
-      activeChart = chartType;
-      showActiveChart();
-    });
-    chartTabs.appendChild(button);
+  // Fetch domains event-based and set current as default if present
+  function fetchDomainsAndSetDefault() {
+    const requestId = `popup_domains_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    chrome.runtime.sendMessage({ action: 'getDistinctDomains', requestId });
+    function handler(message) {
+      if (message && message.requestId === requestId && Array.isArray(message.domains)) {
+        domainSelector.innerHTML = `<option value="">All Domains</option>`;
+        message.domains.forEach(domain => {
+          const opt = document.createElement('option');
+          opt.value = domain;
+          opt.textContent = domain;
+          domainSelector.appendChild(opt);
+        });
+        // Set default to current domain if present
+        const currentDomain = window.location.hostname;
+        if (currentDomain && message.domains.includes(currentDomain)) {
+          domainSelector.value = currentDomain;
+        }
+        chrome.runtime.onMessage.removeListener(handler);
+        // Trigger initial data load with selected domain
+        reloadWithDomain();
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
+  }
+
+  // Reload data with selected domain
+  function reloadWithDomain() {
+    const selectedDomain = domainSelector.value;
+    const newFilters = { ...filters, domain: selectedDomain };
+    loadData(newFilters, renderCharts, setError, setLoading);
+  }
+
+  // Listen for domain selection changes
+  domainSelector.addEventListener('change', reloadWithDomain);
+
+  // Chart type dropdown
+  const chartTypeDropdown = document.createElement("select");
+  chartTypeDropdown.className = "chart-type-dropdown";
+  const chartTypes = [
+    { value: "responseTime", label: "Response Time" },
+    { value: "statusCode", label: "Status Codes" },
+    { value: "requestType", label: "Request Types" },
+    { value: "timeDistribution", label: "Time Distribution" },
+    { value: "sizeDistribution", label: "Size Distribution" },
+  ];
+  chartTypes.forEach(({ value, label }) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    chartTypeDropdown.appendChild(opt);
   });
+  chartTypeDropdown.value = activeChart;
+  chartTypeDropdown.addEventListener("change", () => {
+    activeChart = chartTypeDropdown.value;
+    showActiveChart();
+  });
+  chartsContainer.appendChild(chartTypeDropdown);
 
   const chartContent = document.createElement("div");
   chartContent.className = "chart-content";
@@ -100,7 +181,7 @@ function DataVisualization(globalFilters = {}) {
       requestTypeChartRef,
       timeDistributionChartRef,
       sizeDistributionChartRef,
-    ].forEach((chart, idx) => {
+    ].forEach((chart) => {
       if (chart) chart.style.display = "none";
     });
     const chartMap = {
@@ -111,15 +192,13 @@ function DataVisualization(globalFilters = {}) {
       sizeDistribution: sizeDistributionChartRef,
     };
     if (chartMap[activeChart]) chartMap[activeChart].style.display = "block";
-    // Update tab active state
-    const tabs = chartTabs.querySelectorAll(".chart-tab");
-    tabs.forEach((tab, idx) => {
-      tab.classList.toggle("active", tab.textContent === activeChart);
-    });
   }
 
   // Initial chart display
   showActiveChart();
+
+  // Initial fetch of domains and data
+  fetchDomainsAndSetDefault();
 
   // Load data initially
   loadData(filters, renderCharts, setError, setLoading);
@@ -127,7 +206,7 @@ function DataVisualization(globalFilters = {}) {
   // Expose a reload method for tab activation and filter changes
   container.reload = (newFilters) => {
     filters = { ...newFilters };
-    loadData(filters, renderCharts, setError, setLoading);
+    reloadWithDomain();
   };
 
   return container;

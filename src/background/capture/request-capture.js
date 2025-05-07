@@ -91,6 +91,7 @@ function setupWebRequestListeners() {
 
 // Handle before request event
 function handleBeforeRequest(details) {
+  console.log("[Capture] handleBeforeRequest", details);
   if (!config.enabled) return;
 
   // Check if we should capture this request type
@@ -140,6 +141,7 @@ function handleBeforeRequest(details) {
 
 // Handle headers received event
 function handleHeadersReceived(details) {
+  console.log("[Capture] handleHeadersReceived", details);
   if (!config.enabled) return;
 
   const request = capturedRequests.find((req) => req.id === details.requestId);
@@ -170,6 +172,7 @@ function handleHeadersReceived(details) {
 
 // Handle request completed event
 function handleRequestCompleted(details) {
+  console.log("[Capture] handleRequestCompleted", details);
   if (!config.enabled) return;
 
   const endTime = details.timeStamp;
@@ -191,6 +194,7 @@ function handleRequestCompleted(details) {
 
 // Handle request error event
 function handleRequestError(details) {
+  console.log("[Capture] handleRequestError", details);
   if (!config.enabled) return;
 
   const request = capturedRequests.find((req) => req.id === details.requestId);
@@ -236,6 +240,7 @@ function setupContentScriptListener() {
 
 // Handle performance data from content script
 function handlePerformanceData(entries, tab) {
+  console.log("[Capture] handlePerformanceData", entries);
   if (!config.enabled || !entries || entries.length === 0) return;
 
   entries.forEach((entry) => {
@@ -299,6 +304,7 @@ function handlePerformanceData(entries, tab) {
 
 // Handle page load event
 function handlePageLoad(data, tab) {
+  console.log("[Capture] handlePageLoad", data);
   if (!config.enabled) return;
 
   // Create a special request entry for the page load
@@ -345,6 +351,7 @@ function handlePageLoad(data, tab) {
 
 // Handle page navigation event
 function handlePageNavigation(data, tab) {
+  console.log("[Capture] handlePageNavigation", data);
   if (!config.enabled) return;
 
   // Publish page navigation event
@@ -357,6 +364,7 @@ function handlePageNavigation(data, tab) {
 
 // Handle XHR/Fetch completed event
 function handleXhrFetchCompleted(data, tab) {
+  console.log("[Capture] handleXhrFetchCompleted", data);
   if (!config.enabled) return;
 
   // Try to find an existing request that matches
@@ -412,6 +420,7 @@ function handleXhrFetchCompleted(data, tab) {
 
 // Handle fetch error event
 function handleFetchError(data, tab) {
+  console.log("[Capture] handleFetchError", data);
   if (!config.enabled) return;
 
   // Try to find an existing request that matches
@@ -463,6 +472,7 @@ function handleFetchError(data, tab) {
 
 // Helper function to update request data
 function updateRequestData(requestId, requestData) {
+  console.log("[Capture] updateRequestData", { requestId, requestData });
   const index = capturedRequests.findIndex((req) => req.id === requestId);
 
   if (index !== -1) {

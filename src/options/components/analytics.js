@@ -6,6 +6,7 @@ function generateRequestId() {
 
 // Analytics component for Options page
 export default function renderAnalyticsSection() {
+  console.log('[Analytics] renderAnalyticsSection mounted');
   // Container
   const container = document.createElement('div');
   container.className = 'analytics-container';
@@ -244,7 +245,6 @@ export default function renderAnalyticsSection() {
     let features = {}, config = {};
     const configReqId = generateRequestId();
     pendingAnalyticsRequests[configReqId] = (res) => {
-      // --- FIX: Always default to all features ON if not present ---
       config = res && res.config ? res.config : {};
       features = res && res.features ? res.features : {
         statistics: true,
@@ -263,21 +263,6 @@ export default function renderAnalyticsSection() {
       const types = Array.from(controls.querySelectorAll('#analytics-types input:checked')).map(i => i.value);
       const method = advancedFilters.querySelector('#analytics-method-select').value;
       const status = advancedFilters.querySelector('#analytics-status-select').value;
-      // If domain is selected, fetch APIs/pages for that domain
-      if (domain) {
-        const apiReqId = generateRequestId();
-        pendingAnalyticsRequests[apiReqId] = (res) => {
-          const apiSelect = filterRow.querySelector('#analytics-api-select');
-          apiSelect.innerHTML = '<option value="">All APIs/Pages</option>';
-          if (res.success && Array.isArray(res.apis)) {
-            res.apis.forEach(apiVal => {
-              const o = document.createElement('option'); o.value = apiVal; o.textContent = apiVal; apiSelect.appendChild(o);
-            });
-          }
-          if (api) apiSelect.value = api;
-        };
-        chrome.runtime.sendMessage({ action: 'getDistinctApis', domain, requestId: apiReqId });
-      }
       // Filters for stats call
       const filters = { domain, types };
       if (start) filters.startTime = new Date(start).getTime();
@@ -286,9 +271,11 @@ export default function renderAnalyticsSection() {
       if (api) filters.api = api;
       if (method) filters.method = method;
       if (status) filters.status = status;
-      // Event-based request (no callback)
+      // Debug: log filters and requestId
       const requestId = generateRequestId();
+      console.log('[Analytics] Requesting getFilteredStats', filters, requestId);
       pendingAnalyticsRequests[requestId] = (stats) => {
+        console.log('[Analytics] Received getFilteredStats response:', stats);
         if (!stats || stats.error) {
           summary.innerHTML = `<div class='error'>${stats?.error || 'No analytics data.'}</div>`;
           return;

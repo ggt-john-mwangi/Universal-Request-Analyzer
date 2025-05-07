@@ -165,19 +165,20 @@ export default function renderCaptureSettings() {
     };
     const requestId = 'saveCapture_' + Date.now();
     chrome.runtime.sendMessage({ action: 'updateConfig', data: { capture: settings }, requestId });
-    chrome.runtime.onMessage.addEventListener(function handler(msg) {
+    function handler(msg) {
       if (msg.requestId === requestId) {
         showStatus(msg.success ? 'Capture settings saved.' : ('Error: ' + (msg.error || 'Failed to save')), msg.success);
-        chrome.runtime.onMessage.removeEventListener(handler);
+        chrome.runtime.onMessage.removeListener(handler);
       }
-    });
+    }
+    chrome.runtime.onMessage.addListener(handler);
   }
 
   // Load settings
   function loadCaptureSettings() {
     const requestId = 'loadCapture_' + Date.now();
     chrome.runtime.sendMessage({ action: 'getConfig', requestId });
-    chrome.runtime.onMessage.addEventListener(function handler(msg) {
+    function handler(msg) {
       if (msg.requestId === requestId && msg.config) {
         const settings = msg.config.capture || {};
         document.getElementById('captureEnabled').checked = settings.captureEnabled ?? false;
@@ -193,9 +194,10 @@ export default function renderCaptureSettings() {
         document.getElementById('captureResources').checked = settings.captureResources ?? false;
         document.getElementById('captureTimings').checked = settings.captureTimings ?? true;
         document.getElementById('captureSize').checked = settings.captureSize ?? true;
-        chrome.runtime.onMessage.removeEventListener(handler);
+        chrome.runtime.onMessage.removeListener(handler);
       }
-    });
+    }
+    chrome.runtime.onMessage.addListener(handler);
   }
 
   // Reset settings to defaults
