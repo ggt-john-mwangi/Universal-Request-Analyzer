@@ -1258,18 +1258,20 @@ async function executeRawSql(sql, opts = {}) {
     throw new DatabaseError("Database is not initialized");
   }
   const lowerSql = sql.toLowerCase().trim();
-  const allowed = ["select", "pragma", "explain", "insert"];
+  const allowed = [
+    "select", "pragma", "explain", "insert", "update", "delete", "create", "drop", "alter", "replace", "vacuum", "begin", "commit", "rollback"
+  ];
   const statements = lowerSql
     .split(';')
     .map(s => s.replace(/--.*$/gm, '').trim())
     .filter(Boolean);
+  let affectedRows = 0;
   for (const stmt of statements) {
     const firstWord = stmt.split(/\s+/)[0];
     if (!allowed.includes(firstWord)) {
-      const securityError = new DatabaseError(`Raw SQL execution denied for non-SELECT/PRAGMA/EXPLAIN/INSERT query.`);
+      const securityError = new DatabaseError(`Raw SQL execution denied for non-allowed query type.`);
       log("warn", "Attempting to execute potentially harmful SQL:", stmt);
       try { await logErrorToDatabase(db, securityError); } catch {}
-      // Save failed attempt to history
       await saveSqlToHistoryDb(sql, false, securityError.message, null);
       throw securityError;
     }
@@ -1283,6 +1285,12 @@ async function executeRawSql(sql, opts = {}) {
       if (stmt) {
         const res = executeQuery(stmt, []);
         if (res) results = results.concat(res);
+        // For non-select, count affected rows
+        if (["update", "delete", "insert", "replace", "create", "drop", "alter"].includes(stmt.split(/\s+/)[0])) {
+          if (typeof db.getRowsModified === "function") {
+            affectedRows += db.getRowsModified();
+          }
+        }
       }
     }
     db.exec("COMMIT");
@@ -1306,9 +1314,10 @@ async function executeRawSql(sql, opts = {}) {
         });
         csv += escapedRow.join(",") + "\n";
       });
-      return { csv, mappedResults };
+      return { csv, mappedResults, affectedRows };
     }
-    return mappedResults;
+    // Return affectedRows for non-select queries
+    return mappedResults.length ? mappedResults : { affectedRows };
   } catch (error) {
     try { db.exec("ROLLBACK"); } catch {}
     log("error", "Raw SQL execution failed:", error.message, { sql });

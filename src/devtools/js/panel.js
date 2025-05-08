@@ -111,6 +111,7 @@ export class DevToolsPanel {
           <!-- Summary Stats will be populated here -->
           Loading summary...
       </div>
+      <div id="charts-select"  class="charts-select"/>
       <div id="charts-container" class="charts-grid">
           <div class="chart-item"><canvas id="responseTimesChart"></canvas></div>
           <div class="chart-item"><canvas id="statusCodesChart"></canvas></div>
@@ -119,8 +120,8 @@ export class DevToolsPanel {
       </div>
     `;
     // Add chart type dropdown for chart selection
-    const chartsContainer = document.getElementById("charts-container");
-    if (chartsContainer) {
+    const chartsContainer_1 = document.getElementById("charts-select");
+    if (!chartsContainer_1) {
       const chartTypeDropdown = document.createElement("select");
       chartTypeDropdown.className = "chart-type-dropdown";
       const chartTypes = [
@@ -136,14 +137,14 @@ export class DevToolsPanel {
         chartTypeDropdown.appendChild(opt);
       });
       chartTypeDropdown.value = "responseTimesChart";
-      chartsContainer.prepend(chartTypeDropdown);
+      chartsContainer_1.prepend(chartTypeDropdown);
 
       function showSelectedChart() {
         chartTypes.forEach(({ value }) => {
-          const chartDiv = chartsContainer.querySelector(`.chart-item > #${value}`)?.parentElement;
+          const chartDiv = chartsContainer_1.querySelector(`.chart-item > #${value}`)?.parentElement;
           if (chartDiv) chartDiv.style.display = "none";
         });
-        const selectedDiv = chartsContainer.querySelector(`.chart-item > #${chartTypeDropdown.value}`)?.parentElement;
+        const selectedDiv = chartsContainer_1.querySelector(`.chart-item > #${chartTypeDropdown.value}`)?.parentElement;
         if (selectedDiv) selectedDiv.style.display = "block";
       }
       chartTypeDropdown.addEventListener("change", showSelectedChart);
