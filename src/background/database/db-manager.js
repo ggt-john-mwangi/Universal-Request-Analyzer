@@ -318,8 +318,17 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
 
   const countResult = executeQuery(countQuery, params.slice(0, -2));
 
+  // Map rows to objects using columns
+  const requests = results[0] ? results[0].values.map(row => {
+    const obj = {};
+    results[0].columns.forEach((col, i) => {
+      obj[col] = row[i];
+    });
+    return obj;
+  }) : [];
+
   return {
-    requests: results[0] ? results[0].values : [],
+    requests,
     columns: results[0] ? results[0].columns : [],
     total: countResult[0] ? countResult[0].values[0][0] : 0,
     page,

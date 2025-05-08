@@ -401,8 +401,14 @@ export default function renderAnalyticsSection() {
         pendingAnalyticsRequests[tableReqId] = (resp) => {
           if (resp && Array.isArray(resp.requests)) {
             resp.requests.forEach(r => {
+              // Defensive checks for missing/invalid data
+              const time = r.timestamp && !isNaN(Number(r.timestamp)) ? new Date(Number(r.timestamp)).toLocaleString() : "";
+              const domain = r.domain || "";
+              const type = r.type || "";
+              const status = r.status !== undefined && r.status !== null ? r.status : "";
+              const duration = r.duration !== undefined && r.duration !== null ? r.duration : "";
               const tr = document.createElement('tr');
-              tr.innerHTML = `<td>${new Date(r.timestamp).toLocaleString()}</td><td>${r.domain}</td><td>${r.type}</td><td>${r.status}</td><td>${r.duration}</td>`;
+              tr.innerHTML = `<td>${time}</td><td>${domain}</td><td>${type}</td><td>${status}</td><td>${duration}</td>`;
               tbody.appendChild(tr);
             });
           }
