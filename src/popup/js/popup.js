@@ -53,6 +53,7 @@ let activeFilters = {
   url: "",
   startDate: "",
   endDate: "",
+  quick: "all", // Added quick filter
 };
 
 // Sorting and Search State
@@ -497,6 +498,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
 
+    // Add quick filter container above the table
+    if (requestsTable) {
+      const quickFiltersDiv = document.createElement("div");
+      quickFiltersDiv.id = "requestsQuickFilters";
+      quickFiltersDiv.style.marginBottom = "8px";
+      requestsTable.parentNode.insertBefore(quickFiltersDiv, requestsTable);
+      renderQuickFilters();
+    }
+
+    // Add summary/sparkline container above the table
+    if (requestsTable) {
+      const summaryDiv = document.createElement("div");
+      summaryDiv.id = "requestsSummarySparklines";
+      summaryDiv.style.marginBottom = "8px";
+      requestsTable.parentNode.insertBefore(summaryDiv, requestsTable);
+    }
+
     console.log("popup.js: Event listeners attached.");
 
     loadPopupConfig(); // Load config after listeners are set
@@ -574,6 +592,251 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
+// --- Quick Filter Buttons for Requests Tab ---
+function renderQuickFilters() {
+  const container = document.getElementById("requestsQuickFilters");
+  if (!container) return;
+  container.innerHTML = `
+    <button class="quick-filter-btn" data-filter="all">All</button>
+    <button class="quick-filter-btn" data-filter="success">Success</button>
+    <button class="quick-filter-btn" data-filter="error">Errors</button>
+    <button class="quick-filter-btn" data-filter="slow">Slow</button>
+  `;
+  container.querySelectorAll(".quick-filter-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const filter = btn.getAttribute("data-filter");
+      activeFilters.quick = filter;
+      loadRequests();
+      container.querySelectorAll(".quick-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+}
+
+// Patch loadRequests to apply quick filter
+const originalRenderRequestsTable = renderRequestsTable;
+renderRequestsTable = function(requests) {
+  if (!requestsTableBody) return;
+  lastLoadedRequests = requests;
+  let filtered = requests;
+  if (activeFilters.quick && activeFilters.quick !== "all") {
+    if (activeFilters.quick === "success") {
+      filtered = filtered.filter(r => r.statusCode >= 200 && r.statusCode < 300);
+    } else if (activeFilters.quick === "error") {
+      filtered = filtered.filter(r => r.statusCode >= 400 || r.status === "error");
+    } else if (activeFilters.quick === "slow") {
+      filtered = filtered.filter(r => r.duration && r.duration > 1000);
+    }
+  }
+  if (searchQuery) {
+    filtered = filtered.filter(r =>
+      (r.method && r.method.toLowerCase().includes(searchQuery)) ||
+      (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
+      (r.path && r.path.toLowerCase().includes(searchQuery)) ||
+      (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
+      (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
+      (r.type && r.type.toLowerCase().includes(searchQuery)) ||
+      (r.url && r.url.toLowerCase().includes(searchQuery))
+    );
+  }
+  if (sortState.column) {
+    filtered = filtered.slice().sort((a, b) => {
+      let valA = a[sortState.column];
+      let valB = b[sortState.column];
+      if (sortState.column === 'size' || sortState.column === 'duration') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+      } else if (sortState.column === 'time') {
+        valA = a.startTime;
+        valB = b.startTime;
+      } else {
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+      }
+      if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+  requestsTableBody.innerHTML = "";
+  if (filtered.length === 0) {
+    requestsTableBody.innerHTML =
+      '<tr><td colspan="8">No requests captured yet.</td></tr>';
+    hideLiveIndicator();
+    return;
+  }
+  filtered.forEach((request) => {
+    const row = document.createElement("tr");
+    row.dataset.requestId = request.id;
+    let statusClass = "";
+    if (request.statusCode >= 200 && request.statusCode < 300) {
+      statusClass = "status-success";
+    } else if (request.statusCode >= 400) {
+      statusClass = "status-error";
+    } else if (request.statusCode >= 300 && request.statusCode < 400) {
+      statusClass = "status-redirect";
+    } else if (request.status === "pending") {
+      statusClass = "status-pending";
+    }
+    row.innerHTML = `
+      <td>${request.method}</td>
+      <td>${request.domain || "-"}</td>
+      <td class="path-cell" title="${request.path || "-"}">${
+      request.path || "-"
+    }</td>
+      <td class="${statusClass}">${
+      request.statusCode || request.status || "-"
+    }</td>
+      <td>${request.type || "-"}</td>
+      <td>${request.size ? formatBytes(request.size) : "-"}</td>
+      <td>${request.duration ? `${Math.round(request.duration)}ms` : "-"}</td>
+      <td>${new Date(request.startTime).toLocaleTimeString()}</td>
+    `;
+    row.addEventListener("click", () => {
+      // Remove any existing expanded row
+      const existing = document.querySelector(".request-details-row");
+      if (existing) existing.remove();
+      renderExpandableRow(request, row);
+    });
+    requestsTableBody.appendChild(row);
+  });
+  // Show live indicator if new requests are being captured
+  if (filtered.length > lastRequestCount) {
+    showLiveIndicator();
+  } else {
+    hideLiveIndicator();
+  }
+  lastRequestCount = filtered.length;
+  renderDomainSummaryAndSparklines(filtered);
+};
+
+// --- Enhanced Mini Sparkline and Summary for Requests Tab ---
+function renderDomainSummaryAndSparklines(requests) {
+  const container = document.getElementById("requestsSummarySparklines");
+  if (!container) return;
+  // Get all unique domains
+  const allDomains = Array.from(new Set(requests.map(r => r.domain).filter(Boolean)));
+  // Domain selector if multiple domains
+  let domain = activeFilters.domain || null;
+  if (!domain && requests.length > 0) {
+    domain = requests[0].domain;
+  }
+  container.innerHTML = "";
+  if (allDomains.length > 1) {
+    const select = document.createElement("select");
+    select.id = "domainSummarySelect";
+    allDomains.forEach(d => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      if (d === domain) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener("change", e => {
+      activeFilters.domain = select.value;
+      loadRequests();
+    });
+    container.appendChild(select);
+  }
+  // Filter requests for current domain
+  const domainRequests = domain ? requests.filter(r => r.domain === domain) : requests;
+  if (!domainRequests.length) {
+    container.innerHTML += '<div class="no-data">No requests for this domain.</div>';
+    return;
+  }
+  // Stats
+  const durations = domainRequests.map(r => r.duration || 0).filter(x => x > 0);
+  const avg = durations.reduce((sum, v) => sum + v, 0) / (durations.length || 1);
+  const max = Math.max(...durations);
+  const min = Math.min(...durations);
+  const sorted = durations.slice().sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
+  const successCount = domainRequests.filter(r => r.statusCode >= 200 && r.statusCode < 300).length;
+  const errorCount = domainRequests.filter(r => r.statusCode >= 400).length;
+  const slowCount = domainRequests.filter(r => r.duration > 1000).length;
+  const mostStatus = mode(domainRequests.map(r => r.statusCode));
+  const mostMethod = mode(domainRequests.map(r => r.method));
+  // Summary
+  container.innerHTML += `
+    <div class="domain-summary">
+      <b>Domain:</b> ${domain} &nbsp; <b>Requests:</b> ${domainRequests.length} &nbsp; <b>Success:</b> ${successCount} &nbsp; <b>Errors:</b> ${errorCount} &nbsp; <b>Slow:</b> ${slowCount}<br>
+      <b>Avg:</b> ${Math.round(avg)}ms &nbsp; <b>Median:</b> ${Math.round(median)}ms &nbsp; <b>P95:</b> ${Math.round(p95)}ms &nbsp; <b>Min:</b> ${Math.round(min)}ms &nbsp; <b>Max:</b> ${Math.round(max)}ms<br>
+      <b>Most Status:</b> ${mostStatus || '-'} &nbsp; <b>Most Method:</b> ${mostMethod || '-'}
+    </div>
+    <canvas id="domainSparkline" width="160" height="32" style="vertical-align:middle;"></canvas>
+  `;
+  // Recent response times (last 10)
+  const recent = domainRequests.slice(0, 10).map(r => Math.round(r.duration || 0));
+  // Draw sparkline with outlier coloring, tooltip, and moving average
+  const canvas = document.getElementById("domainSparkline");
+  if (canvas && recent.length > 1) {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw sparkline
+    ctx.strokeStyle = "#007bff";
+    ctx.beginPath();
+    for (let i = 0; i < recent.length; i++) {
+      const x = (i / (recent.length - 1)) * (canvas.width - 2) + 1;
+      const y = canvas.height - 2 - ((recent[i] - min) / (max - min || 1)) * (canvas.height - 4);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // Draw outlier points (slow)
+    for (let i = 0; i < recent.length; i++) {
+      if (recent[i] > 1000) {
+        const x = (i / (recent.length - 1)) * (canvas.width - 2) + 1;
+        const y = canvas.height - 2 - ((recent[i] - min) / (max - min || 1)) * (canvas.height - 4);
+        ctx.fillStyle = "#e74c3c";
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+    // Draw moving average
+    ctx.strokeStyle = "#888";
+    ctx.beginPath();
+    let sum = 0;
+    for (let i = 0; i < recent.length; i++) {
+      sum += recent[i];
+      const avg = sum / (i + 1);
+      const x = (i / (recent.length - 1)) * (canvas.width - 2) + 1;
+      const y = canvas.height - 2 - ((avg - min) / (max - min || 1)) * (canvas.height - 4);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // Tooltip on hover
+    canvas.onmousemove = function(e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const idx = Math.round((mx - 1) / (canvas.width - 2) * (recent.length - 1));
+      if (recent[idx] !== undefined) {
+        canvas.title = `#${idx + 1}: ${recent[idx]}ms`;
+      } else {
+        canvas.title = '';
+      }
+    };
+    canvas.setAttribute('aria-label', 'Recent response times sparkline for domain ' + domain);
+  }
+}
+function mode(arr) {
+  if (!arr.length) return null;
+  const counts = {};
+  let max = 0, maxVal = null;
+  arr.forEach(v => {
+    if (v == null) return;
+    counts[v] = (counts[v] || 0) + 1;
+    if (counts[v] > max) {
+      max = counts[v];
+      maxVal = v;
+    }
+  });
+  return maxVal;
+}
+
+// --- Mini Sparkline and Summary for Requests Tab ---
 function applyFilters() {
   activeFilters.status = statusFilter?.value || "all";
   activeFilters.type = typeFilter?.value || "all";
@@ -601,7 +864,7 @@ function resetFilters() {
   if (startDateFilter) startDateFilter.value = "";
   if (endDateFilter) endDateFilter.value = "";
 
-  activeFilters = { status: "all", type: "all", domain: "", url: "", startDate: "", endDate: "" };
+  activeFilters = { status: "all", type: "all", domain: "", url: "", startDate: "", endDate: "", quick: "all" };
   currentPage = 1;
   loadRequests();
   // Also reload Plots tab if mounted
@@ -863,79 +1126,6 @@ function changePage(page) {
   loadRequests();
 }
 
-// Render the requests table
-function renderRequestsTable(requests) {
-  if (!requestsTableBody) return;
-  lastLoadedRequests = requests;
-  let filtered = requests;
-  if (searchQuery) {
-    filtered = filtered.filter(r =>
-      (r.method && r.method.toLowerCase().includes(searchQuery)) ||
-      (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
-      (r.path && r.path.toLowerCase().includes(searchQuery)) ||
-      (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
-      (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
-      (r.type && r.type.toLowerCase().includes(searchQuery)) ||
-      (r.url && r.url.toLowerCase().includes(searchQuery))
-    );
-  }
-  if (sortState.column) {
-    filtered = filtered.slice().sort((a, b) => {
-      let valA = a[sortState.column];
-      let valB = b[sortState.column];
-      if (sortState.column === 'size' || sortState.column === 'duration') {
-        valA = Number(valA) || 0;
-        valB = Number(valB) || 0;
-      } else if (sortState.column === 'time') {
-        valA = a.startTime;
-        valB = b.startTime;
-      } else {
-        valA = (valA || '').toString().toLowerCase();
-        valB = (valB || '').toString().toLowerCase();
-      }
-      if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }
-  requestsTableBody.innerHTML = "";
-  if (filtered.length === 0) {
-    requestsTableBody.innerHTML =
-      '<tr><td colspan="8">No requests captured yet.</td></tr>';
-    return;
-  }
-  filtered.forEach((request) => {
-    const row = document.createElement("tr");
-    row.dataset.requestId = request.id;
-    let statusClass = "";
-    if (request.statusCode >= 200 && request.statusCode < 300) {
-      statusClass = "status-success";
-    } else if (request.statusCode >= 400) {
-      statusClass = "status-error";
-    } else if (request.statusCode >= 300 && request.statusCode < 400) {
-      statusClass = "status-redirect";
-    } else if (request.status === "pending") {
-      statusClass = "status-pending";
-    }
-    row.innerHTML = `
-      <td>${request.method}</td>
-      <td>${request.domain || "-"}</td>
-      <td class="path-cell" title="${request.path || "-"}">${
-      request.path || "-"
-    }</td>
-      <td class="${statusClass}">${
-      request.statusCode || request.status || "-"
-    }</td>
-      <td>${request.type || "-"}</td>
-      <td>${request.size ? formatBytes(request.size) : "-"}</td>
-      <td>${request.duration ? `${Math.round(request.duration)}ms` : "-"}</td>
-      <td>${new Date(request.startTime).toLocaleTimeString()}</td>
-    `;
-    row.addEventListener("click", () => showRequestDetails(request));
-    requestsTableBody.appendChild(row);
-  });
-}
-
 // Update stats summary panel (Requests tab)
 function updateStatsSummary(stats) {
   if (!totalRequestsEl || !avgResponseTimeEl || !successRateEl) return;
@@ -974,24 +1164,104 @@ function updateStatisticsTab(stats) {
   domainsEl.innerHTML = stats?.topDomains?.length ? stats.topDomains.map(d => `<div>${d.domain}: ${d.count}</div>`).join("") : "-";
 }
 
-// Load overall stats for the stats tab (event-based)
-function loadStats() {
-  const requestId = generateRequestId();
-  pendingGetStats[requestId] = (response) => {
-    if (chrome.runtime.lastError) {
-      updateStatisticsTab({ error: chrome.runtime.lastError.message });
-      return;
-    }
+// --- Enhanced Statistics Tab ---
+function renderStatisticsTrends(stats, prevStats) {
+  // Helper to get trend arrow
+  function trendArrow(current, prev) {
+    if (prev == null) return '';
+    if (current > prev) return '↑';
+    if (current < prev) return '↓';
+    return '→';
+  }
+  // Error rate
+  const errorRate = stats.requestCount ? (stats.errorCount / stats.requestCount) * 100 : 0;
+  const prevErrorRate = prevStats && prevStats.requestCount ? (prevStats.errorCount / prevStats.requestCount) * 100 : null;
+  // Slowest request
+  const slowest = stats.maxDuration || 0;
+  const prevSlowest = prevStats ? prevStats.maxDuration : null;
+  // Most common domain/type/method
+  const mostDomain = stats.topDomains && stats.topDomains[0] ? stats.topDomains[0].domain : '-';
+  const prevMostDomain = prevStats && prevStats.topDomains && prevStats.topDomains[0] ? prevStats.topDomains[0].domain : null;
+  const mostType = stats.requestTypes && stats.requestTypes[0] ? stats.requestTypes[0].type : '-';
+  const prevMostType = prevStats && prevStats.requestTypes && prevStats.requestTypes[0] ? prevStats.requestTypes[0].type : null;
+  const mostMethod = stats.mostMethod || '-';
+  const prevMostMethod = prevStats ? prevStats.mostMethod : null;
+  // Render
+  document.getElementById("statsErrorRate").textContent = `${errorRate.toFixed(1)}% ${trendArrow(errorRate, prevErrorRate)}`;
+  document.getElementById("statsSlowest").textContent = `${Math.round(slowest)} ms ${trendArrow(slowest, prevSlowest)}`;
+  document.getElementById("statsMostDomain").textContent = `${mostDomain} ${trendArrow(mostDomain, prevMostDomain)}`;
+  document.getElementById("statsMostType").textContent = `${mostType} ${trendArrow(mostType, prevMostType)}`;
+  document.getElementById("statsMostMethod").textContent = `${mostMethod} ${trendArrow(mostMethod, prevMostMethod)}`;
+}
+
+// --- Time Window Selection ---
+let statsTimeWindow = 'hour'; // default
+function renderStatsTimeWindowSelector() {
+  const container = document.getElementById('statsTimeWindowSelector');
+  if (!container) return;
+  container.innerHTML = `
+    <label for="statsTimeWindow">Time Window:</label>
+    <select id="statsTimeWindow">
+      <option value="5min">Last 5 min</option>
+      <option value="hour" selected>Last hour</option>
+      <option value="day">Today</option>
+      <option value="all">All</option>
+    </select>
+  `;
+  const select = document.getElementById('statsTimeWindow');
+  select.value = statsTimeWindow;
+  select.addEventListener('change', e => {
+    statsTimeWindow = select.value;
+    loadStats();
+  });
+}
+
+// Patch loadStats to use time window and fetch previous stats for trends
+const originalLoadStats = loadStats;
+loadStats = function() {
+  renderStatsTimeWindowSelector();
+  // Calculate time window
+  let filters = {};
+  const now = Date.now();
+  if (statsTimeWindow === '5min') filters.startDate = new Date(now - 5 * 60 * 1000).toISOString();
+  else if (statsTimeWindow === 'hour') filters.startDate = new Date(now - 60 * 60 * 1000).toISOString();
+  else if (statsTimeWindow === 'day') {
+    const d = new Date(); d.setHours(0,0,0,0); filters.startDate = d.toISOString();
+  }
+  // Fetch current stats
+  eventRequest('getFilteredStats', { filters }, (response) => {
     if (response && response.stats) {
       updateStatisticsTab(response.stats);
-      // Also update requests tab summary if present
-      updateStatsSummary(response.stats);
+      // Fetch previous period for trend
+      let prevFilters = { ...filters };
+      if (statsTimeWindow === '5min') prevFilters.startDate = new Date(now - 10 * 60 * 1000).toISOString(), prevFilters.endDate = new Date(now - 5 * 60 * 1000).toISOString();
+      else if (statsTimeWindow === 'hour') prevFilters.startDate = new Date(now - 2 * 60 * 60 * 1000).toISOString(), prevFilters.endDate = new Date(now - 60 * 60 * 1000).toISOString();
+      else if (statsTimeWindow === 'day') { const d = new Date(); d.setHours(0,0,0,0); prevFilters.startDate = new Date(d.getTime() - 24*60*60*1000).toISOString(); prevFilters.endDate = d.toISOString(); }
+      else prevFilters = null;
+      if (prevFilters) {
+        eventRequest('getFilteredStats', { filters: prevFilters }, (prevResp) => {
+          renderStatisticsTrends(response.stats, prevResp && prevResp.stats ? prevResp.stats : null);
+        });
+      } else {
+        renderStatisticsTrends(response.stats, null);
+      }
     } else {
       updateStatisticsTab({ error: response?.error || "Unknown error loading stats." });
     }
-  };
-  chrome.runtime.sendMessage({ action: "getStats", requestId });
-}
+  });
+};
+
+// Patch updateStatisticsTab to add new stats fields
+const originalUpdateStatisticsTab = updateStatisticsTab;
+updateStatisticsTab = function(stats) {
+  originalUpdateStatisticsTab(stats);
+  // Add error rate, slowest, most common domain/type/method
+  document.getElementById("statsErrorRate").textContent = stats.requestCount ? ((stats.errorCount / stats.requestCount) * 100).toFixed(1) + '%' : '0%';
+  document.getElementById("statsSlowest").textContent = stats.maxDuration ? Math.round(stats.maxDuration) + ' ms' : '-';
+  document.getElementById("statsMostDomain").textContent = stats.topDomains && stats.topDomains[0] ? stats.topDomains[0].domain : '-';
+  document.getElementById("statsMostType").textContent = stats.requestTypes && stats.requestTypes[0] ? stats.requestTypes[0].type : '-';
+  document.getElementById("statsMostMethod").textContent = stats.mostMethod || '-';
+};
 
 // Show request details panel
 function showRequestDetails(request) {
@@ -1119,3 +1389,264 @@ function updateSortIndicators() {
     }
   });
 }
+
+// --- Live Indicator for Requests Tab ---
+let liveIndicator = null;
+let lastRequestCount = 0;
+
+function showLiveIndicator() {
+  if (!liveIndicator) {
+    liveIndicator = document.createElement("span");
+    liveIndicator.id = "liveIndicator";
+    liveIndicator.textContent = "● Live";
+    liveIndicator.style.color = "#28a745";
+    liveIndicator.style.fontWeight = "bold";
+    liveIndicator.style.marginLeft = "12px";
+    const statsPanel = document.querySelector(".stats-panel");
+    if (statsPanel) statsPanel.appendChild(liveIndicator);
+  }
+  liveIndicator.style.display = "inline";
+}
+
+function hideLiveIndicator() {
+  if (liveIndicator) liveIndicator.style.display = "none";
+}
+
+// --- Expandable Rows for Requests Table ---
+function renderExpandableRow(request, row) {
+  // Only one expanded at a time
+  const existing = document.querySelector(".request-details-row");
+  if (existing) existing.remove();
+
+  const detailsRow = document.createElement("tr");
+  detailsRow.className = "request-details-row";
+  const detailsCell = document.createElement("td");
+  detailsCell.colSpan = 8;
+  detailsCell.style.background = "#f9f9f9";
+  detailsCell.style.padding = "12px 24px";
+  detailsCell.innerHTML = `
+    <div><b>URL:</b> ${request.url}</div>
+    <div><b>Status:</b> ${request.statusCode || request.status || "-"} ${request.statusText || ""}</div>
+    <div><b>Type:</b> ${request.type || "-"}</div>
+    <div><b>Domain:</b> ${request.domain || "-"}</div>
+    <div><b>Path:</b> ${request.path || "-"}</div>
+    <div><b>Duration:</b> ${request.duration ? Math.round(request.duration) + "ms" : "-"}</div>
+    <div><b>Size:</b> ${request.size ? formatBytes(request.size) : "-"}</div>
+    <div><b>Start Time:</b> ${request.startTime ? new Date(request.startTime).toLocaleTimeString() : "-"}</div>
+    <div><b>End Time:</b> ${request.endTime ? new Date(request.endTime).toLocaleTimeString() : "-"}</div>
+    <div><b>Headers:</b> <span class="expand-headers" style="color:#007bff;cursor:pointer;">Show</span></div>
+    <div class="headers-content" style="display:none;"></div>
+  `;
+  detailsRow.appendChild(detailsCell);
+  row.parentNode.insertBefore(detailsRow, row.nextSibling);
+
+  // Toggle headers
+  const showHeaders = detailsCell.querySelector(".expand-headers");
+  const headersContent = detailsCell.querySelector(".headers-content");
+  let headersLoaded = false;
+  showHeaders.addEventListener("click", () => {
+    if (!headersLoaded) {
+      fetchRequestHeaders(request.id, (response) => {
+        if (response && response.headers && response.headers.length > 0) {
+          headersContent.innerHTML = `<table class='headers-table'><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>${response.headers.map(h => `<tr><td>${h.name}</td><td>${h.value}</td></tr>`).join("")}</tbody></table>`;
+        } else {
+          headersContent.innerHTML = '<p class="no-data">No headers available</p>';
+        }
+        headersLoaded = true;
+        headersContent.style.display = "block";
+        showHeaders.textContent = "Hide";
+      });
+    } else {
+      if (headersContent.style.display === "none") {
+        headersContent.style.display = "block";
+        showHeaders.textContent = "Hide";
+      } else {
+        headersContent.style.display = "none";
+        showHeaders.textContent = "Show";
+      }
+    }
+  });
+}
+
+// Patch renderRequestsTable to support expandable rows and live indicator
+const originalRenderRequestsTable2 = renderRequestsTable;
+renderRequestsTable = function(requests) {
+  if (!requestsTableBody) return;
+  lastLoadedRequests = requests;
+  let filtered = requests;
+  if (activeFilters.quick && activeFilters.quick !== "all") {
+    if (activeFilters.quick === "success") {
+      filtered = filtered.filter(r => r.statusCode >= 200 && r.statusCode < 300);
+    } else if (activeFilters.quick === "error") {
+      filtered = filtered.filter(r => r.statusCode >= 400 || r.status === "error");
+    } else if (activeFilters.quick === "slow") {
+      filtered = filtered.filter(r => r.duration && r.duration > 1000);
+    }
+  }
+  if (searchQuery) {
+    filtered = filtered.filter(r =>
+      (r.method && r.method.toLowerCase().includes(searchQuery)) ||
+      (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
+      (r.path && r.path.toLowerCase().includes(searchQuery)) ||
+      (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
+      (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
+      (r.type && r.type.toLowerCase().includes(searchQuery)) ||
+      (r.url && r.url.toLowerCase().includes(searchQuery))
+    );
+  }
+  if (sortState.column) {
+    filtered = filtered.slice().sort((a, b) => {
+      let valA = a[sortState.column];
+      let valB = b[sortState.column];
+      if (sortState.column === 'size' || sortState.column === 'duration') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+      } else if (sortState.column === 'time') {
+        valA = a.startTime;
+        valB = b.startTime;
+      } else {
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+      }
+      if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+  requestsTableBody.innerHTML = "";
+  if (filtered.length === 0) {
+    requestsTableBody.innerHTML =
+      '<tr><td colspan="8">No requests captured yet.</td></tr>';
+    hideLiveIndicator();
+    return;
+  }
+  filtered.forEach((request) => {
+    const row = document.createElement("tr");
+    row.dataset.requestId = request.id;
+    let statusClass = "";
+    if (request.statusCode >= 200 && request.statusCode < 300) {
+      statusClass = "status-success";
+    } else if (request.statusCode >= 400) {
+      statusClass = "status-error";
+    } else if (request.statusCode >= 300 && request.statusCode < 400) {
+      statusClass = "status-redirect";
+    } else if (request.status === "pending") {
+      statusClass = "status-pending";
+    }
+    row.innerHTML = `
+      <td>${request.method}</td>
+      <td>${request.domain || "-"}</td>
+      <td class="path-cell" title="${request.path || "-"}">${
+      request.path || "-"
+    }</td>
+      <td class="${statusClass}">${
+      request.statusCode || request.status || "-"
+    }</td>
+      <td>${request.type || "-"}</td>
+      <td>${request.size ? formatBytes(request.size) : "-"}</td>
+      <td>${request.duration ? `${Math.round(request.duration)}ms` : "-"}</td>
+      <td>${new Date(request.startTime).toLocaleTimeString()}</td>
+    `;
+    row.addEventListener("click", () => {
+      // Remove any existing expanded row
+      const existing = document.querySelector(".request-details-row");
+      if (existing) existing.remove();
+      renderExpandableRow(request, row);
+    });
+    requestsTableBody.appendChild(row);
+  });
+  // Show live indicator if new requests are being captured
+  if (filtered.length > lastRequestCount) {
+    showLiveIndicator();
+  } else {
+    hideLiveIndicator();
+  }
+  lastRequestCount = filtered.length;
+  renderDomainSummaryAndSparklines(filtered);
+};
+
+/* --- UI/UX POLISH FOR REQUESTS TAB --- */
+// Add loading spinner
+let requestsLoadingSpinner = null;
+function showRequestsLoading() {
+  if (!requestsLoadingSpinner) {
+    requestsLoadingSpinner = document.createElement("div");
+    requestsLoadingSpinner.id = "requestsLoadingSpinner";
+    requestsLoadingSpinner.setAttribute("role", "status");
+    requestsLoadingSpinner.setAttribute("aria-live", "polite");
+    requestsLoadingSpinner.innerHTML = `<div class="spinner" title="Loading requests..." aria-label="Loading requests"></div>`;
+    requestsLoadingSpinner.style.display = "flex";
+    requestsLoadingSpinner.style.justifyContent = "center";
+    requestsLoadingSpinner.style.alignItems = "center";
+    requestsLoadingSpinner.style.padding = "24px 0";
+    requestsLoadingSpinner.style.width = "100%";
+    requestsLoadingSpinner.style.background = "var(--background-color)";
+    requestsTableBody.parentNode.insertBefore(requestsLoadingSpinner, requestsTableBody);
+  }
+  requestsLoadingSpinner.style.display = "flex";
+}
+function hideRequestsLoading() {
+  if (requestsLoadingSpinner) requestsLoadingSpinner.style.display = "none";
+}
+
+// Patch loadRequests to show spinner
+const originalLoadRequests = loadRequests;
+loadRequests = function() {
+  showRequestsLoading();
+  setTimeout(() => { originalLoadRequests(); }, 100); // Simulate async for UX
+};
+
+// Patch renderRequestsTable to hide spinner and add empty state tip
+const originalRenderRequestsTable4 = renderRequestsTable;
+renderRequestsTable = function(requests) {
+  hideRequestsLoading();
+  originalRenderRequestsTable4(requests);
+  // Add empty state tip
+  if (requestsTableBody && requestsTableBody.innerHTML.includes('No requests captured yet.')) {
+    requestsTableBody.innerHTML = `<tr><td colspan="8" class="empty-message">No requests captured yet.<br><span style='font-size:13px;color:#888;'>Tip: Browse a website or open DevTools to start capturing network requests.</span></td></tr>`;
+  }
+};
+
+// Add ARIA and tooltips to quick filter buttons and domain selector
+function enhanceAccessibilityAndTooltips() {
+  const quickBtns = document.querySelectorAll('.quick-filter-btn');
+  quickBtns.forEach(btn => {
+    btn.setAttribute('tabindex', '0');
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
+    if (btn.dataset.filter === 'all') btn.title = 'Show all requests';
+    if (btn.dataset.filter === 'success') btn.title = 'Show only successful (2xx) requests';
+    if (btn.dataset.filter === 'error') btn.title = 'Show only error (4xx/5xx) requests';
+    if (btn.dataset.filter === 'slow') btn.title = 'Show only slow requests (>1s)';
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') btn.click(); });
+  });
+  const domainSelect = document.getElementById('domainSummarySelect');
+  if (domainSelect) {
+    domainSelect.setAttribute('aria-label', 'Select domain to view summary and sparkline');
+    domainSelect.title = 'Select domain to view summary and sparkline';
+  }
+}
+
+// Patch renderDomainSummaryAndSparklines to call accessibility enhancer
+const originalRenderDomainSummaryAndSparklines = renderDomainSummaryAndSparklines;
+renderDomainSummaryAndSparklines = function(requests) {
+  originalRenderDomainSummaryAndSparklines(requests);
+  enhanceAccessibilityAndTooltips();
+};
+
+// Add hover/active states for quick filter buttons and table rows via JS (for theme support)
+document.addEventListener('DOMContentLoaded', () => {
+  const style = document.createElement('style');
+  style.innerHTML = `
+    .quick-filter-btn { margin-right: 6px; padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-primary-color); font-size: 13px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+    .quick-filter-btn.active, .quick-filter-btn:focus-visible { background: var(--primary-color); color: #fff; border-color: var(--primary-color); outline: none; }
+    .quick-filter-btn:hover { background: var(--primary-color); color: #fff; }
+    .domain-summary { margin-bottom: 4px; font-size: 13px; line-height: 1.6; }
+    .spinner { border: 4px solid #eee; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+    tr.request-details-row td { background: var(--surface-color); }
+    tr:hover:not(.request-details-row) { background: var(--primary-color); color: #fff; }
+    .empty-message { text-align: center; color: #888; font-size: 15px; padding: 32px 0; }
+  `;
+  document.head.appendChild(style);
+});

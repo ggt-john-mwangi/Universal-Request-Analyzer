@@ -264,7 +264,71 @@
         <h3>Request Types</h3>
         <div id="statsRequestTypes">-</div>
       </div>
+
+      <div class="stats-card">
+        <h3>Advanced Stats</h3>
+        <div class="stats-data">
+          <div class="stat-row">
+            <span class="stat-name">Error Rate:</span>
+            <span class="stat-value" id="statsErrorRate">0%</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Slowest Request:</span>
+            <span class="stat-value" id="statsSlowest">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Most Common Domain:</span>
+            <span class="stat-value" id="statsMostDomain">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Most Common Type:</span>
+            <span class="stat-value" id="statsMostType">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-name">Most Common Method:</span>
+            <span class="stat-value" id="statsMostMethod">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-card">
+        <h3>Requests per Domain (Top 5)</h3>
+        <div class="stats-data">
+          <table id="statsRequestsPerDomain" class="stats-summary-table">
+            <thead><tr><th>Domain</th><th>Count</th><th>Avg Duration</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stats-card">
+        <h3>Requests per Method</h3>
+        <div class="stats-data">
+          <table id="statsRequestsPerMethod" class="stats-summary-table">
+            <thead><tr><th>Method</th><th>Count</th><th>Avg Duration</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stats-card">
+        <h3>Requests per Status Code</h3>
+        <div class="stats-data">
+          <table id="statsRequestsPerStatus" class="stats-summary-table">
+            <thead><tr><th>Status</th><th>Count</th><th>Avg Duration</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stats-card">
+        <h3>Top 5 Slowest Requests</h3>
+        <div class="stats-data">
+          <table id="statsTopSlowestRequests" class="stats-summary-table">
+            <thead><tr><th>URL</th><th>Duration</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
+    <div id="statsTimeWindowSelector" style="margin-bottom: 10px;"></div>
   </div>
 
   <div class="tab-content" id="plots-tab">
