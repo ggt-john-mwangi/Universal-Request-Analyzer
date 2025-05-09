@@ -42,177 +42,207 @@ function filterDataByDomain(data, domain) {
   return filtered;
 }
 
-// Patch all chart renderers to filter by current domain
-function withDomainFilter(renderer) {
-  return function(ctx, data) {
-    const domain = getCurrentDomain();
-    if (!domain) return null;
-    const filtered = filterDataByDomain(data, domain);
-    if (
-      (!filtered.statusCodes || filtered.statusCodes.length === 0) &&
-      (!filtered.requestTypes || filtered.requestTypes.length === 0) &&
-      (!filtered.responseTimesData || !filtered.responseTimesData.durations || filtered.responseTimesData.durations.length === 0) &&
-      (!filtered.timeDistribution || !filtered.timeDistribution.counts || filtered.timeDistribution.counts.length === 0) &&
-      (!filtered.sizeDistribution || !filtered.sizeDistribution.counts || filtered.sizeDistribution.counts.length === 0)
-    ) {
-      return null;
-    }
-    return renderer(ctx, filtered);
-  };
+// Helper: get color for status code
+function getStatusColor(status) {
+  if (status >= 200 && status < 300) return '#4caf50'; // green
+  if (status >= 400 && status < 500) return '#ff9800'; // orange
+  if (status >= 500) return '#f44336'; // red
+  if (status >= 300 && status < 400) return '#2196f3'; // blue
+  return '#9e9e9e'; // gray
 }
 
-window.renderStatusCodeChart = withDomainFilter(function(ctx, data) {
-  if (!data || !data.statusCodes) return null;
+// Response Time Plot (Line chart: time vs avg response time)
+export function renderResponseTimeChart(ctx, stats) {
+  // Expect stats.timeSeries: [{time, avgDuration, count}]
+  const data = stats.timeSeries || [];
+  const labels = data.map(d => new Date(d.time).toLocaleTimeString());
+  const values = data.map(d => d.avgDuration || 0);
   return new Chart(ctx, {
-    type: "bar",
+    type: 'line',
     data: {
-      labels: data.statusCodes.map((c) => c.status),
+      labels,
       datasets: [{
-        label: "Status Codes",
-        data: data.statusCodes.map((c) => c.count),
-        backgroundColor: "rgba(255, 99, 132, 0.5)",
-        borderColor: "rgba(255, 99, 132, 1)",
-        borderWidth: 1,
-      }],
+        label: 'Avg Response Time (ms)',
+        data: values,
+        borderColor: '#1976d2',
+        backgroundColor: 'rgba(25,118,210,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+      }]
     },
     options: {
-      responsive: true,
-      plugins: { title: { display: true, text: "Status Code Distribution" } },
-      scales: { y: { beginAtZero: true } },
-    },
-  });
-});
-
-window.renderRequestTypeChart = withDomainFilter(function(ctx, data) {
-  if (!data || !data.requestTypes) return null;
-  return new Chart(ctx, {
-    type: "pie",
-    data: {
-      labels: data.requestTypes.map((t) => t.type),
-      datasets: [{
-        label: "Request Types",
-        data: data.requestTypes.map((t) => t.count),
-        backgroundColor: [
-          "#ff9800", "#4caf50", "#2196f3", "#e91e63", "#9c27b0", "#607d8b", "#ffc107"
-        ],
-      }],
-    },
-    options: {
-      responsive: true,
-      plugins: { title: { display: true, text: "Request Type Distribution" } },
-    },
-  });
-});
-
-window.renderTimeDistributionChart = withDomainFilter(function(ctx, data) {
-  if (!data || !data.timeDistribution) return null;
-  return new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: data.timeDistribution.bins || [],
-      datasets: [{
-        label: "Requests",
-        data: data.timeDistribution.counts || [],
-        backgroundColor: "#2196f3",
-      }],
-    },
-    options: {
-      responsive: true,
-      plugins: { title: { display: true, text: "Time Distribution" } },
-      scales: { y: { beginAtZero: true } },
-    },
-  });
-});
-
-window.renderSizeDistributionChart = withDomainFilter(function(ctx, data) {
-  if (!data || !data.sizeDistribution) return null;
-  return new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: data.sizeDistribution.bins || [],
-      datasets: [{
-        label: "Requests",
-        data: data.sizeDistribution.counts || [],
-        backgroundColor: "#8bc34a",
-      }],
-    },
-    options: {
-      responsive: true,
-      plugins: { title: { display: true, text: "Size Distribution" } },
-      scales: { y: { beginAtZero: true } },
-    },
-  });
-});
-
-// Patch response time chart as well
-export function renderResponseTimeChart(ctx, data) {
-  const domain = getCurrentDomain();
-  let filtered = data;
-  if (domain && data.responseTimesData && Array.isArray(data.responseTimesData.domains)) {
-    const idxs = data.responseTimesData.domains.map((d, i) => d === domain ? i : -1).filter(i => i !== -1);
-    filtered = {
-      ...data,
-      responseTimesData: {
-        timestamps: idxs.map(i => data.responseTimesData.timestamps[i]),
-        durations: idxs.map(i => data.responseTimesData.durations[i])
-      }
-    };
-  }
-  const bins = [
-    { label: "0-100ms", min: 0, max: 100 },
-    { label: "100-300ms", min: 100, max: 300 },
-    { label: "300-500ms", min: 300, max: 500 },
-    { label: "500ms-1s", min: 500, max: 1000 },
-    { label: "1s-3s", min: 1000, max: 3000 },
-    { label: "3s+", min: 3000, max: Number.POSITIVE_INFINITY },
-  ];
-  const responseTimes = filtered.responseTimesData?.durations || [];
-  const responseTimeCounts = bins.map((bin) => {
-    return responseTimes.filter(
-      (time) => time >= bin.min && time < bin.max
-    ).length;
-  });
-  return new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: bins.map((bin) => bin.label),
-      datasets: [
-        {
-          label: "Number of Requests",
-          data: responseTimeCounts,
-          backgroundColor: "rgba(54, 162, 235, 0.5)",
-          borderColor: "rgba(54, 162, 235, 1)",
-          borderWidth: 1,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
       plugins: {
-        title: {
-          display: true,
-          text: "Response Time Distribution",
-        },
-        legend: {
-          display: false,
-        },
+        tooltip: { enabled: true },
+        legend: { display: true },
+      },
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        y: { title: { display: true, text: 'ms' } },
+        x: { title: { display: true, text: 'Time' } }
+      },
+      onClick: (evt, elements) => {
+        // Could filter by time window if desired
+      }
+    }
+  });
+}
+
+// Status Code Plot (Bar chart: status code breakdown)
+export function renderStatusCodeChart(ctx, stats) {
+  // Expect stats.statusCodes: [{status, count}]
+  const codes = stats.statusCodes || [];
+  const labels = codes.map(s => s.status);
+  const values = codes.map(s => s.count);
+  const colors = codes.map(s => getStatusColor(s.status));
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Requests',
+        data: values,
+        backgroundColor: colors,
+      }]
+    },
+    options: {
+      plugins: {
+        tooltip: { enabled: true },
+        legend: { display: false },
+      },
+      onClick: (evt, elements) => {
+        if (elements && elements.length > 0) {
+          const idx = elements[0].index;
+          const status = labels[idx];
+          window.postMessage({ type: 'filterRequestsTab', filter: { statusCode: status } }, '*');
+        }
       },
       scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Number of Requests",
-          },
-        },
-        x: {
-          title: {
-            display: true,
-            text: "Response Time",
-          },
-        },
-      },
-    },
+        y: { title: { display: true, text: 'Count' } },
+        x: { title: { display: true, text: 'Status Code' } }
+      }
+    }
   });
 }
+
+// Request Type Plot (Pie chart: request type breakdown)
+export function renderRequestTypeChart(ctx, stats) {
+  // Expect stats.requestTypes: [{type, count}]
+  const types = stats.requestTypes || [];
+  const labels = types.map(t => t.type);
+  const values = types.map(t => t.count);
+  const palette = ['#1976d2','#43a047','#fbc02d','#e53935','#8e24aa','#00838f','#f57c00'];
+  return new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Requests',
+        data: values,
+        backgroundColor: labels.map((_,i) => palette[i%palette.length]),
+      }]
+    },
+    options: {
+      plugins: {
+        tooltip: { enabled: true },
+        legend: { display: true, position: 'bottom' },
+      },
+      onClick: (evt, elements) => {
+        if (elements && elements.length > 0) {
+          const idx = elements[0].index;
+          const type = labels[idx];
+          window.postMessage({ type: 'filterRequestsTab', filter: { type } }, '*');
+        }
+      }
+    }
+  });
+}
+
+// Time Distribution Plot (Histogram: request duration distribution)
+export function renderTimeDistributionChart(ctx, stats) {
+  // Expect stats.timeDistribution: { bins: [ms], counts: [n] }
+  const dist = stats.timeDistribution || { bins: [], counts: [] };
+  const labels = dist.bins.map((b,i) => {
+    const next = dist.bins[i+1];
+    return next ? `${b}-${next}ms` : `${b}+ms`;
+  });
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Requests',
+        data: dist.counts,
+        backgroundColor: '#1976d2',
+      }]
+    },
+    options: {
+      plugins: {
+        tooltip: { enabled: true },
+        legend: { display: false },
+      },
+      onClick: (evt, elements) => {
+        if (elements && elements.length > 0) {
+          const idx = elements[0].index;
+          // Could filter by duration range if desired
+        }
+      },
+      scales: {
+        y: { title: { display: true, text: 'Count' } },
+        x: { title: { display: true, text: 'Duration (ms)' } }
+      }
+    }
+  });
+}
+
+// Size Distribution Plot (Histogram: response size distribution)
+export function renderSizeDistributionChart(ctx, stats) {
+  // Expect stats.sizeDistribution: { bins: [bytes], counts: [n] }
+  const dist = stats.sizeDistribution || { bins: [], counts: [] };
+  const labels = dist.bins.map((b,i) => {
+    const next = dist.bins[i+1];
+    return next ? `${formatBytes(b)}-${formatBytes(next)}` : `${formatBytes(b)}+`;
+  });
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Requests',
+        data: dist.counts,
+        backgroundColor: '#43a047',
+      }]
+    },
+    options: {
+      plugins: {
+        tooltip: { enabled: true },
+        legend: { display: false },
+      },
+      onClick: (evt, elements) => {
+        if (elements && elements.length > 0) {
+          const idx = elements[0].index;
+          // Could filter by size range if desired
+        }
+      },
+      scales: {
+        y: { title: { display: true, text: 'Count' } },
+        x: { title: { display: true, text: 'Size' } }
+      }
+    }
+  });
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const dm = 1;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+window.renderResponseTimeChart = renderResponseTimeChart;
+window.renderStatusCodeChart = renderStatusCodeChart;
+window.renderRequestTypeChart = renderRequestTypeChart;
+window.renderTimeDistributionChart = renderTimeDistributionChart;
+window.renderSizeDistributionChart = renderSizeDistributionChart;

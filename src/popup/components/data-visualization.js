@@ -12,202 +12,194 @@ import {
   chartInstances,
 } from "./chart-components.js";
 
-// Event-based fetch for plot data (response times, status codes, request types, etc.)
-function fetchPlotData(filters = {}, callback) {
-  const requestId = `plot_data_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  function handler(message) {
-    if (message && message.requestId === requestId) {
-      callback(message);
-      chrome.runtime.onMessage.removeListener(handler);
-    }
-  }
-  chrome.runtime.onMessage.addListener(handler);
-  chrome.runtime.sendMessage({ action: "getFilteredStats", filters, requestId });
-}
-
 // Main entry point for data visualization
 function DataVisualization(globalFilters = {}) {
   let filters = { ...globalFilters };
-  let loading = false;
-  let error = null;
   let activeChart = "responseTime";
+  let overlayEnabled = false;
 
-  function setLoading(value) {
-    loading = value;
-  }
-
-  function setError(value) {
-    error = value;
-  }
-
-  function renderCharts(data) {
-    // Destroy existing charts
-    Object.values(chartInstances).forEach((chart) => {
-      if (chart) {
-        chart.destroy();
-      }
-    });
-    Object.keys(chartInstances).forEach((key) => {
-      delete chartInstances[key];
-    });
-
-    // Render response time chart
-    if (responseTimeChartRef && data) {
-      const ctx = responseTimeChartRef.getContext("2d");
-      chartInstances.responseTime = renderResponseTimeChart(ctx, data);
-    }
-    // Render status code chart
-    if (statusCodeChartRef && data) {
-      const ctx = statusCodeChartRef.getContext("2d");
-      if (typeof window.renderStatusCodeChart === 'function') {
-        chartInstances.statusCode = window.renderStatusCodeChart(ctx, data);
-      }
-    }
-    // Render request type chart
-    if (requestTypeChartRef && data) {
-      const ctx = requestTypeChartRef.getContext("2d");
-      if (typeof window.renderRequestTypeChart === 'function') {
-        chartInstances.requestType = window.renderRequestTypeChart(ctx, data);
-      }
-    }
-    // Render time distribution chart
-    if (timeDistributionChartRef && data) {
-      const ctx = timeDistributionChartRef.getContext("2d");
-      if (typeof window.renderTimeDistributionChart === 'function') {
-        chartInstances.timeDistribution = window.renderTimeDistributionChart(ctx, data);
-      }
-    }
-    // Render size distribution chart
-    if (sizeDistributionChartRef && data) {
-      const ctx = sizeDistributionChartRef.getContext("2d");
-      if (typeof window.renderSizeDistributionChart === 'function') {
-        chartInstances.sizeDistribution = window.renderSizeDistributionChart(ctx, data);
-      }
-    }
-  }
-
-  // Create DOM elements
+  // Container setup
   const container = document.createElement("div");
-  container.className = "data-visualization";
+  container.className = "data-visualization plots-ui";
 
-  const visualizationContainer = document.createElement("div");
-  visualizationContainer.className = "visualization-container";
-  container.appendChild(visualizationContainer);
+  // Controls row (dropdowns and overlay/export)
+  const controlsRow = document.createElement("div");
+  controlsRow.className = "plots-controls-row";
+  controlsRow.style.display = "flex";
+  controlsRow.style.alignItems = "center";
+  controlsRow.style.gap = "12px";
+  controlsRow.style.marginBottom = "10px";
+  controlsRow.style.flexWrap = "wrap";
 
-  const chartsContainer = document.createElement("div");
-  chartsContainer.className = "charts-container";
-  visualizationContainer.appendChild(chartsContainer);
+  // Metric selector (domain/type/time)
+  const metricDropdown = document.createElement("select");
+  metricDropdown.className = "plots-metric-dropdown";
+  metricDropdown.title = "Select metric to plot";
+  [
+    { value: "domain", label: "By Domain (Status Codes)" },
+    { value: "type", label: "By Type" },
+    { value: "statusCode", label: "By Status Code" },
+    { value: "time", label: "By Time" },
+    { value: "size", label: "By Size" },
+  ].forEach(({ value, label }) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    metricDropdown.appendChild(opt);
+  });
+  controlsRow.appendChild(metricDropdown);
 
-  // Add domain selector for event-based filtering
-  const domainSelector = document.createElement("select");
-  domainSelector.className = "domain-selector";
-  domainSelector.innerHTML = `<option value="">All Domains</option>`;
-  chartsContainer.prepend(domainSelector);
+  // Overlay toggle
+  const overlayToggle = document.createElement("label");
+  overlayToggle.style.margin = "0 8px";
+  overlayToggle.innerHTML = `<input type="checkbox" id="overlayToggle"> Overlay Previous Period`;
+  controlsRow.appendChild(overlayToggle);
 
-  // Fetch domains event-based and set current as default if present
-  function fetchDomainsAndSetDefault() {
-    const requestId = `popup_domains_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    chrome.runtime.sendMessage({ action: 'getDistinctDomains', requestId });
-    function handler(message) {
-      if (message && message.requestId === requestId && Array.isArray(message.domains)) {
-        domainSelector.innerHTML = `<option value="">All Domains</option>`;
-        message.domains.forEach(domain => {
-          const opt = document.createElement('option');
-          opt.value = domain;
-          opt.textContent = domain;
-          domainSelector.appendChild(opt);
-        });
-        // Set default to current domain if present
-        const currentDomain = window.location.hostname;
-        if (currentDomain && message.domains.includes(currentDomain)) {
-          domainSelector.value = currentDomain;
+  // Export buttons
+  const exportBtn = document.createElement("button");
+  exportBtn.textContent = "Export PNG";
+  exportBtn.className = "export-chart-btn";
+  controlsRow.appendChild(exportBtn);
+  const svgExportBtn = document.createElement("button");
+  svgExportBtn.textContent = "Export SVG";
+  svgExportBtn.className = "export-chart-btn";
+  controlsRow.appendChild(svgExportBtn);
+
+  container.appendChild(controlsRow);
+
+  // Chart content
+  const chartContent = document.createElement("div");
+  chartContent.className = "chart-content";
+  chartContent.style.background = "var(--surface-color)";
+  chartContent.style.borderRadius = "8px";
+  chartContent.style.padding = "16px";
+  chartContent.style.minHeight = "340px";
+  chartContent.style.display = "flex";
+  chartContent.style.justifyContent = "center";
+  chartContent.style.alignItems = "center";
+  chartContent.style.height = "360px";
+  chartContent.style.position = "relative";
+  container.appendChild(chartContent);
+
+  // Chart tabs (at the bottom)
+  const chartTabs = document.createElement("div");
+  chartTabs.className = "chart-tabs chart-tabs-bottom";
+  chartTabs.style.display = "flex";
+  chartTabs.style.justifyContent = "center";
+  chartTabs.style.gap = "16px";
+  chartTabs.style.marginTop = "18px";
+  chartTabs.style.marginBottom = "0";
+
+  const chartTypes = [
+    { value: "responseTime", label: "Response Time" },
+    { value: "statusCode", label: "Status Codes" },
+    { value: "type", label: "Request Types" },
+    { value: "time", label: "Time Distribution" },
+    { value: "size", label: "Size Distribution" },
+  ];
+  chartTypes.forEach(({ value, label }) => {
+    const tab = document.createElement("button");
+    tab.className = `chart-tab${activeChart === value ? " active" : ""}`;
+    tab.textContent = label;
+    tab.onclick = () => {
+      activeChart = value;
+      metricDropdown.value = value;
+      renderCurrentChart();
+      updateTabActive();
+    };
+    chartTabs.appendChild(tab);
+  });
+  container.appendChild(chartTabs);
+
+  function updateTabActive() {
+    const tabs = chartTabs.querySelectorAll(".chart-tab");
+    tabs.forEach((tab, idx) => {
+      tab.classList.toggle("active", chartTypes[idx].value === activeChart);
+    });
+  }
+
+  // Render chart for current metric
+  function renderCurrentChart() {
+    chartContent.innerHTML = '';
+    fetchPlotDataForMetric((stats) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 700;
+      canvas.height = 320;
+      canvas.style.maxWidth = '100%';
+      canvas.style.maxHeight = '340px';
+      chartContent.appendChild(canvas);
+      let chartInstance = null;
+      // Use existing chart-renderer.js logic for all chart types
+      if (activeChart === 'responseTime' && typeof window.renderResponseTimeChart === 'function') {
+        chartInstance = window.renderResponseTimeChart(canvas.getContext('2d'), stats);
+      } else if (activeChart === 'type' && typeof window.renderRequestTypeChart === 'function') {
+        chartInstance = window.renderRequestTypeChart(canvas.getContext('2d'), stats);
+      } else if (activeChart === 'statusCode' && typeof window.renderStatusCodeChart === 'function') {
+        chartInstance = window.renderStatusCodeChart(canvas.getContext('2d'), stats);
+      } else if (activeChart === 'time' && typeof window.renderTimeDistributionChart === 'function') {
+        chartInstance = window.renderTimeDistributionChart(canvas.getContext('2d'), stats);
+      } else if (activeChart === 'size' && typeof window.renderSizeDistributionChart === 'function') {
+        chartInstance = window.renderSizeDistributionChart(canvas.getContext('2d'), stats);
+      }
+      // Export buttons
+      exportBtn.onclick = () => {
+        if (canvas) {
+          const url = canvas.toDataURL("image/png");
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${activeChart}-chart.png`;
+          a.click();
         }
+      };
+      svgExportBtn.onclick = () => {
+        if (canvas) {
+          const svgData = canvas.toDataURL("image/svg+xml");
+          const a = document.createElement("a");
+          a.href = svgData;
+          a.download = `${activeChart}-chart.svg`;
+          a.click();
+        }
+      };
+      // Overlay logic (if enabled)
+      if (overlayToggle.querySelector('input').checked) {
+        // Fetch previous period and overlay (implement as needed)
+        // ...
+      }
+      // Tooltips and click-to-filter are handled by Chart.js config in chart-renderer.js
+    });
+    updateTabActive();
+  }
+
+  // Helper: fetch plot data for selected metric using global filters
+  function fetchPlotDataForMetric(cb) {
+    const filtersToUse = { ...globalFilters };
+    const requestId = `plots_data_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    chrome.runtime.sendMessage({ action: "getFilteredStats", filters: filtersToUse, requestId });
+    function handler(message) {
+      if (message && message.requestId === requestId) {
+        cb(message.stats || {});
         chrome.runtime.onMessage.removeListener(handler);
-        // Trigger initial data load with selected domain
-        reloadWithDomain();
       }
     }
     chrome.runtime.onMessage.addListener(handler);
   }
 
-  // Reload data with selected domain
-  function reloadWithDomain() {
-    const selectedDomain = domainSelector.value;
-    const newFilters = { ...filters, domain: selectedDomain };
-    loadData(newFilters, renderCharts, setError, setLoading);
-  }
-
-  // Listen for domain selection changes
-  domainSelector.addEventListener('change', reloadWithDomain);
-
-  // Chart type dropdown
-  const chartTypeDropdown = document.createElement("select");
-  chartTypeDropdown.className = "chart-type-dropdown";
-  const chartTypes = [
-    { value: "responseTime", label: "Response Time" },
-    { value: "statusCode", label: "Status Codes" },
-    { value: "requestType", label: "Request Types" },
-    { value: "timeDistribution", label: "Time Distribution" },
-    { value: "sizeDistribution", label: "Size Distribution" },
-  ];
-  chartTypes.forEach(({ value, label }) => {
-    const opt = document.createElement("option");
-    opt.value = value;
-    opt.textContent = label;
-    chartTypeDropdown.appendChild(opt);
-  });
-  chartTypeDropdown.value = activeChart;
-  chartTypeDropdown.addEventListener("change", () => {
-    activeChart = chartTypeDropdown.value;
-    showActiveChart();
-  });
-  chartsContainer.appendChild(chartTypeDropdown);
-
-  const chartContent = document.createElement("div");
-  chartContent.className = "chart-content";
-  chartsContainer.appendChild(chartContent);
-
-  // Append chart canvases to chartContent
-  chartContent.appendChild(responseTimeChartRef);
-  chartContent.appendChild(statusCodeChartRef);
-  chartContent.appendChild(requestTypeChartRef);
-  chartContent.appendChild(timeDistributionChartRef);
-  chartContent.appendChild(sizeDistributionChartRef);
-
-  function showActiveChart() {
-    [
-      responseTimeChartRef,
-      statusCodeChartRef,
-      requestTypeChartRef,
-      timeDistributionChartRef,
-      sizeDistributionChartRef,
-    ].forEach((chart) => {
-      if (chart) chart.style.display = "none";
-    });
-    const chartMap = {
-      responseTime: responseTimeChartRef,
-      statusCode: statusCodeChartRef,
-      requestType: requestTypeChartRef,
-      timeDistribution: timeDistributionChartRef,
-      sizeDistribution: sizeDistributionChartRef,
-    };
-    if (chartMap[activeChart]) chartMap[activeChart].style.display = "block";
-  }
-
-  // Initial chart display
-  showActiveChart();
-
-  // Initial fetch of domains and data
-  fetchDomainsAndSetDefault();
-
-  // Load data initially
-  loadData(filters, renderCharts, setError, setLoading);
-
-  // Expose a reload method for tab activation and filter changes
-  container.reload = (newFilters) => {
-    filters = { ...newFilters };
-    reloadWithDomain();
+  // Event listeners
+  metricDropdown.onchange = () => {
+    activeChart = metricDropdown.value;
+    renderCurrentChart();
+    updateTabActive();
   };
+  overlayToggle.querySelector('input').onchange = (e) => {
+    renderCurrentChart();
+  };
+
+  // Initial render
+  setTimeout(() => {
+    metricDropdown.value = activeChart;
+    renderCurrentChart();
+    updateTabActive();
+  }, 300);
 
   return container;
 }

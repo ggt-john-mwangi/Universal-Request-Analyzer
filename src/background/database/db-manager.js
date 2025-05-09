@@ -697,34 +697,57 @@ async function getFilteredStats(filters = {}) {
   try {
     const params = [];
     let whereClause = "WHERE 1=1";
-
     if (filters.domain) {
       whereClause += " AND domain LIKE ?";
       params.push(`%${filters.domain}%`);
     }
-
     const size = await getDatabaseSize();
-
     const countResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause}`, params);
     const requestCount = countResult[0]?.values[0]?.[0] || 0;
-
     const avgDurationResult = executeQuery(`SELECT AVG(duration) FROM requests ${whereClause} AND duration > 0`, params);
     const avgResponseTime = avgDurationResult[0]?.values[0]?.[0] || 0;
-
     const successCountResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause} AND status >= 200 AND status < 300`, params);
     const successCount = successCountResult[0]?.values[0]?.[0] || 0;
-
     const errorCountResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause} AND status >= 400`, params);
     const errorCount = errorCountResult[0]?.values[0]?.[0] || 0;
-
     const statusCodesResult = executeQuery(`SELECT status, COUNT(*) as count FROM requests ${whereClause} GROUP BY status ORDER BY count DESC`, params);
     const statusCodes = mapRowsToObjects(statusCodesResult[0]);
-
     const typesResult = executeQuery(`SELECT type, COUNT(*) as count FROM requests ${whereClause} GROUP BY type ORDER BY count DESC`, params);
     const requestTypes = mapRowsToObjects(typesResult[0]);
 
+    // --- Response Time Time Series (group by minute) ---
+    const timeSeriesResult = executeQuery(`SELECT strftime('%H:%M', datetime(timestamp/1000, 'unixepoch')) as time, AVG(duration) as avgDuration, COUNT(*) as count FROM requests ${whereClause} GROUP BY time ORDER BY time`, params);
+    const timeSeries = mapRowsToObjects(timeSeriesResult[0]);
+
+    // --- Time Distribution Histogram ---
+    const timeBins = [0,100,300,500,1000,2000,5000,10000];
+    const timeCounts = [];
+    for (let i = 0; i < timeBins.length; i++) {
+      const min = timeBins[i];
+      const max = timeBins[i+1] || 1e9;
+      const countRes = executeQuery(`SELECT COUNT(*) as count FROM requests ${whereClause} AND duration >= ? AND duration < ?`, [...params, min, max]);
+      timeCounts.push(countRes[0]?.values[0]?.[0] || 0);
+    }
+    const timeDistribution = { bins: timeBins, counts: timeCounts };
+
+    // --- Size Distribution Histogram ---
+    const sizeBins = [0,1024,10*1024,100*1024,1024*1024,10*1024*1024];
+    const sizeCounts = [];
+    for (let i = 0; i < sizeBins.length; i++) {
+      const min = sizeBins[i];
+      const max = sizeBins[i+1] || 1e12;
+      const countRes = executeQuery(`SELECT COUNT(*) as count FROM requests ${whereClause} AND size >= ? AND size < ?`, [...params, min, max]);
+      sizeCounts.push(countRes[0]?.values[0]?.[0] || 0);
+    }
+    const sizeDistribution = { bins: sizeBins, counts: sizeCounts };
+
+    // --- Response Times Data (for legacy support) ---
     const timesResult = executeQuery(`SELECT timestamp, duration FROM requests ${whereClause} ORDER BY timestamp DESC LIMIT 100`, params);
     const responseTimes = mapRowsToObjects(timesResult[0]).reverse();
+    const responseTimesData = {
+      timestamps: responseTimes.map(r => new Date(r.timestamp).toLocaleTimeString()),
+      durations: responseTimes.map(r => r.duration),
+    };
 
     return {
       size,
@@ -733,12 +756,12 @@ async function getFilteredStats(filters = {}) {
       successCount,
       errorCount,
       successRate: requestCount > 0 ? (successCount / requestCount) * 100 : 0,
-      statusCodes,
-      requestTypes,
-      responseTimesData: {
-        timestamps: responseTimes.map(r => new Date(r.timestamp).toLocaleTimeString()),
-        durations: responseTimes.map(r => r.duration),
-      }
+      statusCodes: statusCodes || [],
+      requestTypes: requestTypes || [],
+      timeSeries: timeSeries || [],
+      timeDistribution,
+      sizeDistribution,
+      responseTimesData,
     };
   } catch (error) {
     log("error", "Failed to get filtered database stats:", error);

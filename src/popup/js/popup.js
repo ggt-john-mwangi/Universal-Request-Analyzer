@@ -1263,6 +1263,40 @@ updateStatisticsTab = function(stats) {
   document.getElementById("statsMostMethod").textContent = stats.mostMethod || '-';
 };
 
+// Patch updateStatisticsTab to fill summary tables
+const originalUpdateStatisticsTab2 = updateStatisticsTab;
+updateStatisticsTab = function(stats) {
+  originalUpdateStatisticsTab2(stats);
+  // Requests per Domain (Top 5)
+  const domainTable = document.getElementById("statsRequestsPerDomain").querySelector("tbody");
+  if (stats.topDomains && stats.topDomains.length > 0) {
+    domainTable.innerHTML = stats.topDomains.slice(0,5).map(d => `<tr><td>${d.domain}</td><td>${d.count}</td><td>${d.avgDuration ? Math.round(d.avgDuration) + ' ms' : '-'}</td></tr>`).join("");
+  } else {
+    domainTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
+  }
+  // Requests per Method
+  const methodTable = document.getElementById("statsRequestsPerMethod").querySelector("tbody");
+  if (stats.methods && stats.methods.length > 0) {
+    methodTable.innerHTML = stats.methods.map(m => `<tr><td>${m.method}</td><td>${m.count}</td><td>${m.avgDuration ? Math.round(m.avgDuration) + ' ms' : '-'}</td></tr>`).join("");
+  } else {
+    methodTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
+  }
+  // Requests per Status Code
+  const statusTable = document.getElementById("statsRequestsPerStatus").querySelector("tbody");
+  if (stats.statusCodes && stats.statusCodes.length > 0) {
+    statusTable.innerHTML = stats.statusCodes.map(s => `<tr><td>${s.status}</td><td>${s.count}</td><td>${s.avgDuration ? Math.round(s.avgDuration) + ' ms' : '-'}</td></tr>`).join("");
+  } else {
+    statusTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
+  }
+  // Top 5 Slowest Requests
+  const slowestTable = document.getElementById("statsTopSlowestRequests").querySelector("tbody");
+  if (stats.slowestRequests && stats.slowestRequests.length > 0) {
+    slowestTable.innerHTML = stats.slowestRequests.slice(0,5).map(r => `<tr><td title="${r.url}">${r.url.length > 32 ? r.url.slice(0,32)+'…' : r.url}</td><td>${r.duration ? Math.round(r.duration) + ' ms' : '-'}</td><td>${r.statusCode || '-'}</td></tr>`).join("");
+  } else {
+    slowestTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
+  }
+};
+
 // Show request details panel
 function showRequestDetails(request) {
   if (!requestDetails) return;
@@ -1647,6 +1681,5 @@ document.addEventListener('DOMContentLoaded', () => {
     tr.request-details-row td { background: var(--surface-color); }
     tr:hover:not(.request-details-row) { background: var(--primary-color); color: #fff; }
     .empty-message { text-align: center; color: #888; font-size: 15px; padding: 32px 0; }
-  `;
+  `});
   document.head.appendChild(style);
-});
