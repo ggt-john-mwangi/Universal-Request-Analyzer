@@ -1668,18 +1668,5 @@ renderDomainSummaryAndSparklines = function(requests) {
   enhanceAccessibilityAndTooltips();
 };
 
-// Add hover/active states for quick filter buttons and table rows via JS (for theme support)
-document.addEventListener('DOMContentLoaded', () => {
-  const style = document.createElement('style');
-  style.innerHTML = `
-    .quick-filter-btn { margin-right: 6px; padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-primary-color); font-size: 13px; cursor: pointer; transition: background 0.2s, color 0.2s; }
-    .quick-filter-btn.active, .quick-filter-btn:focus-visible { background: var(--primary-color); color: #fff; border-color: var(--primary-color); outline: none; }
-    .quick-filter-btn:hover { background: var(--primary-color); color: #fff; }
-    .domain-summary { margin-bottom: 4px; font-size: 13px; line-height: 1.6; }
-    .spinner { border: 4px solid #eee; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
-    tr.request-details-row td { background: var(--surface-color); }
-    tr:hover:not(.request-details-row) { background: var(--primary-color); color: #fff; }
-    .empty-message { text-align: center; color: #888; font-size: 15px; padding: 32px 0; }
-  `});
-  document.head.appendChild(style);
+window.renderRequestsTable = renderRequestsTable;
+window.loadStats = loadStats;

@@ -779,14 +779,12 @@ async function handleGetFilteredStats(message, sender, sendResponse) {
     }
     const { filters, requestId } = message;
     const stats = await dbManager.getFilteredStats(filters);
-    if (sendEventResponse("getFilteredStatsResult", requestId, { success: true, ...stats })) return;
-    sendResponse({ success: true, ...stats });
+    sendEventResponse("getFilteredStatsResult", requestId, { success: true, ...stats });
   } catch (error) {
     console.error("[MessageHandler] Error getting filtered stats:", error);
     const apiError = new DatabaseError("Error getting filtered stats", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (sendEventResponse("getFilteredStatsResult", message.requestId, { success: false, error: apiError.message })) return;
-    sendResponse({ success: false, error: apiError.message });
+    sendEventResponse("getFilteredStatsResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 

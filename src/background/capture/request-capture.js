@@ -234,6 +234,8 @@ function setupContentScriptListener() {
         handleFetchError(message, sender.tab);
         sendResponse({ success: true });
       }
+      // Always return true for async/streaming or event-based responses
+      return true;
     });
   }
 }
