@@ -1,5 +1,6 @@
 import "../css/options.css"; // Ensure the CSS file is imported
 import "../../styles.css"; // Import the global styles.css
+import themeManager from "../../config/theme-manager.js"; // Import themeManager
 
 // Import component modules - Assuming they execute setup code on import
 // or export functions that might be called elsewhere if needed.
@@ -14,10 +15,14 @@ import renderAnalyticsSection from "../components/analytics.js";
 // --- Harmonized Config/Filters Sync System ---
 import { getHarmonizedConfig, updateHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
 
+
+themeManager.initialize(); // Ensure themeManager is initialized before any theme is set
+
 // On load, fetch config/filters from background
 getHarmonizedConfig().then((config) => {
   // Use config for all settings/filters in options UI
   updateUIFromConfig(config);
+  applyThemeFromConfig(config); // Ensure theme is applied on load
 });
 
 // When user changes config/filters, update via background
@@ -31,6 +36,7 @@ function onUserChangeConfig(newConfig) {
 listenForConfigUpdates((newConfig) => {
   // Update UI/state with newConfig
   updateUIFromConfig(newConfig);
+  applyThemeFromConfig(newConfig); // Ensure theme is applied on config update
 });
 
 // DOM elements - General
@@ -109,18 +115,23 @@ const exportFilenameInput = document.getElementById("exportFilename"); // Added 
 
 // DOM elements - Theme
 const themeSelect = document.getElementById("theme-select");
+
+// Apply theme on config load
+function applyThemeFromConfig(config) {
+  const theme = config?.ui?.theme || "system";
+  if (themeSelect) themeSelect.value = theme;
+  themeManager.setTheme(theme); // This will apply and persist the theme
+}
+
 if (themeSelect) {
   themeSelect.addEventListener("change", (e) => {
     const selectedTheme = e.target.value;
-    // Save to config
+    // Save to config (persist in DB)
     chrome.runtime.sendMessage(
       { action: "updateConfig", config: { ui: { theme: selectedTheme } } },
       (response) => {
         if (response && response.success) {
-          // Apply theme immediately if themeManager is available
-          if (window.themeManager && window.themeManager.applyTheme) {
-            window.themeManager.setTheme(selectedTheme);
-          }
+          themeManager.setTheme(selectedTheme); // Apply immediately
         }
       }
     );
@@ -484,12 +495,14 @@ function loadOptions() {
     if (response && response.config) {
       console.log("Loaded config from background:", response.config);
       updateUIFromConfig(response.config); // Use loaded config
+      applyThemeFromConfig(response.config); // Ensure theme is applied on load
     } else {
       console.error(
         "Failed to load config from background script:",
         response?.error || "No config received. Using defaults."
       );
       updateUIFromConfig(localDefaultConfig); // Use local defaults as fallback
+      applyThemeFromConfig(localDefaultConfig); // Ensure theme is applied on fallback
     }
   });
 
@@ -591,6 +604,12 @@ function updateUIFromConfig(config) {
   logErrorsToConsole.checked =
     advancedConf.logErrorsToConsole ??
     localDefaultConfig.advanced.logErrorsToConsole;
+
+  // Theme
+  if (themeSelect && config?.ui?.theme) {
+    themeSelect.value = config.ui.theme;
+    themeManager.setTheme(config.ui.theme);
+  }
 }
 
 // Load database information (Stats, Schema, Errors)
@@ -1010,6 +1029,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     message.action === "executeRawSqlResult" &&
     message.requestId
   ) {
+    console.log('[Options] onMessage executeRawSqlResult:', message);
     const cb = pendingSqlRequests[message.requestId];
     if (cb) {
       cb(message);
@@ -1192,6 +1212,7 @@ function executeRawSql() {
     showNotification("Please enter a SQL query.", true);
     return;
   }
+  console.log('[Options] Sending executeRawSql:', sql);
   sqlResultsOutput.innerHTML = "<span>Executing query...</span>";
   sqlResultsOutput.classList.remove("error");
   executeSqlBtn.disabled = true;
@@ -1199,6 +1220,7 @@ function executeRawSql() {
 
   const requestId = generateRequestId();
   pendingSqlRequests[requestId] = (response) => {
+    console.log('[Options] Received executeRawSqlResult:', response);
     executeSqlBtn.disabled = false;
     clearSqlBtn.disabled = false;
     fetchSqlHistory(); // Refresh history from backend
@@ -1239,10 +1261,14 @@ function executeRawSql() {
           }
           html += "</tbody></table></div>";
           sqlResultsOutput.innerHTML = html;
+          showNotification("SQL query executed successfully.", false);
+        } else if (response.results.affectedRows !== undefined) {
+          sqlResultsOutput.innerHTML = `<div class='sql-nonselect-msg'>Query executed successfully. Rows affected: ${response.results.affectedRows}</div>`;
+          showNotification("SQL query executed successfully.", false);
         } else {
-          sqlResultsOutput.innerHTML = `<div class="sql-nonselect-msg">Query executed successfully.</div>`;
+          sqlResultsOutput.innerHTML = `<div class='sql-nonselect-msg'>Query executed successfully.</div>`;
+          showNotification("SQL query executed successfully.", false);
         }
-        showNotification("SQL query executed successfully.", false);
       } catch (jsonError) {
         sqlResultsOutput.innerHTML = `<pre class='error'>Error formatting results: ${
           jsonError.message
@@ -1277,22 +1303,24 @@ fetchSqlHistory();
 
 // --- Backup/Restore UI: handle empty state ---
 function loadBackupList() {
-  chrome.storage.local.get(null, (items) => {
-    const backups = Object.keys(items).filter((k) =>
-      k.startsWith("database_backup_")
-    );
-    backupMetaCache = {};
-    if (backups.length === 0) {
+  eventRequest("getBackupList", {}, (response) => {
+    if (response && response.success && Array.isArray(response.backups)) {
+      backupMetaCache = {};
+      if (response.backups.length === 0) {
+        restoreBackupSelect.innerHTML =
+          '<option value="" disabled selected>No backups found</option>';
+        return;
+      }
+      const options = response.backups.map((backup) => {
+        const meta = backup.meta || {};
+        backupMetaCache[backup.key] = meta;
+        return `<option value="${backup.key}">${formatBackupOption(backup.key, meta)}</option>`;
+      });
+      restoreBackupSelect.innerHTML = options.join("");
+    } else {
       restoreBackupSelect.innerHTML =
-        '<option value="" disabled selected>No backups found</option>';
-      return;
+        '<option value="" disabled selected>Error loading backups</option>';
     }
-    const options = backups.map((k) => {
-      const meta = items[k]?.meta || {};
-      backupMetaCache[k] = meta;
-      return `<option value="${k}">${formatBackupOption(k, meta)}</option>`;
-    });
-    restoreBackupSelect.innerHTML = options.join("");
   });
 }
 
@@ -1317,9 +1345,13 @@ if (deleteBackupBtn) {
     const key = restoreBackupSelect.value;
     if (!key) return showNotification("No backup selected.", true);
     if (!confirm("Delete this backup?")) return;
-    chrome.storage.local.remove(key, () => {
-      showNotification("Backup deleted.");
-      loadBackupList();
+    eventRequest("deleteBackup", { key }, (response) => {
+      if (response && response.success) {
+        showNotification("Backup deleted.");
+        loadBackupList();
+      } else {
+        showNotification("Failed to delete backup.", true);
+      }
     });
   });
 }
@@ -1328,20 +1360,16 @@ if (restoreBackupBtn) {
   restoreBackupBtn.addEventListener("click", () => {
     const key = restoreBackupSelect.value;
     if (!key) return showNotification("No backup selected.", true);
-    chrome.storage.local.get([key], (items) => {
-      const data = items[key];
-      if (!data) return showNotification("Backup not found.", true);
-      eventRequest("restoreDatabase", { data }, (response) => {
-        if (response && response.success) {
-          showNotification("Database restored from backup.");
-          loadDatabaseInfo();
-        } else {
-          showNotification(
-            "Restore failed: " + (response?.error || "Unknown error"),
-            true
-          );
-        }
-      });
+    eventRequest("restoreDatabase", { key }, (response) => {
+      if (response && response.success) {
+        showNotification("Database restored from backup.");
+        loadDatabaseInfo();
+      } else {
+        showNotification(
+          "Restore failed: " + (response?.error || "Unknown error"),
+          true
+        );
+      }
     });
   });
 }
@@ -1557,10 +1585,9 @@ function exportTableAsCSV(data, tableName) {
 
 // --- Export/Import History: handle empty state ---
 function loadHistoryLog() {
-  const historyLogList = document.getElementById("historyLogList");
-  if (!historyLogList) return;
-  historyLogList.innerHTML = "<li>Loading history...</li>";
-  eventRequest("getSqlHistory", {}, (response) => {
+  eventRequest("getHistoryLog", {}, (response) => {
+    const historyLogList = document.getElementById("historyLogList");
+    if (!historyLogList) return;
     if (response && response.success && Array.isArray(response.history)) {
       if (response.history.length === 0) {
         historyLogList.innerHTML = "<li>No history found.</li>";
@@ -1585,17 +1612,13 @@ function loadHistoryLog() {
 if (clearHistoryLogBtn) {
   clearHistoryLogBtn.addEventListener("click", () => {
     if (!confirm("Clear export/import history log?")) return;
-    chrome.storage.local.get(null, (items) => {
-      const keys = Object.keys(items).filter(
-        (k) =>
-          k.startsWith("export:") ||
-          k.startsWith("import:") ||
-          k.startsWith("database_backup_")
-      );
-      chrome.storage.local.remove(keys, () => {
+    eventRequest("clearHistoryLog", {}, (response) => {
+      if (response && response.success) {
         showNotification("History log cleared.");
         loadHistoryLog();
-      });
+      } else {
+        showNotification("Failed to clear history log.", true);
+      }
     });
   });
 }
@@ -1684,9 +1707,8 @@ function setupEventListeners() {
   }
   if (clearSqlBtn) {
     clearSqlBtn.addEventListener("click", () => {
-      sqlResultsOutput.textContent = "Execute a query to see results.";
-      sqlResultsOutput.classList.remove("error");
-      rawSqlInput.value = ""; // Optionally clear the input too
+      rawSqlInput.value = "";
+      sqlResultsOutput.innerHTML = "";
     });
   }
   if (saveDbSettingsBtn) {

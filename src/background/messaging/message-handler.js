@@ -58,12 +58,9 @@ export function setupMessageHandlers(
     }
   };
 
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender) => {
     console.log('[MessageHandler] Incoming message:', message, sender);
-    if (message.action === "devtoolsRequestCaptured" && message.request) {
-      console.log('[MessageHandler] devtoolsRequestCaptured payload:', message.request);
-    }
-    // --- Event-based: always respond with chrome.runtime.sendMessage, never sendResponse for async ---
+    // --- Event-based: always respond with chrome.runtime.sendMessage, never sendResponse or return true ---
     if (message.action === "getConfig") {
       (async () => {
         try {
@@ -109,51 +106,33 @@ export function setupMessageHandlers(
       return;
     }
     if (message.action === "getRequestHeaders") {
-      // Event-based: expects requestId
       if (message.requestId && message.requestIdFor) {
         getRequestHeadersEventBased(message.requestId, message.requestIdFor);
-        return true;
+        return;
       } else if (message.requestId) {
         getRequestHeadersEventBased(message.requestId, message.requestId);
-        return true;
+        return;
       }
-      // fallback: legacy
-      try {
-        const headers = dbManager.getRequestHeaders(message.requestId);
-        sendResponse({ success: true, headers });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
-      return true;
+      return;
     }
     if (message.action === "getRequestTimings") {
       if (message.requestId && message.requestIdFor) {
         getRequestTimingsEventBased(message.requestId, message.requestIdFor);
-        return true;
+        return;
       } else if (message.requestId) {
         getRequestTimingsEventBased(message.requestId, message.requestId);
-        return true;
+        return;
       }
-      // fallback: legacy
-      try {
-        const timings = dbManager.getRequestTimings(message.requestId);
-        sendResponse({ success: true, timings });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
-      return true;
+      return;
     }
     if (message.action === "getStats") {
-      handleGetStats(message, sender, sendResponse);
-      return true;
+      handleGetStats(message, sender);
+      return;
     }
-    // Handle network requests sent from DevTools
     if (message.action === "devtoolsRequestCaptured" && message.request) {
       console.log('[MessageHandler] devtoolsRequestCaptured payload:', message.request);
       try {
-        // Normalize and fill missing fields if needed
         const req = message.request;
-        // Generate a unique ID if not present
         req.id = req.id || (typeof generateId === 'function' ? generateId() : Date.now() + Math.random().toString(36).slice(2));
         req.timestamp = req.timestamp || Date.now();
         req.status = req.status || req.statusCode || 0;
@@ -166,26 +145,24 @@ export function setupMessageHandlers(
         req.tabId = req.tabId || (sender.tab ? sender.tab.id : 0);
         req.pageUrl = req.pageUrl || (sender.tab ? sender.tab.url : '');
         req.timings = req.timings || {};
-        // Save to DB using dbManager
         if (dbManager && typeof dbManager.saveRequest === 'function') {
           dbManager.saveRequest(req);
           if (dbManager.saveRequestTimings && req.timings) {
             dbManager.saveRequestTimings(req.id, req.timings);
           }
         }
-        // Optionally, update in-memory or event bus if needed
         if (typeof captureManager?.updateRequestData === 'function') {
           captureManager.updateRequestData(req.id, req);
         }
-        // Respond if needed
-        if (sendResponse) sendResponse({ success: true });
+        chrome.runtime.sendMessage({ action: "devtoolsRequestCapturedResult", success: true });
       } catch (err) {
         console.error('[MessageHandler] Error handling devtoolsRequestCaptured:', err);
-        if (sendResponse) sendResponse({ success: false, error: err.message });
+        chrome.runtime.sendMessage({ action: "devtoolsRequestCapturedResult", success: false, error: err.message });
       }
-      return true;
+      return;
     }
-    return handleMessage(message, sender, sendResponse, logErrorToDb);
+    handleMessage(message, sender, logErrorToDb);
+    return;
   });
 
   console.log("[MessageHandler] Initialized with all managers.");
@@ -205,7 +182,7 @@ function sendEventResponse(action, requestId, data) {
   return false;
 }
 
-async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
+async function handleMessage(message, sender, logErrorToDbFunc) {
   if (!logErrorToDb && typeof logErrorToDbFunc === "function") {
     logErrorToDb = logErrorToDbFunc;
   }
@@ -241,51 +218,55 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
       "encryptDatabase",
       "decryptDatabase",
       "getSqlHistory",
+      "getBackupList",
+      "deleteBackup",
+      "getHistoryLog",
+      "clearHistoryLog",
     ];
     if (requiresDb.includes(message.action) && !dbManager) {
       console.error(`[MessageHandler] ${message.action}: dbManager is null!`);
-      sendResponse({ success: false, error: "Database not initialized" });
-      return false;
+      chrome.runtime.sendMessage({ action: `${message.action}Result`, success: false, error: "Database not initialized" });
+      return;
     }
 
     switch (message.action) {
       case "getRequests":
       case "getRequestsFromDB":
-        handleGetRequests(message, sender, sendResponse); // Async handler
-        return true; // Indicates async response
+        handleGetRequests(message, sender); // Async handler
+        return;
       case "clearRequests":
-        handleClearRequests(message, sendResponse); // Async handler
-        return true; // Indicates async response
+        handleClearRequests(message); // Async handler
+        return;
       case "getRequestHeaders":
-        handleGetRequestHeaders(message, sendResponse);
-        return true;
+        handleGetRequestHeaders(message);
+        return;
       case "getDatabaseInfo":
-        handleGetDatabaseInfo(sendResponse);
-        return true;
+        handleGetDatabaseInfo();
+        return;
       case "getDatabaseStats":
-        handleGetStats(message, sender, sendResponse);
-        return true;
+        handleGetStats(message, sender);
+        return;
       case "getDatabaseSchemaSummary":
-        handleGetDatabaseSchemaSummary(message, sender, sendResponse);
-        return true;
+        handleGetDatabaseSchemaSummary(message, sender);
+        return;
       case "getLoggedErrors":
-        handleGetLoggedErrors(message, sender, sendResponse);
-        return true;
+        handleGetLoggedErrors(message, sender);
+        return;
       case "executeRawSql":
-        handleExecuteRawSql(message, sender).then(sendResponse); // Calls the async handler
-        return true; // <--- This is the important part!
+        handleExecuteRawSql(message, sender); // Calls the async handler
+        return;
       case "getDistinctValues":
-        handleGetDistinctValues(message, sendResponse);
-        return true;
+        handleGetDistinctValues(message);
+        return;
       case "getApiPaths":
-        handleGetApiPaths(sendResponse);
-        return true;
+        handleGetApiPaths();
+        return;
       case "getFilteredStats":
-        handleGetFilteredStats(message, sender, sendResponse);
-        return true;
+        handleGetFilteredStats(message, sender);
+        return;
       case "exportData":
-        handleExportData(message, sendResponse);
-        return true;
+        handleExportData(message);
+        return;
       case "importData":
         if (
           !importManager ||
@@ -294,81 +275,93 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
           console.error(
             "[MessageHandler] importManager or handleImportData not available."
           );
-          sendResponse({ success: false, error: "Import manager not ready." });
-          return false;
+          chrome.runtime.sendMessage({ action: "importDataResult", success: false, error: "Import manager not ready." });
+          return;
         }
-        handleImportData(message, sendResponse);
-        return true;
+        handleImportData(message);
+        return;
       case "importDatabaseFile":
-        handleImportDatabaseFile(message, sendResponse);
-        return true;
+        handleImportDatabaseFile(message);
+        return;
       case "getConfig":
-        handleGetConfig(sendResponse, message);
-        return true;
+        handleGetConfig(message);
+        return;
       case "updateConfig":
-        handleUpdateConfig(message, sendResponse);
-        return true;
+        handleUpdateConfig(message);
+        return;
       case "checkAuth":
-        handleCheckAuth(sendResponse);
-        return true;
+        handleCheckAuth();
+        return;
       case "login":
-        handleLogin(message, sendResponse);
-        return true;
+        handleLogin(message);
+        return;
       case "logout":
-        handleLogout(sendResponse);
-        return true;
+        handleLogout();
+        return;
       case "encryptData":
-        handleEncryptData(message, sendResponse);
-        return true;
+        handleEncryptData(message);
+        return;
       case "decryptData":
-        handleDecryptData(message, sendResponse);
-        return true;
+        handleDecryptData(message);
+        return;
       case "getDistinctDomains":
-        handleGetDistinctDomains(sendResponse);
-        return true;
+        handleGetDistinctDomains();
+        return;
       case "backupDatabase":
-        handleBackupDatabase(sendResponse);
-        return true;
+        handleBackupDatabase(message);
+        return;
       case "restoreDatabase":
-        handleRestoreDatabase(message, sendResponse);
-        return true;
+        handleRestoreDatabase(message);
+        return;
       case "vacuumDatabase":
-        handleVacuumDatabase(sendResponse);
-        return true;
+        handleVacuumDatabase(message);
+        return;
       case "getTableContents":
-        handleGetTableContents(message, sendResponse);
-        return true;
+        handleGetTableContents(message);
+        return;
       case "getEncryptionStatus":
-        handleGetEncryptionStatus(sendResponse);
-        return true;
+        handleGetEncryptionStatus();
+        return;
       case "encryptDatabase":
-        handleEncryptDatabase(message, sendResponse);
-        return true;
+        handleEncryptDatabase(message);
+        return;
       case "decryptDatabase":
-        handleDecryptDatabase(message, sendResponse);
-        return true;
+        handleDecryptDatabase(message);
+        return;
       case "getSqlHistory":
-        handleGetSqlHistory(message, sendResponse);
-        return true;
+        handleGetSqlHistory(message);
+        return;
+      case "getBackupList":
+        handleGetBackupList(message);
+        return;
+      case "deleteBackup":
+        handleDeleteBackup(message);
+        return;
+      case "getHistoryLog":
+        handleGetHistoryLog(message);
+        return;
+      case "clearHistoryLog":
+        handleClearHistoryLog(message);
+        return;
       case "resetConfig":
         if (!configManager || typeof configManager.resetConfig !== "function") {
-          sendResponse({ success: false, error: "Config manager not available" });
-          return false;
+          chrome.runtime.sendMessage({ action: "resetConfigResult", success: false, error: "Config manager not available" });
+          return;
         }
         try {
           await configManager.resetConfig();
-          sendResponse({ success: true });
+          chrome.runtime.sendMessage({ action: "resetConfigResult", success: true });
         } catch (error) {
-          sendResponse({ success: false, error: error.message });
+          chrome.runtime.sendMessage({ action: "resetConfigResult", success: false, error: error.message });
         }
-        return true;
+        return;
       default:
         console.warn(
           "[MessageHandler] Unknown action received:",
           message.action
         );
-        sendResponse({ error: `Unknown action: ${message.action}` });
-        return false;
+        chrome.runtime.sendMessage({ action: `${message.action}Result`, success: false, error: `Unknown action: ${message.action}` });
+        return;
     }
   } catch (error) {
     console.error("[MessageHandler] Uncaught error in handleMessage:", error);
@@ -388,7 +381,8 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
       }
     }
     try {
-      sendResponse({
+      chrome.runtime.sendMessage({
+        action: `${message?.action}Result`,
         success: false,
         error: `Internal server error processing action ${message?.action}`,
       });
@@ -398,34 +392,25 @@ async function handleMessage(message, sender, sendResponse, logErrorToDbFunc) {
         sendError
       );
     }
-    return false;
+    return;
   }
 }
 
 // Add handler for getStats to support legacy popup calls
-async function handleGetStats(message, sender, sendResponse) {
+async function handleGetStats(message, sender) {
   try {
-    // Use getFilteredStats with empty filters for legacy support
     if (typeof dbManager.getFilteredStats === 'function') {
       const stats = await dbManager.getFilteredStats({});
-      if (message.requestId) {
-        chrome.runtime.sendMessage({ action: "getStatsResult", requestId: message.requestId, success: true, stats });
-      } else {
-        sendResponse({ success: true, stats });
-      }
+      sendEventResponse("getStatsResult", message.requestId, { success: true, stats });
     } else {
       throw new Error("getFilteredStats not available");
     }
   } catch (error) {
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "getStatsResult", requestId: message.requestId, success: false, error: error.message });
-    } else {
-      sendResponse({ success: false, error: error.message });
-    }
+    sendEventResponse("getStatsResult", message.requestId, { success: false, error: error.message });
   }
 }
 
-async function handleGetRequests(message, sender, sendResponse) {
+async function handleGetRequests(message, sender) {
   console.log(
     "[MessageHandler] handleGetRequests: Called with filters:",
     message.filters
@@ -449,8 +434,7 @@ async function handleGetRequests(message, sender, sendResponse) {
     console.log(
       `[MessageHandler] handleGetRequests: Retrieved ${result.requests?.length} requests.`
     );
-    if (sendEventResponse("getRequestsResult", requestId, { ...result, success: true })) return;
-    sendResponse({ success: true, ...result });
+    sendEventResponse("getRequestsResult", requestId, { ...result, success: true });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetRequests: Error getting requests:",
@@ -458,12 +442,11 @@ async function handleGetRequests(message, sender, sendResponse) {
     );
     const apiError = new DatabaseError("Error getting requests", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (sendEventResponse("getRequestsResult", message.requestId, { success: false, error: apiError.message })) return;
-    sendResponse({ success: false, error: apiError.message });
+    sendEventResponse("getRequestsResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleClearRequests(message, sendResponse) {
+async function handleClearRequests(message) {
   console.log("[MessageHandler] handleClearRequests: Called");
   try {
     if (typeof dbManager.clearRequests !== "function") {
@@ -473,11 +456,7 @@ async function handleClearRequests(message, sendResponse) {
     console.log(
       "[MessageHandler] handleClearRequests: Requests cleared successfully."
     );
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "clearRequestsResult", requestId: message.requestId, success: true });
-    } else {
-      sendResponse({ success: true });
-    }
+    sendEventResponse("clearRequestsResult", message.requestId, { success: true });
   } catch (error) {
     console.error(
       "[MessageHandler] handleClearRequests: Error clearing requests:",
@@ -485,15 +464,11 @@ async function handleClearRequests(message, sendResponse) {
     );
     const apiError = new DatabaseError("Error clearing requests", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "clearRequestsResult", requestId: message.requestId, success: false, error: apiError.message });
-    } else {
-      sendResponse({ success: false, error: apiError.message });
-    }
+    sendEventResponse("clearRequestsResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleGetRequestHeaders(message, sendResponse) {
+async function handleGetRequestHeaders(message) {
   console.log(
     "[MessageHandler] handleGetRequestHeaders: Called for requestId:",
     message.requestId
@@ -507,11 +482,7 @@ async function handleGetRequestHeaders(message, sendResponse) {
       "[MessageHandler] handleGetRequestHeaders: Retrieved headers:",
       headers
     );
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "getRequestHeadersResult", requestId: message.requestId, success: true, headers });
-    } else {
-      sendResponse({ success: true, headers });
-    }
+    sendEventResponse("getRequestHeadersResult", message.requestId, { success: true, headers });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetRequestHeaders: Error getting headers:",
@@ -519,15 +490,11 @@ async function handleGetRequestHeaders(message, sendResponse) {
     );
     const apiError = new DatabaseError("Error getting request headers", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "getRequestHeadersResult", requestId: message.requestId, success: false, error: apiError.message });
-    } else {
-      sendResponse({ success: false, error: apiError.message });
-    }
+    sendEventResponse("getRequestHeadersResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleGetDatabaseInfo(sendResponse) {
+async function handleGetDatabaseInfo() {
   console.log("[MessageHandler] handleGetDatabaseInfo: Called");
   try {
     if (typeof dbManager.getDatabaseInfo !== "function") {
@@ -538,7 +505,7 @@ async function handleGetDatabaseInfo(sendResponse) {
       "[MessageHandler] handleGetDatabaseInfo: Retrieved info:",
       info
     );
-    sendResponse({ success: true, info });
+    chrome.runtime.sendMessage({ action: "getDatabaseInfoResult", success: true, info });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetDatabaseInfo: Error getting database info:",
@@ -546,11 +513,11 @@ async function handleGetDatabaseInfo(sendResponse) {
     );
     const apiError = new DatabaseError("Error getting database info", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    chrome.runtime.sendMessage({ action: "getDatabaseInfoResult", success: false, error: apiError.message });
   }
 }
 
-async function handleGetDatabaseSchemaSummary(message, sender, sendResponse) {
+async function handleGetDatabaseSchemaSummary(message, sender) {
   console.log("[MessageHandler] handleGetDatabaseSchemaSummary: Called");
   try {
     if (typeof dbManager.getDatabaseSchemaSummary !== "function") {
@@ -561,16 +528,7 @@ async function handleGetDatabaseSchemaSummary(message, sender, sendResponse) {
       "[MessageHandler] handleGetDatabaseSchemaSummary: Retrieved summary:",
       summary
     );
-    if (message.requestId) {
-      chrome.runtime.sendMessage({
-        action: "getDatabaseSchemaSummaryResult",
-        requestId: message.requestId,
-        success: true,
-        summary,
-      });
-      return;
-    }
-    sendResponse({ success: true, summary });
+    sendEventResponse("getDatabaseSchemaSummaryResult", message.requestId, { success: true, summary });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetDatabaseSchemaSummary: Error getting schema summary:",
@@ -578,27 +536,11 @@ async function handleGetDatabaseSchemaSummary(message, sender, sendResponse) {
     );
     const apiError = new DatabaseError("Error getting schema summary", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (message.requestId) {
-      chrome.runtime.sendMessage({
-        action: "getDatabaseSchemaSummaryResult",
-        requestId: message.requestId,
-        success: false,
-        error: apiError.message,
-      });
-      return;
-    }
-    try {
-      sendResponse({ success: false, error: apiError.message });
-    } catch (e) {
-      console.error(
-        "Failed to send schema summary error response after catch:",
-        e
-      );
-    }
+    sendEventResponse("getDatabaseSchemaSummaryResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleGetLoggedErrors(message, sender, sendResponse) {
+async function handleGetLoggedErrors(message, sender) {
   console.log("[MessageHandler] handleGetLoggedErrors: Called");
   try {
     if (typeof dbManager.getLoggedErrors !== "function") {
@@ -609,17 +551,8 @@ async function handleGetLoggedErrors(message, sender, sendResponse) {
     console.log(
       `[MessageHandler] handleGetLoggedErrors: Retrieved ${errors?.length} errors.`,
       errors
-    ); // Log errors data
-    if (message.requestId) {
-      chrome.runtime.sendMessage({
-        action: "getLoggedErrorsResult",
-        requestId: message.requestId,
-        success: true,
-        errors,
-      });
-      return;
-    }
-    sendResponse({ success: true, errors });
+    );
+    sendEventResponse("getLoggedErrorsResult", message.requestId, { success: true, errors });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetLoggedErrors: Error getting logged errors:",
@@ -627,32 +560,13 @@ async function handleGetLoggedErrors(message, sender, sendResponse) {
     );
     const apiError = new DatabaseError("Error getting logged errors", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (message.requestId) {
-      chrome.runtime.sendMessage({
-        action: "getLoggedErrorsResult",
-        requestId: message.requestId,
-        success: false,
-        error: apiError.message,
-      });
-      return;
-    }
-    try {
-      sendResponse({ success: false, error: apiError.message });
-    } catch (e) {
-      console.error(
-        "Failed to send logged errors error response after catch:",
-        e
-      );
-    }
+    sendEventResponse("getLoggedErrorsResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
 // --- Enhanced Raw SQL Execution Handler ---
 async function handleExecuteRawSql(message, sender) {
-  console.log(
-    "[MessageHandler] handleExecuteRawSql: Received request with SQL:",
-    message.sql
-  );
+  console.log('[Background] handleExecuteRawSql: Received', message);
   try {
     if (!dbManager || typeof dbManager.executeRawSql !== "function") {
       console.error(
@@ -665,27 +579,10 @@ async function handleExecuteRawSql(message, sender) {
     if (typeof sql !== "string" || !sql.trim()) {
       throw new Error("No SQL query provided.");
     }
-    console.log(
-      "[MessageHandler] handleExecuteRawSql: Calling dbManager.executeRawSql..."
-    );
-
+    console.log('[Background] handleExecuteRawSql: Executing SQL:', sql);
     const result = await dbManager.executeRawSql(sql, { exportCsv });
-
-    console.log(
-      "[MessageHandler] handleExecuteRawSql: Execution successful. Returning success response...",
-      result
-    );
-    // If requestId is present, send event-based response
-    if (requestId && sender && sender.id) {
-      chrome.tabs.sendMessage(sender.tab.id, {
-        action: "executeRawSqlResult",
-        requestId,
-        success: true,
-        results: result,
-      });
-      return; // Do not call sendResponse
-    }
-    return { success: true, results: result };
+    console.log('[Background] handleExecuteRawSql: Sending result:', result);
+    sendEventResponse("executeRawSqlResult", requestId, { success: true, results: result });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(
@@ -693,46 +590,16 @@ async function handleExecuteRawSql(message, sender) {
       errorMessage,
       error.stack
     );
-
-    // Log error to DB if configured
-    if (
-      logErrorToDb &&
-      error instanceof Error &&
-      configManager?.getConfigValue?.("advanced.logErrorsToDatabase")
-    ) {
-      try {
-        await logErrorToDb(
-          new DatabaseError(
-            `Raw SQL execution failed in handler: ${errorMessage}`,
-            error
-          )
-        );
-      } catch (logDbError) {
-        console.error(
-          "[MessageHandler] handleExecuteRawSql: Failed to log error to database:",
-          logDbError
-        );
-      }
-    }
-    if (message.requestId && sender && sender.id) {
-      chrome.tabs.sendMessage(sender.tab.id, {
-        action: "executeRawSqlResult",
-        requestId: message.requestId,
-        success: false,
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      return;
-    }
     const errorResponse = { success: false, error: errorMessage };
     if (error instanceof Error && error.stack) {
       errorResponse.stack = error.stack;
     }
-    return errorResponse;
+    console.log('[Background] handleExecuteRawSql: Sending error:', errorResponse);
+    sendEventResponse("executeRawSqlResult", message.requestId, errorResponse);
   }
 }
 
-async function handleGetDistinctValues(message, sendResponse) {
+async function handleGetDistinctValues(message) {
   console.log(
     "[MessageHandler] handleGetDistinctValues: Called for field:",
     message.field
@@ -743,32 +610,32 @@ async function handleGetDistinctValues(message, sendResponse) {
     }
     const { field, filters } = message;
     const values = await dbManager.getDistinctValues(field, filters);
-    sendResponse({ success: true, values });
+    sendEventResponse("getDistinctValuesResult", message.requestId, { success: true, values });
   } catch (error) {
     console.error("[MessageHandler] Error getting distinct values:", error);
     const apiError = new DatabaseError("Error getting distinct values", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: error.message });
+    sendEventResponse("getDistinctValuesResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleGetApiPaths(sendResponse) {
+async function handleGetApiPaths() {
   console.log("[MessageHandler] handleGetApiPaths: Called");
   try {
     if (typeof dbManager.getApiPaths !== "function") {
       throw new Error("dbManager.getApiPaths is not a function");
     }
     const paths = await dbManager.getApiPaths();
-    sendResponse({ success: true, paths });
+    chrome.runtime.sendMessage({ action: "getApiPathsResult", success: true, paths });
   } catch (error) {
     console.error("[MessageHandler] Error getting API paths:", error);
     const apiError = new DatabaseError("Error getting API paths", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: error.message });
+    chrome.runtime.sendMessage({ action: "getApiPathsResult", success: false, error: apiError.message });
   }
 }
 
-async function handleGetFilteredStats(message, sender, sendResponse) {
+async function handleGetFilteredStats(message, sender) {
   console.log(
     "[MessageHandler] handleGetFilteredStats: Called with filters:",
     message.filters
@@ -788,7 +655,7 @@ async function handleGetFilteredStats(message, sender, sendResponse) {
   }
 }
 
-async function handleExportData(message, sendResponse) {
+async function handleExportData(message) {
   console.log(
     "[MessageHandler] handleExportData: Called with format:",
     message.format
@@ -797,17 +664,13 @@ async function handleExportData(message, sendResponse) {
     console.error(
       "[MessageHandler] exportManager or handleExportData not available."
     );
-    sendResponse({ success: false, error: "Export manager not ready." });
+    sendEventResponse("exportDataResult", message.requestId, { success: false, error: "Export manager not ready." });
     return;
   }
   try {
     const { format, requestId } = message;
     const data = await dbManager.exportDatabase(format);
-    if (requestId) {
-      chrome.runtime.sendMessage({ action: "exportDataResult", requestId, success: true, data });
-    } else {
-      sendResponse({ success: true, data });
-    }
+    sendEventResponse("exportDataResult", requestId, { success: true, data });
   } catch (error) {
     console.error(
       "[MessageHandler] handleExportData: Error exporting data:",
@@ -815,15 +678,11 @@ async function handleExportData(message, sendResponse) {
     );
     const apiError = new DatabaseError("Error exporting data", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "exportDataResult", requestId: message.requestId, success: false, error: apiError.message });
-    } else {
-      sendResponse({ success: false, error: apiError.message });
-    }
+    sendEventResponse("exportDataResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleImportDatabaseFile(message, sendResponse) {
+async function handleImportDatabaseFile(message) {
   console.log("[MessageHandler] handleImportDatabaseFile: Called");
   try {
     if (typeof dbManager.importDatabaseFile !== "function") {
@@ -834,61 +693,26 @@ async function handleImportDatabaseFile(message, sendResponse) {
       throw new Error("No file data provided for import.");
     }
     await dbManager.importDatabaseFile(fileData);
-    sendResponse({
-      success: true,
-      message: "Database imported successfully. Reload might be required.",
-    });
+    sendEventResponse("importDatabaseFileResult", message.requestId, { success: true, message: "Database imported successfully. Reload might be required." });
   } catch (error) {
     console.error("[MessageHandler] Error importing database file:", error);
     const apiError = new DatabaseError("Error importing database file", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    sendEventResponse("importDatabaseFileResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleGetConfig(sendResponse, message = {}) {
+async function handleGetConfig(message = {}) {
   console.log("[MessageHandler] handleGetConfig: Called");
   if (!configManager || typeof configManager.getConfig !== "function") {
     console.error("[MessageHandler] configManager or getConfig not available.");
-    try {
-      if (message.requestId) {
-        chrome.runtime.sendMessage({ action: "getConfigResult", requestId: message.requestId, success: false, error: "Configuration manager not ready." });
-      } else {
-        sendResponse({
-          success: false,
-          error: "Configuration manager not ready.",
-        });
-      }
-    } catch (e) {
-      console.error("Failed to send config error response:", e);
-    }
+    sendEventResponse("getConfigResult", message.requestId, { success: false, error: "Configuration manager not ready." });
     return;
   }
   try {
     const config = await configManager.getConfig();
     console.log("[MessageHandler] handleGetConfig: Retrieved config:", config);
-    try {
-      if (message.requestId) {
-        chrome.runtime.sendMessage({ action: "getConfigResult", requestId: message.requestId, success: true, config });
-      } else {
-        sendResponse({ success: true, config });
-      }
-    } catch (sendError) {
-      console.error(
-        "[MessageHandler] Error during sendResponse for getConfig:",
-        sendError,
-        "Data:",
-        config
-      );
-      try {
-        sendResponse({
-          success: false,
-          error: `Failed to send config response: ${sendError.message}`,
-        });
-      } catch (e) {
-        console.error("Failed to send fallback config error:", e);
-      }
-    }
+    sendEventResponse("getConfigResult", message.requestId, { success: true, config });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetConfig: Error getting config:",
@@ -896,19 +720,11 @@ async function handleGetConfig(sendResponse, message = {}) {
     );
     const apiError = new ConfigError("Error getting configuration", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    try {
-      if (message.requestId) {
-        chrome.runtime.sendMessage({ action: "getConfigResult", requestId: message.requestId, success: false, error: apiError.message });
-      } else {
-        sendResponse({ success: false, error: apiError.message });
-      }
-    } catch (e) {
-      console.error("Failed to send config error response after catch:", e);
-    }
+    sendEventResponse("getConfigResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleUpdateConfig(message, sendResponse) {
+async function handleUpdateConfig(message) {
   console.log(
     "[MessageHandler] handleUpdateConfig: Called with data:",
     message.data
@@ -917,11 +733,7 @@ async function handleUpdateConfig(message, sendResponse) {
     console.error(
       "[MessageHandler] configManager or updateConfig not available."
     );
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "updateConfigResult", requestId: message.requestId, success: false, error: "Configuration manager not ready." });
-    } else {
-      sendResponse({ success: false, error: "Configuration manager not ready." });
-    }
+    sendEventResponse("updateConfigResult", message.requestId, { success: false, error: "Configuration manager not ready." });
     return;
   }
   try {
@@ -930,11 +742,7 @@ async function handleUpdateConfig(message, sendResponse) {
       "[MessageHandler] handleUpdateConfig: Config updated successfully."
     );
     const updatedConfig = await configManager.getConfig();
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "updateConfigResult", requestId: message.requestId, success: true, config: updatedConfig });
-    } else {
-      sendResponse({ success: true, config: updatedConfig });
-    }
+    sendEventResponse("updateConfigResult", message.requestId, { success: true, config: updatedConfig });
   } catch (error) {
     console.error(
       "[MessageHandler] handleUpdateConfig: Error updating config:",
@@ -942,21 +750,18 @@ async function handleUpdateConfig(message, sendResponse) {
     );
     const apiError = new ConfigError("Error updating configuration", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ action: "updateConfigResult", requestId: message.requestId, success: false, error: apiError.message });
-    } else {
-      sendResponse({ success: false, error: apiError.message });
-    }
+    sendEventResponse("updateConfigResult", message.requestId, { success: false, error: apiError.message });
   }
 }
 
-async function handleCheckAuth(sendResponse) {
+async function handleCheckAuth() {
   console.log("[MessageHandler] handleCheckAuth: Called");
   if (!authManager || typeof authManager.isAuthenticated !== "function") {
     console.error(
       "[MessageHandler] authManager or isAuthenticated not available."
     );
-    sendResponse({
+    chrome.runtime.sendMessage({
+      action: "checkAuthResult",
       success: true,
       isAuthenticated: false,
       error: "Authentication manager not ready.",
@@ -966,7 +771,7 @@ async function handleCheckAuth(sendResponse) {
   try {
     const isAuthenticated = await authManager.isAuthenticated();
     console.log("[MessageHandler] handleCheckAuth: Status:", isAuthenticated);
-    sendResponse({ success: true, isAuthenticated });
+    chrome.runtime.sendMessage({ action: "checkAuthResult", success: true, isAuthenticated });
   } catch (error) {
     console.error(
       "[MessageHandler] handleCheckAuth: Error checking auth status:",
@@ -977,7 +782,8 @@ async function handleCheckAuth(sendResponse) {
       error
     );
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({
+    chrome.runtime.sendMessage({
+      action: "checkAuthResult",
       success: false,
       error: apiError.message,
       isAuthenticated: false,
@@ -985,11 +791,12 @@ async function handleCheckAuth(sendResponse) {
   }
 }
 
-async function handleLogin(message, sendResponse) {
+async function handleLogin(message) {
   console.log("[MessageHandler] handleLogin: Called");
   if (!authManager || typeof authManager.login !== "function") {
     console.error("[MessageHandler] authManager or login not available.");
-    sendResponse({
+    chrome.runtime.sendMessage({
+      action: "loginResult",
       success: false,
       error: "Authentication manager not ready.",
     });
@@ -1002,20 +809,21 @@ async function handleLogin(message, sendResponse) {
     }
     const success = await authManager.login(password);
     console.log("[MessageHandler] handleLogin: Success:", success);
-    sendResponse({ success });
+    chrome.runtime.sendMessage({ action: "loginResult", success });
   } catch (error) {
     console.error("[MessageHandler] handleLogin: Error during login:", error);
     const apiError = new AuthError(`Login failed: ${error.message}`, error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    chrome.runtime.sendMessage({ action: "loginResult", success: false, error: apiError.message });
   }
 }
 
-async function handleLogout(sendResponse) {
+async function handleLogout() {
   console.log("[MessageHandler] handleLogout: Called");
   if (!authManager || typeof authManager.logout !== "function") {
     console.error("[MessageHandler] authManager or logout not available.");
-    sendResponse({
+    chrome.runtime.sendMessage({
+      action: "logoutResult",
       success: false,
       error: "Authentication manager not ready.",
     });
@@ -1024,22 +832,22 @@ async function handleLogout(sendResponse) {
   try {
     await authManager.logout();
     console.log("[MessageHandler] handleLogout: Success");
-    sendResponse({ success: true });
+    chrome.runtime.sendMessage({ action: "logoutResult", success: true });
   } catch (error) {
     console.error("[MessageHandler] handleLogout: Error during logout:", error);
     const apiError = new AuthError("Logout failed", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    chrome.runtime.sendMessage({ action: "logoutResult", success: false, error: apiError.message });
   }
 }
 
-async function handleEncryptData(message, sendResponse) {
+async function handleEncryptData(message) {
   console.log("[MessageHandler] handleEncryptData: Called");
   if (!encryptionManager || typeof encryptionManager.encrypt !== "function") {
     console.error(
       "[MessageHandler] encryptionManager or encrypt not available."
     );
-    sendResponse({ success: false, error: "Encryption manager not ready." });
+    chrome.runtime.sendMessage({ action: "encryptDataResult", success: false, error: "Encryption manager not ready." });
     return;
   }
   try {
@@ -1049,7 +857,7 @@ async function handleEncryptData(message, sendResponse) {
     }
     const encryptedData = await encryptionManager.encrypt(data);
     console.log("[MessageHandler] handleEncryptData: Success");
-    sendResponse({ success: true, encryptedData });
+    chrome.runtime.sendMessage({ action: "encryptDataResult", success: true, encryptedData });
   } catch (error) {
     console.error(
       "[MessageHandler] handleEncryptData: Error encrypting data:",
@@ -1057,17 +865,17 @@ async function handleEncryptData(message, sendResponse) {
     );
     const apiError = new EncryptionError("Encryption failed", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    chrome.runtime.sendMessage({ action: "encryptDataResult", success: false, error: apiError.message });
   }
 }
 
-async function handleDecryptData(message, sendResponse) {
+async function handleDecryptData(message) {
   console.log("[MessageHandler] handleDecryptData: Called");
   if (!encryptionManager || typeof encryptionManager.decrypt !== "function") {
     console.error(
       "[MessageHandler] encryptionManager or decrypt not available."
     );
-    sendResponse({ success: false, error: "Encryption manager not ready." });
+    chrome.runtime.sendMessage({ action: "decryptDataResult", success: false, error: "Encryption manager not ready." });
     return;
   }
   try {
@@ -1077,7 +885,7 @@ async function handleDecryptData(message, sendResponse) {
     }
     const data = await encryptionManager.decrypt(encryptedData);
     console.log("[MessageHandler] handleDecryptData: Success");
-    sendResponse({ success: true, data });
+    chrome.runtime.sendMessage({ action: "decryptDataResult", success: true, data });
   } catch (error) {
     console.error(
       "[MessageHandler] handleDecryptData: Error decrypting data:",
@@ -1085,102 +893,60 @@ async function handleDecryptData(message, sendResponse) {
     );
     const apiError = new EncryptionError("Decryption failed", error);
     if (logErrorToDb) await logErrorToDb(apiError);
-    sendResponse({ success: false, error: apiError.message });
+    chrome.runtime.sendMessage({ action: "decryptDataResult", success: false, error: apiError.message });
   }
 }
 
-async function handleGetDistinctDomains(sendResponse) {
+async function handleGetDistinctDomains() {
   console.log("[MessageHandler] handleGetDistinctDomains: Called");
   try {
     const domains = await dbManager.getDistinctDomains();
-    sendResponse({ domains: domains || [] });
+    chrome.runtime.sendMessage({ action: "getDistinctDomainsResult", success: true, domains: domains || [] });
   } catch (error) {
     console.error(
       "[MessageHandler] handleGetDistinctDomains: Error handling GET_DISTINCT_DOMAINS:",
       error
     );
-    sendResponse({ error: error.message, domains: [] });
+    chrome.runtime.sendMessage({ action: "getDistinctDomainsResult", success: false, error: error.message, domains: [] });
   }
 }
 
-async function handleBackupDatabase(sendResponse, message = {}) {
+async function handleBackupDatabase(message = {}) {
   try {
     if (!dbManager || typeof dbManager.backupDatabase !== "function")
       throw new Error("dbManager.backupDatabase not available");
     const backupKey = await dbManager.backupDatabase();
-    const response = { success: true, backupKey, action: "backupDatabase" };
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("backupDatabaseResult", message.requestId, { success: true, backupKey });
   } catch (error) {
-    const response = {
-      success: false,
-      error: error.message,
-      action: "backupDatabase",
-    };
-    if (message && message.requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("backupDatabaseResult", message.requestId, { success: false, error: error.message });
   }
 }
 
-async function handleRestoreDatabase(message, sendResponse) {
+async function handleRestoreDatabase(message) {
   try {
     if (!dbManager || typeof dbManager.replaceDatabase !== "function")
       throw new Error("dbManager.replaceDatabase not available");
     const { data, requestId } = message;
     if (!data) throw new Error("No backup data provided");
     await dbManager.replaceDatabase(data);
-    const response = { success: true, action: "restoreDatabase" };
-    if (requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("restoreDatabaseResult", requestId, { success: true });
   } catch (error) {
-    const response = {
-      success: false,
-      error: error.message,
-      action: "restoreDatabase",
-    };
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("restoreDatabaseResult", message.requestId, { success: false, error: error.message });
   }
 }
 
-async function handleVacuumDatabase(sendResponse, message = {}) {
+async function handleVacuumDatabase(message = {}) {
   try {
     if (!dbManager || typeof dbManager.vacuumDatabase !== "function")
       throw new Error("dbManager.vacuumDatabase not available");
     await dbManager.vacuumDatabase();
-    const response = { success: true, action: "vacuumDatabase" };
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("vacuumDatabaseResult", message.requestId, { success: true });
   } catch (error) {
-    const response = {
-      success: false,
-      error: error.message,
-      action: "vacuumDatabase",
-    };
-    if (message && message.requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("vacuumDatabaseResult", message.requestId, { success: false, error: error.message });
   }
 }
 
-async function handleGetTableContents(message, sendResponse) {
+async function handleGetTableContents(message) {
   try {
     if (!dbManager || typeof dbManager.executeRawSql !== "function")
       throw new Error("dbManager.executeRawSql not available");
@@ -1193,77 +959,105 @@ async function handleGetTableContents(message, sendResponse) {
       sql = `SELECT * FROM ${table}`;
     }
     const results = await dbManager.executeRawSql(sql);
-    const response = {
-      success: true,
-      data: results[0],
-      action: "getTableContents",
-    };
-    if (requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("getTableContentsResult", requestId, { success: true, data: results[0] });
   } catch (error) {
-    const response = {
-      success: false,
-      error: error.message,
-      action: "getTableContents",
-    };
-    if (message.requestId) {
-      chrome.runtime.sendMessage({ ...response, requestId: message.requestId });
-    } else {
-      sendResponse(response);
-    }
+    sendEventResponse("getTableContentsResult", message.requestId, { success: false, error: error.message });
   }
 }
 
-async function handleGetEncryptionStatus(sendResponse) {
+async function handleGetEncryptionStatus() {
   try {
     if (!dbManager || !dbManager.encryptionManager)
       throw new Error("encryptionManager not available");
     const enabled =
       dbManager.encryptionManager.isEnabled &&
       dbManager.encryptionManager.isEnabled();
-    sendResponse({ success: true, enabled });
+    chrome.runtime.sendMessage({ action: "getEncryptionStatusResult", success: true, enabled });
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    chrome.runtime.sendMessage({ action: "getEncryptionStatusResult", success: false, error: error.message });
   }
 }
 
-async function handleEncryptDatabase(message, sendResponse) {
+async function handleEncryptDatabase(message) {
   try {
     if (!dbManager || typeof dbManager.encryptDatabase !== "function")
       throw new Error("dbManager.encryptDatabase not available");
     const { key } = message;
     if (!key) throw new Error("No encryption key provided");
     await dbManager.encryptDatabase(key);
-    sendResponse({ success: true });
+    chrome.runtime.sendMessage({ action: "encryptDatabaseResult", success: true });
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    chrome.runtime.sendMessage({ action: "encryptDatabaseResult", success: false, error: error.message });
   }
 }
 
-async function handleDecryptDatabase(message, sendResponse) {
+async function handleDecryptDatabase(message) {
   try {
     if (!dbManager || typeof dbManager.decryptDatabase !== "function")
       throw new Error("dbManager.decryptDatabase not available");
     const { key } = message;
     if (!key) throw new Error("No decryption key provided");
     await dbManager.decryptDatabase(key);
-    sendResponse({ success: true });
+    chrome.runtime.sendMessage({ action: "decryptDatabaseResult", success: true });
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    chrome.runtime.sendMessage({ action: "decryptDatabaseResult", success: false, error: error.message });
   }
 }
 
 // --- Raw SQL Query History Handler ---
-async function handleGetSqlHistory(message, sendResponse) {
+async function handleGetSqlHistory(message) {
   try {
     if (!dbManager || typeof dbManager.getSqlHistory !== "function")
       throw new Error("dbManager.getSqlHistory not available");
     const history = await dbManager.getSqlHistory();
-    sendResponse({ success: true, history });
+    sendEventResponse("getSqlHistoryResult", message.requestId, { success: true, history });
   } catch (error) {
-    sendResponse({ success: false, error: error.message });
+    sendEventResponse("getSqlHistoryResult", message.requestId, { success: false, error: error.message });
+  }
+}
+
+// --- Backup/Restore/History Event Handlers ---
+async function handleGetBackupList(message) {
+  try {
+    if (!dbManager || typeof dbManager.getBackupList !== "function")
+      throw new Error("dbManager.getBackupList not available");
+    const backups = await dbManager.getBackupList();
+    sendEventResponse("getBackupListResult", message.requestId, { success: true, backups });
+  } catch (error) {
+    sendEventResponse("getBackupListResult", message.requestId, { success: false, error: error.message });
+  }
+}
+
+async function handleDeleteBackup(message) {
+  try {
+    if (!dbManager || typeof dbManager.deleteBackup !== "function")
+      throw new Error("dbManager.deleteBackup not available");
+    const { key } = message;
+    await dbManager.deleteBackup(key);
+    sendEventResponse("deleteBackupResult", message.requestId, { success: true });
+  } catch (error) {
+    sendEventResponse("deleteBackupResult", message.requestId, { success: false, error: error.message });
+  }
+}
+
+async function handleGetHistoryLog(message) {
+  try {
+    if (!dbManager || typeof dbManager.getHistoryLog !== "function")
+      throw new Error("dbManager.getHistoryLog not available");
+    const history = await dbManager.getHistoryLog();
+    sendEventResponse("getHistoryLogResult", message.requestId, { success: true, history });
+  } catch (error) {
+    sendEventResponse("getHistoryLogResult", message.requestId, { success: false, error: error.message });
+  }
+}
+
+async function handleClearHistoryLog(message) {
+  try {
+    if (!dbManager || typeof dbManager.clearHistoryLog !== "function")
+      throw new Error("dbManager.clearHistoryLog not available");
+    await dbManager.clearHistoryLog();
+    sendEventResponse("clearHistoryLogResult", message.requestId, { success: true });
+  } catch (error) {
+    sendEventResponse("clearHistoryLogResult", message.requestId, { success: false, error: error.message });
   }
 }

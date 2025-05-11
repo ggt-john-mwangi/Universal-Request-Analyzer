@@ -138,7 +138,19 @@ export async function createTables(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS config (
       key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
+      value TEXT NOT NULL,
+      updatedAt INTEGER
+    )
+  `)
+
+  // Create backups table for storing database backups
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS backups (
+      key TEXT PRIMARY KEY,
+      data BLOB NOT NULL,
+      createdAt INTEGER NOT NULL,
+      size INTEGER NOT NULL,
+      meta TEXT
     )
   `)
 

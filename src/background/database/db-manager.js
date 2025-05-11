@@ -146,6 +146,8 @@ function createDbInterface() {
     encryptDatabase,
     decryptDatabase,
     backupDatabase,
+    getBackupList,
+    deleteBackup,
     replaceDatabase,
     vacuumDatabase,
     getRequestCount,
@@ -1037,39 +1039,58 @@ function decryptDatabase(key) {
   }
 }
 
-// Create a backup of the database
-function backupDatabase() {
+// Create a backup of the database (save to backups table)
+async function backupDatabase(meta = {}) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
-    return;
+    throw new DatabaseError("Database not initialized");
   }
-
   try {
     const data = db.export();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const backupKey = `database_backup_${timestamp}`;
-
-    if (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.local
-    ) {
-      chrome.storage.local.set({ [backupKey]: data });
-
-      eventBus.publish("database:backup_created", {
-        timestamp: Date.now(),
-        backupKey,
-        size: data.length,
-      });
-      log("info", `[DB] Backup created with key: ${backupKey}`);
-    } else {
-      log("warn", "Chrome storage API not available.");
-    }
-
+    const timestamp = Date.now();
+    const backupKey = `database_backup_${new Date(timestamp).toISOString().replace(/[:.]/g, "-")}`;
+    const size = data.length;
+    db.exec(
+      `INSERT INTO backups (key, data, createdAt, size, meta) VALUES (?, ?, ?, ?, ?)`,
+      [backupKey, data, timestamp, size, JSON.stringify(meta)]
+    );
+    eventBus && eventBus.publish("database:backup_created", {
+      timestamp,
+      backupKey,
+      size,
+      meta
+    });
+    log("info", `[DB] Backup created with key: ${backupKey}`);
     return backupKey;
   } catch (error) {
     log("error", "Failed to backup database:", error);
     throw new DatabaseError("Failed to backup database", error);
+  }
+}
+
+// List all backups from the backups table
+async function getBackupList() {
+  if (!db) throw new DatabaseError("Database not initialized");
+  try {
+    const result = executeQuery("SELECT key, createdAt, size, meta FROM backups ORDER BY createdAt DESC");
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (error) {
+    log("error", "Failed to get backup list:", error);
+    throw new DatabaseError("Failed to get backup list", error);
+  }
+}
+
+// Delete a backup from the backups table
+async function deleteBackup(key) {
+  if (!db) throw new DatabaseError("Database not initialized");
+  try {
+    db.exec("DELETE FROM backups WHERE key = ?", [key]);
+    eventBus && eventBus.publish("database:backup_deleted", { key, timestamp: Date.now() });
+    log("info", `[DB] Backup deleted: ${key}`);
+    return true;
+  } catch (error) {
+    log("error", "Failed to delete backup:", error);
+    throw new DatabaseError("Failed to delete backup", error);
   }
 }
 

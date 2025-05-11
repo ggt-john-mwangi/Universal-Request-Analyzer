@@ -18,28 +18,40 @@ function DataFilterPanel({ onFilterChange, initialFilters = {} }) {
   const pages = [];
   const apis = [];
 
-  // Load available filter options
+  // Load available filter options (event-based)
   if (typeof chrome !== "undefined" && chrome.runtime) {
     // Load domains
-    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "domain" }, (response) => {
-      if (response && response.values) {
-        domains.push(...response.values);
+    const domainRequestId = `domain_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function domainHandler(message) {
+      if (message && message.requestId === domainRequestId && message.values) {
+        domains.push(...message.values);
+        chrome.runtime.onMessage.removeListener(domainHandler);
       }
-    });
+    }
+    chrome.runtime.onMessage.addListener(domainHandler);
+    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "domain", requestId: domainRequestId });
 
     // Load pages
-    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "pageUrl" }, (response) => {
-      if (response && response.values) {
-        pages.push(...response.values);
+    const pageRequestId = `page_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function pageHandler(message) {
+      if (message && message.requestId === pageRequestId && message.values) {
+        pages.push(...message.values);
+        chrome.runtime.onMessage.removeListener(pageHandler);
       }
-    });
+    }
+    chrome.runtime.onMessage.addListener(pageHandler);
+    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "pageUrl", requestId: pageRequestId });
 
     // Load APIs (paths that look like APIs)
-    chrome.runtime.sendMessage({ action: "getApiPaths" }, (response) => {
-      if (response && response.paths) {
-        apis.push(...response.paths);
+    const apiRequestId = `api_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function apiHandler(message) {
+      if (message && message.requestId === apiRequestId && message.paths) {
+        apis.push(...message.paths);
+        chrome.runtime.onMessage.removeListener(apiHandler);
       }
-    });
+    }
+    chrome.runtime.onMessage.addListener(apiHandler);
+    chrome.runtime.sendMessage({ action: "getApiPaths", requestId: apiRequestId });
   } else {
     console.warn("Chrome runtime is not available. Running outside of extension context?");
   }

@@ -21,19 +21,27 @@ import { getHarmonizedConfig, updateHarmonizedConfig, listenForConfigUpdates } f
 // On load, fetch config/filters from background
 getHarmonizedConfig().then((config) => {
   // Use config for all settings/filters in popup UI
+  if (config && config.filters) {
+    activeFilters = { ...activeFilters, ...config.filters };
+  }
+  // Optionally update filter UI fields here if needed
   // ...apply config to UI elements...
 });
 
 // When user changes config/filters, update via background
-function onUserChangeConfig(newConfig) {
-  updateHarmonizedConfig(newConfig, (response) => {
+function persistFiltersToConfig() {
+  updateHarmonizedConfig({ filters: activeFilters }, (response) => {
     // Optionally handle response
   });
 }
 
 // Listen for config updates from background
 listenForConfigUpdates((newConfig) => {
-  // Update UI/state with newConfig
+  if (newConfig && newConfig.filters) {
+    activeFilters = { ...activeFilters, ...newConfig.filters };
+    // Optionally update filter UI fields here if needed
+    loadRequests();
+  }
 });
 
 // --- Global Variables ---
@@ -122,6 +130,8 @@ let tabsContainer = null; // Added for tab switching
 let pendingGetRequests = {};
 let pendingGetStats = {};
 
+let renderRequestsTable;
+let loadStats;
 // --- Event-based request/response helpers ---
 const pendingPopupRequests = {};
 function eventRequest(action, payload, callback) {
@@ -606,6 +616,7 @@ function renderQuickFilters() {
     btn.addEventListener("click", (e) => {
       const filter = btn.getAttribute("data-filter");
       activeFilters.quick = filter;
+      persistFiltersToConfig(); // Persist quick filter
       loadRequests();
       container.querySelectorAll(".quick-filter-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
@@ -614,7 +625,7 @@ function renderQuickFilters() {
 }
 
 // Patch loadRequests to apply quick filter
-const originalRenderRequestsTable = renderRequestsTable;
+// const originalRenderRequestsTable = renderRequestsTable;
 renderRequestsTable = function(requests) {
   if (!requestsTableBody) return;
   lastLoadedRequests = requests;
@@ -734,6 +745,7 @@ function renderDomainSummaryAndSparklines(requests) {
     });
     select.addEventListener("change", e => {
       activeFilters.domain = select.value;
+      persistFiltersToConfig(); // Persist domain filter
       loadRequests();
     });
     container.appendChild(select);
@@ -846,6 +858,7 @@ function applyFilters() {
   activeFilters.endDate = endDateFilter?.value || "";
 
   currentPage = 1;
+  persistFiltersToConfig(); // Persist filters
   loadRequests();
   // Also reload Plots tab if mounted
   const plotsTab = document.getElementById("plots-tab");
@@ -866,6 +879,7 @@ function resetFilters() {
 
   activeFilters = { status: "all", type: "all", domain: "", url: "", startDate: "", endDate: "", quick: "all" };
   currentPage = 1;
+  persistFiltersToConfig(); // Persist filters
   loadRequests();
   // Also reload Plots tab if mounted
   const plotsTab = document.getElementById("plots-tab");
@@ -988,6 +1002,9 @@ function loadPopupConfig() {
     if (response && response.config) {
       config = response.config;
       itemsPerPage = config.display?.requestsPerPage || 50;
+      if (config.filters) {
+        activeFilters = { ...activeFilters, ...config.filters };
+      }
     } else {
       console.warn("Failed to load config, using defaults.");
       itemsPerPage = 50;

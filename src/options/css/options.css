@@ -8,6 +8,7 @@ body {
   margin: 20px auto; /* Center the content with margin */
   padding: 0 20px; /* Add horizontal padding */
   width: 100%; /* Full width */
+  max-width: 100dvw;
 }
 
 h1 {
@@ -25,6 +26,7 @@ h1 {
   padding: 25px;
   box-shadow: 0 2px 5px var(--shadow-color); /* Softer shadow */
   margin-bottom: 20px;
+  width: calc(100% - 240px); /* Full width minus sidebar */
 }
 
 /* Layout for Sidebar and Content */

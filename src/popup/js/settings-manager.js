@@ -94,15 +94,29 @@ export function resetConfig() {
 // Always fetch config/filters from background on load
 export async function getHarmonizedConfig() {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ action: "getConfig" }, (response) => {
-      resolve(response && response.config ? response.config : {});
-    });
+    const requestId = `getConfig_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    function handler(message) {
+      if (message && message.requestId === requestId) {
+        resolve(message && message.config ? message.config : {});
+        chrome.runtime.onMessage.removeListener(handler);
+      }
+    }
+    chrome.runtime.onMessage.addListener(handler);
+    chrome.runtime.sendMessage({ action: "getConfig", requestId });
   });
 }
 
 // Always update config/filters via background
 export function updateHarmonizedConfig(newConfig, callback) {
-  chrome.runtime.sendMessage({ action: "updateConfig", data: newConfig }, callback);
+  const requestId = `updateConfig_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  function handler(message) {
+    if (message && message.requestId === requestId) {
+      if (callback) callback(message);
+      chrome.runtime.onMessage.removeListener(handler);
+    }
+  }
+  chrome.runtime.onMessage.addListener(handler);
+  chrome.runtime.sendMessage({ action: "updateConfig", data: newConfig, requestId });
 }
 
 // Listen for config updates from background

@@ -9,7 +9,7 @@ import { setupRemoteAuthService } from "./auth/remote-auth-service";
 import { setupEncryption } from "./security/encryption-manager";
 import { setupRemoteSyncService } from "./sync/remote-sync-service";
 import { setupErrorMonitoring } from "./monitoring/error-monitor.js";
-import { loadConfig, setupConfigWatcher } from "./config/config-manager";
+import { loadConfig } from "./config/config-manager";
 import { setupExportManager } from "./export/export-manager";
 import { setupImportManager } from "./import/import-manager.js";
 import { setupEventBus } from "./messaging/event-bus";
@@ -32,6 +32,18 @@ chrome.runtime.onStartup.addListener(async () => {
     console.log("Database initialized successfully on startup.");
   } catch (error) {
     console.error("Failed to initialize database on startup:", error);
+  }
+});
+
+// Ensure config is present in DB on install/update
+chrome.runtime.onInstalled.addListener(async (details) => {
+  try {
+    // Always ensure config is present in DB
+    const configManager = await import('./config/config-manager.js');
+    await configManager.loadConfig(); // This will insert defaults if missing
+    console.log('Config checked/initialized in DB on install/update.');
+  } catch (error) {
+    console.error('Failed to initialize config in DB on install/update:', error);
   }
 });
 
@@ -94,24 +106,13 @@ async function initialize() {
             return key.split('.').reduce((o, i) => (o ? o[i] : undefined), config);
         },
         updateConfig: async (newPartialConfig) => {
-            // TODO: Implement robust config update logic (merge, validate, save)
-            console.log("Attempting to update config with:", newPartialConfig);
+            // Use config-manager's updateConfig for DB-backed config
+            const configManager = await import('./config/config-manager.js');
             const oldConfig = { ...config };
-            // Simple merge for now, needs proper implementation
-            config = { ...config, ...newPartialConfig };
-            // Persist the updated config
-            try {
-                await chrome.storage.local.set({ analyzerConfig: config });
-                console.log("Config updated and saved.");
-                // Notify listeners about the change
-                eventBus.publish("config:updated", { newConfig: config, oldConfig });
-                return config;
-            } catch (error) {
-                console.error("Failed to save updated config:", error);
-                // Optionally revert config change
-                config = oldConfig;
-                throw error; // Re-throw error
-            }
+            config = await configManager.updateConfig(newPartialConfig);
+            // Notify listeners about the change
+            eventBus.publish("config:updated", { newConfig: config, oldConfig });
+            return config;
         }
       },
       captureManager,
@@ -123,20 +124,6 @@ async function initialize() {
       apiService,
       eventBus // Pass eventBus
     );
-
-    // Watch for configuration changes
-    setupConfigWatcher((newConfig) => {
-      console.log("Configuration updated:", newConfig);
-      const oldConfig = config;
-      config = newConfig;
-      // Notify relevant modules about the config change
-      eventBus.publish("config:updated", { newConfig, oldConfig });
-
-      // Update capture manager's config
-      if (captureManager && typeof captureManager.updateCaptureConfig === 'function') {
-        captureManager.updateCaptureConfig(newConfig.capture);
-      }
-    });
 
     // Log successful initialization
     console.log("Background script initialized successfully.");

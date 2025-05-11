@@ -232,6 +232,45 @@ const migrations = [
       }
     },
   },
+  {
+    version: 9,
+    description: "Add updatedAt column to config table",
+    migrate: (db) => {
+      try {
+        // Check if 'updatedAt' column exists
+        const result = db.exec("PRAGMA table_info(config)");
+        const columns = result[0]?.values?.map((v) => v[1]) || [];
+        if (!columns.includes("updatedAt")) {
+          db.exec("ALTER TABLE config ADD COLUMN updatedAt INTEGER");
+        }
+        return true;
+      } catch (error) {
+        console.error("Migration version 9 (add updatedAt to config) failed:", error);
+        return false;
+      }
+    },
+  },
+  {
+    version: 10,
+    description: "Add backups table for storing database backups",
+    migrate: (db) => {
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS backups (
+            key TEXT PRIMARY KEY,
+            data BLOB NOT NULL,
+            createdAt INTEGER NOT NULL,
+            size INTEGER NOT NULL,
+            meta TEXT
+          )
+        `);
+        return true;
+      } catch (error) {
+        console.error("Migration version 10 (add backups table) failed:", error);
+        return false;
+      }
+    },
+  },
 ];
 
 // Get current database version
