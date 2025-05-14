@@ -140,9 +140,16 @@ function eventRequest(action, payload, callback) {
   chrome.runtime.sendMessage({ ...payload, action, requestId });
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("[popup.js] onMessage received:", message);
   if (message && message.requestId && pendingPopupRequests[message.requestId]) {
+    console.log("[popup.js] Routing to pendingPopupRequests callback for requestId:", message.requestId);
     pendingPopupRequests[message.requestId](message);
     delete pendingPopupRequests[message.requestId];
+  }
+  if (message && message.requestId && pendingGetRequests[message.requestId]) {
+    console.log("[popup.js] Routing to pendingGetRequests callback for requestId:", message.requestId);
+    pendingGetRequests[message.requestId](message);
+    delete pendingGetRequests[message.requestId];
   }
 });
 
@@ -1088,8 +1095,10 @@ function openOptionsPage() {
 
 // Load requests from background script
 function loadRequests() {
+  showRequestsLoading();
   const requestId = generateRequestId();
   pendingGetRequests[requestId] = (response) => {
+    hideRequestsLoading();
     if (chrome.runtime.lastError) {
       console.error("Error loading requests (connection):", chrome.runtime.lastError.message);
       if (requestsTableBody) {
@@ -1098,7 +1107,6 @@ function loadRequests() {
       }
       return;
     }
-
     if (response && response.requests) {
       totalItems = response.total || 0;
       totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
@@ -1115,7 +1123,6 @@ function loadRequests() {
       }
     }
   };
-
   chrome.runtime.sendMessage(
     {
       action: "getRequests",

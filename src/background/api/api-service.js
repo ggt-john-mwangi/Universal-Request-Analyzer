@@ -251,37 +251,20 @@ function handleGetConfig(request) {
   }
 
   try {
-    // Get config from storage
-    return new Promise((resolve, reject) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.get("analyzerConfig", (result) => {
-          if (chrome.runtime.lastError) {
-            reject(new ApiError(chrome.runtime.lastError.message))
-          } else {
-            // Add check for result
-            const config = result?.analyzerConfig || {}
-
-            // Remove sensitive fields
-            const filteredConfig = { ...config }
-
-            if (filteredConfig.security) {
-              delete filteredConfig.security.encryption
-            }
-
-            if (filteredConfig.sync) {
-              delete filteredConfig.sync.serverUrl
-            }
-
-            resolve({ config: filteredConfig })
-          }
-        })
-      } else {
-        reject(new ApiError("Chrome storage API not available."))
-      }
-    })
+    // Get config from database
+    const config = dbManager.getConfig ? dbManager.getConfig() : {};
+    // Remove sensitive fields
+    const filteredConfig = { ...config };
+    if (filteredConfig.security) {
+      delete filteredConfig.security.encryption;
+    }
+    if (filteredConfig.sync) {
+      delete filteredConfig.sync.serverUrl;
+    }
+    return { config: filteredConfig };
   } catch (error) {
-    console.error("API error getting config:", error)
-    throw new ApiError("Failed to get config", error)
+    console.error("API error getting config:", error);
+    throw new ApiError("Failed to get config", error);
   }
 }
 
@@ -293,54 +276,14 @@ function handleUpdateConfig(request) {
   }
 
   try {
-    // Get current config
-    return new Promise((resolve, reject) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.get("analyzerConfig", (result) => {
-          if (chrome.runtime.lastError) {
-            reject(new ApiError(chrome.runtime.lastError.message))
-          } else {
-            // Add check for result
-            const currentConfig = result?.analyzerConfig || {}
-
-            // Merge with new config
-            const newConfig = { ...currentConfig }
-
-            // Only allow updating certain sections
-            const allowedSections = ["ui", "capture", "export", "notifications"]
-
-            for (const section of allowedSections) {
-              if (request.config && request.config[section]) {
-                newConfig[section] = {
-                  ...newConfig[section],
-                  ...request.config[section],
-                }
-              }
-            }
-
-            // Save updated config
-            chrome.storage.local.set({ analyzerConfig: newConfig }, () => {
-              if (chrome.runtime.lastError) {
-                reject(new ApiError(chrome.runtime.lastError.message))
-              } else {
-                // Log the action
-                logApiAction(request.token, "updateConfig")
-
-                // Publish config updated event
-                eventBus.publish("config:updated", newConfig)
-
-                resolve({ success: true })
-              }
-            })
-          }
-        })
-      } else {
-        reject(new ApiError("Chrome storage API not available."))
-      }
-    })
+    // Update config in database
+    if (dbManager.updateConfig) {
+      dbManager.updateConfig(request.config);
+    }
+    return { success: true };
   } catch (error) {
-    console.error("API error updating config:", error)
-    throw new ApiError("Failed to update config", error)
+    console.error("API error updating config:", error);
+    throw new ApiError("Failed to update config", error);
   }
 }
 

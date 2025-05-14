@@ -62,13 +62,11 @@ export function getExportFormats() {
 
 // Set up auto-export
 function setupAutoExport() {
-  chrome.storage.local.get("analyzerConfig", (result) => {
-    // Add check for result and result.analyzerConfig
-    if (result && result.analyzerConfig && result.analyzerConfig.export) {
-      const exportConfig = result.analyzerConfig.export
-
+  if (dbManager && dbManager.getConfig) {
+    const config = dbManager.getConfig();
+    if (config && config.export) {
+      const exportConfig = config.export;
       if (exportConfig.autoExport && exportConfig.autoExportInterval > 0) {
-        // Clear existing interval just in case setup is called multiple times
         if (autoExportInterval) {
           clearInterval(autoExportInterval);
         }
@@ -77,9 +75,9 @@ function setupAutoExport() {
         }, exportConfig.autoExportInterval)
       }
     } else {
-      console.warn("Could not setup auto-export: analyzerConfig or export config missing from storage.");
+      console.warn("Could not setup auto-export: analyzerConfig or export config missing from database.");
     }
-  })
+  }
 }
 
 // Update auto-export settings
@@ -112,11 +110,12 @@ async function autoExportData(exportConfig) {
       path: exportConfig.autoExportPath,
     })
 
-    // Update last export time
+    // Update last export time in database
     const config = await getConfig()
     config.export.lastExportTime = Date.now()
-
-    chrome.storage.local.set({ analyzerConfig: config })
+    if (dbManager && dbManager.updateConfig) {
+      dbManager.updateConfig(config)
+    }
 
     // Publish auto-export event
     eventBus.publish("export:auto_completed", {
@@ -126,7 +125,6 @@ async function autoExportData(exportConfig) {
     })
   } catch (error) {
     console.error("Auto-export failed:", error)
-
     // Publish error event
     eventBus.publish("export:error", {
       timestamp: Date.now(),
@@ -137,11 +135,10 @@ async function autoExportData(exportConfig) {
 
 // Get configuration
 async function getConfig() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get("analyzerConfig", (result) => {
-      resolve(result.analyzerConfig || {})
-    })
-  })
+  if (dbManager && dbManager.getConfig) {
+    return dbManager.getConfig();
+  }
+  return {};
 }
 
 // Export data in specified format

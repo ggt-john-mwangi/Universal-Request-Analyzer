@@ -57,6 +57,27 @@ export const FEATURE_FLAGS = {
 };
 
 /**
+ * Utility: send message to background and return promise
+ * @param {Object} message - Message to send
+ * @returns {Promise<Object>} - Response from background
+ */
+function sendMessage(message) {
+  return new Promise((resolve, reject) => {
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(response);
+        }
+      });
+    } else {
+      reject(new Error("chrome.runtime not available"));
+    }
+  });
+}
+
+/**
  * Feature flags manager class
  */
 class FeatureFlagsManager {
@@ -120,25 +141,32 @@ class FeatureFlagsManager {
   }
 
   /**
-   * Load feature flags from storage
+   * Load feature flags from database via event-based messaging
    * @returns {Promise<Object>}
    */
   async loadFromStorage() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get("featureFlags", (data) => {
-        resolve(data.featureFlags || {})
-      })
-    })
+    try {
+      const response = await sendMessage({ action: "getConfig" });
+      if (response && response.config && response.config.featureFlags) {
+        return response.config.featureFlags;
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to load feature flags from database:", error);
+      return null;
+    }
   }
 
   /**
-   * Save feature flags to storage
+   * Save feature flags to database via event-based messaging
    * @returns {Promise<void>}
    */
   async saveToStorage() {
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ featureFlags: { flags: this.flags, timestamp: Date.now() } }, resolve)
-    })
+    try {
+      await sendMessage({ action: "updateConfig", config: { featureFlags: { flags: this.flags, timestamp: Date.now() } } });
+    } catch (error) {
+      console.error("Failed to save feature flags to database:", error);
+    }
   }
 
   /**

@@ -38,34 +38,27 @@ export function setDatabaseManager(database) {
   dbManager = database
 }
 
-// Restore session from storage
+// Restore session from database
 async function restoreSession() {
-  return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.get(["authUser", "authSession"], (result) => {
-        if (result.authUser && result.authSession) {
-          // Check if session is still valid
-          const session = result.authSession
-          if (session.expiresAt > Date.now()) {
-            currentUser = result.authUser
-            currentSession = session
-
-            eventBus.publish("auth:session_restored", {
-              userId: currentUser.id,
-              email: currentUser.email,
-            })
-          } else {
-            // Session expired, clear it
-            chrome.storage.local.remove(["authUser", "authSession"])
-          }
-        }
-
-        resolve()
-      })
-    } else {
-      resolve()
+  if (!dbManager) return;
+  try {
+    // Try to get session from database
+    const sessionResult = dbManager.getCurrentSession ? dbManager.getCurrentSession() : null;
+    if (sessionResult && sessionResult.user && sessionResult.session) {
+      const session = sessionResult.session;
+      if (session.expiresAt > Date.now()) {
+        currentUser = sessionResult.user;
+        currentSession = session;
+        eventBus.publish("auth:session_restored", {
+          userId: currentUser.id,
+          email: currentUser.email,
+        });
+      } else {
+        // Session expired, clear it from db
+        if (dbManager.clearCurrentSession) dbManager.clearCurrentSession();
+      }
     }
-  })
+  } catch (e) {}
 }
 
 // Login user
@@ -113,31 +106,12 @@ async function login(email, password) {
     }
 
     // Save session to database
-    const sessionQuery = `
-      INSERT INTO sessions (id, userId, token, createdAt, expiresAt, ipAddress, userAgent)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-
-    dbManager.executeQuery(sessionQuery, [
-      session.id,
-      session.userId,
-      session.token,
-      session.createdAt,
-      session.expiresAt,
-      session.ipAddress,
-      session.userAgent,
-    ])
+    if (dbManager.saveSession) {
+      dbManager.saveSession(user, session);
+    }
 
     // Update user's last login time
     dbManager.executeQuery("UPDATE users SET lastLogin = ? WHERE id = ?", [Date.now(), user.id])
-
-    // Save to storage
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.set({
-        authUser: user,
-        authSession: session,
-      })
-    }
 
     // Update current user and session
     currentUser = user
@@ -164,12 +138,7 @@ async function logout() {
   try {
     if (currentSession && dbManager) {
       // Remove session from database
-      dbManager.executeQuery("DELETE FROM sessions WHERE id = ?", [currentSession.id])
-    }
-
-    // Clear from storage
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.remove(["authUser", "authSession"])
+      if (dbManager.clearCurrentSession) dbManager.clearCurrentSession();
     }
 
     // Log the logout event
@@ -343,13 +312,6 @@ async function refreshToken() {
 
     // Delete old session
     dbManager.executeQuery("DELETE FROM sessions WHERE id = ?", [currentSession.id])
-
-    // Update storage
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.set({
-        authSession: newSession,
-      })
-    }
 
     // Update current session
     currentSession = newSession

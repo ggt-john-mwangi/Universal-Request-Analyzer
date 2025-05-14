@@ -14,6 +14,7 @@ import themeManager from "../../config/theme-manager.js"
  * @param {object} message - The message object to send.
  * @returns {Promise<any>} - A promise that resolves with the response.
  */
+
 function sendMessage(message) {
   return new Promise((resolve, reject) => {
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
@@ -360,7 +361,7 @@ class SettingsManager {
    */
   async initialize() {
     try {
-      // Load saved settings from storage
+      // Load saved settings from background/database
       const data = await this.loadFromStorage()
 
       if (data && data.settings) {
@@ -396,7 +397,7 @@ class SettingsManager {
 
       this.initialized = true
 
-      // Save the merged settings
+      // Save the merged settings to database
       await this.saveToStorage()
 
       console.log("Settings manager initialized:", {
@@ -411,41 +412,29 @@ class SettingsManager {
   }
 
   /**
-   * Load settings from storage
+   * Load settings from database via event-based messaging
    * @returns {Promise<Object>}
    */
   async loadFromStorage() {
-    return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.get("settings", (data) => {
-          resolve(data.settings || null)
-        })
-      } else {
-        resolve(null) // Or handle the case where chrome.storage is not available
-      }
-    })
+    try {
+      const response = await sendMessage({ action: "getConfig" })
+      return response && response.config ? { settings: response.config.general ? response.config : response.config.settings } : null
+    } catch (error) {
+      console.error("Failed to load settings from database:", error)
+      return null
+    }
   }
 
   /**
-   * Save settings to storage
+   * Save settings to database via event-based messaging
    * @returns {Promise<void>}
    */
   async saveToStorage() {
-    return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.set(
-          {
-            settings: {
-              settings: this.settings,
-              timestamp: Date.now(),
-            },
-          },
-          resolve,
-        )
-      } else {
-        resolve() // Or handle the case where chrome.storage is not available
-      }
-    })
+    try {
+      await sendMessage({ action: "updateConfig", config: this.settings })
+    } catch (error) {
+      console.error("Failed to save settings to database:", error)
+    }
   }
 
   /**
@@ -581,7 +570,7 @@ class SettingsManager {
       await aclManager.resetToDefaults()
       await themeManager.resetToDefaults()
 
-      // Save settings
+      // Save settings to database
       await this.saveToStorage()
 
       return true

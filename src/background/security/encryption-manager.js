@@ -35,34 +35,21 @@ export async function setupEncryption(securityConfig, events) {
   }
 }
 
-// Load encryption key from storage
+// Load encryption key from database
 async function loadEncryptionKey() {
-  return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.get("encryptionKey", (result) => {
-        if (result.encryptionKey) {
-          resolve(result.encryptionKey)
-        } else {
-          resolve(null)
-        }
-      })
-    } else {
-      resolve(null) // Or handle the case where chrome is not available
-    }
-  })
+  if (dbManager && dbManager.getEncryptionKey) {
+    return dbManager.getEncryptionKey();
+  }
+  return null;
 }
 
-// Save encryption key to storage
+// Save encryption key to database
 async function saveEncryptionKey(key) {
-  return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.set({ encryptionKey: key }, () => {
-        resolve(true)
-      })
-    } else {
-      resolve(false) // Or handle the case where chrome is not available
-    }
-  })
+  if (dbManager && dbManager.saveEncryptionKey) {
+    dbManager.saveEncryptionKey(key);
+    return true;
+  }
+  return false;
 }
 
 // Generate a new encryption key

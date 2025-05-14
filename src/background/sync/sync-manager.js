@@ -218,37 +218,35 @@ async function getRequestsSinceLastSync(lastSync) {
 
 // Get last sync timestamp
 async function getLastSyncTimestamp() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get("lastSyncTimestamp", (result) => {
-      resolve(result.lastSyncTimestamp || 0)
-    })
-  })
+  if (dbManager && dbManager.getLastSyncTimestamp) {
+    return dbManager.getLastSyncTimestamp();
+  }
+  return 0;
 }
 
 // Save last sync timestamp
 async function saveLastSyncTimestamp(timestamp) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ lastSyncTimestamp: timestamp }, () => {
-      resolve(true)
-    })
-  })
+  if (dbManager && dbManager.saveLastSyncTimestamp) {
+    dbManager.saveLastSyncTimestamp(timestamp);
+    return true;
+  }
+  return false;
 }
 
 // Get device ID
 async function getDeviceId() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get("deviceId", (result) => {
-      if (result.deviceId) {
-        resolve(result.deviceId)
-      } else {
-        // Generate a new device ID
-        const deviceId = generateDeviceId()
-        chrome.storage.local.set({ deviceId }, () => {
-          resolve(deviceId)
-        })
-      }
-    })
-  })
+  if (dbManager && dbManager.getDeviceId) {
+    let deviceId = dbManager.getDeviceId();
+    if (deviceId) {
+      return deviceId;
+    } else {
+      // Generate a new device ID
+      deviceId = generateDeviceId();
+      if (dbManager.saveDeviceId) dbManager.saveDeviceId(deviceId);
+      return deviceId;
+    }
+  }
+  return null;
 }
 
 // Generate a device ID

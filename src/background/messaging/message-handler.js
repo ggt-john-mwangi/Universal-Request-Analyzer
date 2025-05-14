@@ -161,6 +161,10 @@ export function setupMessageHandlers(
       }
       return;
     }
+    if (message.action === "executeRawSql") {
+      handleExecuteRawSql(message, sender); // Calls the async handler
+      return;
+    }
     handleMessage(message, sender, logErrorToDb);
     return;
   });
@@ -424,6 +428,11 @@ async function handleGetRequests(message, sender) {
       sortOrder,
       requestId,
     } = message;
+    if (!dbManager || typeof dbManager.getRequests !== "function") {
+      console.error("[MessageHandler] handleGetRequests: dbManager.getRequests is not a function");
+      sendEventResponse("getRequestsResult", requestId, { success: false, error: "Database not initialized" });
+      return;
+    }
     const result = await dbManager.getRequests(
       filters,
       page,
@@ -432,7 +441,8 @@ async function handleGetRequests(message, sender) {
       sortOrder
     );
     console.log(
-      `[MessageHandler] handleGetRequests: Retrieved ${result.requests?.length} requests.`
+      `[MessageHandler] handleGetRequests: Retrieved ${result.requests?.length} requests.`,
+      result.requests
     );
     sendEventResponse("getRequestsResult", requestId, { ...result, success: true });
   } catch (error) {

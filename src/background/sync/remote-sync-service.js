@@ -113,33 +113,25 @@ function setupSyncSubscriptions() {
   })
 }
 
-// Load sync queue from storage
+// Load sync queue from database
 async function loadSyncQueue() {
-  return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.get("syncQueue", (result) => {
-        if (result.syncQueue && Array.isArray(result.syncQueue)) {
-          syncQueue = result.syncQueue
-        }
-        resolve(syncQueue)
-      })
-    } else {
-      resolve(syncQueue)
+  if (dbManager && dbManager.getSyncQueue) {
+    const queue = dbManager.getSyncQueue();
+    if (Array.isArray(queue)) {
+      syncQueue = queue;
     }
-  })
+    return syncQueue;
+  }
+  return syncQueue;
 }
 
-// Save sync queue to storage
+// Save sync queue to database
 async function saveSyncQueue() {
-  return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.set({ syncQueue }, () => {
-        resolve(true)
-      })
-    } else {
-      resolve(false)
-    }
-  })
+  if (dbManager && dbManager.saveSyncQueue) {
+    dbManager.saveSyncQueue(syncQueue);
+    return true;
+  }
+  return false;
 }
 
 // Add item to sync queue

@@ -24,23 +24,13 @@ function getBrowserAPI() {
   // Chrome
   if (typeof chrome !== "undefined") {
     return {
-      // Storage API
+      // Storage API (no-op, deprecated)
       storage: {
-        local: {
-          get: chrome.storage.local.get.bind(chrome.storage.local),
-          set: chrome.storage.local.set.bind(chrome.storage.local),
-          remove: chrome.storage.local.remove.bind(chrome.storage.local),
-          clear: chrome.storage.local.clear.bind(chrome.storage.local),
-        },
-        sync: {
-          get: chrome.storage.sync.get.bind(chrome.storage.sync),
-          set: chrome.storage.sync.set.bind(chrome.storage.sync),
-          remove: chrome.storage.sync.remove.bind(chrome.storage.sync),
-          clear: chrome.storage.sync.clear.bind(chrome.storage.sync),
-        },
+        local: {},
+        sync: {},
         onChanged: {
-          addListener: chrome.storage.onChanged.addListener.bind(chrome.storage.onChanged),
-          removeListener: chrome.storage.onChanged.removeListener.bind(chrome.storage.onChanged),
+          addListener: () => {},
+          removeListener: () => {},
         },
       },
 
@@ -119,18 +109,8 @@ function getBrowserAPI() {
   // Fallback to empty implementation
   return {
     storage: {
-      local: {
-        get: () => Promise.resolve({}),
-        set: () => Promise.resolve(),
-        remove: () => Promise.resolve(),
-        clear: () => Promise.resolve(),
-      },
-      sync: {
-        get: () => Promise.resolve({}),
-        set: () => Promise.resolve(),
-        remove: () => Promise.resolve(),
-        clear: () => Promise.resolve(),
-      },
+      local: {},
+      sync: {},
       onChanged: {
         addListener: () => {},
         removeListener: () => {},

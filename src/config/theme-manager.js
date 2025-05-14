@@ -123,6 +123,23 @@ const CSS_VARIABLES = {
   shadow: "--shadow-color",
 }
 
+// Utility: send message to background and return promise
+function sendMessage(message) {
+  return new Promise((resolve, reject) => {
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(response);
+        }
+      });
+    } else {
+      reject(new Error("chrome.runtime not available"));
+    }
+  });
+}
+
 /**
  * Theme manager class
  */
@@ -144,108 +161,102 @@ class ThemeManager {
    */
   async initialize(options = {}) {
     try {
-      // Load saved theme data from storage
-      const data = await this.loadFromStorage()
+      // Load saved theme data from database
+      const data = await this.loadFromStorage();
 
       if (data) {
         if (data.currentTheme) {
-          this.currentTheme = data.currentTheme
+          this.currentTheme = data.currentTheme;
         }
 
         if (data.customThemes) {
-          this.customThemes = data.customThemes
+          this.customThemes = data.customThemes;
 
           // Merge custom themes with default themes
-          this.themes = { ...DEFAULT_THEMES, ...this.customThemes }
+          this.themes = { ...DEFAULT_THEMES, ...this.customThemes };
         }
       }
 
       // Override with initial theme if provided
       if (options.initialTheme && (this.themes[options.initialTheme] || options.initialTheme === "system")) {
-        this.currentTheme = options.initialTheme
+        this.currentTheme = options.initialTheme;
       }
 
       // Add custom themes if provided
       if (options.customThemes) {
         for (const [id, theme] of Object.entries(options.customThemes)) {
-          this.addTheme(id, theme, false) // Don't save to storage yet
+          this.addTheme(id, theme, false); // Don't save to storage yet
         }
       }
 
       // Store callback
-      this.onUpdateCallback = options.onUpdate
+      this.onUpdateCallback = options.onUpdate;
 
-      this.initialized = true
+      this.initialized = true;
 
       // Apply the current theme
-      this.applyTheme()
+      this.applyTheme();
 
       // Save the current state
-      await this.saveToStorage()
+      await this.saveToStorage();
 
       console.log("Theme manager initialized:", {
         currentTheme: this.currentTheme,
         availableThemes: Object.keys(this.themes),
-      })
+      });
     } catch (error) {
-      console.error("Error initializing theme manager:", error)
+      console.error("Error initializing theme manager:", error);
       // Fall back to defaults
-      this.themes = { ...DEFAULT_THEMES }
-      this.currentTheme = "light"
-      this.customThemes = {}
-      this.initialized = true
-      this.applyTheme()
+      this.themes = { ...DEFAULT_THEMES };
+      this.currentTheme = "light";
+      this.customThemes = {};
+      this.initialized = true;
+      this.applyTheme();
     }
   }
 
   /**
-   * Load theme data from storage
+   * Load theme data from database via event-based messaging
    * @returns {Promise<Object>}
    */
   async loadFromStorage() {
-    return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.get("themeData", (data) => {
-          resolve(data.themeData || null)
-        })
-      } else {
-        // Mock chrome.storage for environments where it's not available (e.g., testing)
-        const mockData = localStorage.getItem("themeData")
-        resolve(mockData ? JSON.parse(mockData) : null)
+    try {
+      const response = await sendMessage({ action: "getConfig" });
+      if (response && response.config && response.config.themeData) {
+        return response.config.themeData;
       }
-    })
+      // Fallback: try to extract from config.ui if present
+      if (response && response.config && response.config.ui) {
+        return {
+          currentTheme: response.config.ui.theme,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to load theme from database:", error);
+      return null;
+    }
   }
 
   /**
-   * Save theme data to storage
+   * Save theme data to database via event-based messaging
    * @returns {Promise<void>}
    */
   async saveToStorage() {
-    return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.set(
-          {
-            themeData: {
-              currentTheme: this.currentTheme,
-              customThemes: this.customThemes,
-              timestamp: Date.now(),
-            },
-          },
-          resolve,
-        )
-      } else {
-        // Mock chrome.storage for environments where it's not available (e.g., testing)
-        localStorage.setItem(
-          "themeData",
-          JSON.stringify({
+    try {
+      await sendMessage({
+        action: "updateConfig",
+        config: {
+          themeData: {
             currentTheme: this.currentTheme,
             customThemes: this.customThemes,
             timestamp: Date.now(),
-          }),
-        )
-        resolve()
-      }
-    })
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Failed to save theme to database:", error);
+    }
   }
 
   /**
@@ -253,26 +264,26 @@ class ThemeManager {
    */
   applyTheme() {
     if (!this.initialized) {
-      console.warn("Theme manager not initialized, using default theme")
-      this.applyThemeToDocument(DEFAULT_THEMES.light)
-      return
+      console.warn("Theme manager not initialized, using default theme");
+      this.applyThemeToDocument(DEFAULT_THEMES.light);
+      return;
     }
 
     // Handle system theme preference
     if (this.currentTheme === "system") {
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-      const theme = prefersDark ? this.themes.dark : this.themes.light
-      this.applyThemeToDocument(theme)
-      return
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const theme = prefersDark ? this.themes.dark : this.themes.light;
+      this.applyThemeToDocument(theme);
+      return;
     }
 
     // Apply the selected theme
-    const theme = this.themes[this.currentTheme]
+    const theme = this.themes[this.currentTheme];
     if (theme) {
-      this.applyThemeToDocument(theme)
+      this.applyThemeToDocument(theme);
     } else {
-      console.warn(`Theme "${this.currentTheme}" not found, using default`)
-      this.applyThemeToDocument(DEFAULT_THEMES.light)
+      console.warn(`Theme "${this.currentTheme}" not found, using default`);
+      this.applyThemeToDocument(DEFAULT_THEMES.light);
     }
   }
 
@@ -281,23 +292,23 @@ class ThemeManager {
    * @param {Object} theme - Theme to apply
    */
   applyThemeToDocument(theme) {
-    const root = document.documentElement
+    const root = document.documentElement;
 
     // Apply theme colors as CSS variables
-    this.applyColorsToCss(root, theme.colors)
+    this.applyColorsToCss(root, theme.colors);
 
     // Add theme class to body
-    document.body.classList.remove("theme-light", "theme-dark", "theme-high-contrast", "theme-blue")
-    document.body.classList.add(`theme-${theme.id}`)
+    document.body.classList.remove("theme-light", "theme-dark", "theme-high-contrast", "theme-blue");
+    document.body.classList.add(`theme-${theme.id}`);
 
     // Set data attribute for theme
-    document.body.setAttribute("data-theme", theme.id)
+    document.body.setAttribute("data-theme", theme.id);
 
     // Handle dark mode class
     if (theme.id === "dark" || theme.id === "highContrast") {
-      document.body.classList.add("dark")
+      document.body.classList.add("dark");
     } else {
-      document.body.classList.remove("dark")
+      document.body.classList.remove("dark");
     }
   }
 
@@ -309,16 +320,16 @@ class ThemeManager {
    */
   applyColorsToCss(root, colors, prefix = "") {
     for (const [key, value] of Object.entries(colors)) {
-      const fullKey = prefix ? `${prefix}.${key}` : key
+      const fullKey = prefix ? `${prefix}.${key}` : key;
 
       if (typeof value === "object") {
         // Recursively handle nested color objects
-        this.applyColorsToCss(root, value, fullKey)
+        this.applyColorsToCss(root, value, fullKey);
       } else {
         // Set CSS variable
-        const cssVar = CSS_VARIABLES[fullKey]
+        const cssVar = CSS_VARIABLES[fullKey];
         if (cssVar) {
-          root.style.setProperty(cssVar, value)
+          root.style.setProperty(cssVar, value);
         }
       }
     }
@@ -331,23 +342,23 @@ class ThemeManager {
    */
   async setTheme(themeId) {
     if (themeId !== "system" && !this.themes[themeId]) {
-      console.error(`Theme "${themeId}" not found`)
-      return false
+      console.error(`Theme "${themeId}" not found`);
+      return false;
     }
 
-    this.currentTheme = themeId
-    this.applyTheme()
+    this.currentTheme = themeId;
+    this.applyTheme();
 
-    await this.saveToStorage()
+    await this.saveToStorage();
 
     if (this.onUpdateCallback) {
       this.onUpdateCallback({
         theme: this.currentTheme,
         themeData: this.themes[this.currentTheme],
-      })
+      });
     }
 
-    return true
+    return true;
   }
 
   /**
@@ -359,8 +370,8 @@ class ThemeManager {
    */
   async addTheme(themeId, themeData, save = true) {
     if (!themeId || typeof themeData !== "object") {
-      console.error("Invalid theme data")
-      return false
+      console.error("Invalid theme data");
+      return false;
     }
 
     // Create a properly structured theme object
@@ -369,33 +380,33 @@ class ThemeManager {
       name: themeData.name || themeId,
       description: themeData.description || "",
       colors: themeData.colors || DEFAULT_THEMES.light.colors,
-    }
+    };
 
     // Add to themes
-    this.themes[themeId] = theme
+    this.themes[themeId] = theme;
 
     // If it's a custom theme, add to customThemes
     if (!DEFAULT_THEMES[themeId]) {
-      this.customThemes[themeId] = theme
+      this.customThemes[themeId] = theme;
     }
 
     // If current theme is the one being updated, apply it
     if (this.currentTheme === themeId) {
-      this.applyTheme()
+      this.applyTheme();
     }
 
     if (save) {
-      await this.saveToStorage()
+      await this.saveToStorage();
 
       if (this.onUpdateCallback) {
         this.onUpdateCallback({
           theme: this.currentTheme,
           themeData: this.themes[this.currentTheme],
-        })
+        });
       }
     }
 
-    return true
+    return true;
   }
 
   /**
@@ -405,33 +416,33 @@ class ThemeManager {
    */
   async removeTheme(themeId) {
     if (themeId in DEFAULT_THEMES) {
-      console.error("Cannot remove default theme")
-      return false
+      console.error("Cannot remove default theme");
+      return false;
     }
 
     if (this.customThemes[themeId]) {
-      delete this.customThemes[themeId]
-      delete this.themes[themeId]
+      delete this.customThemes[themeId];
+      delete this.themes[themeId];
 
       // If current theme was removed, fall back to light
       if (this.currentTheme === themeId) {
-        this.currentTheme = "light"
-        this.applyTheme()
+        this.currentTheme = "light";
+        this.applyTheme();
       }
 
-      await this.saveToStorage()
+      await this.saveToStorage();
 
       if (this.onUpdateCallback) {
         this.onUpdateCallback({
           theme: this.currentTheme,
           themeData: this.themes[this.currentTheme],
-        })
+        });
       }
 
-      return true
+      return true;
     }
 
-    return false
+    return false;
   }
 
   /**
@@ -439,21 +450,21 @@ class ThemeManager {
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
   async resetToDefaults() {
-    this.themes = { ...DEFAULT_THEMES }
-    this.currentTheme = "light"
-    this.customThemes = {}
+    this.themes = { ...DEFAULT_THEMES };
+    this.currentTheme = "light";
+    this.customThemes = {};
 
-    this.applyTheme()
-    await this.saveToStorage()
+    this.applyTheme();
+    await this.saveToStorage();
 
     if (this.onUpdateCallback) {
       this.onUpdateCallback({
         theme: this.currentTheme,
         themeData: this.themes[this.currentTheme],
-      })
+      });
     }
 
-    return true
+    return true;
   }
 
   /**
@@ -473,7 +484,7 @@ class ThemeManager {
         primary: theme.colors.primary,
         text: theme.colors.text.primary,
       },
-    }))
+    }));
   }
 
   /**
@@ -482,16 +493,16 @@ class ThemeManager {
    */
   getCurrentTheme() {
     if (this.currentTheme === "system") {
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-      return prefersDark ? this.themes.dark : this.themes.light
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      return prefersDark ? this.themes.dark : this.themes.light;
     }
 
-    return this.themes[this.currentTheme] || DEFAULT_THEMES.light
+    return this.themes[this.currentTheme] || DEFAULT_THEMES.light;
   }
 }
 
 // Create and export singleton instance
-const themeManager = new ThemeManager()
+const themeManager = new ThemeManager();
 
-export default themeManager
+export default themeManager;
 

@@ -9,11 +9,13 @@ let currentUser = null
 let currentSession = null
 let jwtToken = null
 let refreshTokenTimeout = null
+let dbManager = null
 
 // Set up remote authentication service
-export async function setupRemoteAuthService(config, events) {
+export async function setupRemoteAuthService(config, events, databaseManager) {
   authConfig = config
   eventBus = events
+  dbManager = databaseManager
 
   // Try to restore session
   await restoreSession()
@@ -40,55 +42,36 @@ export async function setupRemoteAuthService(config, events) {
   }
 }
 
-// Restore session from storage
+// Restore session from database
 async function restoreSession() {
-  return new Promise((resolve) => {
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.get(["authUser", "authSession", "jwtToken"], (result) => {
-        if (result.authUser && result.authSession && result.jwtToken) {
-          // Check if session is still valid
-          const session = result.authSession
-
-          // Parse JWT to check expiration
-          try {
-            const tokenData = parseJwt(result.jwtToken)
-            const now = Date.now() / 1000 // Convert to seconds
-
-            if (tokenData.exp && tokenData.exp > now) {
-              currentUser = result.authUser
-              currentSession = session
-              jwtToken = result.jwtToken
-
-              eventBus.publish("auth:session_restored", {
-                userId: currentUser.id,
-                email: currentUser.email,
-              })
-            } else {
-              // Token expired, try to refresh
-              refreshToken()
-                .then(() => {
-                  resolve()
-                })
-                .catch(() => {
-                  // Clear expired session
-                  chrome.storage.local.remove(["authUser", "authSession", "jwtToken"])
-                  resolve()
-                })
-              return
-            }
-          } catch (error) {
-            console.error("Error parsing JWT token:", error)
-            // Clear invalid session
-            chrome.storage.local.remove(["authUser", "authSession", "jwtToken"])
-          }
+  if (!dbManager) return;
+  try {
+    const sessionResult = dbManager.getCurrentRemoteSession ? dbManager.getCurrentRemoteSession() : null;
+    if (sessionResult && sessionResult.user && sessionResult.session && sessionResult.jwtToken) {
+      const session = sessionResult.session;
+      try {
+        const tokenData = parseJwt(sessionResult.jwtToken);
+        const now = Date.now() / 1000;
+        if (tokenData.exp && tokenData.exp > now) {
+          currentUser = sessionResult.user;
+          currentSession = session;
+          jwtToken = sessionResult.jwtToken;
+          eventBus.publish("auth:session_restored", {
+            userId: currentUser.id,
+            email: currentUser.email,
+          });
+        } else {
+          refreshToken()
+            .then(() => {})
+            .catch(() => {
+              if (dbManager.clearCurrentRemoteSession) dbManager.clearCurrentRemoteSession();
+            });
         }
-
-        resolve()
-      })
-    } else {
-      resolve()
+      } catch (error) {
+        if (dbManager.clearCurrentRemoteSession) dbManager.clearCurrentRemoteSession();
+      }
     }
-  })
+  } catch (e) {}
 }
 
 // Login user with remote server
@@ -146,13 +129,9 @@ async function login(email, password) {
     // Store JWT token
     jwtToken = data.token
 
-    // Save to storage
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.set({
-        authUser: user,
-        authSession: session,
-        jwtToken: jwtToken,
-      })
+    // Save to database
+    if (dbManager.saveRemoteSession) {
+      dbManager.saveRemoteSession(user, session, jwtToken);
     }
 
     // Update current user and session
@@ -201,9 +180,9 @@ async function logout() {
       refreshTokenTimeout = null
     }
 
-    // Clear from storage
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.remove(["authUser", "authSession", "jwtToken"])
+    // Clear from database
+    if (dbManager && dbManager.clearCurrentRemoteSession) {
+      dbManager.clearCurrentRemoteSession();
     }
 
     // Clear current user and session
@@ -354,13 +333,9 @@ async function refreshToken() {
       currentSession.expiresAt = Date.now() + (authConfig.sessionDuration || 86400000)
     }
 
-    // Save updated data to storage
-    if (typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.set({
-        authUser: currentUser,
-        authSession: currentSession,
-        jwtToken: jwtToken,
-      })
+    // Save updated data to database
+    if (dbManager.saveRemoteSession) {
+      dbManager.saveRemoteSession(currentUser, currentSession, jwtToken);
     }
 
     // Schedule next token refresh

@@ -6,8 +6,22 @@
 
 import featureFlags from "../config/feature-flags.js"
 
-// Check if running in a Chrome extension environment
-const isChromeExtension = typeof chrome !== "undefined" && chrome.storage !== undefined
+// Utility: send message to background and return promise
+function sendMessage(message) {
+  return new Promise((resolve, reject) => {
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(response);
+        }
+      });
+    } else {
+      reject(new Error("chrome.runtime not available"));
+    }
+  });
+}
 
 // Default roles and their permissions
 const DEFAULT_ROLES = {
@@ -135,7 +149,7 @@ class ACLManager {
    */
   async initialize(options = {}) {
     try {
-      // Load saved ACL data from storage
+      // Load saved ACL data from database
       const data = await this.loadFromStorage()
 
       if (data) {
@@ -199,55 +213,42 @@ class ACLManager {
   }
 
   /**
-   * Load ACL data from storage
+   * Load ACL data from database via event-based messaging
    * @returns {Promise<Object>}
    */
   async loadFromStorage() {
-    return new Promise((resolve) => {
-      if (isChromeExtension) {
-        chrome.storage.local.get("aclData", (data) => {
-          resolve(data.aclData || null)
-        })
-      } else {
-        // Mock chrome.storage.local for non-extension environments (e.g., testing)
-        const mockData = localStorage.getItem("aclData")
-        resolve(mockData ? JSON.parse(mockData) : null)
+    try {
+      const response = await sendMessage({ action: "getConfig" })
+      if (response && response.config && response.config.aclData) {
+        return response.config.aclData
       }
-    })
+      return null
+    } catch (error) {
+      console.error("Failed to load ACL data from database:", error)
+      return null
+    }
   }
 
   /**
-   * Save ACL data to storage
+   * Save ACL data to database via event-based messaging
    * @returns {Promise<void>}
    */
   async saveToStorage() {
-    return new Promise((resolve) => {
-      if (isChromeExtension) {
-        chrome.storage.local.set(
-          {
-            aclData: {
-              roles: this.roles,
-              currentRole: this.currentRole,
-              customPermissions: this.customPermissions,
-              timestamp: Date.now(),
-            },
-          },
-          resolve,
-        )
-      } else {
-        // Mock chrome.storage.local for non-extension environments (e.g., testing)
-        localStorage.setItem(
-          "aclData",
-          JSON.stringify({
+    try {
+      await sendMessage({
+        action: "updateConfig",
+        config: {
+          aclData: {
             roles: this.roles,
             currentRole: this.currentRole,
             customPermissions: this.customPermissions,
             timestamp: Date.now(),
-          }),
-        )
-        resolve()
-      }
-    })
+          },
+        },
+      })
+    } catch (error) {
+      console.error("Failed to save ACL data to database:", error)
+    }
   }
 
   /**

@@ -617,8 +617,7 @@ function loadDatabaseInfo() {
   showNotification("Loading database info...");
 
   // 1. Load Stats (event-based)
-  const statsRequestId = generateRequestId();
-  pendingRequests[statsRequestId] = (response) => {
+  eventRequest("getDatabaseStats", {}, (response) => {
     if (response && response.success) {
       dbTotalRequests.textContent =
         response.stats.requestCount?.toLocaleString() || "0";
@@ -639,17 +638,12 @@ function loadDatabaseInfo() {
         true
       );
     }
-  };
-  chrome.runtime.sendMessage({
-    action: "getDatabaseStats",
-    requestId: statsRequestId,
   });
 
   // 2. Load Schema Summary (event-based)
   if (dbSchemaSummary) {
-    const schemaRequestId = generateRequestId();
     dbSchemaSummary.innerHTML = "<li>Loading schema...</li>";
-    pendingRequests[schemaRequestId] = (response) => {
+    eventRequest("getDatabaseSchemaSummary", {}, (response) => {
       if (chrome.runtime.lastError) {
         dbSchemaSummary.innerHTML = `<li>Error loading schema: ${chrome.runtime.lastError.message}</li>`;
         showNotification(
@@ -663,9 +657,7 @@ function loadDatabaseInfo() {
         if (response.summary.length > 0) {
           response.summary.forEach((table) => {
             const li = document.createElement("li");
-            li.textContent = `${
-              table.name
-            }: ${table.rows.toLocaleString()} rows`;
+            li.textContent = `${table.name}: ${table.rows.toLocaleString()} rows`;
             dbSchemaSummary.appendChild(li);
           });
         } else {
@@ -683,10 +675,6 @@ function loadDatabaseInfo() {
           true
         );
       }
-    };
-    chrome.runtime.sendMessage({
-      action: "getDatabaseSchemaSummary",
-      requestId: schemaRequestId,
     });
   }
 
@@ -1210,17 +1198,17 @@ function executeRawSql() {
   const sql = rawSqlInput.value.trim();
   if (!sql) {
     showNotification("Please enter a SQL query.", true);
+    sqlResultsOutput.innerHTML = "<span class='error'>No SQL query entered.</span>";
     return;
   }
   console.log('[Options] Sending executeRawSql:', sql);
-  sqlResultsOutput.innerHTML = "<span>Executing query...</span>";
+  sqlResultsOutput.innerHTML = "<span><i class='fas fa-spinner fa-spin'></i> Executing query...</span>";
   sqlResultsOutput.classList.remove("error");
   executeSqlBtn.disabled = true;
   clearSqlBtn.disabled = true;
 
   const requestId = generateRequestId();
   pendingSqlRequests[requestId] = (response) => {
-    console.log('[Options] Received executeRawSqlResult:', response);
     executeSqlBtn.disabled = false;
     clearSqlBtn.disabled = false;
     fetchSqlHistory(); // Refresh history from backend
@@ -1290,6 +1278,17 @@ function executeRawSql() {
     }
     maybeAddExportButton();
   };
+
+  // Robust fallback: if no response in 10s, show error
+  setTimeout(() => {
+    if (executeSqlBtn.disabled) {
+      executeSqlBtn.disabled = false;
+      clearSqlBtn.disabled = false;
+      sqlResultsOutput.innerHTML = "<pre class='error'>Error: No response from backend (timeout).</pre>";
+      sqlResultsOutput.classList.add("error");
+      showNotification("No response from backend (timeout).", true);
+    }
+  }, 10000);
 
   eventRequest(
     "executeRawSql",
@@ -1703,7 +1702,7 @@ function setupEventListeners() {
     });
   }
   if (executeSqlBtn) {
-    executeSqlBtn.addEventListener("click", executeRawSql);
+    executeSqlBtn.onclick = executeRawSql;
   }
   if (clearSqlBtn) {
     clearSqlBtn.addEventListener("click", () => {
