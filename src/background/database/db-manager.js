@@ -161,6 +161,7 @@ function createDbInterface() {
     saveConfig: saveConfigToDb,
     loadConfig: loadConfigFromDb,
     updateConfig: updateConfigInDb,
+    getApiPerformanceOverTime,
   };
 }
 
@@ -1438,6 +1439,88 @@ export function updateConfigInDb(newConfig, key = 'main') {
   } catch (error) {
     log('error', 'Failed to update config in DB:', error);
     throw new DatabaseError('Failed to update config in DB', error);
+  }
+}
+
+// API performance over time for a domain: { [path]: [{time, duration}, ...] }
+async function getApiPerformanceOverTime(filters = {}) {
+  if (!db) {
+    return { error: "Database not initialized" };
+  }
+  try {
+    const params = [];
+    let whereClause = "WHERE 1=1";
+    if (filters.domain) {
+      whereClause += " AND domain = ?";
+      params.push(filters.domain);
+    }
+    if (filters.pageUrl) {
+      whereClause += " AND pageUrl = ?";
+      params.push(filters.pageUrl);
+    }
+    if (filters.method) {
+      whereClause += " AND method = ?";
+      params.push(filters.method);
+    }
+    if (filters.type) {
+      whereClause += " AND type = ?";
+      params.push(filters.type);
+    }
+    if (filters.startDate) {
+      whereClause += " AND timestamp >= ?";
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereClause += " AND timestamp <= ?";
+      params.push(filters.endDate);
+    }
+    if (filters.minTime) {
+      whereClause += " AND duration >= ?";
+      params.push(filters.minTime);
+    }
+    if (filters.maxTime) {
+      whereClause += " AND duration <= ?";
+      params.push(filters.maxTime);
+    }
+    if (filters.avgTime) {
+      // Only include requests where the duration is within a small window of avgTime (e.g., ±10ms)
+      whereClause += " AND ABS(duration - ?) <= 10";
+      params.push(filters.avgTime);
+    }
+    // Group by path and time bucket (minute)
+    const result = executeQuery(
+      `SELECT path, 
+              (timestamp / 60000) * 60000 as time, 
+              COUNT(*) as count, 
+              AVG(duration) as avgDuration, 
+              MIN(duration) as minDuration, 
+              MAX(duration) as maxDuration
+       FROM requests 
+       ${whereClause}
+       GROUP BY path, time
+       ORDER BY path, time ASC`,
+      params
+    );
+    const rows = mapRowsToObjects(result[0]);
+    // Debug: log number of rows found
+    if (typeof console !== 'undefined') {
+      console.log('[DB] getApiPerformanceOverTime rows:', rows.length, 'filters:', filters);
+    }
+    // Group by path
+    const apiOverTime = {};
+    rows.forEach(row => {
+      if (!apiOverTime[row.path]) apiOverTime[row.path] = [];
+      apiOverTime[row.path].push({
+        time: row.time,
+        count: row.count,
+        avgDuration: row.avgDuration,
+        minDuration: row.minDuration,
+        maxDuration: row.maxDuration
+      });
+    });
+    return { apiOverTime };
+  } catch (err) {
+    return { error: err.message || 'Failed to load API performance data' };
   }
 }
 

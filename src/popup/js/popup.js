@@ -6,7 +6,7 @@ import themeManager from "../../config/theme-manager.js";
 
 // Import popup components
 import "../components/chart-components.js";
-import "../components/chart-renderer.js";
+import { getCurrentDomain } from "../components/chart-renderer.js";
 import "../components/data-filter-panel.js";
 import "../components/data-loader.js";
 import "../components/data-visualization.js";
@@ -116,13 +116,6 @@ let domainFilter = null;
 let urlFilter = null;
 let startDateFilter = null;
 let endDateFilter = null;
-
-// Settings Tab Elements
-let themeSelector = null;
-let requestsPerPagePopupInput = null;
-let showTimingBarsPopupCheckbox = null;
-let savePopupSettingsBtn = null;
-let openOptionsPageLink = null;
 
 let activePanel = null; // Keep track of the currently open panel
 let tabsContainer = null; // Added for tab switching
@@ -263,13 +256,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     endDateFilter = document.getElementById("endDateFilter");
     tabsContainer = document.querySelector(".tabs"); // Get tabs container
 
-    // Settings Tab Elements
-    themeSelector = document.getElementById("themeSelector");
-    requestsPerPagePopupInput = document.getElementById("requestsPerPagePopup");
-    showTimingBarsPopupCheckbox = document.getElementById("showTimingBarsPopup");
-    savePopupSettingsBtn = document.getElementById("savePopupSettingsBtn");
-    openOptionsPageLink = document.getElementById("openOptionsPageLink");
-
     console.log("popup.js: DOM elements assigned.");
     console.log("popup.js: clearBtn element:", clearBtn); // Check if button elements are found
     console.log("popup.js: exportBtn element:", exportBtn);
@@ -368,8 +354,6 @@ document.addEventListener("DOMContentLoaded", async () => {
               loadStats();
             } else if (targetTab === "requests") {
               loadRequests();
-            } else if (targetTab === "settings") {
-              loadPopupSettings(); // Load settings when tab is activated
             } else if (targetTab === "plots") {
               // Mount or reload the Plots tab visualization
               if (!targetContent._vizMounted) {
@@ -680,7 +664,6 @@ renderRequestsTable = function(requests) {
   if (filtered.length === 0) {
     requestsTableBody.innerHTML =
       '<tr><td colspan="8">No requests captured yet.</td></tr>';
-    hideLiveIndicator();
     return;
   }
   filtered.forEach((request) => {
@@ -718,13 +701,6 @@ renderRequestsTable = function(requests) {
     });
     requestsTableBody.appendChild(row);
   });
-  // Show live indicator if new requests are being captured
-  if (filtered.length > lastRequestCount) {
-    showLiveIndicator();
-  } else {
-    hideLiveIndicator();
-  }
-  lastRequestCount = filtered.length;
   renderDomainSummaryAndSparklines(filtered);
 };
 
@@ -1027,63 +1003,6 @@ function loadPopupConfig() {
   });
 }
 
-// --- Settings Tab Functions ---
-
-function loadPopupSettings() {
-  eventRequest("getConfig", {}, (response) => {
-    if (response && response.config) {
-      const currentConfig = response.config;
-      if (themeSelector) {
-        themeSelector.value = currentConfig.display?.theme || "system";
-      }
-      if (requestsPerPagePopupInput) {
-        requestsPerPagePopupInput.value = currentConfig.display?.requestsPerPagePopup || 50;
-      }
-      if (showTimingBarsPopupCheckbox) {
-        showTimingBarsPopupCheckbox.checked = currentConfig.display?.showTimingBarsPopup ?? true;
-      }
-      console.log("Popup settings loaded into UI.");
-    } else {
-      console.warn("Failed to load config for popup settings tab.", response?.error);
-      // Optionally disable controls or show an error
-    }
-  });
-}
-
-function savePopupSettings() {
-  console.log("Saving popup settings...");
-  const newSettings = {
-    display: {
-      ...(config.display || {}), // Preserve other display settings
-      theme: themeSelector?.value || "system",
-      requestsPerPagePopup: parseInt(requestsPerPagePopupInput?.value, 10) || 50,
-      showTimingBarsPopup: showTimingBarsPopupCheckbox?.checked ?? true,
-    }
-  };
-
-  // Send only the updated part of the config
-  eventRequest("updateConfig", { config: newSettings }, (response) => {
-    if (response && response.success) {
-      showNotification("Popup settings saved.");
-      // Update local config variable if needed, or rely on configUpdated message
-      config = { ...config, ...newSettings }; // Simple merge
-      // Re-apply theme immediately
-      if (themeManager && newSettings.display.theme) {
-        themeManager.applyTheme(newSettings.display.theme);
-      }
-      // Update itemsPerPage if it changed
-      itemsPerPage = newSettings.display.requestsPerPagePopup;
-      updatePagination(); // Update pagination based on new itemsPerPage
-      loadRequests(); // Reload requests with new page size
-
-    } else {
-      showNotification(`Error saving settings: ${response?.error || "Unknown error"}`, true);
-    }
-  });
-}
-
-// --- End Settings Tab Functions ---
-
 // Open options page function
 function openOptionsPage() {
   if (chrome.runtime.openOptionsPage) {
@@ -1095,19 +1014,9 @@ function openOptionsPage() {
 
 // Load requests from background script
 function loadRequests() {
-  showRequestsLoading();
   const requestId = generateRequestId();
   pendingGetRequests[requestId] = (response) => {
-    hideRequestsLoading();
-    if (chrome.runtime.lastError) {
-      console.error("Error loading requests (connection):", chrome.runtime.lastError.message);
-      if (requestsTableBody) {
-        requestsTableBody.innerHTML =
-          '<tr><td colspan="8">Error connecting to background service. Please try again.</td></tr>';
-      }
-      return;
-    }
-    if (response && response.requests) {
+    if (response && response.success && response.requests) {
       totalItems = response.total || 0;
       totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
       renderRequestsTable(response.requests);
@@ -1179,518 +1088,7 @@ function updateStatisticsTab(stats) {
   document.getElementById("statsAvgDownload").textContent = stats?.avgTimings?.avgDownload ? `${Math.round(stats.avgTimings.avgDownload)} ms` : "-";
   // Status codes
   const statusCodesEl = document.getElementById("statsStatusCodes");
-  statusCodesEl.innerHTML = stats?.statusCodes?.length ? stats.statusCodes.map(s => `<div>${s.status}: ${s.count}</div>`).join("") : "-";
-  // Request types
-  const typesEl = document.getElementById("statsRequestTypes");
-  typesEl.innerHTML = stats?.requestTypes?.length ? stats.requestTypes.map(t => `<div>${t.type}: ${t.count}</div>`).join("") : "-";
-  // Top domains (if available)
-  const domainsEl = document.getElementById("statsTopDomains");
-  domainsEl.innerHTML = stats?.topDomains?.length ? stats.topDomains.map(d => `<div>${d.domain}: ${d.count}</div>`).join("") : "-";
-}
-
-// --- Enhanced Statistics Tab ---
-function renderStatisticsTrends(stats, prevStats) {
-  // Helper to get trend arrow
-  function trendArrow(current, prev) {
-    if (prev == null) return '';
-    if (current > prev) return '↑';
-    if (current < prev) return '↓';
-    return '→';
-  }
-  // Error rate
-  const errorRate = stats.requestCount ? (stats.errorCount / stats.requestCount) * 100 : 0;
-  const prevErrorRate = prevStats && prevStats.requestCount ? (prevStats.errorCount / prevStats.requestCount) * 100 : null;
-  // Slowest request
-  const slowest = stats.maxDuration || 0;
-  const prevSlowest = prevStats ? prevStats.maxDuration : null;
-  // Most common domain/type/method
-  const mostDomain = stats.topDomains && stats.topDomains[0] ? stats.topDomains[0].domain : '-';
-  const prevMostDomain = prevStats && prevStats.topDomains && prevStats.topDomains[0] ? prevStats.topDomains[0].domain : null;
-  const mostType = stats.requestTypes && stats.requestTypes[0] ? stats.requestTypes[0].type : '-';
-  const prevMostType = prevStats && prevStats.requestTypes && prevStats.requestTypes[0] ? prevStats.requestTypes[0].type : null;
-  const mostMethod = stats.mostMethod || '-';
-  const prevMostMethod = prevStats ? prevStats.mostMethod : null;
-  // Render
-  document.getElementById("statsErrorRate").textContent = `${errorRate.toFixed(1)}% ${trendArrow(errorRate, prevErrorRate)}`;
-  document.getElementById("statsSlowest").textContent = `${Math.round(slowest)} ms ${trendArrow(slowest, prevSlowest)}`;
-  document.getElementById("statsMostDomain").textContent = `${mostDomain} ${trendArrow(mostDomain, prevMostDomain)}`;
-  document.getElementById("statsMostType").textContent = `${mostType} ${trendArrow(mostType, prevMostType)}`;
-  document.getElementById("statsMostMethod").textContent = `${mostMethod} ${trendArrow(mostMethod, prevMostMethod)}`;
-}
-
-// --- Time Window Selection ---
-let statsTimeWindow = 'hour'; // default
-function renderStatsTimeWindowSelector() {
-  const container = document.getElementById('statsTimeWindowSelector');
-  if (!container) return;
-  container.innerHTML = `
-    <label for="statsTimeWindow">Time Window:</label>
-    <select id="statsTimeWindow">
-      <option value="5min">Last 5 min</option>
-      <option value="hour" selected>Last hour</option>
-      <option value="day">Today</option>
-      <option value="all">All</option>
-    </select>
-  `;
-  const select = document.getElementById('statsTimeWindow');
-  select.value = statsTimeWindow;
-  select.addEventListener('change', e => {
-    statsTimeWindow = select.value;
-    loadStats();
-  });
-}
-
-// Patch loadStats to use time window and fetch previous stats for trends
-const originalLoadStats = loadStats;
-loadStats = function() {
-  renderStatsTimeWindowSelector();
-  // Calculate time window
-  let filters = {};
-  const now = Date.now();
-  if (statsTimeWindow === '5min') filters.startDate = new Date(now - 5 * 60 * 1000).toISOString();
-  else if (statsTimeWindow === 'hour') filters.startDate = new Date(now - 60 * 60 * 1000).toISOString();
-  else if (statsTimeWindow === 'day') {
-    const d = new Date(); d.setHours(0,0,0,0); filters.startDate = d.toISOString();
-  }
-  // Fetch current stats
-  eventRequest('getFilteredStats', { filters }, (response) => {
-    if (response && response.stats) {
-      updateStatisticsTab(response.stats);
-      // Fetch previous period for trend
-      let prevFilters = { ...filters };
-      if (statsTimeWindow === '5min') prevFilters.startDate = new Date(now - 10 * 60 * 1000).toISOString(), prevFilters.endDate = new Date(now - 5 * 60 * 1000).toISOString();
-      else if (statsTimeWindow === 'hour') prevFilters.startDate = new Date(now - 2 * 60 * 60 * 1000).toISOString(), prevFilters.endDate = new Date(now - 60 * 60 * 1000).toISOString();
-      else if (statsTimeWindow === 'day') { const d = new Date(); d.setHours(0,0,0,0); prevFilters.startDate = new Date(d.getTime() - 24*60*60*1000).toISOString(); prevFilters.endDate = d.toISOString(); }
-      else prevFilters = null;
-      if (prevFilters) {
-        eventRequest('getFilteredStats', { filters: prevFilters }, (prevResp) => {
-          renderStatisticsTrends(response.stats, prevResp && prevResp.stats ? prevResp.stats : null);
-        });
-      } else {
-        renderStatisticsTrends(response.stats, null);
-      }
-    } else {
-      updateStatisticsTab({ error: response?.error || "Unknown error loading stats." });
-    }
-  });
-};
-
-// Patch updateStatisticsTab to add new stats fields
-const originalUpdateStatisticsTab = updateStatisticsTab;
-updateStatisticsTab = function(stats) {
-  originalUpdateStatisticsTab(stats);
-  // Add error rate, slowest, most common domain/type/method
-  document.getElementById("statsErrorRate").textContent = stats.requestCount ? ((stats.errorCount / stats.requestCount) * 100).toFixed(1) + '%' : '0%';
-  document.getElementById("statsSlowest").textContent = stats.maxDuration ? Math.round(stats.maxDuration) + ' ms' : '-';
-  document.getElementById("statsMostDomain").textContent = stats.topDomains && stats.topDomains[0] ? stats.topDomains[0].domain : '-';
-  document.getElementById("statsMostType").textContent = stats.requestTypes && stats.requestTypes[0] ? stats.requestTypes[0].type : '-';
-  document.getElementById("statsMostMethod").textContent = stats.mostMethod || '-';
-};
-
-// Patch updateStatisticsTab to fill summary tables
-const originalUpdateStatisticsTab2 = updateStatisticsTab;
-updateStatisticsTab = function(stats) {
-  originalUpdateStatisticsTab2(stats);
-  // Requests per Domain (Top 5)
-  const domainTable = document.getElementById("statsRequestsPerDomain").querySelector("tbody");
-  if (stats.topDomains && stats.topDomains.length > 0) {
-    domainTable.innerHTML = stats.topDomains.slice(0,5).map(d => `<tr><td>${d.domain}</td><td>${d.count}</td><td>${d.avgDuration ? Math.round(d.avgDuration) + ' ms' : '-'}</td></tr>`).join("");
-  } else {
-    domainTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
-  }
-  // Requests per Method
-  const methodTable = document.getElementById("statsRequestsPerMethod").querySelector("tbody");
-  if (stats.methods && stats.methods.length > 0) {
-    methodTable.innerHTML = stats.methods.map(m => `<tr><td>${m.method}</td><td>${m.count}</td><td>${m.avgDuration ? Math.round(m.avgDuration) + ' ms' : '-'}</td></tr>`).join("");
-  } else {
-    methodTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
-  }
-  // Requests per Status Code
-  const statusTable = document.getElementById("statsRequestsPerStatus").querySelector("tbody");
-  if (stats.statusCodes && stats.statusCodes.length > 0) {
-    statusTable.innerHTML = stats.statusCodes.map(s => `<tr><td>${s.status}</td><td>${s.count}</td><td>${s.avgDuration ? Math.round(s.avgDuration) + ' ms' : '-'}</td></tr>`).join("");
-  } else {
-    statusTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
-  }
-  // Top 5 Slowest Requests
-  const slowestTable = document.getElementById("statsTopSlowestRequests").querySelector("tbody");
-  if (stats.slowestRequests && stats.slowestRequests.length > 0) {
-    slowestTable.innerHTML = stats.slowestRequests.slice(0,5).map(r => `<tr><td title="${r.url}">${r.url.length > 32 ? r.url.slice(0,32)+'…' : r.url}</td><td>${r.duration ? Math.round(r.duration) + ' ms' : '-'}</td><td>${r.statusCode || '-'}</td></tr>`).join("");
-  } else {
-    slowestTable.innerHTML = '<tr><td colspan="3">No data</td></tr>';
-  }
-};
-
-// Show request details panel
-function showRequestDetails(request) {
-  if (!requestDetails) return;
-  document.getElementById("detailUrl").textContent = request.url;
-  document.getElementById("detailMethod").textContent = request.method;
-
-  document.getElementById("detailStatus").textContent =
-    request.statusCode || request.status || "-";
-  document.getElementById("detailType").textContent = request.type || "-";
-  document.getElementById("detailDomain").textContent = request.domain || "-";
-  document.getElementById("detailPath").textContent = request.path || "-";
-  document.getElementById("detailSize").textContent = request.size
-    ? formatBytes(request.size)
+  statusCodesEl.innerHTML = stats?.statusCodes?.length
+    ? stats.statusCodes.map(s => `<div>${s.status}: ${s.count}</div>`).join("")
     : "-";
-  document.getElementById("detailStartTime").textContent = request.startTime
-    ? new Date(request.startTime).toLocaleTimeString()
-    : "-";
-  document.getElementById("detailEndTime").textContent = request.endTime
-    ? new Date(request.endTime).toLocaleTimeString()
-    : "-";
-  document.getElementById("detailDuration").textContent = request.duration
-    ? `${Math.round(request.duration)}ms`
-    : "-";
-
-  const timings = request.timings || {};
-  const maxDuration = request.duration || 0;
-
-  updateTimingBar("dnsBar", "dnsTime", timings.dns || 0, maxDuration);
-  updateTimingBar("tcpBar", "tcpTime", timings.tcp || 0, maxDuration);
-  updateTimingBar("sslBar", "sslTime", timings.ssl || 0, maxDuration);
-  updateTimingBar("ttfbBar", "ttfbTime", timings.ttfb || 0, maxDuration);
-  updateTimingBar(
-    "downloadBar",
-    "downloadTime",
-    timings.download || 0,
-    maxDuration
-  );
-
-  const headersContainer = document.getElementById("headersContainer");
-  headersContainer.innerHTML = "";
-
-  fetchRequestHeaders(request.id, (response) => {
-    if (response && response.headers && response.headers.length > 0) {
-      const table = document.createElement("table");
-      table.className = "headers-table";
-
-      const thead = document.createElement("thead");
-      thead.innerHTML = "<tr><th>Name</th><th>Value</th></tr>";
-      table.appendChild(thead);
-
-      const tbody = document.createElement("tbody");
-
-      response.headers.forEach((header) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${header.name}</td>
-            <td>${header.value}</td>
-          `;
-        tbody.appendChild(row);
-      });
-
-      table.appendChild(tbody);
-      headersContainer.appendChild(table);
-    } else {
-      headersContainer.innerHTML =
-        '<p class="no-data">No headers available</p>';
-    }
-  });
-
-  requestDetails.classList.add("visible");
 }
-
-// Update a timing bar
-function updateTimingBar(barId, timeId, duration, maxDuration) {
-  const bar = document.getElementById(barId);
-  const timeEl = document.getElementById(timeId);
-
-  if (!bar || !timeEl) return;
-
-  if (maxDuration > 0 && duration > 0) {
-    const percentage = Math.min((duration / maxDuration) * 100, 100);
-    bar.style.width = `${percentage}%`;
-  } else {
-    bar.style.width = "0%";
-  }
-
-  timeEl.textContent = `${Math.round(duration)}ms`;
-}
-
-// Hide request details panel
-function hideRequestDetails() {
-  if (!requestDetails) return;
-  requestDetails.classList.remove("visible");
-}
-
-// Clear all requests
-function clearRequests() {
-  eventRequest("getConfig", {}, (response) => {
-    const confirmNeeded =
-      response?.config?.general?.confirmClearRequests ?? true;
-    if (
-      !confirmNeeded ||
-      confirm(
-        "Are you sure you want to clear all captured requests? This cannot be undone."
-      )
-    ) {
-      eventRequest("clearRequests", {}, (clearResp) => {
-        if (clearResp && clearResp.success) {
-          loadRequests();
-          hideRequestDetails();
-          showNotification("All requests cleared successfully");
-        }
-      });
-    }
-  });
-}
-
-function updateSortIndicators() {
-  const ths = document.querySelectorAll('#requestsTable th.sortable');
-  ths.forEach(th => {
-    th.classList.remove('sorted-asc', 'sorted-desc');
-    if (th.getAttribute('data-sort') === sortState.column) {
-      th.classList.add(sortState.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
-    }
-  });
-}
-
-// --- Live Indicator for Requests Tab ---
-let liveIndicator = null;
-let lastRequestCount = 0;
-
-function showLiveIndicator() {
-  if (!liveIndicator) {
-    liveIndicator = document.createElement("span");
-    liveIndicator.id = "liveIndicator";
-    liveIndicator.textContent = "● Live";
-    liveIndicator.style.color = "#28a745";
-    liveIndicator.style.fontWeight = "bold";
-    liveIndicator.style.marginLeft = "12px";
-    const statsPanel = document.querySelector(".stats-panel");
-    if (statsPanel) statsPanel.appendChild(liveIndicator);
-  }
-  liveIndicator.style.display = "inline";
-}
-
-function hideLiveIndicator() {
-  if (liveIndicator) liveIndicator.style.display = "none";
-}
-
-// --- Expandable Rows for Requests Table ---
-function renderExpandableRow(request, row) {
-  // Only one expanded at a time
-  const existing = document.querySelector(".request-details-row");
-  if (existing) existing.remove();
-
-  const detailsRow = document.createElement("tr");
-  detailsRow.className = "request-details-row";
-  const detailsCell = document.createElement("td");
-  detailsCell.colSpan = 8;
-  detailsCell.style.background = "#f9f9f9";
-  detailsCell.style.padding = "12px 24px";
-  detailsCell.innerHTML = `
-    <div><b>URL:</b> ${request.url}</div>
-    <div><b>Status:</b> ${request.statusCode || request.status || "-"} ${request.statusText || ""}</div>
-    <div><b>Type:</b> ${request.type || "-"}</div>
-    <div><b>Domain:</b> ${request.domain || "-"}</div>
-    <div><b>Path:</b> ${request.path || "-"}</div>
-    <div><b>Duration:</b> ${request.duration ? Math.round(request.duration) + "ms" : "-"}</div>
-    <div><b>Size:</b> ${request.size ? formatBytes(request.size) : "-"}</div>
-    <div><b>Start Time:</b> ${request.startTime ? new Date(request.startTime).toLocaleTimeString() : "-"}</div>
-    <div><b>End Time:</b> ${request.endTime ? new Date(request.endTime).toLocaleTimeString() : "-"}</div>
-    <div><b>Headers:</b> <span class="expand-headers" style="color:#007bff;cursor:pointer;">Show</span></div>
-    <div class="headers-content" style="display:none;"></div>
-  `;
-  detailsRow.appendChild(detailsCell);
-  row.parentNode.insertBefore(detailsRow, row.nextSibling);
-
-  // Toggle headers
-  const showHeaders = detailsCell.querySelector(".expand-headers");
-  const headersContent = detailsCell.querySelector(".headers-content");
-  let headersLoaded = false;
-  showHeaders.addEventListener("click", () => {
-    if (!headersLoaded) {
-      fetchRequestHeaders(request.id, (response) => {
-        if (response && response.headers && response.headers.length > 0) {
-          headersContent.innerHTML = `<table class='headers-table'><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>${response.headers.map(h => `<tr><td>${h.name}</td><td>${h.value}</td></tr>`).join("")}</tbody></table>`;
-        } else {
-          headersContent.innerHTML = '<p class="no-data">No headers available</p>';
-        }
-        headersLoaded = true;
-        headersContent.style.display = "block";
-        showHeaders.textContent = "Hide";
-      });
-    } else {
-      if (headersContent.style.display === "none") {
-        headersContent.style.display = "block";
-        showHeaders.textContent = "Hide";
-      } else {
-        headersContent.style.display = "none";
-        showHeaders.textContent = "Show";
-      }
-    }
-  });
-}
-
-// Patch renderRequestsTable to support expandable rows and live indicator
-const originalRenderRequestsTable2 = renderRequestsTable;
-renderRequestsTable = function(requests) {
-  if (!requestsTableBody) return;
-  lastLoadedRequests = requests;
-  let filtered = requests;
-  if (activeFilters.quick && activeFilters.quick !== "all") {
-    if (activeFilters.quick === "success") {
-      filtered = filtered.filter(r => r.statusCode >= 200 && r.statusCode < 300);
-    } else if (activeFilters.quick === "error") {
-      filtered = filtered.filter(r => r.statusCode >= 400 || r.status === "error");
-    } else if (activeFilters.quick === "slow") {
-      filtered = filtered.filter(r => r.duration && r.duration > 1000);
-    }
-  }
-  if (searchQuery) {
-    filtered = filtered.filter(r =>
-      (r.method && r.method.toLowerCase().includes(searchQuery)) ||
-      (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
-      (r.path && r.path.toLowerCase().includes(searchQuery)) ||
-      (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
-      (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
-      (r.type && r.type.toLowerCase().includes(searchQuery)) ||
-      (r.url && r.url.toLowerCase().includes(searchQuery))
-    );
-  }
-  if (sortState.column) {
-    filtered = filtered.slice().sort((a, b) => {
-      let valA = a[sortState.column];
-      let valB = b[sortState.column];
-      if (sortState.column === 'size' || sortState.column === 'duration') {
-        valA = Number(valA) || 0;
-        valB = Number(valB) || 0;
-      } else if (sortState.column === 'time') {
-        valA = a.startTime;
-        valB = b.startTime;
-      } else {
-        valA = (valA || '').toString().toLowerCase();
-        valB = (valB || '').toString().toLowerCase();
-      }
-      if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }
-  requestsTableBody.innerHTML = "";
-  if (filtered.length === 0) {
-    requestsTableBody.innerHTML =
-      '<tr><td colspan="8">No requests captured yet.</td></tr>';
-    hideLiveIndicator();
-    return;
-  }
-  filtered.forEach((request) => {
-    const row = document.createElement("tr");
-    row.dataset.requestId = request.id;
-    let statusClass = "";
-    if (request.statusCode >= 200 && request.statusCode < 300) {
-      statusClass = "status-success";
-    } else if (request.statusCode >= 400) {
-      statusClass = "status-error";
-    } else if (request.statusCode >= 300 && request.statusCode < 400) {
-      statusClass = "status-redirect";
-    } else if (request.status === "pending") {
-      statusClass = "status-pending";
-    }
-    row.innerHTML = `
-      <td>${request.method}</td>
-      <td>${request.domain || "-"}</td>
-      <td class="path-cell" title="${request.path || "-"}">${
-      request.path || "-"
-    }</td>
-      <td class="${statusClass}">${
-      request.statusCode || request.status || "-"
-    }</td>
-      <td>${request.type || "-"}</td>
-      <td>${request.size ? formatBytes(request.size) : "-"}</td>
-      <td>${request.duration ? `${Math.round(request.duration)}ms` : "-"}</td>
-      <td>${new Date(request.startTime).toLocaleTimeString()}</td>
-    `;
-    row.addEventListener("click", () => {
-      // Remove any existing expanded row
-      const existing = document.querySelector(".request-details-row");
-      if (existing) existing.remove();
-      renderExpandableRow(request, row);
-    });
-    requestsTableBody.appendChild(row);
-  });
-  // Show live indicator if new requests are being captured
-  if (filtered.length > lastRequestCount) {
-    showLiveIndicator();
-  } else {
-    hideLiveIndicator();
-  }
-  lastRequestCount = filtered.length;
-  renderDomainSummaryAndSparklines(filtered);
-};
-
-/* --- UI/UX POLISH FOR REQUESTS TAB --- */
-// Add loading spinner
-let requestsLoadingSpinner = null;
-function showRequestsLoading() {
-  if (!requestsLoadingSpinner) {
-    requestsLoadingSpinner = document.createElement("div");
-    requestsLoadingSpinner.id = "requestsLoadingSpinner";
-    requestsLoadingSpinner.setAttribute("role", "status");
-    requestsLoadingSpinner.setAttribute("aria-live", "polite");
-    requestsLoadingSpinner.innerHTML = `<div class="spinner" title="Loading requests..." aria-label="Loading requests"></div>`;
-    requestsLoadingSpinner.style.display = "flex";
-    requestsLoadingSpinner.style.justifyContent = "center";
-    requestsLoadingSpinner.style.alignItems = "center";
-    requestsLoadingSpinner.style.padding = "24px 0";
-    requestsLoadingSpinner.style.width = "100%";
-    requestsLoadingSpinner.style.background = "var(--background-color)";
-    requestsTableBody.parentNode.insertBefore(requestsLoadingSpinner, requestsTableBody);
-  }
-  requestsLoadingSpinner.style.display = "flex";
-}
-function hideRequestsLoading() {
-  if (requestsLoadingSpinner) requestsLoadingSpinner.style.display = "none";
-}
-
-// Patch loadRequests to show spinner
-const originalLoadRequests = loadRequests;
-loadRequests = function() {
-  showRequestsLoading();
-  setTimeout(() => { originalLoadRequests(); }, 100); // Simulate async for UX
-};
-
-// Patch renderRequestsTable to hide spinner and add empty state tip
-const originalRenderRequestsTable4 = renderRequestsTable;
-renderRequestsTable = function(requests) {
-  hideRequestsLoading();
-  originalRenderRequestsTable4(requests);
-  // Add empty state tip
-  if (requestsTableBody && requestsTableBody.innerHTML.includes('No requests captured yet.')) {
-    requestsTableBody.innerHTML = `<tr><td colspan="8" class="empty-message">No requests captured yet.<br><span style='font-size:13px;color:#888;'>Tip: Browse a website or open DevTools to start capturing network requests.</span></td></tr>`;
-  }
-};
-
-// Add ARIA and tooltips to quick filter buttons and domain selector
-function enhanceAccessibilityAndTooltips() {
-  const quickBtns = document.querySelectorAll('.quick-filter-btn');
-  quickBtns.forEach(btn => {
-    btn.setAttribute('tabindex', '0');
-    btn.setAttribute('role', 'button');
-    btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
-    if (btn.dataset.filter === 'all') btn.title = 'Show all requests';
-    if (btn.dataset.filter === 'success') btn.title = 'Show only successful (2xx) requests';
-    if (btn.dataset.filter === 'error') btn.title = 'Show only error (4xx/5xx) requests';
-    if (btn.dataset.filter === 'slow') btn.title = 'Show only slow requests (>1s)';
-    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') btn.click(); });
-  });
-  const domainSelect = document.getElementById('domainSummarySelect');
-  if (domainSelect) {
-    domainSelect.setAttribute('aria-label', 'Select domain to view summary and sparkline');
-    domainSelect.title = 'Select domain to view summary and sparkline';
-  }
-}
-
-// Patch renderDomainSummaryAndSparklines to call accessibility enhancer
-const originalRenderDomainSummaryAndSparklines = renderDomainSummaryAndSparklines;
-renderDomainSummaryAndSparklines = function(requests) {
-  originalRenderDomainSummaryAndSparklines(requests);
-  enhanceAccessibilityAndTooltips();
-};
-
-window.renderRequestsTable = renderRequestsTable;
-window.loadStats = loadStats;

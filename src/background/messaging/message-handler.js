@@ -65,7 +65,21 @@ export function setupMessageHandlers(
       (async () => {
         try {
           const config = await configManager.getConfig();
-          sendEventResponse("getConfigResult", message.requestId, { success: true, config });
+          // Ensure event-based response includes themeData if present
+          let themeData = undefined;
+          if (config && config.themeData) {
+            themeData = config.themeData;
+          } else if (config && config.ui && config.ui.theme) {
+            // Fallback for legacy config
+            themeData = { currentTheme: config.ui.theme };
+          } else if (config && config.theme) {
+            // Fallback for theme at root
+            themeData = { currentTheme: config.theme };
+          }
+          sendEventResponse("getConfigResult", message.requestId, {
+            success: true,
+            config: { ...config, themeData },
+          });
         } catch (error) {
           sendEventResponse("getConfigResult", message.requestId, { success: false, error: error.message });
         }
@@ -163,6 +177,17 @@ export function setupMessageHandlers(
     }
     if (message.action === "executeRawSql") {
       handleExecuteRawSql(message, sender); // Calls the async handler
+      return;
+    }
+    if (message.action === 'getApiPerformanceOverTime') {
+      (async () => {
+        try {
+          const stats = await dbManager.getApiPerformanceOverTime(message.filters || {});
+          sendEventResponse("getApiPerformanceOverTimeResult", message.requestId, { success: true, ...stats });
+        } catch (error) {
+          sendEventResponse("getApiPerformanceOverTimeResult", message.requestId, { success: false, error: error.message });
+        }
+      })();
       return;
     }
     handleMessage(message, sender, logErrorToDb);

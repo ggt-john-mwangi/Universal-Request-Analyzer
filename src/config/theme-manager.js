@@ -123,17 +123,26 @@ const CSS_VARIABLES = {
   shadow: "--shadow-color",
 }
 
-// Utility: send message to background and return promise
+// Utility: send message to background and return promise via event-based response
 function sendMessage(message) {
   return new Promise((resolve, reject) => {
     if (typeof chrome !== "undefined" && chrome.runtime) {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(response);
+      // Generate a unique requestId for this message
+      const requestId = `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      message.requestId = requestId;
+      // Listen for the event-based response
+      function handler(response) {
+        if (response && response.requestId === requestId) {
+          chrome.runtime.onMessage.removeListener(handler);
+          if (response.success === false || response.error) {
+            reject(response.error || new Error("Unknown error"));
+          } else {
+            resolve(response);
+          }
         }
-      });
+      }
+      chrome.runtime.onMessage.addListener(handler);
+      chrome.runtime.sendMessage(message);
     } else {
       reject(new Error("chrome.runtime not available"));
     }
@@ -145,9 +154,9 @@ function sendMessage(message) {
  */
 class ThemeManager {
   constructor() {
-    this.themes = { ...DEFAULT_THEMES }
-    this.currentTheme = "light" // Default theme
-    this.customThemes = {} // User-defined themes
+    this.themes = {} // Will be loaded from DB/config
+    this.currentTheme = "light" // Default, will be overwritten by DB/config
+    this.customThemes = {}
     this.initialized = false
   }
 
@@ -165,16 +174,25 @@ class ThemeManager {
       const data = await this.loadFromStorage();
 
       if (data) {
+        // Use themes from DB/config if present, else fallback to defaults
+        if (data.themes && typeof data.themes === 'object' && Object.keys(data.themes).length > 0) {
+          this.themes = { ...data.themes };
+        } else {
+          this.themes = { ...DEFAULT_THEMES };
+        }
         if (data.currentTheme) {
           this.currentTheme = data.currentTheme;
         }
-
         if (data.customThemes) {
           this.customThemes = data.customThemes;
-
-          // Merge custom themes with default themes
-          this.themes = { ...DEFAULT_THEMES, ...this.customThemes };
+          // Merge custom themes with loaded themes
+          this.themes = { ...this.themes, ...this.customThemes };
         }
+      } else {
+        // Fallback: use defaults if nothing in DB
+        this.themes = { ...DEFAULT_THEMES };
+        this.currentTheme = "light";
+        this.customThemes = {};
       }
 
       // Override with initial theme if provided
@@ -191,15 +209,9 @@ class ThemeManager {
 
       // Store callback
       this.onUpdateCallback = options.onUpdate;
-
       this.initialized = true;
-
-      // Apply the current theme
       this.applyTheme();
-
-      // Save the current state
       await this.saveToStorage();
-
       console.log("Theme manager initialized:", {
         currentTheme: this.currentTheme,
         availableThemes: Object.keys(this.themes),

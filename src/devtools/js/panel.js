@@ -242,6 +242,16 @@ export class DevToolsPanel {
       newDomain = null;
     }
 
+    // Save to chrome.storage.local for popup default
+    if (newDomain) {
+      try {
+        chrome.storage && chrome.storage.local && chrome.storage.local.set &&
+          chrome.storage.local.set({ lastActiveDomain: newDomain });
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+
     // Only update if the inspected domain changed
     if (newDomain !== this.currentDomain) {
         this.currentDomain = newDomain;

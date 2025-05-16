@@ -1,15 +1,6 @@
 // Handle chart rendering logic
 import Chart from "../../lib/chart.min.js";
 
-// Utility: get current domain from location
-function getCurrentDomain() {
-  try {
-    return window.location.hostname;
-  } catch {
-    return null;
-  }
-}
-
 // Helper: filter data by domain if present
 function filterDataByDomain(data, domain) {
   if (!domain) return data;

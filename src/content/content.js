@@ -1,6 +1,9 @@
 import { setupCrossBrowserCompat } from "../background/compat/browser-compat";
 import { getHarmonizedConfig, listenForConfigUpdates } from "../popup/js/settings-manager.js";
 
+// DEBUG: Content script loaded
+console.log('[URA content.js] Content script injected on', window.location.href);
+
 // Ensure compatibility layer is set up if needed (though likely not necessary for just runtime)
 setupCrossBrowserCompat();
 
@@ -77,6 +80,21 @@ document.addEventListener("visibilitychange", () => {
     })
   }
 })
+
+// --- Save current domain to chrome.storage.local for popup default ---
+(function saveCurrentDomainToStorage() {
+  try {
+    const domain = window.location.hostname;
+    console.log('[URA content.js] Attempting to set lastActiveDomain:', domain);
+    if (domain && chrome.storage && chrome.storage.local && chrome.storage.local.set) {
+      chrome.storage.local.set({ lastActiveDomain: domain }, () => {
+        console.log('[URA content.js] lastActiveDomain set in storage:', domain);
+      });
+    }
+  } catch (e) {
+    console.error('[URA content.js] Error setting lastActiveDomain:', e);
+  }
+})();
 
 // Send initial page load information
 window.addEventListener("load", () => {
