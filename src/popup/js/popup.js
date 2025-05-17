@@ -1,7 +1,6 @@
 import "../css/popup.css";
 import "../css/themes.css";
 import "../css/data-visualization.css";
-import "../../lib/chart.min.js";
 import themeManager from "../../config/theme-manager.js";
 
 // Import popup components

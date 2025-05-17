@@ -1,5 +1,3 @@
-// Handle chart rendering logic
-import Chart from "../../lib/chart.min.js";
 
 // Helper: filter data by domain if present
 function filterDataByDomain(data, domain) {

@@ -1,6 +1,5 @@
 import "../../styles.css"; // Import the global styles.css
 import "../css/devtools.css"; // Ensure the CSS file is imported
-import "../../lib/chart.min.js";
 import { getHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
 
 export class DevToolsPanel {

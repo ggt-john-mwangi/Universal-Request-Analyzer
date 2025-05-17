@@ -93,6 +93,8 @@ h1 {
 }
 
 .options-content {
+  display: flex;
+  flex-direction:column;
   flex-grow: 1; /* Allow content area to take remaining space */
   background-color: var(--background-color);
   border: 1px solid var(--border-color);
@@ -102,12 +104,10 @@ h1 {
   width: calc(100% - 240px); /* Full width minus sidebar */
   overflow: hidden;
   height: auto;
+  min-height: 100dvh ; /* Full height minus header/footer */
   margin-left: 220px; /* Space for sidebar */
   margin-top: var(--header-height); /* Align with sidebar */
   position: relative; /* Position relative for absolute elements */
-  min-height: calc(
-    100dvh - var(--header-height)
-  ); /* Full height minus header/footer */
 }
 
 /* Styling for each section (General, Capture, etc.) */
@@ -121,6 +121,9 @@ h1 {
 .option-section.active {
   display: block; /* Show only the active section */
   height: auto; /* Allow height to adjust */
+  min-height: calc(
+    90dvh - var(--header-height)
+  ); /* Full height minus header/footer */
 }
 
 .option-section:last-of-type {
@@ -278,7 +281,6 @@ button.secondary:hover {
 .actions button {
   margin-right: 5px;
 }
-
 
 #toggleKeyVisibility {
   background: none;
