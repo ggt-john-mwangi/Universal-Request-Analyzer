@@ -79,10 +79,10 @@ module.exports = (env, argv) => {
             from: "./src/assets/fontawesome/webfonts/**/*",
             to: "assets/fontawesome/webfonts/[name][ext]",
           },
-          // {
-          //   from: "./src/assets/wasm/**/*",
-          //   to: "assets/wasm/[name][ext]",
-          // },
+          {
+            from: "./src/assets/wasm/**/*",
+            to: "assets/wasm/[name][ext]",
+          },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
           { from: "./src/devtools/js/**/*", to: "[name][ext]" },
           {
