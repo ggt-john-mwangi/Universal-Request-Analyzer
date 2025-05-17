@@ -5,86 +5,22 @@
  * and control access to functionality based on user permissions.
  */
 
-// Default feature flags configuration
-export const defaultFeatureFlags = {
-  // Core features
-  captureRequests: true,
-  filterRequests: true,
-  exportData: true,
-  statistics: true,
-  visualization: true,
-
-  // Online features (disabled by default for local testing)
-  onlineSync: false,
-  authentication: false,
-  remoteStorage: false,
-  cloudExport: false,
-  teamSharing: false,
-
-  // Advanced features
-  requestModification: false,
-  requestMocking: false,
-  automatedTesting: false,
-  performanceAlerts: false,
-  customRules: false,
-
-  // Experimental features
-  aiAnalysis: false,
-  predictiveAnalytics: false,
-  securityScanning: false,
-
-  // Logging features
-  logErrorsToDatabase: true, // Toggle logging errors to the internal database
-  logErrorsToConsole: true, // Toggle logging errors to the browser console
-
-  enableAdvancedSync: false, // Example: Toggle advanced sync features
-  enableExperimentalUI: false, // Example: Toggle experimental UI elements
-};
-
-export const FEATURE_FLAGS = {
-  logErrorsToDatabase: {
-    name: "Log Errors to Database",
-    description: "Enable logging of internal extension errors to the database.",
-    defaultValue: true,
-    category: "debugging",
-  },
-  logErrorsToConsole: {
-    name: "Log Errors to Console",
-    description: "Enable logging of internal extension errors to the browser console.",
-    defaultValue: true,
-    category: "debugging",
-  },
-};
+import { defaultFeatureFlags } from "../background/utils/utils";
 
 /**
  * Utility: send message to background and return promise
  * @param {Object} message - Message to send
  * @returns {Promise<Object>} - Response from background
  */
-function sendMessage(message) {
-  return new Promise((resolve, reject) => {
-    if (typeof chrome !== "undefined" && chrome.runtime) {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(response);
-        }
-      });
-    } else {
-      reject(new Error("chrome.runtime not available"));
-    }
-  });
-}
 
 /**
  * Feature flags manager class
  */
 class FeatureFlagsManager {
   constructor() {
-    this.flags = { ...defaultFeatureFlags }
-    this.userPermissionLevel = "basic" // Default permission level
-    this.initialized = false
+    this.flags = { ...defaultFeatureFlags };
+    this.userPermissionLevel = "basic"; // Default permission level
+    this.initialized = false;
   }
 
   /**
@@ -98,14 +34,19 @@ class FeatureFlagsManager {
   async initialize(options = {}) {
     // Set user permission level
     if (options.permissionLevel) {
-      this.userPermissionLevel = options.permissionLevel
+      this.userPermissionLevel = options.permissionLevel;
     }
 
     // Load saved flags from storage
     try {
       const data = await this.loadFromStorage();
       // Defensive: data may be undefined or not have .flags
-      if (data && typeof data === 'object' && data.flags && typeof data.flags === 'object') {
+      if (
+        data &&
+        typeof data === "object" &&
+        data.flags &&
+        typeof data.flags === "object"
+      ) {
         this.flags = { ...defaultFeatureFlags, ...data.flags };
       } else {
         // Fallback to defaults if not present
@@ -114,29 +55,29 @@ class FeatureFlagsManager {
 
       // Override with initial flags if provided
       if (options.initialFlags) {
-        this.flags = { ...this.flags, ...options.initialFlags }
+        this.flags = { ...this.flags, ...options.initialFlags };
       }
 
       // Store callback
-      this.onUpdateCallback = options.onUpdate
+      this.onUpdateCallback = options.onUpdate;
 
       // Validate dependencies and permissions
-      this.validateFlags()
+      this.validateFlags();
 
-      this.initialized = true
+      this.initialized = true;
 
       // Save the validated flags
-      await this.saveToStorage()
+      await this.saveToStorage();
 
-      console.log("Feature flags initialized:", this.flags)
+      console.log("Feature flags initialized:", this.flags);
     } catch (error) {
-      console.error("Error initializing feature flags:", error)
+      console.error("Error initializing feature flags:", error);
       // Fall back to defaults
-      this.flags = { ...defaultFeatureFlags }
+      this.flags = { ...defaultFeatureFlags };
       if (options.initialFlags) {
-        this.flags = { ...this.flags, ...options.initialFlags }
+        this.flags = { ...this.flags, ...options.initialFlags };
       }
-      this.initialized = true
+      this.initialized = true;
     }
   }
 
@@ -163,7 +104,10 @@ class FeatureFlagsManager {
    */
   async saveToStorage() {
     try {
-      await sendMessage({ action: "updateConfig", config: { featureFlags: { flags: this.flags, timestamp: Date.now() } } });
+      await sendMessage({
+        action: "updateConfig",
+        config: { featureFlags: { flags: this.flags, timestamp: Date.now() } },
+      });
     } catch (error) {
       console.error("Failed to save feature flags to database:", error);
     }
@@ -176,11 +120,11 @@ class FeatureFlagsManager {
    */
   isEnabled(featureName) {
     if (!this.initialized) {
-      console.warn("Feature flags not initialized, using defaults")
-      return defaultFeatureFlags[featureName] || false
+      console.warn("Feature flags not initialized, using defaults");
+      return defaultFeatureFlags[featureName] || false;
     }
 
-    return this.flags[featureName] || false
+    return this.flags[featureName] || false;
   }
 
   /**
@@ -190,29 +134,29 @@ class FeatureFlagsManager {
    */
   async enableFeature(featureName) {
     if (!this.hasPermission(featureName)) {
-      console.warn(`User does not have permission to enable ${featureName}`)
-      return false
+      console.warn(`User does not have permission to enable ${featureName}`);
+      return false;
     }
 
-    this.flags[featureName] = true
+    this.flags[featureName] = true;
 
     // Enable dependencies
     if (FEATURE_DEPENDENCIES[featureName]) {
       for (const dependency of FEATURE_DEPENDENCIES[featureName]) {
         if (!this.flags[dependency]) {
-          console.log(`Enabling dependency: ${dependency} for ${featureName}`)
-          this.flags[dependency] = true
+          console.log(`Enabling dependency: ${dependency} for ${featureName}`);
+          this.flags[dependency] = true;
         }
       }
     }
 
-    await this.saveToStorage()
+    await this.saveToStorage();
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(this.flags)
+      this.onUpdateCallback(this.flags);
     }
 
-    return true
+    return true;
   }
 
   /**
@@ -221,23 +165,27 @@ class FeatureFlagsManager {
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
   async disableFeature(featureName) {
-    this.flags[featureName] = false
+    this.flags[featureName] = false;
 
     // Disable dependent features
-    for (const [feature, dependencies] of Object.entries(FEATURE_DEPENDENCIES)) {
+    for (const [feature, dependencies] of Object.entries(
+      FEATURE_DEPENDENCIES
+    )) {
       if (dependencies.includes(featureName) && this.flags[feature]) {
-        console.log(`Disabling dependent feature: ${feature} because ${featureName} was disabled`)
-        this.flags[feature] = false
+        console.log(
+          `Disabling dependent feature: ${feature} because ${featureName} was disabled`
+        );
+        this.flags[feature] = false;
       }
     }
 
-    await this.saveToStorage()
+    await this.saveToStorage();
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(this.flags)
+      this.onUpdateCallback(this.flags);
     }
 
-    return true
+    return true;
   }
 
   /**
@@ -246,30 +194,30 @@ class FeatureFlagsManager {
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
   async updateFeatures(updates) {
-    let changed = false
+    let changed = false;
 
     for (const [feature, enabled] of Object.entries(updates)) {
       if (enabled && !this.hasPermission(feature)) {
-        console.warn(`User does not have permission to enable ${feature}`)
-        continue
+        console.warn(`User does not have permission to enable ${feature}`);
+        continue;
       }
 
       if (this.flags[feature] !== enabled) {
-        this.flags[feature] = enabled
-        changed = true
+        this.flags[feature] = enabled;
+        changed = true;
       }
     }
 
     if (changed) {
-      this.validateFlags()
-      await this.saveToStorage()
+      this.validateFlags();
+      await this.saveToStorage();
 
       if (this.onUpdateCallback) {
-        this.onUpdateCallback(this.flags)
+        this.onUpdateCallback(this.flags);
       }
     }
 
-    return changed
+    return changed;
   }
 
   /**
@@ -278,11 +226,11 @@ class FeatureFlagsManager {
    * @returns {boolean} - Whether the user has permission
    */
   hasPermission(featureName) {
-    const requiredLevel = FEATURE_PERMISSIONS[featureName] || "admin"
-    const userLevelIndex = PERMISSION_LEVELS.indexOf(this.userPermissionLevel)
-    const requiredLevelIndex = PERMISSION_LEVELS.indexOf(requiredLevel)
+    const requiredLevel = FEATURE_PERMISSIONS[featureName] || "admin";
+    const userLevelIndex = PERMISSION_LEVELS.indexOf(this.userPermissionLevel);
+    const requiredLevelIndex = PERMISSION_LEVELS.indexOf(requiredLevel);
 
-    return userLevelIndex >= requiredLevelIndex
+    return userLevelIndex >= requiredLevelIndex;
   }
 
   /**
@@ -292,16 +240,16 @@ class FeatureFlagsManager {
    */
   async setPermissionLevel(level) {
     if (!PERMISSION_LEVELS.includes(level)) {
-      console.error(`Invalid permission level: ${level}`)
-      return
+      console.error(`Invalid permission level: ${level}`);
+      return;
     }
 
-    this.userPermissionLevel = level
-    this.validateFlags()
-    await this.saveToStorage()
+    this.userPermissionLevel = level;
+    this.validateFlags();
+    await this.saveToStorage();
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(this.flags)
+      this.onUpdateCallback(this.flags);
     }
   }
 
@@ -312,35 +260,41 @@ class FeatureFlagsManager {
     // Disable features the user doesn't have permission for
     for (const [feature, permission] of Object.entries(FEATURE_PERMISSIONS)) {
       if (this.flags[feature] && !this.hasPermission(feature)) {
-        console.log(`Disabling ${feature} due to insufficient permissions`)
-        this.flags[feature] = false
+        console.log(`Disabling ${feature} due to insufficient permissions`);
+        this.flags[feature] = false;
       }
     }
 
     // Ensure dependencies are met
-    for (const [feature, dependencies] of Object.entries(FEATURE_DEPENDENCIES)) {
+    for (const [feature, dependencies] of Object.entries(
+      FEATURE_DEPENDENCIES
+    )) {
       if (this.flags[feature]) {
         for (const dependency of dependencies) {
           if (!this.flags[dependency]) {
-            console.log(`Enabling dependency: ${dependency} for ${feature}`)
-            this.flags[dependency] = true
+            console.log(`Enabling dependency: ${dependency} for ${feature}`);
+            this.flags[dependency] = true;
           }
         }
       }
     }
 
     // Disable dependent features when dependencies are disabled
-    let changed = true
+    let changed = true;
     while (changed) {
-      changed = false
-      for (const [feature, dependencies] of Object.entries(FEATURE_DEPENDENCIES)) {
+      changed = false;
+      for (const [feature, dependencies] of Object.entries(
+        FEATURE_DEPENDENCIES
+      )) {
         if (this.flags[feature]) {
           for (const dependency of dependencies) {
             if (!this.flags[dependency]) {
-              console.log(`Disabling ${feature} because dependency ${dependency} is disabled`)
-              this.flags[feature] = false
-              changed = true
-              break
+              console.log(
+                `Disabling ${feature} because dependency ${dependency} is disabled`
+              );
+              this.flags[feature] = false;
+              changed = true;
+              break;
             }
           }
         }
@@ -353,21 +307,23 @@ class FeatureFlagsManager {
    * @returns {Object} - Feature information organized by category
    */
   getFeatureInfo() {
-    const result = {}
+    const result = {};
 
     for (const [category, features] of Object.entries(FEATURE_CATEGORIES)) {
       result[category] = features.map((feature) => ({
         id: feature,
-        name: feature.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()),
+        name: feature
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (str) => str.toUpperCase()),
         description: FEATURE_DESCRIPTIONS[feature] || "",
         enabled: this.flags[feature] || false,
         hasPermission: this.hasPermission(feature),
         requiredPermission: FEATURE_PERMISSIONS[feature] || "admin",
         dependencies: FEATURE_DEPENDENCIES[feature] || [],
-      }))
+      }));
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -375,18 +331,17 @@ class FeatureFlagsManager {
    * @returns {Promise<void>}
    */
   async resetToDefaults() {
-    this.flags = { ...defaultFeatureFlags }
-    this.validateFlags()
-    await this.saveToStorage()
+    this.flags = { ...defaultFeatureFlags };
+    this.validateFlags();
+    await this.saveToStorage();
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(this.flags)
+      this.onUpdateCallback(this.flags);
     }
   }
 }
 
 // Create and export singleton instance
-const featureFlags = new FeatureFlagsManager()
+const featureFlags = new FeatureFlagsManager();
 
-export default featureFlags
-
+export default featureFlags;

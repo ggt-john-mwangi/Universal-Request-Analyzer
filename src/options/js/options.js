@@ -13,8 +13,12 @@ import "../components/visualization.js";
 import renderAnalyticsSection from "../components/analytics.js";
 
 // --- Harmonized Config/Filters Sync System ---
-import { getHarmonizedConfig, updateHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
-
+import {
+  getHarmonizedConfig,
+  updateHarmonizedConfig,
+  listenForConfigUpdates,
+} from "../../popup/js/settings-manager.js";
+import { defaultConfig } from "../../background/utils/utils.js";
 
 themeManager.initialize(); // Ensure themeManager is initialized before any theme is set
 
@@ -168,83 +172,7 @@ let allTables = [];
 let currentTableRows = [];
 let currentTablePage = 1;
 const ROWS_PER_PAGE = 100;
-
-// Default configuration
-const localDefaultConfig = {
-  general: {
-    maxStoredRequests: 10000,
-    autoStartCapture: true,
-    showNotifications: true,
-    confirmClearRequests: true,
-    defaultExportFormat: "json",
-    dateFormat: "YYYY-MM-DD HH:mm:ss",
-    timeZone: "local",
-  },
-  captureEnabled: true,
-  capture: {
-    includeHeaders: true,
-    includeTiming: true,
-    includeContent: false,
-    maxContentSize: 1024 * 1024,
-    captureWebSockets: false,
-    captureServerSentEvents: false,
-  },
-  captureFilters: {
-    includeDomains: [],
-    excludeDomains: [],
-    includeTypes: [
-      "xmlhttprequest",
-      "fetch",
-      "script",
-      "stylesheet",
-      "image",
-      "font",
-      "other",
-    ],
-  },
-  display: {
-    requestsPerPage: 50,
-    expandedDetails: false,
-    showStatusColors: true,
-    showTimingBars: true,
-    defaultTab: "requests",
-    columnOrder: [
-      "method",
-      "domain",
-      "path",
-      "status",
-      "type",
-      "size",
-      "duration",
-      "time",
-    ],
-  },
-  autoExport: false,
-  exportFormat: "json",
-  exportInterval: 86400000,
-  exportPath: "",
-  plotEnabled: true,
-  plotTypes: [
-    "responseTime",
-    "statusCodes",
-    "domains",
-    "requestTypes",
-    "timeDistribution",
-  ],
-  advanced: {
-    enableDebugMode: false,
-    persistFilters: true,
-    useCompression: false,
-    backgroundMode: "default",
-    syncInterval: 60,
-    logErrorsToDatabase: true,
-    logErrorsToConsole: true,
-  },
-  notifications: {
-    enabled: true,
-  },
-  lastExportTime: null,
-};
+const MAX_BACKUP_SIZE = 1024 * 1024 * 1024; // 1 GB
 
 // --- Event-based request/response helpers ---
 const pendingRequests = {};
@@ -300,32 +228,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Load options when the page loads
-    analyticsSection.innerHTML = "";
-    analyticsSection.appendChild(renderAnalyticsSection());
-  
-  // Initial Load for new features
-  loadBackupList();
-  checkDbHealth();
-  loadTableList();
-  loadHistoryLog();
-  updateEncryptionStatus();
+analyticsSection.innerHTML = "";
+analyticsSection.appendChild(renderAnalyticsSection());
 
+// Initial Load for new features
+loadBackupList();
+checkDbHealth();
+loadTableList();
+loadHistoryLog();
+updateEncryptionStatus();
 
 // Add event listeners for buttons if they exist
 if (exportDbBtn) {
   exportDbBtn.addEventListener("click", function () {
-    const requestId = `exportDb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `exportDb_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     function handler(response) {
       if (response && response.requestId === requestId) {
-        showNotification(response.success ? "Database exported successfully." : ("Export failed: " + (response?.error || "Unknown error")), !response.success);
+        showNotification(
+          response.success
+            ? "Database exported successfully."
+            : "Export failed: " + (response?.error || "Unknown error"),
+          !response.success
+        );
         chrome.runtime.onMessage.removeListener(handler);
         loadDatabaseInfo();
       }
     }
     chrome.runtime.onMessage.addListener(handler);
     exportDbBtn.disabled = true;
-    exportDbBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
-    chrome.runtime.sendMessage({ action: "exportData", format: "sqlite", requestId });
+    exportDbBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    chrome.runtime.sendMessage({
+      action: "exportData",
+      format: "sqlite",
+      requestId,
+    });
     setTimeout(() => {
       exportDbBtn.disabled = false;
       exportDbBtn.innerHTML = "Export Database (.sqlite)";
@@ -334,10 +273,18 @@ if (exportDbBtn) {
 }
 if (clearDbBtn) {
   clearDbBtn.addEventListener("click", function () {
-    const requestId = `clearDb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `clearDb_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     function handler(response) {
       if (response && response.requestId === requestId) {
-        showNotification(response.success ? "Database cleared successfully." : ("Error clearing database: " + (response?.error || "Unknown error")), !response.success);
+        showNotification(
+          response.success
+            ? "Database cleared successfully."
+            : "Error clearing database: " +
+                (response?.error || "Unknown error"),
+          !response.success
+        );
         chrome.runtime.onMessage.removeListener(handler);
         loadDatabaseInfo();
       }
@@ -354,17 +301,25 @@ if (clearDbBtn) {
 }
 if (importDataBtn) {
   importDataBtn.addEventListener("click", function () {
-    const requestId = `importData_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `importData_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     function handler(response) {
       if (response && response.requestId === requestId) {
-        showNotification(response.success ? "Data imported successfully." : ("Error importing data: " + (response?.error || "Unknown error")), !response.success);
+        showNotification(
+          response.success
+            ? "Data imported successfully."
+            : "Error importing data: " + (response?.error || "Unknown error"),
+          !response.success
+        );
         chrome.runtime.onMessage.removeListener(handler);
         loadDatabaseInfo();
       }
     }
     chrome.runtime.onMessage.addListener(handler);
     importDataBtn.disabled = true;
-    importDataBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+    importDataBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> Importing...';
     // You should call your importData logic here and ensure it sends the requestId
     // For now, just send a dummy message:
     chrome.runtime.sendMessage({ action: "importData", requestId });
@@ -376,17 +331,25 @@ if (importDataBtn) {
 }
 if (refreshDbInfoBtn) {
   refreshDbInfoBtn.addEventListener("click", function () {
-    const requestId = `refreshDbInfo_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `refreshDbInfo_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     function handler(response) {
       if (response && response.requestId === requestId) {
-        showNotification(response.success ? "Database info refreshed." : ("Error refreshing info: " + (response?.error || "Unknown error")), !response.success);
+        showNotification(
+          response.success
+            ? "Database info refreshed."
+            : "Error refreshing info: " + (response?.error || "Unknown error"),
+          !response.success
+        );
         chrome.runtime.onMessage.removeListener(handler);
         loadDatabaseInfo();
       }
     }
     chrome.runtime.onMessage.addListener(handler);
     refreshDbInfoBtn.disabled = true;
-    refreshDbInfoBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    refreshDbInfoBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
     chrome.runtime.sendMessage({ action: "getDatabaseInfo", requestId });
     setTimeout(() => {
       refreshDbInfoBtn.disabled = false;
@@ -396,10 +359,17 @@ if (refreshDbInfoBtn) {
 }
 if (saveButton) {
   saveButton.addEventListener("click", function () {
-    const requestId = `saveAll_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const requestId = `saveAll_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     function handler(response) {
       if (response && response.requestId === requestId) {
-        showNotification(response.success ? "All settings saved successfully!" : ("Error saving settings: " + (response?.error || "Unknown error")), !response.success);
+        showNotification(
+          response.success
+            ? "All settings saved successfully!"
+            : "Error saving settings: " + (response?.error || "Unknown error"),
+          !response.success
+        );
         chrome.runtime.onMessage.removeListener(handler);
       }
     }
@@ -409,10 +379,17 @@ if (saveButton) {
   });
 }
 resetBtn.addEventListener("click", function () {
-  const requestId = `resetAll_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const requestId = `resetAll_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2)}`;
   function handler(response) {
     if (response && response.requestId === requestId) {
-      showNotification(response.success ? "Options reset to defaults" : ("Error resetting options: " + (response?.error || "Unknown error")), !response.success);
+      showNotification(
+        response.success
+          ? "Options reset to defaults"
+          : "Error resetting options: " + (response?.error || "Unknown error"),
+        !response.success
+      );
       chrome.runtime.onMessage.removeListener(handler);
       loadOptions();
     }
@@ -501,8 +478,8 @@ function loadOptions() {
         "Failed to load config from background script:",
         response?.error || "No config received. Using defaults."
       );
-      updateUIFromConfig(localDefaultConfig); // Use local defaults as fallback
-      applyThemeFromConfig(localDefaultConfig); // Ensure theme is applied on fallback
+      updateUIFromConfig(defaultConfig); // Use local defaults as fallback
+      applyThemeFromConfig(defaultConfig); // Ensure theme is applied on fallback
     }
   });
 
@@ -511,11 +488,11 @@ function loadOptions() {
 
 // Function to update UI elements based on a config object
 function updateUIFromConfig(config) {
-  // Ensure config is not null/undefined, default to localDefaultConfig if it is
-  config = config || localDefaultConfig;
+  // Ensure config is not null/undefined, default to defaultConfig if it is
+  config = config || defaultConfig;
 
   // General Settings
-  const generalConf = config.general || localDefaultConfig.general;
+  const generalConf = config.general || defaultConfig.general;
   if (maxStoredRequests)
     maxStoredRequests.value = generalConf.maxStoredRequests;
   if (autoStartCapture) autoStartCapture.checked = generalConf.autoStartCapture;
@@ -531,8 +508,8 @@ function updateUIFromConfig(config) {
   // Capture Settings
   if (captureEnabled)
     captureEnabled.checked =
-      config.captureEnabled ?? localDefaultConfig.captureEnabled;
-  const captureConf = config.capture || localDefaultConfig.capture;
+      config.captureEnabled ?? defaultConfig.captureEnabled;
+  const captureConf = config.capture || defaultConfig.capture;
   if (includeHeaders) includeHeaders.checked = captureConf.includeHeaders;
   if (includeTiming) includeTiming.checked = captureConf.includeTiming;
   if (includeContent) includeContent.checked = captureConf.includeContent;
@@ -544,7 +521,7 @@ function updateUIFromConfig(config) {
 
   // Capture Filters
   const captureFiltersConf =
-    config.captureFilters || localDefaultConfig.captureFilters;
+    config.captureFilters || defaultConfig.captureFilters;
   if (captureTypeCheckboxes) {
     captureTypeCheckboxes.forEach((checkbox) => {
       checkbox.checked = (captureFiltersConf.includeTypes || []).includes(
@@ -558,7 +535,7 @@ function updateUIFromConfig(config) {
     excludeDomains.value = (captureFiltersConf.excludeDomains || []).join(", ");
 
   // Display Settings
-  const displayConf = config.display || localDefaultConfig.display;
+  const displayConf = config.display || defaultConfig.display;
   if (requestsPerPage) requestsPerPage.value = displayConf.requestsPerPage;
   if (expandedDetails) expandedDetails.checked = displayConf.expandedDetails;
   if (showStatusColors) showStatusColors.checked = displayConf.showStatusColors;
@@ -567,14 +544,14 @@ function updateUIFromConfig(config) {
 
   // Auto Export Settings
   if (autoExport)
-    autoExport.checked = config.autoExport ?? localDefaultConfig.autoExport;
+    autoExport.checked = config.autoExport ?? defaultConfig.autoExport;
   if (exportFormat)
-    exportFormat.value = config.exportFormat ?? localDefaultConfig.exportFormat;
+    exportFormat.value = config.exportFormat ?? defaultConfig.exportFormat;
   if (exportInterval)
     exportInterval.value =
-      (config.exportInterval ?? localDefaultConfig.exportInterval) / 60000;
+      (config.exportInterval ?? defaultConfig.exportInterval) / 60000;
   if (exportPath)
-    exportPath.value = config.exportPath ?? localDefaultConfig.exportPath;
+    exportPath.value = config.exportPath ?? defaultConfig.exportPath;
   if (lastExport) {
     lastExport.textContent = config.lastExportTime
       ? new Date(config.lastExportTime).toLocaleString()
@@ -583,8 +560,8 @@ function updateUIFromConfig(config) {
 
   // Plot Settings
   if (plotEnabled)
-    plotEnabled.checked = config.plotEnabled ?? localDefaultConfig.plotEnabled;
-  const plotTypes = config.plotTypes ?? localDefaultConfig.plotTypes;
+    plotEnabled.checked = config.plotEnabled ?? defaultConfig.plotEnabled;
+  const plotTypes = config.plotTypes ?? defaultConfig.plotTypes;
   if (plotTypeCheckboxes) {
     plotTypeCheckboxes.forEach((checkbox) => {
       checkbox.checked = (plotTypes || []).includes(checkbox.value);
@@ -592,7 +569,7 @@ function updateUIFromConfig(config) {
   }
 
   // Advanced Settings
-  const advancedConf = config.advanced || localDefaultConfig.advanced;
+  const advancedConf = config.advanced || defaultConfig.advanced;
   if (enableDebugMode) enableDebugMode.checked = advancedConf.enableDebugMode;
   if (persistFilters) persistFilters.checked = advancedConf.persistFilters;
   if (useCompression) useCompression.checked = advancedConf.useCompression;
@@ -600,10 +577,10 @@ function updateUIFromConfig(config) {
   if (syncInterval) syncInterval.value = advancedConf.syncInterval;
   logErrorsToDatabase.checked =
     advancedConf.logErrorsToDatabase ??
-    localDefaultConfig.advanced.logErrorsToDatabase;
+    defaultConfig.advanced.logErrorsToDatabase;
   logErrorsToConsole.checked =
     advancedConf.logErrorsToConsole ??
-    localDefaultConfig.advanced.logErrorsToConsole;
+    defaultConfig.advanced.logErrorsToConsole;
 
   // Theme
   if (themeSelect && config?.ui?.theme) {
@@ -657,7 +634,9 @@ function loadDatabaseInfo() {
         if (response.summary.length > 0) {
           response.summary.forEach((table) => {
             const li = document.createElement("li");
-            li.textContent = `${table.name}: ${table.rows.toLocaleString()} rows`;
+            li.textContent = `${
+              table.name
+            }: ${table.rows.toLocaleString()} rows`;
             dbSchemaSummary.appendChild(li);
           });
         } else {
@@ -747,34 +726,60 @@ function formatBytes(bytes, decimals = 2) {
 function saveOptions(requestId) {
   const newConfig = {
     general: {
-      maxStoredRequests: maxStoredRequests ? Number.parseInt(maxStoredRequests.value, 10) || 10000 : 10000,
+      maxStoredRequests: maxStoredRequests
+        ? Number.parseInt(maxStoredRequests.value, 10) || 10000
+        : 10000,
       autoStartCapture: autoStartCapture ? autoStartCapture.checked : false,
       showNotifications: showNotifications ? showNotifications.checked : true,
-      confirmClearRequests: confirmClearRequests ? confirmClearRequests.checked : true,
-      defaultExportFormat: defaultExportFormat ? defaultExportFormat.value : 'json',
-      dateFormat: dateFormat ? dateFormat.value : 'YYYY-MM-DD HH:mm:ss',
-      timeZone: timeZone ? timeZone.value : 'local',
+      confirmClearRequests: confirmClearRequests
+        ? confirmClearRequests.checked
+        : true,
+      defaultExportFormat: defaultExportFormat
+        ? defaultExportFormat.value
+        : "json",
+      dateFormat: dateFormat ? dateFormat.value : "YYYY-MM-DD HH:mm:ss",
+      timeZone: timeZone ? timeZone.value : "local",
     },
     captureEnabled: captureEnabled ? captureEnabled.checked : true,
     capture: {
       includeHeaders: includeHeaders ? includeHeaders.checked : true,
       includeTiming: includeTiming ? includeTiming.checked : true,
       includeContent: includeContent ? includeContent.checked : false,
-      maxContentSize: maxContentSize ? Number.parseInt(maxContentSize.value, 10) || 1024 * 1024 : 1024 * 1024,
+      maxContentSize: maxContentSize
+        ? Number.parseInt(maxContentSize.value, 10) || 1024 * 1024
+        : 1024 * 1024,
       captureWebSockets: captureWebSockets ? captureWebSockets.checked : false,
-      captureServerSentEvents: captureServerSentEvents ? captureServerSentEvents.checked : false,
+      captureServerSentEvents: captureServerSentEvents
+        ? captureServerSentEvents.checked
+        : false,
     },
     captureFilters: {
-      includeDomains: includeDomains ? includeDomains.value.split(",").map((d) => d.trim()).filter((d) => d) : [],
-      excludeDomains: excludeDomains ? excludeDomains.value.split(",").map((d) => d.trim()).filter((d) => d) : [],
-      includeTypes: captureTypeCheckboxes ? Array.from(captureTypeCheckboxes).filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value) : [],
+      includeDomains: includeDomains
+        ? includeDomains.value
+            .split(",")
+            .map((d) => d.trim())
+            .filter((d) => d)
+        : [],
+      excludeDomains: excludeDomains
+        ? excludeDomains.value
+            .split(",")
+            .map((d) => d.trim())
+            .filter((d) => d)
+        : [],
+      includeTypes: captureTypeCheckboxes
+        ? Array.from(captureTypeCheckboxes)
+            .filter((checkbox) => checkbox.checked)
+            .map((checkbox) => checkbox.value)
+        : [],
     },
     display: {
-      requestsPerPage: requestsPerPage ? Number.parseInt(requestsPerPage.value, 10) || 50 : 50,
+      requestsPerPage: requestsPerPage
+        ? Number.parseInt(requestsPerPage.value, 10) || 50
+        : 50,
       expandedDetails: expandedDetails ? expandedDetails.checked : false,
       showStatusColors: showStatusColors ? showStatusColors.checked : true,
       showTimingBars: showTimingBars ? showTimingBars.checked : true,
-      defaultTab: defaultTab ? defaultTab.value : 'requests',
+      defaultTab: defaultTab ? defaultTab.value : "requests",
       columnOrder: [
         "method",
         "domain",
@@ -787,19 +792,31 @@ function saveOptions(requestId) {
       ],
     },
     autoExport: autoExport ? autoExport.checked : false,
-    exportFormat: exportFormat ? exportFormat.value : 'json',
-    exportInterval: exportInterval ? Number.parseInt(exportInterval.value, 10) * 60000 : 86400000,
-    exportPath: exportPath ? exportPath.value.trim() : '',
+    exportFormat: exportFormat ? exportFormat.value : "json",
+    exportInterval: exportInterval
+      ? Number.parseInt(exportInterval.value, 10) * 60000
+      : 86400000,
+    exportPath: exportPath ? exportPath.value.trim() : "",
     plotEnabled: plotEnabled ? plotEnabled.checked : true,
-    plotTypes: plotTypeCheckboxes ? Array.from(plotTypeCheckboxes).filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value) : [],
+    plotTypes: plotTypeCheckboxes
+      ? Array.from(plotTypeCheckboxes)
+          .filter((checkbox) => checkbox.checked)
+          .map((checkbox) => checkbox.value)
+      : [],
     advanced: {
       enableDebugMode: enableDebugMode ? enableDebugMode.checked : false,
       persistFilters: persistFilters ? persistFilters.checked : true,
       useCompression: useCompression ? useCompression.checked : false,
-      backgroundMode: backgroundMode ? backgroundMode.value : 'default',
-      syncInterval: syncInterval ? Number.parseInt(syncInterval.value, 10) || 60 : 60,
-      logErrorsToDatabase: logErrorsToDatabase ? logErrorsToDatabase.checked : true,
-      logErrorsToConsole: logErrorsToConsole ? logErrorsToConsole.checked : true,
+      backgroundMode: backgroundMode ? backgroundMode.value : "default",
+      syncInterval: syncInterval
+        ? Number.parseInt(syncInterval.value, 10) || 60
+        : 60,
+      logErrorsToDatabase: logErrorsToDatabase
+        ? logErrorsToDatabase.checked
+        : true,
+      logErrorsToConsole: logErrorsToConsole
+        ? logErrorsToConsole.checked
+        : true,
     },
   };
 
@@ -1010,21 +1027,21 @@ function showNotification(message, isError = false) {
 let sqlHistory = [];
 let pendingSqlRequests = {};
 
-// Listen for event-based SQL results
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (
-    message &&
-    message.action === "executeRawSqlResult" &&
-    message.requestId
-  ) {
-    console.log('[Options] onMessage executeRawSqlResult:', message);
-    const cb = pendingSqlRequests[message.requestId];
-    if (cb) {
-      cb(message);
-      delete pendingSqlRequests[message.requestId];
-    }
-  }
-});
+// // Listen for event-based SQL results
+// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+//   if (
+//     message &&
+//     message.action === "executeRawSqlResult" &&
+//     message.requestId
+//   ) {
+//     console.log('[Options] onMessage executeRawSqlResult:', message);
+//     const cb = pendingSqlRequests[message.requestId];
+//     if (cb) {
+//       cb(message);
+//       delete pendingSqlRequests[message.requestId];
+//     }
+//   }
+// });
 
 function fetchSqlHistory() {
   eventRequest("getSqlHistory", {}, (response) => {
@@ -1198,11 +1215,13 @@ function executeRawSql() {
   const sql = rawSqlInput.value.trim();
   if (!sql) {
     showNotification("Please enter a SQL query.", true);
-    sqlResultsOutput.innerHTML = "<span class='error'>No SQL query entered.</span>";
+    sqlResultsOutput.innerHTML =
+      "<span class='error'>No SQL query entered.</span>";
     return;
   }
-  console.log('[Options] Sending executeRawSql:', sql);
-  sqlResultsOutput.innerHTML = "<span><i class='fas fa-spinner fa-spin'></i> Executing query...</span>";
+  console.log("[Options] Sending executeRawSql:", sql);
+  sqlResultsOutput.innerHTML =
+    "<span><i class='fas fa-spinner fa-spin'></i> Executing query...</span>";
   sqlResultsOutput.classList.remove("error");
   executeSqlBtn.disabled = true;
   clearSqlBtn.disabled = true;
@@ -1284,7 +1303,8 @@ function executeRawSql() {
     if (executeSqlBtn.disabled) {
       executeSqlBtn.disabled = false;
       clearSqlBtn.disabled = false;
-      sqlResultsOutput.innerHTML = "<pre class='error'>Error: No response from backend (timeout).</pre>";
+      sqlResultsOutput.innerHTML =
+        "<pre class='error'>Error: No response from backend (timeout).</pre>";
       sqlResultsOutput.classList.add("error");
       showNotification("No response from backend (timeout).", true);
     }
@@ -1313,7 +1333,10 @@ function loadBackupList() {
       const options = response.backups.map((backup) => {
         const meta = backup.meta || {};
         backupMetaCache[backup.key] = meta;
-        return `<option value="${backup.key}">${formatBackupOption(backup.key, meta)}</option>`;
+        return `<option value="${backup.key}">${formatBackupOption(
+          backup.key,
+          meta
+        )}</option>`;
       });
       restoreBackupSelect.innerHTML = options.join("");
     } else {
@@ -1716,9 +1739,14 @@ function setupEventListeners() {
       showNotification("Database settings saved.");
     });
   }
+  if (executeSqlBtn) {
+    executeSqlBtn.addEventListener("click", executeRawSql);
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   console.log("setupSidebarNavigation called");
   setupSidebarNavigation();
+  setupEventListeners();
+  loadOptions();
 });

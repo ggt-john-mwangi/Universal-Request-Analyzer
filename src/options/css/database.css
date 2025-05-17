@@ -1,0 +1,471 @@
+/* Database info section styling */
+.database-info {
+  margin-top: 30px;
+  padding: 20px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px; /* Match container radius */
+}
+
+.database-info h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: var(--text-primary-color);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center; /* Align items vertically */
+  margin-bottom: 10px; /* More space */
+  padding-bottom: 10px; /* Add padding below row */
+  border-bottom: 1px solid var(--border-color); /* Separator */
+}
+
+.info-row:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.info-label {
+  font-weight: 500;
+  color: var(--text-primary-color);
+}
+
+/* Align checkbox in DB info section */
+.info-row input[type="checkbox"] {
+  margin-left: 10px; /* Space before checkbox */
+}
+
+/* Actions within the DB info section */
+.database-info .actions {
+  border-top: none; /* Remove double border */
+  padding-top: 15px;
+  margin-top: 15px;
+}
+
+/* Database Inspection Section */
+#database-inspection .sub-section {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+#database-inspection h3 {
+  margin-bottom: 10px;
+  font-size: 1.1em;
+  color: var(--text-primary-color);
+}
+
+#database-inspection button {
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+
+.db-summary-container,
+.table-container,
+.results-container {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+#rawSqlInput {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  font-family: monospace;
+}
+
+#sqlResultsOutput {
+  white-space: pre-wrap; /* Wrap long lines */
+  word-wrap: break-word; /* Break words if necessary */
+  max-height: 400px; /* Limit height */
+  overflow: auto; /* Add scrollbars if needed */
+}
+
+.warning {
+  color: var(--error-color);
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
+/* Error Log Table */
+#errorLogTableContainer {
+  max-height: 400px; /* Adjust as needed */
+  overflow: auto;
+}
+
+#errorLogTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+#errorLogTable th,
+#errorLogTable td {
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top; /* Align content to the top */
+}
+
+#errorLogTable th {
+  background-color: var(--surface-color);
+  color: var(--text-primary-color);
+  position: sticky; /* Make header sticky */
+  top: 0; /* Stick to the top */
+  z-index: 1; /* Ensure header is above table body */
+}
+
+#errorLogTable td {
+  color: var(--text-primary-color);
+  word-break: break-word; /* Break long words/messages */
+}
+
+#errorLogTable tbody tr:nth-child(even) {
+  background-color: var(--surface-hover-color, #f9f9f9);
+}
+
+#errorLogTable tbody tr:hover {
+  background-color: var(--surface-hover-color, #e9e9e9);
+}
+
+/* Adjust column widths if needed */
+#errorLogTable th:nth-child(1), /* Timestamp */
+#errorLogTable td:nth-child(1) {
+  width: 15%;
+  min-width: 120px;
+}
+
+#errorLogTable th:nth-child(2), /* Category */
+#errorLogTable td:nth-child(2) {
+  width: 15%;
+  min-width: var(--header-height);
+}
+
+#errorLogTable th:nth-child(3), /* Message */
+#errorLogTable td:nth-child(3) {
+  width: 40%;
+}
+
+#errorLogTable th:nth-child(4) {
+  /* Details */
+  width: 30%;
+}
+.db-info-section ul,
+.sql-executor-section pre,
+.error-log-section table {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 0.9em;
+}
+.error-log-section table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.error-log-section th,
+.error-log-section td {
+  border: 1px solid var(--border-color);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.error-log-section th {
+  background-color: var(--surface-color);
+  color: var(--text-primary-color);
+  position: sticky;
+  top: 0;
+}
+.sql-executor-section textarea {
+  width: 100%;
+  min-height: var(--header-height);
+  font-family: monospace;
+}
+.sql-executor-section pre.error {
+  color: var(--error-color);
+  white-space: pre-wrap;
+}
+
+/* Database Section Styling */
+.db-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin: 24px 0 16px 0;
+  padding: 18px 18px 12px 18px;
+  box-shadow: 0 1px 4px var(--shadow-color);
+}
+
+.db-section-divider {
+  height: 18px;
+}
+
+.db-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.db-encryption-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr 40px 1fr 1fr 2fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.db-encryption-grid input[type="password"] {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  color: var(--text-primary-color);
+}
+
+.db-encryption-grid .warning {
+  color: var(--error-color);
+  font-weight: 500;
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.db-table-grid {
+  display: grid;
+  grid-template-columns: 2fr 0.7fr 2fr 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.db-table-grid input[type="text"],
+.db-table-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-color);
+  color: var(--text-primary-color);
+  font-size: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.db-table-grid input[type="text"]:focus,
+.db-table-grid select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.db-table-grid label {
+  font-weight: 500;
+  color: var(--text-primary-color);
+  margin-bottom: 0;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.db-table-grid button {
+  padding: 7px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-table-grid button:hover {
+  background: var(--surface-hover-color, #e0e0e0);
+  color: var(--primary-color);
+}
+
+.db-table-grid .fa-eye,
+.db-table-grid .fa-file-csv {
+  font-size: 1em;
+}
+
+#tableViewContainer {
+  margin-top: 10px;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 8px;
+  min-height: 40px;
+}
+
+.table-pagination {
+  margin-top: 8px;
+  text-align: right;
+}
+
+.table-page-btn {
+  margin: 0 2px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary-color);
+  cursor: pointer;
+}
+.table-page-btn[disabled] {
+  background: var(--surface-hover-color, #e0e0e0);
+  color: var(--text-disabled-color);
+  cursor: default;
+}
+
+.db-history-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+#historyLogList {
+  margin: 0;
+  padding-left: 18px;
+  min-height: 32px;
+}
+
+#historyLogList li {
+  margin-bottom: 4px;
+  font-size: 0.97em;
+  color: var(--text-primary-color);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-health {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.db-health .fa-circle {
+  font-size: 13px;
+}
+
+#encryptionStatus {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Raw SQL Executor Section Styling */
+.sql-executor-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 18px 16px 14px 16px;
+  margin: 18px 0 24px 0;
+  box-shadow: 0 1px 4px var(--shadow-color);
+}
+
+.sql-executor-section textarea {
+  width: 100%;
+  min-height: 90px;
+  font-family: "Fira Mono", "Consolas", "Menlo", "monospace";
+  font-size: 15px;
+  background: var(--background-color);
+  color: var(--text-primary-color);
+  border: 1.5px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+
+.sql-executor-section textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.sql-executor-section button {
+  padding: 7px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary-color);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sql-executor-section button:hover {
+  background: var(--surface-hover-color, #e0e0e0);
+  color: var(--primary-color);
+}
+
+#sqlResultsOutput {
+  margin-top: 12px;
+  min-height: 32px;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  font-family: "Fira Mono", "Consolas", "Menlo", "monospace";
+  font-size: 14px;
+  color: var(--text-primary-color);
+  overflow-x: auto;
+  word-break: break-word;
+}
+
+#sqlResultsOutput pre.error {
+  color: var(--error-color);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+#sqlResultsOutput .sql-nonselect-msg {
+  color: var(--success-color);
+  font-weight: 500;
+}
+
+.sql-executor-section .fa-play {
+  color: var(--primary-color);
+}
+.sql-executor-section .fa-eraser {
+  color: var(--text-secondary-color);
+}
+
+/* Status/health colors for icons */
+.db-health .fa-circle[style*="color:#28a745"] {
+  color: var(--success-color) !important;
+}
+.db-health .fa-circle[style*="color:#dc3545"] {
+  color: var(--error-color) !important;
+}
+.db-health .fa-circle[style*="color:#aaa"] {
+  color: var(--text-disabled-color) !important;
+}

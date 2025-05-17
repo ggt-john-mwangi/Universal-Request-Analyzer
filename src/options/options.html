@@ -5,8 +5,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer - Options</title>
+  <link rel="stylesheet" href="styles.css">
+
   <link rel="stylesheet" href="css/options.css">
-  <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="css/analytics.css">
+  <link rel="stylesheet" href="css/database.css">
 
 </head>
 
@@ -19,13 +22,13 @@
       <ul>
         <li>
           <a href="#general" class="nav-link active" data-section="general-settings">
-            <i class="fas fa-cogs"></i> 
+            <i class="fas fa-cogs"></i>
             General
           </a>
         </li>
         <li>
           <a href="#theme" class="nav-link" data-section="theme-settings">
-            <i class="fas fa-paint-brush"></i> 
+            <i class="fas fa-paint-brush"></i>
             Theme
           </a>
         </li>
@@ -66,7 +69,7 @@
           </a>
         </li>
       </ul>
-      
+
     </nav>
 
     <!-- Main Content Area -->
@@ -124,7 +127,8 @@
         </div>
         <div class="option-row">
           <label for="notification-duration">Notification Duration (ms):</label>
-          <input type="number" id="notification-duration" name="notification-duration" min="1000" step="500" value="3000">
+          <input type="number" id="notification-duration" name="notification-duration" min="1000" step="500"
+            value="3000">
         </div>
       </section>
 
@@ -291,7 +295,8 @@
 
         <div class="option-row">
           <label for="manualExportFilename">Manual Export Filename:</label>
-          <input type="text" id="manualExportFilename" placeholder="ura-export-{date}" title="Enter filename without extension. {date} will be replaced with YYYY-MM-DD.">
+          <input type="text" id="manualExportFilename" placeholder="ura-export-{date}"
+            title="Enter filename without extension. {date} will be replaced with YYYY-MM-DD.">
         </div>
         <div class="actions">
           <button id="exportDbBtn" class="primary-btn">Export Database (.sqlite)</button>
@@ -318,7 +323,9 @@
                 </tr>
               </thead>
               <tbody id="dbErrorsTableBody">
-                <tr><td colspan="5">Loading errors...</td></tr>
+                <tr>
+                  <td colspan="5">Loading errors...</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -328,30 +335,40 @@
 
         <!-- Database Tools -->
         <section class="db-section">
-          <h3>Database Tools <span title="Backup, restore, optimize, and check health of your database."><i class="fas fa-database"></i></span></h3>
+          <h3>Database Tools <span title="Backup, restore, optimize, and check health of your database."><i
+                class="fas fa-database"></i></span></h3>
           <div class="db-tools-grid">
-            <button id="backupDbBtn" title="Create a backup of the current database."><i class="fas fa-save"></i> Backup</button>
+            <button id="backupDbBtn" title="Create a backup of the current database."><i class="fas fa-save"></i>
+              Backup</button>
             <select id="restoreBackupSelect" title="Select a backup to restore.">
               <option value="" disabled selected>No backups found</option>
             </select>
-            <button id="restoreBackupBtn" title="Restore the selected backup."><i class="fas fa-undo"></i> Restore</button>
+            <button id="restoreBackupBtn" title="Restore the selected backup."><i class="fas fa-undo"></i>
+              Restore</button>
             <button id="deleteBackupBtn" title="Delete selected backup."><i class="fas fa-trash"></i></button>
-            <button id="vacuumDbBtn" title="Optimize the database by reclaiming unused space (VACUUM)."><i class="fas fa-broom"></i> Optimize</button>
-            <span id="dbHealthStatus" class="db-health" title="Database health status."><i class="fas fa-circle" style="font-size:12px;"></i> Checking...</span>
+            <button id="vacuumDbBtn" title="Optimize the database by reclaiming unused space (VACUUM)."><i
+                class="fas fa-broom"></i> Optimize</button>
+            <span id="dbHealthStatus" class="db-health" title="Database health status."><i class="fas fa-circle"
+                style="font-size:12px;"></i> Checking...</span>
           </div>
         </section>
         <div class="db-section-divider"></div>
 
         <!-- Encryption Controls -->
         <section class="db-section">
-          <h3>Encryption <span title="Encrypt or decrypt your database for extra security."><i class="fas fa-lock"></i></span></h3>
+          <h3>Encryption <span title="Encrypt or decrypt your database for extra security."><i
+                class="fas fa-lock"></i></span></h3>
           <div class="db-encryption-grid">
             <span id="encryptionStatus"><i class="fas fa-lock-open"></i> Status: Unknown</span>
-            <input type="password" id="encryptionKeyInput" placeholder="Enter encryption key..." autocomplete="new-password" />
+            <input type="password" id="encryptionKeyInput" placeholder="Enter encryption key..."
+              autocomplete="new-password" />
             <button id="toggleKeyVisibility" title="Show/hide key"><i class="fas fa-eye"></i></button>
-            <button id="encryptDbBtn" title="Encrypt the database with a password."><i class="fas fa-lock"></i> Encrypt</button>
-            <button id="decryptDbBtn" title="Decrypt the database with a password."><i class="fas fa-unlock"></i> Decrypt</button>
-            <span id="encryptionWarning" class="warning" style="display:none;"><i class="fas fa-exclamation-triangle"></i> Database is not encrypted!</span>
+            <button id="encryptDbBtn" title="Encrypt the database with a password."><i class="fas fa-lock"></i>
+              Encrypt</button>
+            <button id="decryptDbBtn" title="Decrypt the database with a password."><i class="fas fa-unlock"></i>
+              Decrypt</button>
+            <span id="encryptionWarning" class="warning" style="display:none;"><i
+                class="fas fa-exclamation-triangle"></i> Database is not encrypted!</span>
           </div>
         </section>
         <div class="db-section-divider"></div>
@@ -366,7 +383,8 @@
               <option value="" disabled selected>No tables found</option>
             </select>
             <button id="viewTableBtn" title="View selected table."><i class="fas fa-eye"></i> View</button>
-            <button id="exportTableBtn" title="Export this table as CSV."><i class="fas fa-file-csv"></i> Export</button>
+            <button id="exportTableBtn" title="Export this table as CSV."><i class="fas fa-file-csv"></i>
+              Export</button>
           </div>
           <div id="tableViewContainer"></div>
           <div id="tablePagination" class="table-pagination"></div>
@@ -375,10 +393,14 @@
 
         <!-- Export/Import History Log -->
         <section class="db-section">
-          <h3>Export/Import History <span title="Recent export, import, and backup events."><i class="fas fa-history"></i></span></h3>
+          <h3>Export/Import History <span title="Recent export, import, and backup events."><i
+                class="fas fa-history"></i></span></h3>
           <div class="db-history-grid">
-            <ul id="historyLogList"><li>No history found.</li></ul>
-            <button id="clearHistoryLogBtn" title="Clear the export/import history log."><i class="fas fa-trash"></i> Clear Log</button>
+            <ul id="historyLogList">
+              <li>No history found.</li>
+            </ul>
+            <button id="clearHistoryLogBtn" title="Clear the export/import history log."><i class="fas fa-trash"></i>
+              Clear Log</button>
           </div>
         </section>
       </section>
@@ -392,7 +414,8 @@
           <button id="importDataBtn">Import</button>
         </div>
         <div class="option-row">
-          <span class="description">Import requests from JSON, CSV, or replace the entire database from a SQLite file.</span>
+          <span class="description">Import requests from JSON, CSV, or replace the entire database from a SQLite
+            file.</span>
         </div>
         <div class="option-row">
           <label for="manualExportFormat">Manual Export Format:</label>
@@ -403,7 +426,8 @@
           <button id="manualExportBtn">Export Data</button>
         </div>
         <div class="option-row">
-          <span class="description">Manually export all data in the selected format using the filename specified above.</span>
+          <span class="description">Manually export all data in the selected format using the filename specified
+            above.</span>
         </div>
       </section>
 
@@ -476,9 +500,11 @@
           </label>
         </div>
         <hr>
-        <h3>Raw SQL Executor <span title="Directly execute SQL queries on the database. Use with caution!"><i class="fas fa-terminal"></i></span></h3>
+        <h3>Raw SQL Executor <span title="Directly execute SQL queries on the database. Use with caution!"><i
+              class="fas fa-terminal"></i></span></h3>
         <div class="sql-executor-section">
-          <textarea id="rawSqlInput" placeholder="Enter SQL query (SELECT, PRAGMA, EXPLAIN, INSERT only)..." rows="4"></textarea>
+          <textarea id="rawSqlInput" placeholder="Enter SQL query (SELECT, PRAGMA, EXPLAIN, INSERT only)..."
+            rows="4"></textarea>
           <div style="margin-top:8px; display:flex; gap:10px;">
             <button id="executeSqlBtn"><i class="fas fa-play"></i> Execute</button>
             <button id="clearSqlBtn" class="secondary"><i class="fas fa-eraser"></i> Clear</button>
@@ -503,7 +529,7 @@
   <!-- Load Chart.js library -->
   <script src="../lib/chart.min.js"></script>
   <!-- Load Main Script -->
-  <script type="module" src="js/options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 
 </html>

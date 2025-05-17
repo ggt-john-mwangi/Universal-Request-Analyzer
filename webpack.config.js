@@ -3,9 +3,14 @@ const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
+const PurgeCSSPlugin = require("purgecss-webpack-plugin");
+const glob = require("glob");
+const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
+const PATHS = { src: path.join(__dirname, "src") };
 
 module.exports = (env, argv) => {
-  const isProduction = argv.mode === "production";
+  const isProduction = true; //argv.mode === "production";
 
   return {
     mode: argv.mode,
@@ -16,7 +21,7 @@ module.exports = (env, argv) => {
       background: "./src/background/background.js",
       content: "./src/content/content.js",
       devtools: "./src/devtools/js/devtools.js", // Separate entry point
-      panel: "./src/devtools/js/panel.js",     // Separate entry point for panel script
+      panel: "./src/devtools/js/panel.js", // Separate entry point for panel script
     },
     output: {
       path: path.resolve(__dirname, "dist"),
@@ -74,12 +79,19 @@ module.exports = (env, argv) => {
             from: "./src/assets/fontawesome/webfonts/**/*",
             to: "assets/fontawesome/webfonts/[name][ext]",
           },
-          {
-            from: "./src/assets/wasm/**/*",
-            to: "assets/wasm/[name][ext]",
-          },
+          // {
+          //   from: "./src/assets/wasm/**/*",
+          //   to: "assets/wasm/[name][ext]",
+          // },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
           { from: "./src/devtools/js/**/*", to: "[name][ext]" },
+          {
+            from: "./src/**/*.css",
+            to: "css/[name][ext]",
+            globOptions: {
+              ignore: ["**/assets/**"],
+            },
+          },
         ],
       }),
       new HtmlWebpackPlugin({
@@ -102,6 +114,11 @@ module.exports = (env, argv) => {
         filename: "panel.html", // Output to dist/panel.html
         chunks: ["panel"], // Inject the panel script
       }),
+      new PurgeCSSPlugin({
+        paths: glob.sync(`${PATHS.src}/**/*`, { nodir: true }),
+        safelist: { standard: [/^fa-/, /^icon-/] }, // keep fontawesome/icons if needed
+      }),
+      new BundleAnalyzerPlugin(),
     ],
     resolve: {
       extensions: [".js"],
@@ -118,6 +135,10 @@ module.exports = (env, argv) => {
     },
     optimization: {
       minimize: isProduction,
+      minimizer: [
+        "...", // keep existing minimizers (like Terser for JS)
+        new CssMinimizerPlugin(),
+      ],
       splitChunks: {
         cacheGroups: {
           styles: {

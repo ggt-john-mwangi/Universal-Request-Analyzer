@@ -3,161 +3,21 @@
  *
  * This module provides theme management and customization.
  */
-
-// Default themes
-const DEFAULT_THEMES = {
-  light: {
-    id: "light",
-    name: "Light",
-    description: "Default light theme",
-    colors: {
-      background: "#ffffff",
-      surface: "#f5f5f5",
-      primary: "#0066cc",
-      secondary: "#6c757d",
-      accent: "#ff9800",
-      error: "#dc3545",
-      warning: "#ffc107",
-      info: "#17a2b8",
-      success: "#28a745",
-      text: {
-        primary: "#212529",
-        secondary: "#6c757d",
-        disabled: "#adb5bd",
-      },
-      border: "#dee2e6",
-      divider: "#e9ecef",
-      shadow: "rgba(0, 0, 0, 0.1)",
-    },
-  },
-  dark: {
-    id: "dark",
-    name: "Dark",
-    description: "Default dark theme",
-    colors: {
-      background: "#212529",
-      surface: "#343a40",
-      primary: "#0d6efd",
-      secondary: "#6c757d",
-      accent: "#fd7e14",
-      error: "#dc3545",
-      warning: "#ffc107",
-      info: "#0dcaf0",
-      success: "#198754",
-      text: {
-        primary: "#f8f9fa",
-        secondary: "#e9ecef",
-        disabled: "#adb5bd",
-      },
-      border: "#495057",
-      divider: "#6c757d",
-      shadow: "rgba(0, 0, 0, 0.5)",
-    },
-  },
-  highContrast: {
-    id: "highContrast",
-    name: "High Contrast",
-    description: "High contrast theme for accessibility",
-    colors: {
-      background: "#000000",
-      surface: "#121212",
-      primary: "#ffffff",
-      secondary: "#cccccc",
-      accent: "#ffff00",
-      error: "#ff0000",
-      warning: "#ffff00",
-      info: "#00ffff",
-      success: "#00ff00",
-      text: {
-        primary: "#ffffff",
-        secondary: "#eeeeee",
-        disabled: "#aaaaaa",
-      },
-      border: "#ffffff",
-      divider: "#ffffff",
-      shadow: "rgba(255, 255, 255, 0.5)",
-    },
-  },
-  blue: {
-    id: "blue",
-    name: "Blue",
-    description: "Blue-focused theme",
-    colors: {
-      background: "#f0f8ff",
-      surface: "#e6f2ff",
-      primary: "#0066cc",
-      secondary: "#4d94ff",
-      accent: "#00ccff",
-      error: "#cc0000",
-      warning: "#ff9900",
-      info: "#0099cc",
-      success: "#009933",
-      text: {
-        primary: "#003366",
-        secondary: "#0066cc",
-        disabled: "#99ccff",
-      },
-      border: "#99ccff",
-      divider: "#cce6ff",
-      shadow: "rgba(0, 102, 204, 0.2)",
-    },
-  },
-}
-
-// CSS variables map
-const CSS_VARIABLES = {
-  background: "--background-color",
-  surface: "--surface-color",
-  primary: "--primary-color",
-  secondary: "--secondary-color",
-  accent: "--accent-color",
-  error: "--error-color",
-  warning: "--warning-color",
-  info: "--info-color",
-  success: "--success-color",
-  "text.primary": "--text-primary-color",
-  "text.secondary": "--text-secondary-color",
-  "text.disabled": "--text-disabled-color",
-  border: "--border-color",
-  divider: "--divider-color",
-  shadow: "--shadow-color",
-}
-
-// Utility: send message to background and return promise via event-based response
-function sendMessage(message) {
-  return new Promise((resolve, reject) => {
-    if (typeof chrome !== "undefined" && chrome.runtime) {
-      // Generate a unique requestId for this message
-      const requestId = `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      message.requestId = requestId;
-      // Listen for the event-based response
-      function handler(response) {
-        if (response && response.requestId === requestId) {
-          chrome.runtime.onMessage.removeListener(handler);
-          if (response.success === false || response.error) {
-            reject(response.error || new Error("Unknown error"));
-          } else {
-            resolve(response);
-          }
-        }
-      }
-      chrome.runtime.onMessage.addListener(handler);
-      chrome.runtime.sendMessage(message);
-    } else {
-      reject(new Error("chrome.runtime not available"));
-    }
-  });
-}
+import {
+  DEFAULT_THEMES,
+  CSS_VARIABLES,
+  sendMessage,
+} from "../background/utils/utils.js";
 
 /**
  * Theme manager class
  */
 class ThemeManager {
   constructor() {
-    this.themes = {} // Will be loaded from DB/config
-    this.currentTheme = "light" // Default, will be overwritten by DB/config
-    this.customThemes = {}
-    this.initialized = false
+    this.themes = {}; // Will be loaded from DB/config
+    this.currentTheme = "light"; // Default, will be overwritten by DB/config
+    this.customThemes = {};
+    this.initialized = false;
   }
 
   /**
@@ -175,7 +35,11 @@ class ThemeManager {
 
       if (data) {
         // Use themes from DB/config if present, else fallback to defaults
-        if (data.themes && typeof data.themes === 'object' && Object.keys(data.themes).length > 0) {
+        if (
+          data.themes &&
+          typeof data.themes === "object" &&
+          Object.keys(data.themes).length > 0
+        ) {
           this.themes = { ...data.themes };
         } else {
           this.themes = { ...DEFAULT_THEMES };
@@ -196,7 +60,10 @@ class ThemeManager {
       }
 
       // Override with initial theme if provided
-      if (options.initialTheme && (this.themes[options.initialTheme] || options.initialTheme === "system")) {
+      if (
+        options.initialTheme &&
+        (this.themes[options.initialTheme] || options.initialTheme === "system")
+      ) {
         this.currentTheme = options.initialTheme;
       }
 
@@ -234,6 +101,8 @@ class ThemeManager {
   async loadFromStorage() {
     try {
       const response = await sendMessage({ action: "getConfig" });
+      console.log("Loaded theme data from database:", response);
+      // Check if response contains themeData
       if (response && response.config && response.config.themeData) {
         return response.config.themeData;
       }
@@ -283,7 +152,9 @@ class ThemeManager {
 
     // Handle system theme preference
     if (this.currentTheme === "system") {
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark =
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
       const theme = prefersDark ? this.themes.dark : this.themes.light;
       this.applyThemeToDocument(theme);
       return;
@@ -310,7 +181,12 @@ class ThemeManager {
     this.applyColorsToCss(root, theme.colors);
 
     // Add theme class to body
-    document.body.classList.remove("theme-light", "theme-dark", "theme-high-contrast", "theme-blue");
+    document.body.classList.remove(
+      "theme-light",
+      "theme-dark",
+      "theme-high-contrast",
+      "theme-blue"
+    );
     document.body.classList.add(`theme-${theme.id}`);
 
     // Set data attribute for theme
@@ -505,7 +381,9 @@ class ThemeManager {
    */
   getCurrentTheme() {
     if (this.currentTheme === "system") {
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark =
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
       return prefersDark ? this.themes.dark : this.themes.light;
     }
 
@@ -517,4 +395,3 @@ class ThemeManager {
 const themeManager = new ThemeManager();
 
 export default themeManager;
-
