@@ -122,49 +122,6 @@ export async function initDatabase(dbConfig, encryptionMgr, events, configMgr) {
   }
 }
 
-// Helper to create the returned DB interface object
-function createDbInterface() {
-  return {
-    executeQuery,
-    executeTransaction,
-    getRequests,
-    saveRequest,
-    updateRequest,
-    deleteRequest,
-    getRequestHeaders,
-    saveRequestHeaders,
-    getRequestTimings,
-    saveRequestTimings,
-    saveImportedData,
-    getDatabaseSize,
-    getDatabaseStats,
-    getFilteredStats,
-    getDistinctDomains,
-    getDistinctValues,
-    exportDatabase,
-    clearDatabase,
-    encryptDatabase,
-    decryptDatabase,
-    backupDatabase,
-    getBackupList,
-    deleteBackup,
-    replaceDatabase,
-    vacuumDatabase,
-    getRequestCount,
-    getTableColumns,
-    getDatabaseSchemaSummary,
-    getLoggedErrors,
-    executeRawSql,
-    getSqlHistory,
-    logError: (error) => logErrorToDatabase(db, error),
-    close: cleanupDatabase,
-    saveConfig: saveConfigToDb,
-    loadConfig: loadConfigFromDb,
-    updateConfig: updateConfigInDb,
-    getApiPerformanceOverTime,
-  };
-}
-
 // Vacuum database to optimize storage
 function vacuumDatabase() {
   if (!db) return;
@@ -1524,3 +1481,79 @@ async function getApiPerformanceOverTime(filters = {}) {
   }
 }
 
+async function clearRequests(){
+  //clears this tables in db
+  if (!db) {
+    log("error", "Database is not initialized or invalid.");
+    return;
+  }
+  try {
+    db.exec("DELETE FROM requests");
+    db.exec("DELETE FROM request_headers");
+    db.exec("DELETE FROM request_timings");
+    db.exec("DELETE FROM errors");
+    db.exec("DELETE FROM sql_history");
+    eventBus.publish("database:requests_cleared", { timestamp: Date.now() });
+    log("info", "[DB] Requests cleared successfully.");
+  } catch (error) {
+    log("error", "Failed to clear requests:", error);
+  }
+}
+async function clearHistoryLog() {
+  //clears this tables in db
+  if (!db) {
+    log("error", "Database is not initialized or invalid.");
+    return;
+  }
+  try {
+    db.exec("DELETE FROM sql_history");
+    eventBus.publish("database:history_log_cleared", { timestamp: Date.now() });
+    log("info", "[DB] History log cleared successfully.");
+  } catch (error) {
+    log("error", "Failed to clear history log:", error);
+  }
+}
+// Helper to create the returned DB interface object
+function createDbInterface() {
+  return {
+    executeQuery,
+    executeTransaction,
+    getRequests,
+    saveRequest,
+    updateRequest,
+    deleteRequest,
+    getRequestHeaders,
+    saveRequestHeaders,
+    getRequestTimings,
+    saveRequestTimings,
+    saveImportedData,
+    getDatabaseSize,
+    getDatabaseStats,
+    getFilteredStats,
+    getDistinctDomains,
+    getDistinctValues,
+    exportDatabase,
+    clearDatabase,
+    encryptDatabase,
+    decryptDatabase,
+    backupDatabase,
+    getBackupList,
+    deleteBackup,
+    replaceDatabase,
+    vacuumDatabase,
+    getRequestCount,
+    getTableColumns,
+    getDatabaseSchemaSummary,
+    getLoggedErrors,
+    executeRawSql,
+    getSqlHistory,
+    logError: (error) => logErrorToDatabase(db, error),
+    close: cleanupDatabase,
+    saveConfig: saveConfigToDb,
+    loadConfig: loadConfigFromDb,
+    updateConfig: updateConfigInDb,
+    getApiPerformanceOverTime,
+    clearRequests,
+    clearHistoryLog
+  };
+}

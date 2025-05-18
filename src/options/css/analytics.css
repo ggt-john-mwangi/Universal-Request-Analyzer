@@ -1,27 +1,40 @@
 .analytics-container {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  flex-direction: column;
   gap: 1rem;
   height: auto;
-  min-height: 100%;
-  overflow-y: auto;
-  /* Hide scrollbars for all browsers */
+  max-height: 80vh;
+  overflow-y: auto !important;
+
+  /* Hide scrollbars (cross-browser) */
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE 10+ */
 }
 
 .analytics-container::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
   display: none; /* Chrome, Safari, Opera */
 }
 
+.analytics-container:hover::-webkit-scrollbar {
+  background: #eee;
+}
 
+.analytics-container::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
 
-/* Analytics Section Specific Styles */
+/* Analytics Section Styles */
 #analytics-section .chart-container {
   margin-bottom: 25px;
   padding: 15px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--surface-color);
-  min-width: 700px;
   width: 100%;
   min-width: 320px;
   min-height: 320px;
@@ -71,12 +84,4 @@
   padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-}
-
-.options-content {
-  height: 100%;
-  max-height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }

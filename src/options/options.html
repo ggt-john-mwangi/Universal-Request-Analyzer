@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/analytics.css">
   <link rel="stylesheet" href="css/database.css">
   <link rel="stylesheet" href="css/advanced.css">
+  <link rel="stylesheet" href="assets/fontawesome/css/all.min.css">
 
 </head>
 
@@ -45,12 +46,12 @@
             Filters
           </a>
         </li>
-        <li>
+        <!-- <li>
           <a href="#export" class="nav-link" data-section="export-settings">
             <i class="fas fa-file-export"></i>
             Export
           </a>
-        </li>
+        </li> -->
         <li>
           <a href="#analytics" class="nav-link" data-section="analytics-section">
             <i class="fas fa-chart-line"></i>
@@ -75,6 +76,8 @@
 
     <!-- Main Content Area -->
     <main class="options-content">
+
+
       <!-- General Settings Section -->
       <section id="general-settings" class="option-section active">
         <h2>General Settings</h2>
@@ -131,6 +134,16 @@
           <input type="number" id="notification-duration" name="notification-duration" min="1000" step="500"
             value="3000">
         </div>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Theme Settings Section -->
@@ -144,6 +157,16 @@
             <option value="system">System Default</option>
           </select>
         </div>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Capture Settings Section -->
@@ -189,6 +212,16 @@
             Capture Server-Sent Events (Experimental)
           </label>
         </div>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Capture Filters Section -->
@@ -228,6 +261,16 @@
           <label for="excludeDomains">Exclude Domains (comma separated):</label>
           <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
         </div>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Export Settings Section -->
@@ -263,6 +306,16 @@
           <button id="export-data-button">Export All Data (JSON)</button>
           <button id="export-csv-button">Export All Data (CSV)</button>
         </div>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Analytics Section -->
@@ -404,6 +457,16 @@
               Clear Log</button>
           </div>
         </section>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Import Section -->
@@ -430,6 +493,16 @@
           <span class="description">Manually export all data in the selected format using the filename specified
             above.</span>
         </div>
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
       </section>
 
       <!-- Advanced Settings Section -->
@@ -443,12 +516,6 @@
         </div>
         <div class="option-row">
           <label>
-            <input type="checkbox" id="logErrorsToDb">
-            Log internal errors to database
-          </label>
-        </div>
-        <div class="option-row">
-          <label>
             <input type="checkbox" id="persistFilters">
             Persist filters between sessions (Popup)
           </label>
@@ -458,33 +525,6 @@
             <input type="checkbox" id="useCompression">
             Use compression for storage (Experimental)
           </label>
-        </div>
-        <div class="option-row">
-          <label>
-            <input type="checkbox" id="logErrorsToDb">
-            Log internal errors to database table
-          </label>
-        </div>
-        <div class="option-row">
-          <label>
-            <input type="checkbox" id="logErrorsToConsole">
-            Log internal errors to browser console
-          </label>
-        </div>
-        <div class="option-row">
-          <label for="backgroundMode">Background Mode:</label>
-          <select id="backgroundMode">
-            <option value="default">Default</option>
-            <option value="optimized">Optimized (Lower resource usage)</option>
-          </select>
-        </div>
-        <div class="option-row">
-          <label for="syncInterval">Sync Interval (minutes, if enabled):</label>
-          <input type="number" id="syncInterval" min="1" max="60">
-        </div>
-        <div class="option-row">
-          <label for="api-endpoint">Custom API Endpoint:</label>
-          <input type="text" id="api-endpoint" name="api-endpoint" placeholder="Optional: https://your-api.com/data">
         </div>
         <hr>
         <h3>Error Logging</h3>
@@ -501,8 +541,38 @@
           </label>
         </div>
         <hr>
-        <h3>Raw SQL Executor <span title="Directly execute SQL queries on the database. Use with caution!"><i
-              class="fas fa-terminal"></i></span></h3>
+
+        <div class="option-row">
+          <label for="backgroundMode">Background Mode:</label>
+          <select id="backgroundMode">
+            <option value="default">Default</option>
+            <option value="optimized">Optimized (Lower resource usage)</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label for="syncInterval">Sync Interval (minutes, if enabled):</label>
+          <input type="number" id="syncInterval" min="1" max="60">
+        </div>
+        <div class="option-row">
+          <label for="api-endpoint">Custom API Endpoint:</label>
+          <input type="text" id="api-endpoint" name="api-endpoint" placeholder="Optional: https://your-api.com/data">
+        </div>
+
+        <!-- Global Actions (Save/Reset) -->
+        <div class="actions global-actions">
+          <button id="saveOptionsBtn">
+            <i class="fas fa-save"></i> Save All Settings
+          </button>
+          <button id="resetBtn" class="secondary">
+            <i class="fas fa-undo-alt"></i> Reset to Defaults
+          </button>
+        </div>
+
+        <hr>
+        <h3>Debugging Tools</h3>
+
+        <h4>Raw SQL Executor <span title="Directly execute SQL queries on the database. Use with caution!"><i
+              class="fas fa-terminal"></i></span></h4>
         <div class="sql-executor-section">
           <textarea id="rawSqlInput" placeholder="Enter SQL query (SELECT, PRAGMA, EXPLAIN, INSERT only)..."
             rows="4"></textarea>
@@ -513,14 +583,8 @@
           <div id="sqlResultsOutput" style="margin-top:12px; min-height:32px;"></div>
         </div>
         <hr>
+
       </section>
-
-      <!-- Global Actions (Save/Reset) -->
-      <div class="actions global-actions">
-        <button id="saveOptionsBtn">Save All Settings</button>
-        <button id="resetBtn" class="secondary">Reset to Defaults</button>
-      </div>
-
     </main>
   </div>
 
@@ -528,7 +592,7 @@
   <div id="notification" class="notification"></div>
 
   <!-- Load Chart.js library -->
-    <script src="lib/chart.min.js"></script>
+  <script src="lib/chart.min.js"></script>
   <!-- Load Main Script -->
   <script type="module" src="options.js"></script>
 </body>

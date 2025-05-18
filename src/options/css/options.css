@@ -37,33 +37,31 @@ h1 {
 .options-container {
   background-color: var(--surface-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px; /* Slightly more rounded corners */
+  border-radius: 8px;
   padding: 25px;
-  box-shadow: 0 2px 5px var(--shadow-color); /* Softer shadow */
+  box-shadow: 0 2px 5px var(--shadow-color);
   margin-bottom: 20px;
 }
 
 /* Layout for Sidebar and Content */
 .options-layout {
   display: flex;
-  gap: 20px; /* Space between sidebar and content */
-  width: 100%; /* Full width */
+  gap: 20px;
+  width: 100%;
   height: auto;
   position: relative;
 }
 
 .options-sidebar {
-  position: absolute; /* Absolute positioning */
-  top: var(--header-height); /* Align to the top */
-  left: 0; /* Align to the left */
-  width: 200px; /* Fixed width for the sidebar */
-  flex-shrink: 0; /* Prevent sidebar from shrinking */
+  position: absolute;
+  top: var(--header-height);
+  left: 0;
+  width: 200px;
+  flex-shrink: 0;
   background-color: var(--surface-color);
   border-right: 1px solid var(--border-color);
   padding: 15px 0;
-  min-height: calc(
-    100dvh - var(--header-height)
-  ); /* Full height minus header/footer */
+  min-height: calc(100dvh - var(--header-height));
 }
 
 .options-sidebar ul {
@@ -94,40 +92,49 @@ h1 {
 
 .options-content {
   display: flex;
-  flex-direction:column;
-  flex-grow: 1; /* Allow content area to take remaining space */
+  flex-direction: column;
+  flex-grow: 1;
   background-color: var(--background-color);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 25px;
   box-shadow: 0 2px 5px var(--shadow-color);
-  width: calc(100% - 240px); /* Full width minus sidebar */
+  width: calc(100% - 240px); /* Sidebar width + 20px gap */
+  margin-left: 220px; /* Sidebar width + 20px spacing */
+  margin-top: var(--header-height);
+  min-height: 100dvh;
   overflow: hidden;
-  height: auto;
-  min-height: 100dvh ; /* Full height minus header/footer */
-  margin-left: 220px; /* Space for sidebar */
-  margin-top: var(--header-height); /* Align with sidebar */
-  position: relative; /* Position relative for absolute elements */
+  position: relative;
 }
 
-/* Styling for each section (General, Capture, etc.) */
+/* Option Section Styles */
 .option-section {
-  display: none; /* Hide all sections by default */
+  display: none;
   margin-bottom: 30px;
-  padding-bottom: 20px; /* Add padding below section content */
-  border-bottom: 1px solid var(--border-color); /* Separator line */
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+  overflow-y: auto;
+  max-height: 80vh;
+
+  /* Hide scrollbars (cross-browser) */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
 }
 
 .option-section.active {
-  display: block; /* Show only the active section */
-  height: auto; /* Allow height to adjust */
-  min-height: calc(
-    90dvh - var(--header-height)
-  ); /* Full height minus header/footer */
+  display: block;
+  height: auto;
+  min-height: calc(90dvh - var(--header-height));
+  max-height: calc(90dvh - var(--header-height));
+  overflow-y: auto;
+
+  /* Hide scrollbars (cross-browser) */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .option-section:last-of-type {
-  border-bottom: none; /* No line after the last section */
+  border-bottom: none;
   margin-bottom: 0;
 }
 
@@ -221,7 +228,14 @@ h1 {
   padding-top: 20px;
   border-top: 1px solid var(--border-color); /* Separator line above main actions */
 }
-
+.global-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  margin-bottom: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color); /* Separator line above main actions */
+}
 /* General button styling */
 button {
   padding: 10px 20px; /* Larger buttons */
