@@ -99,7 +99,6 @@ export default function renderAnalyticsSection() {
         <label class="checkbox-label"><input type="checkbox" id="toggle-time-dist" checked> Time Distribution Chart</label>
         <label class="checkbox-label"><input type="checkbox" id="toggle-size-dist" checked> Size Distribution Chart</label>
         <label class="checkbox-label"><input type="checkbox" id="toggle-perf" checked> Performance Timings Chart</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-table" checked> Raw Data Table</label>
       </div>
     </div>
     <div class="control-group">
@@ -197,21 +196,8 @@ export default function renderAnalyticsSection() {
   perfDiv.innerHTML = `<canvas id="analytics-chart-perf"></canvas>`;
   container.appendChild(perfDiv);
 
-  // Raw data table
-  const tableContainer = document.createElement('div');
-  tableContainer.id = 'table-raw';
-  tableContainer.className = 'chart-container';
-  tableContainer.innerHTML = `
-    <h3>Raw Requests</h3>
-    <table id="analytics-table">
-      <thead><tr><th>Time</th><th>Domain</th><th>Type</th><th>Status</th><th>Duration (ms)</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  `;
-  container.appendChild(tableContainer);
-
   // State for charts
-  let responseChart, statusChart, typeChart;
+  let responseChart, statusChart, typeChart, timeDistChart, sizeDistChart, perfChart;
 
   // Fetch domains
   const domainControlReqId = generateRequestId();
@@ -291,7 +277,6 @@ export default function renderAnalyticsSection() {
         const showTimeDist = controls.querySelector('#toggle-time-dist').checked;
         const showSizeDist = controls.querySelector('#toggle-size-dist').checked;
         const showPerf = controls.querySelector('#toggle-perf').checked;
-        const showTable = controls.querySelector('#toggle-table').checked;
         summary.style.display = showSummary ? 'block' : 'none';
         responseDiv.style.display = canViewApi && showResponse ? 'block' : 'none';
         statusDiv.style.display = canViewApi && showStatus ? 'block' : 'none';
@@ -299,7 +284,6 @@ export default function renderAnalyticsSection() {
         timeDistDiv.style.display = canViewApi && showTimeDist ? 'block' : 'none';
         sizeDistDiv.style.display = canViewApi && showSizeDist ? 'block' : 'none';
         perfDiv.style.display = canViewPerf && showPerf ? 'block' : 'none';
-        tableContainer.style.display = showTable ? 'block' : 'none';
         // --- Summary ---
         summary.innerHTML = `
           <div><strong>Total:</strong> ${stats.requestCount}</div>
@@ -353,9 +337,9 @@ export default function renderAnalyticsSection() {
         });
         // --- Time Distribution (Histogram) ---
         const tdCanvas = document.getElementById('analytics-chart-time-dist');
-        if (window.timeDistChart) window.timeDistChart.destroy();
+        if (timeDistChart) timeDistChart.destroy();
         if (stats.timeDistribution) {
-          window.timeDistChart = new Chart(tdCanvas.getContext('2d'), {
+          timeDistChart = new Chart(tdCanvas.getContext('2d'), {
             type: 'bar',
             data: {
               labels: stats.timeDistribution.bins || [],
@@ -366,9 +350,9 @@ export default function renderAnalyticsSection() {
         }
         // --- Size Distribution (Histogram) ---
         const szCanvas = document.getElementById('analytics-chart-size-dist');
-        if (window.sizeDistChart) window.sizeDistChart.destroy();
+        if (sizeDistChart) sizeDistChart.destroy();
         if (stats.sizeDistribution) {
-          window.sizeDistChart = new Chart(szCanvas.getContext('2d'), {
+          sizeDistChart = new Chart(szCanvas.getContext('2d'), {
             type: 'bar',
             data: {
               labels: stats.sizeDistribution.bins || [],
@@ -379,9 +363,9 @@ export default function renderAnalyticsSection() {
         }
         // --- Performance Timings (DNS, TCP, SSL, TTFB, Download) ---
         const pfCanvas = document.getElementById('analytics-chart-perf');
-        if (window.perfChart) window.perfChart.destroy();
+        if (perfChart) perfChart.destroy();
         if (canViewPerf && stats.avgTimings) {
-          window.perfChart = new Chart(pfCanvas.getContext('2d'), {
+          perfChart = new Chart(pfCanvas.getContext('2d'), {
             type: 'bar',
             data: {
               labels: ['DNS', 'TCP', 'SSL', 'TTFB', 'Download'],
@@ -394,33 +378,160 @@ export default function renderAnalyticsSection() {
             options: { plugins: { title: { display: true, text: 'Avg Performance Timings' } } }
           });
         }
-        // --- Table (Raw Requests) ---
-        const tbody = tableContainer.querySelector('tbody');
-        tbody.innerHTML = '';
-        const tableReqId = generateRequestId();
-        pendingAnalyticsRequests[tableReqId] = (resp) => {
-          if (resp && Array.isArray(resp.requests)) {
-            resp.requests.forEach(r => {
-              // Defensive checks for missing/invalid data
-              const time = r.timestamp && !isNaN(Number(r.timestamp)) ? new Date(Number(r.timestamp)).toLocaleString() : "";
-              const domain = r.domain || "";
-              const type = r.type || "";
-              const status = r.status !== undefined && r.status !== null ? r.status : "";
-              const duration = r.duration !== undefined && r.duration !== null ? r.duration : "";
-              const tr = document.createElement('tr');
-              tr.innerHTML = `<td>${time}</td><td>${domain}</td><td>${type}</td><td>${status}</td><td>${duration}</td>`;
-              tbody.appendChild(tr);
-            });
-          }
-        };
-        chrome.runtime.sendMessage({ action: 'getRequests', filters, page: 1, limit: 50, requestId: tableReqId });
       };
       chrome.runtime.sendMessage({ action: 'getFilteredStats', filters, requestId });
     }
   }
 
-  // Event
-  controls.querySelector('#analytics-apply').addEventListener('click', loadAnalytics);
+  // --- Tabs for Analysis vs Performance ---
+  const tabBar = document.createElement('div');
+  tabBar.className = 'analytics-tab-bar';
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '18px';
+  const tabs = [
+    { id: 'tab-analysis', label: 'Request Analysis' },
+    { id: 'tab-performance', label: 'Performance Metrics' }
+  ];
+  let activeTab = 'tab-analysis';
+  tabs.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.textContent = tab.label;
+    btn.className = 'analytics-tab-btn' + (tab.id === activeTab ? ' active' : '');
+    btn.onclick = () => {
+      activeTab = tab.id;
+      updateTabUI();
+    };
+    btn.id = tab.id;
+    tabBar.appendChild(btn);
+  });
+  container.prepend(tabBar);
+
+  // --- Section containers for each tab ---
+  const analysisSection = document.createElement('div');
+  analysisSection.className = 'analytics-tab-section';
+  analysisSection.style.display = 'block';
+  const perfSection = document.createElement('div');
+  perfSection.className = 'analytics-tab-section';
+  perfSection.style.display = 'none';
+  container.appendChild(analysisSection);
+  container.appendChild(perfSection);
+
+  // --- Unified Filters (no duplicates) ---
+  const unifiedFilters = controls; // Use only one controls instance
+  analysisSection.appendChild(unifiedFilters);
+  perfSection.appendChild(unifiedFilters.cloneNode(true)); // For performance tab, if needed
+
+  // --- Chart tabs for analysis ---
+  const analysisChartTabs = document.createElement('div');
+  analysisChartTabs.className = 'chart-tabs';
+  analysisChartTabs.style.display = 'flex';
+  analysisChartTabs.style.gap = '10px';
+  analysisChartTabs.style.margin = '12px 0';
+  const analysisCharts = [
+    { id: 'apiOverTime', label: 'API Requests Over Time' },
+    { id: 'status', label: 'Status Codes' },
+    { id: 'type', label: 'Request Types' },
+    { id: 'timeDist', label: 'Time Distribution' },
+    { id: 'sizeDist', label: 'Size Distribution' }
+  ];
+  let activeAnalysisChart = 'apiOverTime';
+  analysisCharts.forEach(chart => {
+    const btn = document.createElement('button');
+    btn.textContent = chart.label;
+    btn.className = 'chart-tab-btn' + (chart.id === activeAnalysisChart ? ' active' : '');
+    btn.onclick = () => {
+      activeAnalysisChart = chart.id;
+      updateAnalysisChartUI();
+    };
+    btn.id = 'analysis-' + chart.id;
+    analysisChartTabs.appendChild(btn);
+  });
+  analysisSection.appendChild(analysisChartTabs);
+  // Chart containers (reuse existing chart divs, no table)
+  const chartDivs = {
+    apiOverTime: responseDiv,
+    status: statusDiv,
+    type: typesDiv,
+    timeDist: timeDistDiv,
+    sizeDist: sizeDistDiv
+  };
+  Object.values(chartDivs).forEach(div => div.style.display = 'none');
+  Object.values(chartDivs).forEach(div => analysisSection.appendChild(div));
+
+  // --- Chart tabs for performance ---
+  const perfChartTabs = document.createElement('div');
+  perfChartTabs.className = 'chart-tabs';
+  perfChartTabs.style.display = 'flex';
+  perfChartTabs.style.gap = '10px';
+  perfChartTabs.style.margin = '12px 0';
+  const perfCharts = [
+    { id: 'summary', label: 'Summary Stats' },
+    { id: 'perf', label: 'Performance Timings' },
+    { id: 'waterfall', label: 'Waterfall' },
+    { id: 'pageload', label: 'Page Load' },
+    { id: 'resource', label: 'Resource Breakdown' }
+  ];
+  let activePerfChart = 'summary';
+  perfCharts.forEach(chart => {
+    const btn = document.createElement('button');
+    btn.textContent = chart.label;
+    btn.className = 'chart-tab-btn' + (chart.id === activePerfChart ? ' active' : '');
+    btn.onclick = () => {
+      activePerfChart = chart.id;
+      updatePerfChartUI();
+    };
+    btn.id = 'perf-' + chart.id;
+    perfChartTabs.appendChild(btn);
+  });
+  perfSection.appendChild(perfChartTabs);
+  // Chart containers for each performance tab
+  const waterfallDiv = document.createElement('div');
+  waterfallDiv.id = 'chart-waterfall';
+  waterfallDiv.className = 'chart-container';
+  perfSection.appendChild(waterfallDiv);
+  const pageLoadDiv = document.createElement('div');
+  pageLoadDiv.id = 'chart-pageload';
+  pageLoadDiv.className = 'chart-container';
+  perfSection.appendChild(pageLoadDiv);
+  const resourceDiv = document.createElement('div');
+  resourceDiv.id = 'chart-resource';
+  resourceDiv.className = 'chart-container';
+  perfSection.appendChild(resourceDiv);
+  // Add summary and perfDiv as before
+  const perfChartDivs = {
+    summary,
+    perf: perfDiv,
+    waterfall: waterfallDiv,
+    pageload: pageLoadDiv,
+    resource: resourceDiv
+  };
+  Object.values(perfChartDivs).forEach(div => div.style.display = 'none');
+  Object.values(perfChartDivs).forEach(div => perfSection.appendChild(div));
+
+  // --- Tab UI update logic ---
+  function updateTabUI() {
+    tabBar.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.id === activeTab));
+    analysisSection.style.display = activeTab === 'tab-analysis' ? 'block' : 'none';
+    perfSection.style.display = activeTab === 'tab-performance' ? 'block' : 'none';
+    updateAnalysisChartUI();
+    updatePerfChartUI();
+  }
+  function updateAnalysisChartUI() {
+    analysisChartTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.id === 'analysis-' + activeAnalysisChart));
+    Object.entries(chartDivs).forEach(([id, div]) => {
+      div.style.display = id === activeAnalysisChart ? 'block' : 'none';
+    });
+  }
+  function updatePerfChartUI() {
+    perfChartTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.id === 'perf-' + activePerfChart));
+    Object.entries(perfChartDivs).forEach(([id, div]) => {
+      div.style.display = id === activePerfChart ? 'block' : 'none';
+    });
+  }
+
+  // --- Initial UI state ---
+  updateTabUI();
   // Initial load
   loadAnalytics();
 
