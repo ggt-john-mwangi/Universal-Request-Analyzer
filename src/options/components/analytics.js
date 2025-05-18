@@ -528,6 +528,187 @@ export default function renderAnalyticsSection() {
     Object.entries(perfChartDivs).forEach(([id, div]) => {
       div.style.display = id === activePerfChart ? 'block' : 'none';
     });
+    // Always pass current filters
+    const filters = getCurrentFilters();
+    renderPerformanceChart(activePerfChart, filters);
+  }
+
+  // --- Chart rendering for performance tabs ---
+  function renderPerformanceChart(chartId, filters) {
+    // Always pass filters
+    if (chartId === 'summary') {
+      // Already handled by getFilteredStats in loadAnalytics
+      summary.style.display = 'block';
+      return;
+    }
+    if (chartId === 'perf') {
+      // Already handled by getFilteredStats in loadAnalytics
+      perfDiv.style.display = 'block';
+      return;
+    }
+    // --- Waterfall Chart ---
+    if (chartId === 'waterfall') {
+      // Destroy previous chart if exists
+      if (window._waterfallChart) { window._waterfallChart.destroy(); window._waterfallChart = null; }
+      const requestId = generateRequestId();
+      pendingAnalyticsRequests[requestId] = (res) => {
+        waterfallDiv.innerHTML = '';
+        if (res && res.success && Array.isArray(res.timings) && res.timings.length > 0) {
+          // Prepare data for waterfall chart
+          const labels = res.timings.map(t => t.name || t.url || t.initiatorType || '');
+          const startTimes = res.timings.map(t => t.startTime || 0);
+          const durations = res.timings.map(t => t.duration || 0);
+          const dataset = [{
+            label: 'Resource Timing',
+            data: res.timings.map(t => ({ x: t.startTime, y: labels.indexOf(t.name || t.url || t.initiatorType || ''), x2: t.startTime + t.duration })),
+            backgroundColor: 'rgba(33,150,243,0.7)',
+            borderColor: 'rgba(33,150,243,1)',
+            borderWidth: 1,
+            barPercentage: 1.0,
+            categoryPercentage: 1.0,
+          }];
+          const canvas = document.createElement('canvas');
+          canvas.width = 700;
+          canvas.height = 320;
+          waterfallDiv.appendChild(canvas);
+          // Use horizontal bar chart to simulate waterfall
+          window._waterfallChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: dataset
+            },
+            options: {
+              indexAxis: 'y',
+              plugins: {
+                title: { display: true, text: 'Resource Waterfall (Start → End)' },
+                tooltip: { enabled: true }
+              },
+              responsive: true,
+              maintainAspectRatio: false,
+              parsing: {
+                xAxisKey: 'x',
+                x2AxisKey: 'x2',
+                yAxisKey: 'y',
+              },
+              scales: {
+                x: {
+                  title: { display: true, text: 'Time (ms)' },
+                  min: Math.min(...startTimes),
+                  max: Math.max(...startTimes.map((s, i) => s + durations[i]))
+                },
+                y: {
+                  title: { display: true, text: 'Resource' },
+                  ticks: { callback: (v, i) => labels[i] }
+                }
+              }
+            }
+          });
+        } else {
+          waterfallDiv.innerHTML = '<div class="error">No waterfall data.</div>';
+        }
+      };
+      chrome.runtime.sendMessage({ action: 'getResourceTimings', filters, requestId });
+      return;
+    }
+    // --- Page Load Chart ---
+    if (chartId === 'pageload') {
+      if (window._pageLoadChart) { window._pageLoadChart.destroy(); window._pageLoadChart = null; }
+      const requestId = generateRequestId();
+      pendingAnalyticsRequests[requestId] = (res) => {
+        pageLoadDiv.innerHTML = '';
+        if (res && res.success && res.metrics) {
+          // Render page load metrics as bar chart
+          const metrics = res.metrics;
+          const labels = Object.keys(metrics);
+          const values = Object.values(metrics);
+          const canvas = document.createElement('canvas');
+          canvas.width = 700;
+          canvas.height = 320;
+          pageLoadDiv.appendChild(canvas);
+          window._pageLoadChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Page Load Metrics (ms)',
+                data: values,
+                backgroundColor: '#1976d2',
+              }]
+            },
+            options: {
+              plugins: { title: { display: true, text: 'Page Load Metrics' } },
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'ms' } }
+              }
+            }
+          });
+        } else {
+          pageLoadDiv.innerHTML = '<div class="error">No page load data.</div>';
+        }
+      };
+      chrome.runtime.sendMessage({ action: 'getPageLoadMetrics', filters, requestId });
+      return;
+    }
+    // --- Resource Breakdown Chart ---
+    if (chartId === 'resource') {
+      if (window._resourceBreakdownChart) { window._resourceBreakdownChart.destroy(); window._resourceBreakdownChart = null; }
+      const requestId = generateRequestId();
+      pendingAnalyticsRequests[requestId] = (res) => {
+        resourceDiv.innerHTML = '';
+        if (res && res.success && res.breakdown) {
+          // Render resource breakdown as pie chart
+          const breakdown = res.breakdown;
+          const labels = Object.keys(breakdown);
+          const values = Object.values(breakdown);
+          const canvas = document.createElement('canvas');
+          canvas.width = 700;
+          canvas.height = 320;
+          resourceDiv.appendChild(canvas);
+          window._resourceBreakdownChart = new Chart(canvas.getContext('2d'), {
+            type: 'pie',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Resource Breakdown',
+                data: values,
+                backgroundColor: ['#1976d2','#43a047','#fbc02d','#e53935','#8e24aa','#00838f','#f57c00'],
+              }]
+            },
+            options: {
+              plugins: { title: { display: true, text: 'Resource Type Breakdown' }, legend: { display: true, position: 'bottom' } },
+              responsive: true,
+              maintainAspectRatio: false
+            }
+          });
+        } else {
+          resourceDiv.innerHTML = '<div class="error">No resource breakdown data.</div>';
+        }
+      };
+      chrome.runtime.sendMessage({ action: 'getResourceBreakdown', filters, requestId });
+      return;
+    }
+  }
+
+  // --- Helper to get current filters from UI ---
+  function getCurrentFilters() {
+    const start = controls.querySelector('#analytics-start-date').value;
+    const end = controls.querySelector('#analytics-end-date').value;
+    const domain = filterRow.querySelector('#analytics-domain-select').value;
+    const api = filterRow.querySelector('#analytics-api-select').value;
+    const types = Array.from(controls.querySelectorAll('#analytics-types input:checked')).map(i => i.value);
+    const method = advancedFilters.querySelector('#analytics-method-select').value;
+    const status = advancedFilters.querySelector('#analytics-status-select').value;
+    const filters = { domain, types };
+    if (start) filters.startTime = new Date(start).getTime();
+    if (end) filters.endTime = new Date(end).getTime() + 86400000 - 1;
+    if (domain) filters.domain = domain;
+    if (api) filters.api = api;
+    if (method) filters.method = method;
+    if (status) filters.status = status;
+    return filters;
   }
 
   // --- Initial UI state ---

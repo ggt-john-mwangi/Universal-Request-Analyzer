@@ -139,6 +139,40 @@ export function setupMessageHandlers(
       }
       return;
     }
+    // --- Performance Analytics: Resource Timings, Page Load Metrics, Resource Breakdown ---
+    if (message.action === "getResourceTimings") {
+      (async () => {
+        try {
+          const timings = await dbManager.getResourceTimings(message.filters || {});
+          sendEventResponse("getResourceTimingsResult", message.requestId, { success: true, timings });
+        } catch (error) {
+          sendEventResponse("getResourceTimingsResult", message.requestId, { success: false, error: error.message });
+        }
+      })();
+      return;
+    }
+    if (message.action === "getPageLoadMetrics") {
+      (async () => {
+        try {
+          const metrics = await dbManager.getPageLoadMetrics(message.filters || {});
+          sendEventResponse("getPageLoadMetricsResult", message.requestId, { success: true, metrics });
+        } catch (error) {
+          sendEventResponse("getPageLoadMetricsResult", message.requestId, { success: false, error: error.message });
+        }
+      })();
+      return;
+    }
+    if (message.action === "getResourceBreakdown") {
+      (async () => {
+        try {
+          const breakdown = await dbManager.getResourceBreakdown(message.filters || {});
+          sendEventResponse("getResourceBreakdownResult", message.requestId, { success: true, breakdown });
+        } catch (error) {
+          sendEventResponse("getResourceBreakdownResult", message.requestId, { success: false, error: error.message });
+        }
+      })();
+      return;
+    }
     if (message.action === "getStats") {
       handleGetStats(message, sender);
       return;

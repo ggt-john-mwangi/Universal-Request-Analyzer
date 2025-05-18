@@ -1513,6 +1513,121 @@ async function clearHistoryLog() {
     log("error", "Failed to clear history log:", error);
   }
 }
+// --- Performance Analytics: Resource Timings, Page Load Metrics, Resource Breakdown ---
+
+// Get resource timings for waterfall chart (per-request timings)
+async function getResourceTimings(filters = {}) {
+  if (!db) return [];
+  try {
+    const params = [];
+    let whereClause = "WHERE 1=1";
+    if (filters.domain) {
+      whereClause += " AND r.domain LIKE ?";
+      params.push(`%${filters.domain}%`);
+    }
+    if (filters.pageUrl) {
+      whereClause += " AND r.pageUrl LIKE ?";
+      params.push(`%${filters.pageUrl}%`);
+    }
+    if (filters.startDate) {
+      whereClause += " AND r.timestamp >= ?";
+      params.push(new Date(filters.startDate).getTime());
+    }
+    if (filters.endDate) {
+      whereClause += " AND r.timestamp <= ?";
+      params.push(new Date(filters.endDate).getTime());
+    }
+    // Add more filters as needed
+    const result = executeQuery(
+      `SELECT r.id, r.url, r.domain, r.method, r.type, r.status, r.timestamp, r.duration, t.dns, t.tcp, t.ssl, t.ttfb, t.download
+       FROM requests r
+       LEFT JOIN request_timings t ON r.id = t.requestId
+       ${whereClause}
+       ORDER BY r.timestamp ASC
+       LIMIT 500`,
+      params
+    );
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (error) {
+    log("error", "Failed to get resource timings:", error);
+    return [];
+  }
+}
+
+// Get page load metrics (aggregated)
+async function getPageLoadMetrics(filters = {}) {
+  if (!db) return {};
+  try {
+    const params = [];
+    let whereClause = "WHERE 1=1";
+    if (filters.domain) {
+      whereClause += " AND domain LIKE ?";
+      params.push(`%${filters.domain}%`);
+    }
+    if (filters.pageUrl) {
+      whereClause += " AND pageUrl LIKE ?";
+      params.push(`%${filters.pageUrl}%`);
+    }
+    if (filters.startDate) {
+      whereClause += " AND timestamp >= ?";
+      params.push(new Date(filters.startDate).getTime());
+    }
+    if (filters.endDate) {
+      whereClause += " AND timestamp <= ?";
+      params.push(new Date(filters.endDate).getTime());
+    }
+    // Assume page load metrics are stored as requests of type 'pageload' or similar
+    const result = executeQuery(
+      `SELECT AVG(duration) as avgLoadTime, AVG(size) as avgSize, COUNT(*) as count
+       FROM requests
+       ${whereClause} AND type = 'pageload'`,
+      params
+    );
+    return result[0] && result[0].values.length ? mapRowsToObjects(result[0])[0] : {};
+  } catch (error) {
+    log("error", "Failed to get page load metrics:", error);
+    return {};
+  }
+}
+
+// Get resource breakdown (by type, count, and size)
+async function getResourceBreakdown(filters = {}) {
+  if (!db) return {};
+  try {
+    const params = [];
+    let whereClause = "WHERE 1=1";
+    if (filters.domain) {
+      whereClause += " AND domain LIKE ?";
+      params.push(`%${filters.domain}%`);
+    }
+    if (filters.pageUrl) {
+      whereClause += " AND pageUrl LIKE ?";
+      params.push(`%${filters.pageUrl}%`);
+    }
+    if (filters.startDate) {
+      whereClause += " AND timestamp >= ?";
+      params.push(new Date(filters.startDate).getTime());
+    }
+    if (filters.endDate) {
+      whereClause += " AND timestamp <= ?";
+      params.push(new Date(filters.endDate).getTime());
+    }
+    // Group by type (script, image, stylesheet, etc.)
+    const result = executeQuery(
+      `SELECT type, COUNT(*) as count, SUM(size) as totalSize
+       FROM requests
+       ${whereClause}
+       GROUP BY type
+       ORDER BY count DESC`,
+      params
+    );
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (error) {
+    log("error", "Failed to get resource breakdown:", error);
+    return {};
+  }
+}
+
 // Helper to create the returned DB interface object
 function createDbInterface() {
   return {
@@ -1554,6 +1669,9 @@ function createDbInterface() {
     updateConfig: updateConfigInDb,
     getApiPerformanceOverTime,
     clearRequests,
-    clearHistoryLog
+    clearHistoryLog,
+    getResourceTimings,
+    getPageLoadMetrics,
+    getResourceBreakdown
   };
 }
