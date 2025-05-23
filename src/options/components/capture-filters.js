@@ -106,6 +106,8 @@ export default function renderCaptureFilters() {
 
   // Initial load
   loadCaptureFilters();
+  // Always reload from backend/database on reset
+  resetBtn.addEventListener('click', () => { loadCaptureFilters(); showStatus('Filters reset to last saved.', true); });
 
   return container;
 }

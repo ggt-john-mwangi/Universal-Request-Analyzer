@@ -27,6 +27,17 @@ export default function renderAutoExport() {
   `;
 
   // --- Event-based Save/Load for Auto Export Settings ---
+  // Use a single global handler for all requests
+  const pendingRequests = {};
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (msg && msg.requestId && pendingRequests[msg.requestId]) {
+        pendingRequests[msg.requestId](msg);
+        delete pendingRequests[msg.requestId];
+      }
+    });
+  }
+
   function showStatus(message, success = true) {
     let status = document.getElementById('autoExportStatus');
     if (!status) {
@@ -49,30 +60,24 @@ export default function renderAutoExport() {
       exportPath: document.getElementById('autoExportPath').value.trim(),
     };
     const requestId = 'saveAutoExport_' + Date.now();
+    pendingRequests[requestId] = (msg) => {
+      showStatus(msg.success ? 'Auto export settings saved.' : ('Error: ' + (msg.error || 'Failed to save')), msg.success);
+    };
     chrome.runtime.sendMessage({ action: 'updateConfig', data: { export: settings }, requestId });
-    function handler(msg) {
-      if (msg.requestId === requestId) {
-        showStatus(msg.success ? 'Auto export settings saved.' : ('Error: ' + (msg.error || 'Failed to save')), msg.success);
-        chrome.runtime.onMessage.removeListener(handler);
-      }
-    }
-    chrome.runtime.onMessage.addListener(handler);
   }
 
   function loadAutoExportSettings() {
     const requestId = 'loadAutoExport_' + Date.now();
-    chrome.runtime.sendMessage({ action: 'getConfig', requestId });
-    function handler(msg) {
-      if (msg.requestId === requestId && msg.config) {
+    pendingRequests[requestId] = (msg) => {
+      if (msg.config) {
         const settings = msg.config.export || {};
         document.getElementById('autoExport').checked = settings.autoExport ?? false;
         document.getElementById('autoExportFormat').value = settings.exportFormat || 'json';
         document.getElementById('autoExportInterval').value = (settings.exportInterval || 86400000) / 60000;
         document.getElementById('autoExportPath').value = settings.exportPath || '';
-        chrome.runtime.onMessage.removeListener(handler);
       }
-    }
-    chrome.runtime.onMessage.addListener(handler);
+    };
+    chrome.runtime.sendMessage({ action: 'getConfig', requestId });
   }
 
   // Attach event listeners

@@ -32,9 +32,9 @@ function initializeCaptureFilters(cfg) {
       };
     }
     // Ensure arrays are always present
-    cfg.captureFilters.includeTypes = cfg.captureFilters.includeTypes || [];
-    cfg.captureFilters.includeDomains = cfg.captureFilters.includeDomains || [];
-    cfg.captureFilters.excludeDomains = cfg.captureFilters.excludeDomains || [];
+    cfg.captureFilters.includeTypes = Array.isArray(cfg.captureFilters.includeTypes) ? cfg.captureFilters.includeTypes : [];
+    cfg.captureFilters.includeDomains = Array.isArray(cfg.captureFilters.includeDomains) ? cfg.captureFilters.includeDomains : [];
+    cfg.captureFilters.excludeDomains = Array.isArray(cfg.captureFilters.excludeDomains) ? cfg.captureFilters.excludeDomains : [];
   }
 }
 
@@ -92,10 +92,7 @@ function setupWebRequestListeners() {
 // Handle before request event
 function handleBeforeRequest(details) {
   console.log("[Capture] handleBeforeRequest", details);
-  if (!config.enabled) return;
-
-  // Check if we should capture this request type
-  if (!shouldCaptureRequest(details)) return;
+  if (!shouldCapture(details)) return;
 
   const { domain, path } = parseUrl(details.url);
 
@@ -156,8 +153,12 @@ function handleHeadersReceived(details) {
     request.size = Number.parseInt(contentLengthHeader.value, 10) || 0;
   }
 
-  // Store headers if needed
-  if (config.captureHeaders && dbManager) {
+  // Store headers if needed (check config.capture.captureHeaders)
+  if (
+    config.capture &&
+    config.capture.captureHeaders &&
+    dbManager
+  ) {
     dbManager.saveRequestHeaders(
       details.requestId,
       details.responseHeaders.map((h) => ({
@@ -165,6 +166,11 @@ function handleHeadersReceived(details) {
         value: h.value,
       }))
     );
+    // Also attach to request for backup
+    request.headers = details.responseHeaders.map((h) => ({
+      name: h.name,
+      value: h.value,
+    }));
   }
 
   updateRequestData(details.requestId, request);
@@ -246,6 +252,10 @@ function handlePerformanceData(entries, tab) {
   if (!config.enabled || !entries || entries.length === 0) return;
 
   entries.forEach((entry) => {
+    // Build a details-like object for filtering
+    const details = { type: entry.initiatorType, url: entry.name };
+    if (!shouldCapture(details)) return;
+
     // Try to find an existing request that matches this performance entry
     const existingRequest = capturedRequests.find(
       (req) =>
@@ -307,7 +317,9 @@ function handlePerformanceData(entries, tab) {
 // Handle page load event
 function handlePageLoad(data, tab) {
   console.log("[Capture] handlePageLoad", data);
-  if (!config.enabled) return;
+  // Only capture if navigation is enabled and passes filters
+  const details = { type: "navigation", url: data.url };
+  if (!shouldCapture(details)) return;
 
   // Create a special request entry for the page load
   const { domain, path } = parseUrl(data.url);
@@ -354,7 +366,8 @@ function handlePageLoad(data, tab) {
 // Handle page navigation event
 function handlePageNavigation(data, tab) {
   console.log("[Capture] handlePageNavigation", data);
-  if (!config.enabled) return;
+  const details = { type: "navigation", url: data.url };
+  if (!shouldCapture(details)) return;
 
   // Publish page navigation event
   eventBus.publish("page:navigated", {
@@ -367,7 +380,11 @@ function handlePageNavigation(data, tab) {
 // Handle XHR/Fetch completed event
 function handleXhrFetchCompleted(data, tab) {
   console.log("[Capture] handleXhrFetchCompleted", data);
-  if (!config.enabled) return;
+  const details = {
+    type: data.action === "xhrCompleted" ? "xmlhttprequest" : "fetch",
+    url: data.url,
+  };
+  if (!shouldCapture(details)) return;
 
   // Try to find an existing request that matches
   const existingRequest = capturedRequests.find(
@@ -383,12 +400,10 @@ function handleXhrFetchCompleted(data, tab) {
     existingRequest.timings.endTime = data.endTime;
     existingRequest.timings.duration = data.duration;
     existingRequest.size = data.responseSize || existingRequest.size;
-
     updateRequestData(existingRequest.id, existingRequest);
   } else if (shouldCaptureByUrl(data.url)) {
     // Create a new request
     const { domain, path } = parseUrl(data.url);
-
     const request = {
       id: generateId(),
       url: data.url,
@@ -415,7 +430,11 @@ function handleXhrFetchCompleted(data, tab) {
         download: 0,
       },
     };
-
+    // Save headers if available and enabled
+    if (config.capture && config.capture.captureHeaders && data.headers && dbManager) {
+      dbManager.saveRequestHeaders(request.id, data.headers);
+      request.headers = data.headers;
+    }
     updateRequestData(request.id, request);
   }
 }
@@ -423,7 +442,8 @@ function handleXhrFetchCompleted(data, tab) {
 // Handle fetch error event
 function handleFetchError(data, tab) {
   console.log("[Capture] handleFetchError", data);
-  if (!config.enabled) return;
+  const details = { type: "fetch", url: data.url };
+  if (!shouldCapture(details)) return;
 
   // Try to find an existing request that matches
   const existingRequest = capturedRequests.find(
@@ -437,12 +457,10 @@ function handleFetchError(data, tab) {
     existingRequest.error = data.error;
     existingRequest.timings.endTime = data.endTime;
     existingRequest.timings.duration = data.duration;
-
     updateRequestData(existingRequest.id, existingRequest);
   } else if (shouldCaptureByUrl(data.url)) {
     // Create a new request
     const { domain, path } = parseUrl(data.url);
-
     const request = {
       id: generateId(),
       url: data.url,
@@ -467,7 +485,11 @@ function handleFetchError(data, tab) {
         download: 0,
       },
     };
-
+    // Save headers if available and enabled
+    if (config.capture && config.capture.captureHeaders && data.headers && dbManager) {
+      dbManager.saveRequestHeaders(request.id, data.headers);
+      request.headers = data.headers;
+    }
     updateRequestData(request.id, request);
   }
 }
@@ -502,13 +524,32 @@ function updateRequestData(requestId, requestData) {
   eventBus.publish("request:captured", { id: requestId });
 }
 
-// Check if a request should be captured based on configuration
-function shouldCaptureRequest(details) {
+// Helper: check if a request should be captured based on config settings and filters
+function shouldCapture(details) {
   initializeCaptureFilters(config); // Ensure captureFilters is properly initialized
 
-  // Check request type
-  if (!config.captureFilters.includeTypes.includes(details.type)) {
+  // Check request type (from captureFilters)
+  if (
+    config.captureFilters &&
+    Array.isArray(config.captureFilters.includeTypes) &&
+    !config.captureFilters.includeTypes.includes(details.type)
+  ) {
     return false;
+  }
+
+  // Check if this type is enabled in capture settings (e.g., captureXHR, captureWebSocket, etc.)
+  if (config.capture) {
+    if (details.type === "xmlhttprequest" || details.type === "fetch") {
+      if (!config.capture.captureXHR) return false;
+    } else if (details.type === "websocket") {
+      if (!config.capture.captureWebSocket) return false;
+    } else if (details.type === "eventsource") {
+      if (!config.capture.captureEventSource) return false;
+    } else if (
+      ["script", "stylesheet", "image", "font", "other"].includes(details.type)
+    ) {
+      if (!config.capture.captureResources) return false;
+    }
   }
 
   // Check URL
@@ -519,19 +560,21 @@ function shouldCaptureRequest(details) {
 function shouldCaptureByUrl(url) {
   try {
     const { domain } = parseUrl(url);
-
-    // Check domain filters
-    if (config.captureFilters.excludeDomains.includes(domain)) {
+    if (
+      config.captureFilters &&
+      Array.isArray(config.captureFilters.excludeDomains) &&
+      config.captureFilters.excludeDomains.includes(domain)
+    ) {
       return false;
     }
-
     if (
+      config.captureFilters &&
+      Array.isArray(config.captureFilters.includeDomains) &&
       config.captureFilters.includeDomains.length > 0 &&
       !config.captureFilters.includeDomains.includes(domain)
     ) {
       return false;
     }
-
     return true;
   } catch (e) {
     return false;
@@ -556,3 +599,6 @@ function updateCaptureConfig(newConfig) {
   initializeCaptureFilters(config); // Ensure captureFilters is properly initialized
   eventBus.publish("capture:config_updated", { timestamp: Date.now() });
 }
+
+// --- Backup/Restore support for requests and settings ---
+// (Moved to db-manager.js: see backupAllData and restoreAllData)

@@ -7,6 +7,7 @@
   height: auto;
   max-height: 80vh;
   overflow-y: auto !important;
+  padding: 10px;
 
   /* Hide scrollbars (cross-browser) */
   scrollbar-width: none; /* Firefox */
@@ -31,7 +32,7 @@
 /* Analytics Section Styles */
 #analytics-section .chart-container {
   margin-bottom: 25px;
-  padding: 15px;
+  padding: 18px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--surface-color);
@@ -84,4 +85,74 @@
   padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
+}
+
+.analytics-select {
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  font-size: 1em;
+  min-width: 120px;
+  margin-bottom: 0;
+}
+
+.analytics-tab-btn.active {
+  background: var(--primary-color, #1976d2);
+  color: #fff;
+  font-weight: bold;
+  border-bottom: 2px solid var(--primary-color, #1976d2);
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.08);
+}
+
+.analytics-tab-btn {
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px 4px 0 0;
+  padding: 8px 18px;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.analytics-tab-btn:not(.active):hover {
+  background: var(--border-color);
+}
+
+.analytics-tab-bar {
+  margin-top: 18px;
+  /* already has margin-bottom */
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.chart-tab-btn {
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px 4px 0 0;
+  padding: 8px 18px;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.chart-tab-btn:not(.active):hover {
+  background: var(--border-color);
+}
+.chart-tab-btn.active {
+  background: var(--primary-color, #1976d2);
+  color: #fff;
+  font-weight: bold;
+  border-bottom: 2px solid var(--primary-color, #1976d2);
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.08);
+}
+
+.analytics-filter-bar {
+  padding: 18px 18px 0 18px;
 }

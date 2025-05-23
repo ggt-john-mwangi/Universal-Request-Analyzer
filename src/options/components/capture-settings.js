@@ -212,6 +212,8 @@ export default function renderCaptureSettings() {
 
   // Initial load
   loadCaptureSettings();
+  // Always reload from backend/database on reset
+  container.querySelector('#resetCaptureSettings').addEventListener('click', resetSettings);
 
   return container;
 }

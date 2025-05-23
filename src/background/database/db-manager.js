@@ -1052,6 +1052,66 @@ async function deleteBackup(key) {
   }
 }
 
+// --- Unified Backup/Restore for Requests, Timings, Headers, and Settings ---
+
+/**
+ * Backup all requests, timings, headers, and config/settings from the database.
+ * Returns an object suitable for export/restore.
+ */
+export async function backupAllData(configManager) {
+  if (!db) throw new DatabaseError("Database not initialized");
+  // Requests
+  const requests = await (typeof getAllRequests === 'function' ? getAllRequests() : []);
+  // Timings
+  const timings = await (typeof getAllRequestTimings === 'function' ? getAllRequestTimings() : []);
+  // Headers
+  const headers = await (typeof getAllRequestHeaders === 'function' ? getAllRequestHeaders() : []);
+  // Config/settings
+  let config = null;
+  if (configManager && typeof configManager.getConfig === 'function') {
+    config = await configManager.getConfig();
+  } else if (typeof loadConfigFromDb === 'function') {
+    config = loadConfigFromDb();
+  }
+  return { requests, timings, headers, config };
+}
+
+/**
+ * Restore all requests, timings, headers, and config/settings to the database.
+ * Overwrites existing data.
+ */
+export async function restoreAllData(backup, configManager) {
+  if (!db) throw new DatabaseError("Database not initialized");
+  // Clear existing data
+  await clearRequests();
+  // Restore requests
+  if (backup.requests) {
+    for (const req of backup.requests) {
+      await saveRequest(req);
+    }
+  }
+  // Restore timings
+  if (backup.timings) {
+    for (const t of backup.timings) {
+      await saveRequestTimings(t.requestId, t);
+    }
+  }
+  // Restore headers
+  if (backup.headers) {
+    for (const h of backup.headers) {
+      await saveRequestHeaders(h.requestId, h.headers);
+    }
+  }
+  // Restore config/settings
+  if (backup.config && configManager && typeof configManager.updateConfig === 'function') {
+    await configManager.updateConfig(backup.config);
+  } else if (backup.config && typeof saveConfigToDb === 'function') {
+    saveConfigToDb(backup.config);
+  }
+  eventBus && eventBus.publish("database:restored", { timestamp: Date.now() });
+  return true;
+}
+
 // Initialize the database with proper handling of OPFS
 
 export async function initializeDatabase() {
@@ -1672,6 +1732,8 @@ function createDbInterface() {
     clearHistoryLog,
     getResourceTimings,
     getPageLoadMetrics,
-    getResourceBreakdown
+    getResourceBreakdown,
+    backupAllData,
+    restoreAllData
   };
 }

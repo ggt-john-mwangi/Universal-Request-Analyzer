@@ -418,6 +418,12 @@ async function handleMessage(message, sender, logErrorToDbFunc) {
           chrome.runtime.sendMessage({ action: "resetConfigResult", success: false, error: error.message });
         }
         return;
+      case "backupAllData":
+        handleBackupAllData(message);
+        return;
+      case "restoreAllData":
+        handleRestoreAllData(message);
+        return;
       default:
         console.warn(
           "[MessageHandler] Unknown action received:",
@@ -811,6 +817,15 @@ async function handleUpdateConfig(message) {
       "[MessageHandler] handleUpdateConfig: Config updated successfully."
     );
     const updatedConfig = await configManager.getConfig();
+    // --- Ensure background capture logic uses latest config ---
+    if (captureManager && typeof captureManager.updateCaptureConfig === 'function') {
+      // Only update the capture section if present
+      if (updatedConfig.capture) {
+        captureManager.updateCaptureConfig(updatedConfig.capture);
+      } else {
+        captureManager.updateCaptureConfig(updatedConfig);
+      }
+    }
     sendEventResponse("updateConfigResult", message.requestId, { success: true, config: updatedConfig });
   } catch (error) {
     console.error(
@@ -1128,5 +1143,29 @@ async function handleClearHistoryLog(message) {
     sendEventResponse("clearHistoryLogResult", message.requestId, { success: true });
   } catch (error) {
     sendEventResponse("clearHistoryLogResult", message.requestId, { success: false, error: error.message });
+  }
+}
+
+// --- Unified Backup/Restore Event Handlers ---
+async function handleBackupAllData(message) {
+  try {
+    if (!dbManager || typeof dbManager.backupAllData !== "function")
+      throw new Error("dbManager.backupAllData not available");
+    const backup = await dbManager.backupAllData(configManager);
+    sendEventResponse("backupAllDataResult", message.requestId, { success: true, backup });
+  } catch (error) {
+    sendEventResponse("backupAllDataResult", message.requestId, { success: false, error: error.message });
+  }
+}
+
+async function handleRestoreAllData(message) {
+  try {
+    if (!dbManager || typeof dbManager.restoreAllData !== "function")
+      throw new Error("dbManager.restoreAllData not available");
+    const { backup } = message;
+    await dbManager.restoreAllData(backup, configManager);
+    sendEventResponse("restoreAllDataResult", message.requestId, { success: true });
+  } catch (error) {
+    sendEventResponse("restoreAllDataResult", message.requestId, { success: false, error: error.message });
   }
 }

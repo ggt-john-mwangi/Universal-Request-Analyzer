@@ -524,15 +524,19 @@ function updateUIFromConfig(config) {
     config.captureFilters || defaultConfig.captureFilters;
   if (captureTypeCheckboxes) {
     captureTypeCheckboxes.forEach((checkbox) => {
-      checkbox.checked = (captureFiltersConf.includeTypes || []).includes(
-        checkbox.value
-      );
+      // Defensive: ensure includeTypes is always an array
+      const typesArr = Array.isArray(captureFiltersConf.includeTypes) ? captureFiltersConf.includeTypes : [];
+      checkbox.checked = typesArr.includes(checkbox.value);
     });
   }
-  if (includeDomains)
-    includeDomains.value = (captureFiltersConf.includeDomains || []).join(", ");
-  if (excludeDomains)
-    excludeDomains.value = (captureFiltersConf.excludeDomains || []).join(", ");
+  if (includeDomains) {
+    const domainsArr = Array.isArray(captureFiltersConf.includeDomains) ? captureFiltersConf.includeDomains : [];
+    includeDomains.value = domainsArr.join(", ");
+  }
+  if (excludeDomains) {
+    const domainsArr = Array.isArray(captureFiltersConf.excludeDomains) ? captureFiltersConf.excludeDomains : [];
+    excludeDomains.value = domainsArr.join(", ");
+  }
 
   // Display Settings
   const displayConf = config.display || defaultConfig.display;
@@ -726,59 +730,33 @@ function formatBytes(bytes, decimals = 2) {
 function saveOptions(requestId) {
   const newConfig = {
     general: {
-      maxStoredRequests: maxStoredRequests
-        ? Number.parseInt(maxStoredRequests.value, 10) || 10000
-        : 10000,
-      autoStartCapture: autoStartCapture ? autoStartCapture.checked : false,
-      showNotifications: showNotifications ? showNotifications.checked : true,
-      confirmClearRequests: confirmClearRequests
-        ? confirmClearRequests.checked
-        : true,
-      defaultExportFormat: defaultExportFormat
-        ? defaultExportFormat.value
-        : "json",
+      maxStoredRequests: maxStoredRequests ? Number.parseInt(maxStoredRequests.value, 10) || 10000 : 10000,
+      autoStartCapture: autoStartCapture ? !!autoStartCapture.checked : false,
+      showNotifications: showNotifications ? !!showNotifications.checked : true,
+      confirmClearRequests: confirmClearRequests ? !!confirmClearRequests.checked : true,
+      defaultExportFormat: defaultExportFormat ? defaultExportFormat.value : "json",
       dateFormat: dateFormat ? dateFormat.value : "YYYY-MM-DD HH:mm:ss",
       timeZone: timeZone ? timeZone.value : "local",
     },
-    captureEnabled: captureEnabled ? captureEnabled.checked : true,
+    captureEnabled: captureEnabled ? !!captureEnabled.checked : true,
     capture: {
-      includeHeaders: includeHeaders ? includeHeaders.checked : true,
-      includeTiming: includeTiming ? includeTiming.checked : true,
-      includeContent: includeContent ? includeContent.checked : false,
-      maxContentSize: maxContentSize
-        ? Number.parseInt(maxContentSize.value, 10) || 1024 * 1024
-        : 1024 * 1024,
-      captureWebSockets: captureWebSockets ? captureWebSockets.checked : false,
-      captureServerSentEvents: captureServerSentEvents
-        ? captureServerSentEvents.checked
-        : false,
+      includeHeaders: includeHeaders ? !!includeHeaders.checked : true,
+      includeTiming: includeTiming ? !!includeTiming.checked : true,
+      includeContent: includeContent ? !!includeContent.checked : false,
+      maxContentSize: maxContentSize ? Number.parseInt(maxContentSize.value, 10) || 1024 * 1024 : 1024 * 1024,
+      captureWebSockets: captureWebSockets ? !!captureWebSockets.checked : false,
+      captureServerSentEvents: captureServerSentEvents ? !!captureServerSentEvents.checked : false,
     },
     captureFilters: {
-      includeDomains: includeDomains
-        ? includeDomains.value
-            .split(",")
-            .map((d) => d.trim())
-            .filter((d) => d)
-        : [],
-      excludeDomains: excludeDomains
-        ? excludeDomains.value
-            .split(",")
-            .map((d) => d.trim())
-            .filter((d) => d)
-        : [],
-      includeTypes: captureTypeCheckboxes
-        ? Array.from(captureTypeCheckboxes)
-            .filter((checkbox) => checkbox.checked)
-            .map((checkbox) => checkbox.value)
-        : [],
+      includeDomains: includeDomains ? (Array.isArray(includeDomains.value) ? includeDomains.value : (typeof includeDomains.value === 'string' ? includeDomains.value.split(',').map((d) => d.trim()).filter((d) => d) : [])) : [],
+      excludeDomains: excludeDomains ? (Array.isArray(excludeDomains.value) ? excludeDomains.value : (typeof excludeDomains.value === 'string' ? excludeDomains.value.split(',').map((d) => d.trim()).filter((d) => d) : [])) : [],
+      includeTypes: captureTypeCheckboxes ? Array.from(captureTypeCheckboxes).filter((checkbox) => checkbox && checkbox.checked).map((checkbox) => checkbox.value) : [],
     },
     display: {
-      requestsPerPage: requestsPerPage
-        ? Number.parseInt(requestsPerPage.value, 10) || 50
-        : 50,
-      expandedDetails: expandedDetails ? expandedDetails.checked : false,
-      showStatusColors: showStatusColors ? showStatusColors.checked : true,
-      showTimingBars: showTimingBars ? showTimingBars.checked : true,
+      requestsPerPage: requestsPerPage ? Number.parseInt(requestsPerPage.value, 10) || 50 : 50,
+      expandedDetails: expandedDetails ? !!expandedDetails.checked : false,
+      showStatusColors: showStatusColors ? !!showStatusColors.checked : true,
+      showTimingBars: showTimingBars ? !!showTimingBars.checked : true,
       defaultTab: defaultTab ? defaultTab.value : "requests",
       columnOrder: [
         "method",
@@ -791,32 +769,20 @@ function saveOptions(requestId) {
         "time",
       ],
     },
-    autoExport: autoExport ? autoExport.checked : false,
+    autoExport: autoExport ? !!autoExport.checked : false,
     exportFormat: exportFormat ? exportFormat.value : "json",
-    exportInterval: exportInterval
-      ? Number.parseInt(exportInterval.value, 10) * 60000
-      : 86400000,
+    exportInterval: exportInterval ? Number.parseInt(exportInterval.value, 10) * 60000 : 86400000,
     exportPath: exportPath ? exportPath.value.trim() : "",
-    plotEnabled: plotEnabled ? plotEnabled.checked : true,
-    plotTypes: plotTypeCheckboxes
-      ? Array.from(plotTypeCheckboxes)
-          .filter((checkbox) => checkbox.checked)
-          .map((checkbox) => checkbox.value)
-      : [],
+    plotEnabled: plotEnabled ? !!plotEnabled.checked : true,
+    plotTypes: plotTypeCheckboxes ? Array.from(plotTypeCheckboxes).filter((checkbox) => checkbox && checkbox.checked).map((checkbox) => checkbox.value) : [],
     advanced: {
-      enableDebugMode: enableDebugMode ? enableDebugMode.checked : false,
-      persistFilters: persistFilters ? persistFilters.checked : true,
-      useCompression: useCompression ? useCompression.checked : false,
+      enableDebugMode: enableDebugMode ? !!enableDebugMode.checked : false,
+      persistFilters: persistFilters ? !!persistFilters.checked : true,
+      useCompression: useCompression ? !!useCompression.checked : false,
       backgroundMode: backgroundMode ? backgroundMode.value : "default",
-      syncInterval: syncInterval
-        ? Number.parseInt(syncInterval.value, 10) || 60
-        : 60,
-      logErrorsToDatabase: logErrorsToDatabase
-        ? logErrorsToDatabase.checked
-        : true,
-      logErrorsToConsole: logErrorsToConsole
-        ? logErrorsToConsole.checked
-        : true,
+      syncInterval: syncInterval ? Number.parseInt(syncInterval.value, 10) || 60 : 60,
+      logErrorsToDatabase: logErrorsToDatabase ? !!logErrorsToDatabase.checked : true,
+      logErrorsToConsole: logErrorsToConsole ? !!logErrorsToConsole.checked : true,
     },
   };
 
@@ -1072,17 +1038,16 @@ function renderSqlHistory() {
   container.innerHTML =
     "<b>Recent Queries:</b> " +
     sqlHistory
-      .map(
-        (q, i) =>
-          `<span class="sql-history-item" style="cursor:pointer; margin-right:8px;" data-idx="${i}">${q
-            .replace(/\s+/g, " ")
-            .slice(0, 60)}${q.length > 60 ? "..." : ""}</span>`
-      )
+      .map((q, i) => {
+        let qStr = typeof q === 'string' ? q : (q ? JSON.stringify(q) : '');
+        qStr = qStr.replace(/\s+/g, " ");
+        return `<span class="sql-history-item" style="cursor:pointer; margin-right:8px;" data-idx="${i}">${qStr.slice(0, 60)}${qStr.length > 60 ? "..." : ""}</span>`;
+      })
       .join("");
   container.querySelectorAll(".sql-history-item").forEach((el) => {
     el.onclick = () => {
       const idx = Number(el.dataset.idx);
-      rawSqlInput.value = sqlHistory[idx];
+      rawSqlInput.value = typeof sqlHistory[idx] === 'string' ? sqlHistory[idx] : (sqlHistory[idx] ? JSON.stringify(sqlHistory[idx]) : '');
       rawSqlInput.focus();
     };
   });
@@ -1706,6 +1671,30 @@ function updateEncryptionStatus() {
       encryptionWarning.style.display = "inline-block";
     }
   });
+}
+
+// Format a backup option for the restore dropdown
+function formatBackupOption(key, meta = {}) {
+  // Defensive: handle missing or malformed meta
+  let dateStr = "Unknown date";
+  let sizeStr = "Unknown size";
+  let label = key;
+  if (meta.createdAt || meta.timestamp) {
+    const ts = meta.createdAt || meta.timestamp;
+    try {
+      dateStr = new Date(ts).toLocaleString();
+    } catch (e) {
+      dateStr = String(ts);
+    }
+  }
+  if (meta.size) {
+    sizeStr = formatBytes(meta.size);
+  }
+  if (meta.label) {
+    label = meta.label;
+  }
+  // Compose readable label
+  return `${label} (${dateStr}, ${sizeStr})`;
 }
 
 // Setup event listeners

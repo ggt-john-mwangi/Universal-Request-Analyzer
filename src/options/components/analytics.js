@@ -4,60 +4,18 @@ function generateRequestId() {
   return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
 }
 
+// Ensure main analytics section uses the correct container
+const analyticsSection = document.getElementById('analytics-section');
+if (analyticsSection) {
+  analyticsSection.classList.add('analytics-container');
+}
+
 // Analytics component for Options page
 export default function renderAnalyticsSection() {
   console.log('[Analytics] renderAnalyticsSection mounted');
   // Container
   const container = document.createElement('div');
   container.className = 'analytics-container';
-
-  // Add domain and API/page selectors at the top
-  const filterRow = document.createElement('div');
-  filterRow.className = 'controls-container';
-  filterRow.innerHTML = `
-    <div class="control-group">
-      <label for="analytics-domain-select">Domain</label>
-      <select id="analytics-domain-select"><option value="">All Domains</option></select>
-    </div>
-    <div class="control-group">
-      <label for="analytics-api-select">API/Page</label>
-      <select id="analytics-api-select"><option value="">All APIs/Pages</option></select>
-    </div>
-  `;
-  container.prepend(filterRow);
-
-  // Populate domain selector
-  const domainReqId = generateRequestId();
-  pendingAnalyticsRequests[domainReqId] = (res) => {
-    if (res.success && Array.isArray(res.domains)) {
-      const select = filterRow.querySelector('#analytics-domain-select');
-      res.domains.forEach(d => {
-        const o = document.createElement('option'); o.value = d; o.textContent = d; select.appendChild(o);
-      });
-    }
-  };
-  chrome.runtime.sendMessage({ action: 'getDistinctDomains', requestId: domainReqId });
-
-  // Populate API selector when domain changes
-  filterRow.querySelector('#analytics-domain-select').addEventListener('change', function() {
-    const domain = this.value;
-    const apiSelect = filterRow.querySelector('#analytics-api-select');
-    apiSelect.innerHTML = '<option value="">All APIs/Pages</option>';
-    if (!domain) return;
-    const apiReqId = generateRequestId();
-    pendingAnalyticsRequests[apiReqId] = (res) => {
-      if (res.success && Array.isArray(res.apis)) {
-        res.apis.forEach(api => {
-          const o = document.createElement('option'); o.value = api; o.textContent = api; apiSelect.appendChild(o);
-        });
-      }
-    };
-    chrome.runtime.sendMessage({ action: 'getDistinctApis', domain, requestId: apiReqId });
-  });
-
-  // Update analytics when domain or API changes
-  filterRow.querySelector('#analytics-domain-select').addEventListener('change', loadAnalytics);
-  filterRow.querySelector('#analytics-api-select').addEventListener('change', loadAnalytics);
 
   // Controls: date range, domain filter, request type filter
   const controls = document.createElement('div');
@@ -72,10 +30,20 @@ export default function renderAnalyticsSection() {
       <input type="date" id="analytics-end-date">
     </div>
     <div class="control-group">
-      <label for="analytics-domain">Domain</label>
-      <select id="analytics-domain">
-        <option value="">All Domains</option>
-      </select>
+      <label for="analytics-domain-select">Domain</label>
+      <select id="analytics-domain-select" class="analytics-select"><option value="">All Domains</option></select>
+    </div>
+    <div class="control-group">
+      <label for="analytics-api-select">API/Page</label>
+      <select id="analytics-api-select" class="analytics-select"><option value="">All APIs/Pages</option></select>
+    </div>
+    <div class="control-group">
+      <label for="analytics-method-select">HTTP Method</label>
+      <select id="analytics-method-select"><option value="">All Methods</option></select>
+    </div>
+    <div class="control-group">
+      <label for="analytics-status-select">Status Code</label>
+      <select id="analytics-status-select"><option value="">All Statuses</option></select>
     </div>
     <div class="control-group">
       <label>Request Types</label>
@@ -90,68 +58,85 @@ export default function renderAnalyticsSection() {
       </div>
     </div>
     <div class="control-group">
-      <label>Visualizations</label>
-      <div class="checkbox-group">
-        <label class="checkbox-label"><input type="checkbox" id="toggle-summary" checked> Summary Stats</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-response" checked> Response Time Chart</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-status" checked> Status Codes Chart</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-types" checked> Request Types Chart</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-time-dist" checked> Time Distribution Chart</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-size-dist" checked> Size Distribution Chart</label>
-        <label class="checkbox-label"><input type="checkbox" id="toggle-perf" checked> Performance Timings Chart</label>
-      </div>
-    </div>
-    <div class="control-group">
       <button id="analytics-apply">Apply Filters</button>
     </div>
   `;
   container.appendChild(controls);
 
-  // Add advanced filter controls to the sidebar
-  const advancedFilters = document.createElement('div');
-  advancedFilters.className = 'controls-container';
-  advancedFilters.innerHTML = `
-    <div class="control-group">
-      <label for="analytics-method-select">HTTP Method</label>
-      <select id="analytics-method-select"><option value="">All Methods</option></select>
-    </div>
-    <div class="control-group">
-      <label for="analytics-status-select">Status Code</label>
-      <select id="analytics-status-select"><option value="">All Statuses</option></select>
-    </div>
-  `;
-  container.insertBefore(advancedFilters, controls);
+  // --- Section containers for each tab ---
+  const analysisSection = document.createElement('div');
+  analysisSection.className = 'analytics-tab-section';
+  analysisSection.style.display = 'block';
+  const perfSection = document.createElement('div');
+  perfSection.className = 'analytics-tab-section';
+  perfSection.style.display = 'none';
+  container.appendChild(analysisSection);
+  container.appendChild(perfSection);
 
-  // Populate HTTP method and status code dropdowns from DB
-  function populateMethodAndStatusFilters() {
-    // Methods
-    const methodReqId = generateRequestId();
-    pendingAnalyticsRequests[methodReqId] = (res) => {
-      const select = advancedFilters.querySelector('#analytics-method-select');
-      if (res.success && Array.isArray(res.values)) {
-        res.values.forEach(method => {
-          const o = document.createElement('option'); o.value = method; o.textContent = method; select.appendChild(o);
-        });
-      }
+  // --- Chart tabs for analysis ---
+  const analysisChartTabs = document.createElement('div');
+  analysisChartTabs.className = 'chart-tabs';
+  const analysisCharts = [
+    { id: 'apiOverTime', label: 'API Requests Over Time' },
+    { id: 'status', label: 'Status Codes' },
+    { id: 'type', label: 'Request Types' },
+    { id: 'timeDist', label: 'Time Distribution' },
+    { id: 'sizeDist', label: 'Size Distribution' }
+  ];
+  let activeAnalysisChart = 'apiOverTime';
+  // Store refs for logic
+  const visualizationCheckboxes = {};
+  analysisCharts.forEach(chart => {
+    const btn = document.createElement('button');
+    btn.textContent = chart.label;
+    btn.className = 'chart-tab-btn' + (chart.id === activeAnalysisChart ? ' active' : '');
+    btn.onclick = () => {
+      if (!visualizationCheckboxes[chart.id] || !visualizationCheckboxes[chart.id].checked) return; // Only allow if enabled
+      activeAnalysisChart = chart.id;
+      updateAnalysisChartUI();
     };
-    chrome.runtime.sendMessage({ action: 'getDistinctValues', field: 'method', requestId: methodReqId });
-    // Status codes
-    const statusReqId = generateRequestId();
-    pendingAnalyticsRequests[statusReqId] = (res) => {
-      const select = advancedFilters.querySelector('#analytics-status-select');
-      if (res.success && Array.isArray(res.values)) {
-        res.values.forEach(status => {
-          const o = document.createElement('option'); o.value = status; o.textContent = status; select.appendChild(o);
-        });
-      }
-    };
-    chrome.runtime.sendMessage({ action: 'getDistinctValues', field: 'status', requestId: statusReqId });
-  }
-  populateMethodAndStatusFilters();
+    btn.id = 'analysis-' + chart.id;
+    analysisChartTabs.appendChild(btn);
+  });
+  analysisSection.appendChild(analysisChartTabs);
 
-  // Update analytics when method or status changes
-  advancedFilters.querySelector('#analytics-method-select').addEventListener('change', loadAnalytics);
-  advancedFilters.querySelector('#analytics-status-select').addEventListener('change', loadAnalytics);
+  // --- Visualizations filter group (dynamic, aligned with analysisCharts) ---
+  const visualizationsGroup = document.createElement('div');
+  visualizationsGroup.className = 'controls-container';
+  const visControlGroup = document.createElement('div');
+  visControlGroup.className = 'control-group';
+  const visLabel = document.createElement('label');
+  visLabel.textContent = 'Visualizations';
+  visControlGroup.appendChild(visLabel);
+  const visCheckboxGroup = document.createElement('div');
+  visCheckboxGroup.className = 'checkbox-group';
+  analysisCharts.forEach(chart => {
+    const label = document.createElement('label');
+    label.className = 'checkbox-label';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = 'toggle-' + chart.id;
+    checkbox.checked = true;
+    visualizationCheckboxes[chart.id] = checkbox;
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(' ' + chart.label));
+    visCheckboxGroup.appendChild(label);
+    checkbox.addEventListener('change', () => {
+      // If disabling the active chart, switch to the next enabled one
+      if (!checkbox.checked && activeAnalysisChart === chart.id) {
+        const next = analysisCharts.find(c => visualizationCheckboxes[c.id].checked);
+        if (next) {
+          activeAnalysisChart = next.id;
+        } else {
+          activeAnalysisChart = null;
+        }
+      }
+      updateAnalysisChartUI();
+    });
+  });
+  visControlGroup.appendChild(visCheckboxGroup);
+  visualizationsGroup.appendChild(visControlGroup);
+  analysisSection.appendChild(visualizationsGroup);
 
   // Summary stats
   const summary = document.createElement('div');
@@ -190,20 +175,77 @@ export default function renderAnalyticsSection() {
   sizeDistDiv.innerHTML = `<canvas id="analytics-chart-size-dist"></canvas>`;
   container.appendChild(sizeDistDiv);
 
+  // --- Chart tabs for performance ---
+  const perfChartTabs = document.createElement('div');
+  perfChartTabs.className = 'chart-tabs';
+  const perfCharts = [
+    { id: 'summary', label: 'Summary Stats' },
+    { id: 'perf', label: 'Performance Timings' },
+    { id: 'waterfall', label: 'Waterfall' },
+    { id: 'pageload', label: 'Page Load' },
+    { id: 'resource', label: 'Resource Breakdown' }
+  ];
+  let activePerfChart = 'summary';
+  perfCharts.forEach(chart => {
+    const btn = document.createElement('button');
+    btn.textContent = chart.label;
+    btn.className = 'chart-tab-btn' + (chart.id === activePerfChart ? ' active' : '');
+    btn.onclick = () => {
+      activePerfChart = chart.id;
+      updatePerfChartUI();
+    };
+    btn.id = 'perf-' + chart.id;
+    perfChartTabs.appendChild(btn);
+  });
+  perfSection.appendChild(perfChartTabs);
+  // Chart containers for each performance tab
+  const waterfallDiv = document.createElement('div');
+  waterfallDiv.id = 'chart-waterfall';
+  waterfallDiv.className = 'chart-container';
+  perfSection.appendChild(waterfallDiv);
+  const pageLoadDiv = document.createElement('div');
+  pageLoadDiv.id = 'chart-pageload';
+  pageLoadDiv.className = 'chart-container';
+  perfSection.appendChild(pageLoadDiv);
+  const resourceDiv = document.createElement('div');
+  resourceDiv.id = 'chart-resource';
+  resourceDiv.className = 'chart-container';
+  perfSection.appendChild(resourceDiv);
+  // Add missing perfDiv for 'Performance Timings'
   const perfDiv = document.createElement('div');
   perfDiv.id = 'chart-perf';
   perfDiv.className = 'chart-container';
-  perfDiv.innerHTML = `<canvas id="analytics-chart-perf"></canvas>`;
-  container.appendChild(perfDiv);
+  perfSection.appendChild(perfDiv);
+
+  // Add summary and perfDiv as before
+  const perfChartDivs = {
+    summary,
+    perf: perfDiv,
+    waterfall: waterfallDiv,
+    pageload: pageLoadDiv,
+    resource: resourceDiv
+  };
+  Object.values(perfChartDivs).forEach(div => div.style.display = 'none');
+  Object.values(perfChartDivs).forEach(div => perfSection.appendChild(div));
+
+  // --- Chart rendering for analysis tabs ---
+  // Define chartDivs for analysis charts (must be after all divs are created)
+  const chartDivs = {
+    apiOverTime: responseDiv,
+    status: statusDiv,
+    type: typesDiv,
+    timeDist: timeDistDiv,
+    sizeDist: sizeDistDiv
+  };
 
   // State for charts
-  let responseChart, statusChart, typeChart, timeDistChart, sizeDistChart, perfChart;
+  let responseChart = null, statusChart = null, typeChart = null, timeDistChart = null, sizeDistChart = null, perfChart = null;
 
   // Fetch domains
   const domainControlReqId = generateRequestId();
   pendingAnalyticsRequests[domainControlReqId] = (res) => {
     if (res.success && Array.isArray(res.domains)) {
-      const select = controls.querySelector('#analytics-domain');
+      const select = controls.querySelector('#analytics-domain-select');
       res.domains.forEach(d => {
         const o = document.createElement('option'); o.value = d; o.textContent = d; select.appendChild(o);
       });
@@ -244,11 +286,11 @@ export default function renderAnalyticsSection() {
     function renderAnalytics() {
       const start = controls.querySelector('#analytics-start-date').value;
       const end = controls.querySelector('#analytics-end-date').value;
-      const domain = filterRow.querySelector('#analytics-domain-select').value;
-      const api = filterRow.querySelector('#analytics-api-select').value;
+      const domain = controls.querySelector('#analytics-domain-select').value;
+      const api = controls.querySelector('#analytics-api-select').value;
       const types = Array.from(controls.querySelectorAll('#analytics-types input:checked')).map(i => i.value);
-      const method = advancedFilters.querySelector('#analytics-method-select').value;
-      const status = advancedFilters.querySelector('#analytics-status-select').value;
+      const method = controls.querySelector('#analytics-method-select').value;
+      const status = controls.querySelector('#analytics-status-select').value;
       // Filters for stats call
       const filters = { domain, types };
       if (start) filters.startTime = new Date(start).getTime();
@@ -292,7 +334,7 @@ export default function renderAnalyticsSection() {
         `;
         // --- Response Time Plot (API/Performance) ---
         const rtCanvas = document.getElementById('analytics-chart-response');
-        if (responseChart) responseChart.destroy();
+        if (responseChart) { responseChart.destroy(); responseChart = null; }
         if (api && stats.apiResponseTimes && stats.apiResponseTimes[api]) {
           const apiData = stats.apiResponseTimes[api];
           responseChart = new Chart(rtCanvas.getContext('2d'), {
@@ -386,9 +428,6 @@ export default function renderAnalyticsSection() {
   // --- Tabs for Analysis vs Performance ---
   const tabBar = document.createElement('div');
   tabBar.className = 'analytics-tab-bar';
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '18px';
   const tabs = [
     { id: 'tab-analysis', label: 'Request Analysis' },
     { id: 'tab-performance', label: 'Performance Metrics' }
@@ -407,121 +446,116 @@ export default function renderAnalyticsSection() {
   });
   container.prepend(tabBar);
 
-  // --- Section containers for each tab ---
-  const analysisSection = document.createElement('div');
-  analysisSection.className = 'analytics-tab-section';
-  analysisSection.style.display = 'block';
-  const perfSection = document.createElement('div');
-  perfSection.className = 'analytics-tab-section';
-  perfSection.style.display = 'none';
-  container.appendChild(analysisSection);
-  container.appendChild(perfSection);
-
-  // --- Unified Filters (no duplicates) ---
-  const unifiedFilters = controls; // Use only one controls instance
-  analysisSection.appendChild(unifiedFilters);
-  perfSection.appendChild(unifiedFilters.cloneNode(true)); // For performance tab, if needed
-
-  // --- Chart tabs for analysis ---
-  const analysisChartTabs = document.createElement('div');
-  analysisChartTabs.className = 'chart-tabs';
-  analysisChartTabs.style.display = 'flex';
-  analysisChartTabs.style.gap = '10px';
-  analysisChartTabs.style.margin = '12px 0';
-  const analysisCharts = [
-    { id: 'apiOverTime', label: 'API Requests Over Time' },
-    { id: 'status', label: 'Status Codes' },
-    { id: 'type', label: 'Request Types' },
-    { id: 'timeDist', label: 'Time Distribution' },
-    { id: 'sizeDist', label: 'Size Distribution' }
-  ];
-  let activeAnalysisChart = 'apiOverTime';
-  analysisCharts.forEach(chart => {
-    const btn = document.createElement('button');
-    btn.textContent = chart.label;
-    btn.className = 'chart-tab-btn' + (chart.id === activeAnalysisChart ? ' active' : '');
-    btn.onclick = () => {
-      activeAnalysisChart = chart.id;
-      updateAnalysisChartUI();
-    };
-    btn.id = 'analysis-' + chart.id;
-    analysisChartTabs.appendChild(btn);
-  });
-  analysisSection.appendChild(analysisChartTabs);
-  // Chart containers (reuse existing chart divs, no table)
-  const chartDivs = {
-    apiOverTime: responseDiv,
-    status: statusDiv,
-    type: typesDiv,
-    timeDist: timeDistDiv,
-    sizeDist: sizeDistDiv
-  };
-  Object.values(chartDivs).forEach(div => div.style.display = 'none');
-  Object.values(chartDivs).forEach(div => analysisSection.appendChild(div));
-
-  // --- Chart tabs for performance ---
-  const perfChartTabs = document.createElement('div');
-  perfChartTabs.className = 'chart-tabs';
-  perfChartTabs.style.display = 'flex';
-  perfChartTabs.style.gap = '10px';
-  perfChartTabs.style.margin = '12px 0';
-  const perfCharts = [
-    { id: 'summary', label: 'Summary Stats' },
-    { id: 'perf', label: 'Performance Timings' },
-    { id: 'waterfall', label: 'Waterfall' },
-    { id: 'pageload', label: 'Page Load' },
-    { id: 'resource', label: 'Resource Breakdown' }
-  ];
-  let activePerfChart = 'summary';
-  perfCharts.forEach(chart => {
-    const btn = document.createElement('button');
-    btn.textContent = chart.label;
-    btn.className = 'chart-tab-btn' + (chart.id === activePerfChart ? ' active' : '');
-    btn.onclick = () => {
-      activePerfChart = chart.id;
-      updatePerfChartUI();
-    };
-    btn.id = 'perf-' + chart.id;
-    perfChartTabs.appendChild(btn);
-  });
-  perfSection.appendChild(perfChartTabs);
-  // Chart containers for each performance tab
-  const waterfallDiv = document.createElement('div');
-  waterfallDiv.id = 'chart-waterfall';
-  waterfallDiv.className = 'chart-container';
-  perfSection.appendChild(waterfallDiv);
-  const pageLoadDiv = document.createElement('div');
-  pageLoadDiv.id = 'chart-pageload';
-  pageLoadDiv.className = 'chart-container';
-  perfSection.appendChild(pageLoadDiv);
-  const resourceDiv = document.createElement('div');
-  resourceDiv.id = 'chart-resource';
-  resourceDiv.className = 'chart-container';
-  perfSection.appendChild(resourceDiv);
-  // Add summary and perfDiv as before
-  const perfChartDivs = {
-    summary,
-    perf: perfDiv,
-    waterfall: waterfallDiv,
-    pageload: pageLoadDiv,
-    resource: resourceDiv
-  };
-  Object.values(perfChartDivs).forEach(div => div.style.display = 'none');
-  Object.values(perfChartDivs).forEach(div => perfSection.appendChild(div));
-
   // --- Tab UI update logic ---
   function updateTabUI() {
     tabBar.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.id === activeTab));
     analysisSection.style.display = activeTab === 'tab-analysis' ? 'block' : 'none';
     perfSection.style.display = activeTab === 'tab-performance' ? 'block' : 'none';
+    // Show visualizationsGroup only in analysis tab
+    visualizationsGroup.style.display = activeTab === 'tab-analysis' ? '' : 'none';
     updateAnalysisChartUI();
     updatePerfChartUI();
   }
   function updateAnalysisChartUI() {
-    analysisChartTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.id === 'analysis-' + activeAnalysisChart));
+    // Hide all chart containers
     Object.entries(chartDivs).forEach(([id, div]) => {
-      div.style.display = id === activeAnalysisChart ? 'block' : 'none';
+      div.style.display = 'none';
     });
+    // Disable all tab buttons
+    analysisChartTabs.querySelectorAll('button').forEach(btn => {
+      btn.classList.remove('active');
+      btn.disabled = !visualizationCheckboxes[btn.id.replace('analysis-', '')]?.checked;
+    });
+    // If no chart is enabled, exit
+    if (!activeAnalysisChart || !visualizationCheckboxes[activeAnalysisChart]?.checked) {
+      return;
+    }
+    // Show only the active chart container
+    const activeDiv = chartDivs[activeAnalysisChart];
+    if (activeDiv) {
+      activeDiv.style.display = 'block';
+      // Re-render the chart for the active tab
+      if (typeof Chart === 'undefined') {
+        activeDiv.innerHTML = '<div class="error">Chart.js not loaded. Charts cannot be displayed.</div>';
+        return;
+      }
+      // Destroy previous chart instance if exists
+      if (activeAnalysisChart === 'apiOverTime' && responseChart) { responseChart.destroy(); responseChart = null; }
+      if (activeAnalysisChart === 'status' && statusChart) { statusChart.destroy(); statusChart = null; }
+      if (activeAnalysisChart === 'type' && typeChart) { typeChart.destroy(); typeChart = null; }
+      if (activeAnalysisChart === 'timeDist' && timeDistChart) { timeDistChart.destroy(); timeDistChart = null; }
+      if (activeAnalysisChart === 'sizeDist' && sizeDistChart) { sizeDistChart.destroy(); sizeDistChart = null; }
+      // Fetch and render chart data for the active tab
+      const filters = getCurrentFilters();
+      const requestId = generateRequestId();
+      pendingAnalyticsRequests[requestId] = (stats) => {
+        if (!stats || stats.error) {
+          activeDiv.innerHTML = `<div class='error'>${stats?.error || 'No analytics data.'}</div>`;
+          return;
+        }
+        // Render the correct chart for the active tab
+        if (activeAnalysisChart === 'apiOverTime') {
+          const canvas = activeDiv.querySelector('canvas') || document.createElement('canvas');
+          if (!activeDiv.contains(canvas)) activeDiv.innerHTML = '', activeDiv.appendChild(canvas);
+          responseChart = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: stats.responseTimesData?.timestamps || [],
+              datasets: [{ label: 'Response Time', data: stats.responseTimesData?.durations || [], borderColor: '#0066cc', fill: false }]
+            },
+            options: { plugins: { title: { display: true, text: 'Response Times (Last 100)' } } }
+          });
+        } else if (activeAnalysisChart === 'status') {
+          const canvas = activeDiv.querySelector('canvas') || document.createElement('canvas');
+          if (!activeDiv.contains(canvas)) activeDiv.innerHTML = '', activeDiv.appendChild(canvas);
+          statusChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: (stats.statusCodes || []).map(c => c.status),
+              datasets: [{ label: 'Count', data: (stats.statusCodes || []).map(c => c.count), backgroundColor: '#4caf50' }]
+            },
+            options: { plugins: { title: { display: true, text: 'Status Code Distribution' } } }
+          });
+        } else if (activeAnalysisChart === 'type') {
+          const canvas = activeDiv.querySelector('canvas') || document.createElement('canvas');
+          if (!activeDiv.contains(canvas)) activeDiv.innerHTML = '', activeDiv.appendChild(canvas);
+          typeChart = new Chart(canvas.getContext('2d'), {
+            type: 'pie',
+            data: {
+              labels: (stats.requestTypes || []).map(t => t.type),
+              datasets: [{ label: 'Count', data: (stats.requestTypes || []).map(t => t.count), backgroundColor: '#ff9800' }]
+            },
+            options: { plugins: { title: { display: true, text: 'Request Type Distribution' } } }
+          });
+        } else if (activeAnalysisChart === 'timeDist') {
+          const canvas = activeDiv.querySelector('canvas') || document.createElement('canvas');
+          if (!activeDiv.contains(canvas)) activeDiv.innerHTML = '', activeDiv.appendChild(canvas);
+          timeDistChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: stats.timeDistribution?.bins || [],
+              datasets: [{ label: 'Requests', data: stats.timeDistribution?.counts || [], backgroundColor: '#2196f3' }]
+            },
+            options: { plugins: { title: { display: true, text: 'Time Distribution' } } }
+          });
+        } else if (activeAnalysisChart === 'sizeDist') {
+          const canvas = activeDiv.querySelector('canvas') || document.createElement('canvas');
+          if (!activeDiv.contains(canvas)) activeDiv.innerHTML = '', activeDiv.appendChild(canvas);
+          sizeDistChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: stats.sizeDistribution?.bins || [],
+              datasets: [{ label: 'Requests', data: stats.sizeDistribution?.counts || [], backgroundColor: '#8bc34a' }]
+            },
+            options: { plugins: { title: { display: true, text: 'Size Distribution' } } }
+          });
+        }
+      };
+      chrome.runtime.sendMessage({ action: activeAnalysisChart === 'apiOverTime' ? 'getApiPerformanceOverTime' : 'getFilteredStats', filters, requestId });
+    }
+    // Enable only the active tab button
+    const activeBtn = analysisChartTabs.querySelector(`#analysis-${activeAnalysisChart}`);
+    if (activeBtn) activeBtn.classList.add('active');
   }
   function updatePerfChartUI() {
     perfChartTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.id === 'perf-' + activePerfChart));
@@ -696,11 +730,11 @@ export default function renderAnalyticsSection() {
   function getCurrentFilters() {
     const start = controls.querySelector('#analytics-start-date').value;
     const end = controls.querySelector('#analytics-end-date').value;
-    const domain = filterRow.querySelector('#analytics-domain-select').value;
-    const api = filterRow.querySelector('#analytics-api-select').value;
+    const domain = controls.querySelector('#analytics-domain-select').value;
+    const api = controls.querySelector('#analytics-api-select').value;
     const types = Array.from(controls.querySelectorAll('#analytics-types input:checked')).map(i => i.value);
-    const method = advancedFilters.querySelector('#analytics-method-select').value;
-    const status = advancedFilters.querySelector('#analytics-status-select').value;
+    const method = controls.querySelector('#analytics-method-select').value;
+    const status = controls.querySelector('#analytics-status-select').value;
     const filters = { domain, types };
     if (start) filters.startTime = new Date(start).getTime();
     if (end) filters.endTime = new Date(end).getTime() + 86400000 - 1;
