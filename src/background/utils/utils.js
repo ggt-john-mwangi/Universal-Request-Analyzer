@@ -183,7 +183,6 @@ export const defaultConfig = {
   lastExportTime: null,
 };
 
-
 // Default themes
 export const DEFAULT_THEMES = {
   light: {
@@ -303,7 +302,6 @@ export const CSS_VARIABLES = {
   shadow: "--shadow-color",
 };
 
-
 // Default feature flags configuration
 export const defaultFeatureFlags = {
   // Core features
@@ -349,8 +347,18 @@ export const FEATURE_FLAGS = {
   },
   logErrorsToConsole: {
     name: "Log Errors to Console",
-    description: "Enable logging of internal extension errors to the browser console.",
+    description:
+      "Enable logging of internal extension errors to the browser console.",
     defaultValue: true,
     category: "debugging",
   },
 };
+
+export function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}

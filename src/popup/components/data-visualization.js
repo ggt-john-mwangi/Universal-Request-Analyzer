@@ -11,6 +11,10 @@ import {
   sizeDistributionChartRef,
   chartInstances,
 } from "./chart-components.js";
+import {
+  generateRequestId,
+  sendMessageWithResponse,
+} from "../../background/utils/message-handler.js";
 
 // Main entry point for data visualization
 function DataVisualization(globalFilters = {}) {
@@ -41,22 +45,35 @@ function DataVisualization(globalFilters = {}) {
 
   // Type filter (XHR/fetch/script/...) as before
   const typeSelect = document.createElement("select");
-  ["", "xhr", "fetch", "script", "stylesheet", "image", "font", "other"].forEach(type => {
+  [
+    "",
+    "xhr",
+    "fetch",
+    "script",
+    "stylesheet",
+    "image",
+    "font",
+    "other",
+  ].forEach((type) => {
     const opt = document.createElement("option");
     opt.value = type;
-    opt.textContent = type ? type.charAt(0).toUpperCase() + type.slice(1) : "All Types";
+    opt.textContent = type
+      ? type.charAt(0).toUpperCase() + type.slice(1)
+      : "All Types";
     typeSelect.appendChild(opt);
   });
   filterPanel.appendChild(typeSelect);
 
   // Method filter (GET/POST/PUT/DELETE...)
   const methodSelect = document.createElement("select");
-  ["", "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"].forEach(method => {
-    const opt = document.createElement("option");
-    opt.value = method;
-    opt.textContent = method || "All Methods";
-    methodSelect.appendChild(opt);
-  });
+  ["", "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"].forEach(
+    (method) => {
+      const opt = document.createElement("option");
+      opt.value = method;
+      opt.textContent = method || "All Methods";
+      methodSelect.appendChild(opt);
+    }
+  );
   filterPanel.appendChild(methodSelect);
 
   // Min time filter
@@ -90,27 +107,33 @@ function DataVisualization(globalFilters = {}) {
   container.appendChild(filterPanel);
 
   // --- Populate pageSelect with distinct pages for selected domain ---
-  function populatePageSelectForDomain(domain) {
-    const requestId = `pagesel_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  async function populatePageSelectForDomain(domain) {
     const filters = {};
     if (domain) filters.domain = domain;
-    chrome.runtime.sendMessage({ action: "getDistinctValues", field: "pageUrl", filters, requestId });
-    function handler(message) {
-      if (message && message.requestId === requestId) {
-        if (message.success && Array.isArray(message.values)) {
-          // Remove all except default
-          while (pageSelect.options.length > 1) pageSelect.remove(1);
-          message.values.forEach(url => {
-            const opt = document.createElement("option");
-            opt.value = url;
-            opt.textContent = url.length > 60 ? url.slice(0, 57) + "..." : url;
-            pageSelect.appendChild(opt);
-          });
+
+    try {
+      const message = await sendMessageWithResponse("getDistinctValues", {
+        field: "pageUrl",
+        filters,
+      });
+
+      if (message.success && Array.isArray(message.values)) {
+        // Remove all options except the first (default)
+        while (pageSelect.options.length > 1) {
+          pageSelect.remove(1);
         }
-        chrome.runtime.onMessage.removeListener(handler);
+        message.values.forEach((url) => {
+          const opt = document.createElement("option");
+          opt.value = url;
+          opt.textContent = url.length > 60 ? url.slice(0, 57) + "..." : url;
+          pageSelect.appendChild(opt);
+        });
+      } else {
+        console.error("Failed to load distinct values", message.error);
       }
+    } catch (err) {
+      console.error("Error populating page select:", err);
     }
-    chrome.runtime.onMessage.addListener(handler);
   }
 
   // Controls row (dropdowns and overlay/export)
@@ -130,42 +153,55 @@ function DataVisualization(globalFilters = {}) {
   controlsRow.prepend(domainSelect);
 
   // --- Populate domain dropdown from backend (with lastActiveDomain support) ---
-  const requestId = `popup_domains_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  function handleDomains(message) {
-    if (message && message.requestId === requestId && message.action === "getDistinctDomainsResult") {
-      chrome.runtime.onMessage.removeListener(handleDomains);
-      domainSelect.innerHTML = '<option value="">All Domains</option>';
-      (message.domains || []).forEach(domain => {
+
+  async function populateDomainDropdown() {
+    domainSelect.disabled = true;
+    domainSelect.innerHTML = '<option value="">All Domains</option>';
+
+    try {
+      const response = await sendMessageWithResponse("getDistinctDomains");
+      const domains = response.domains || [];
+
+      domains.forEach((domain) => {
         const opt = document.createElement("option");
         opt.value = domain;
         opt.textContent = domain;
         domainSelect.appendChild(opt);
       });
-      // Try to set lastActiveDomain as default
-      if (chrome.storage && chrome.storage.local && chrome.storage.local.get) {
-        chrome.storage.local.get(["lastActiveDomain"], (result) => {
-          const lastDomain = result.lastActiveDomain;
-          if (lastDomain && message.domains && message.domains.includes(lastDomain)) {
-            domainSelect.value = lastDomain;
-          } else {
-            domainSelect.value = "";
-          }
-          domainSelect.disabled = false;
-          // Populate pages for this domain
-          populatePageSelectForDomain(domainSelect.value);
-          // Trigger initial chart render and change event for correct domain
-          selectedDomain = domainSelect.value;
-          domainSelect.dispatchEvent(new Event('change'));
-        });
-      } else {
+
+      // 1. Try to get active tab domain first
+      const activeDomain = await getActiveTabDomain();
+      console.log("Active Domain:" + activeDomain);
+      // Helper to set domain and update UI
+      function setDomainAndUpdate(value) {
+        if (value && domains.includes(value)) {
+          domainSelect.value = value;
+        } else {
+          domainSelect.value = "";
+        }
+
         domainSelect.disabled = false;
         populatePageSelectForDomain(domainSelect.value);
-        domainSelect.dispatchEvent(new Event('change'));
+        selectedDomain = domainSelect.value;
+        domainSelect.dispatchEvent(new Event("change"));
       }
+
+      if (activeDomain) {
+        setDomainAndUpdate(activeDomain);
+      } else {
+        // fallback to local storage if no active domain found
+        chrome.storage.local.get(["lastActiveDomain"], (result) => {
+          setDomainAndUpdate(result.lastActiveDomain);
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load domains:", error);
+      domainSelect.disabled = false;
     }
   }
-  chrome.runtime.onMessage.addListener(handleDomains);
-  chrome.runtime.sendMessage({ action: "getDistinctDomains", requestId });
+
+  // Call the function
+  populateDomainDropdown();
 
   // Metric selector (domain/type/time)
   const metricDropdown = document.createElement("select");
@@ -186,17 +222,17 @@ function DataVisualization(globalFilters = {}) {
   controlsRow.appendChild(metricDropdown);
 
   // --- Metric selection for API over time chart ---
-  let apiMetric = 'avgDuration';
-  const apiMetricDropdown = document.createElement('select');
-  apiMetricDropdown.className = 'plots-metric-dropdown';
-  apiMetricDropdown.title = 'Metric to plot';
+  let apiMetric = "avgDuration";
+  const apiMetricDropdown = document.createElement("select");
+  apiMetricDropdown.className = "plots-metric-dropdown";
+  apiMetricDropdown.title = "Metric to plot";
   [
-    { value: 'count', label: 'Count' },
-    { value: 'avgDuration', label: 'Avg Duration (ms)' },
-    { value: 'minDuration', label: 'Min Duration (ms)' },
-    { value: 'maxDuration', label: 'Max Duration (ms)' }
+    { value: "count", label: "Count" },
+    { value: "avgDuration", label: "Avg Duration (ms)" },
+    { value: "minDuration", label: "Min Duration (ms)" },
+    { value: "maxDuration", label: "Max Duration (ms)" },
   ].forEach(({ value, label }) => {
-    const opt = document.createElement('option');
+    const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = label;
     apiMetricDropdown.appendChild(opt);
@@ -280,32 +316,69 @@ function DataVisualization(globalFilters = {}) {
 
   // Render chart for current metric
   function renderCurrentChart() {
-    chartContent.innerHTML = '';
-    if (activeChart === 'apiOverTime') {
-      apiMetricDropdown.style.display = '';
+    chartContent.innerHTML = "";
+    if (activeChart === "apiOverTime") {
+      apiMetricDropdown.style.display = "";
     } else {
-      apiMetricDropdown.style.display = 'none';
+      apiMetricDropdown.style.display = "none";
     }
     fetchPlotDataForMetric((stats) => {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = 700;
       canvas.height = 320;
-      canvas.style.maxWidth = '100%';
-      canvas.style.maxHeight = '340px';
+      canvas.style.maxWidth = "100%";
+      canvas.style.maxHeight = "340px";
       chartContent.appendChild(canvas);
       let chartInstance = null;
-      if (activeChart === 'apiOverTime' && typeof window.renderApiOverTimeChart === 'function') {
-        chartInstance = window.renderApiOverTimeChart(canvas.getContext('2d'), stats, apiMetric);
-      } else if (activeChart === 'responseTime' && typeof window.renderResponseTimeChart === 'function') {
-        chartInstance = window.renderResponseTimeChart(canvas.getContext('2d'), stats);
-      } else if (activeChart === 'type' && typeof window.renderRequestTypeChart === 'function') {
-        chartInstance = window.renderRequestTypeChart(canvas.getContext('2d'), stats);
-      } else if (activeChart === 'statusCode' && typeof window.renderStatusCodeChart === 'function') {
-        chartInstance = window.renderStatusCodeChart(canvas.getContext('2d'), stats);
-      } else if (activeChart === 'time' && typeof window.renderTimeDistributionChart === 'function') {
-        chartInstance = window.renderTimeDistributionChart(canvas.getContext('2d'), stats);
-      } else if (activeChart === 'size' && typeof window.renderSizeDistributionChart === 'function') {
-        chartInstance = window.renderSizeDistributionChart(canvas.getContext('2d'), stats);
+      if (
+        activeChart === "apiOverTime" &&
+        typeof window.renderApiOverTimeChart === "function"
+      ) {
+        chartInstance = window.renderApiOverTimeChart(
+          canvas.getContext("2d"),
+          stats,
+          apiMetric
+        );
+      } else if (
+        activeChart === "responseTime" &&
+        typeof window.renderResponseTimeChart === "function"
+      ) {
+        chartInstance = window.renderResponseTimeChart(
+          canvas.getContext("2d"),
+          stats
+        );
+      } else if (
+        activeChart === "type" &&
+        typeof window.renderRequestTypeChart === "function"
+      ) {
+        chartInstance = window.renderRequestTypeChart(
+          canvas.getContext("2d"),
+          stats
+        );
+      } else if (
+        activeChart === "statusCode" &&
+        typeof window.renderStatusCodeChart === "function"
+      ) {
+        chartInstance = window.renderStatusCodeChart(
+          canvas.getContext("2d"),
+          stats
+        );
+      } else if (
+        activeChart === "time" &&
+        typeof window.renderTimeDistributionChart === "function"
+      ) {
+        chartInstance = window.renderTimeDistributionChart(
+          canvas.getContext("2d"),
+          stats
+        );
+      } else if (
+        activeChart === "size" &&
+        typeof window.renderSizeDistributionChart === "function"
+      ) {
+        chartInstance = window.renderSizeDistributionChart(
+          canvas.getContext("2d"),
+          stats
+        );
       }
       // Export buttons
       exportBtn.onclick = () => {
@@ -327,7 +400,7 @@ function DataVisualization(globalFilters = {}) {
         }
       };
       // Overlay logic (if enabled)
-      if (overlayToggle.querySelector('input').checked) {
+      if (overlayToggle.querySelector("input").checked) {
         // Fetch previous period and overlay (implement as needed)
         // ...
       }
@@ -364,8 +437,17 @@ function DataVisualization(globalFilters = {}) {
     if (minTimeInput.value) filtersToUse.minTime = Number(minTimeInput.value);
     if (maxTimeInput.value) filtersToUse.maxTime = Number(maxTimeInput.value);
     if (avgTimeInput.value) filtersToUse.avgTime = Number(avgTimeInput.value);
-    const requestId = `plots_data_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    chrome.runtime.sendMessage({ action: activeChart === 'apiOverTime' ? "getApiPerformanceOverTime" : "getFilteredStats", filters: filtersToUse, requestId });
+    const requestId = `plots_data_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
+    chrome.runtime.sendMessage({
+      action:
+        activeChart === "apiOverTime"
+          ? "getApiPerformanceOverTime"
+          : "getFilteredStats",
+      filters: filtersToUse,
+      requestId,
+    });
     function handler(message) {
       if (message && message.requestId === requestId) {
         cb(message.stats || {});
@@ -388,7 +470,7 @@ function DataVisualization(globalFilters = {}) {
   pageSelect.onchange = () => {
     renderCurrentChart();
   };
-  overlayToggle.querySelector('input').onchange = (e) => {
+  overlayToggle.querySelector("input").onchange = (e) => {
     renderCurrentChart();
   };
 
@@ -403,47 +485,74 @@ function DataVisualization(globalFilters = {}) {
 }
 
 // New chart: API performance over time (multi-line)
-function renderApiOverTimeChart(ctx, stats, metric = 'avgDuration') {
+function renderApiOverTimeChart(ctx, stats, metric = "avgDuration") {
   // stats.apiOverTime: { [apiPath]: [{time, count, avgDuration, minDuration, maxDuration}, ...] }
   const apiData = stats.apiOverTime || {};
   const allTimes = new Set();
-  Object.values(apiData).forEach(arr => arr.forEach(d => allTimes.add(d.time)));
+  Object.values(apiData).forEach((arr) =>
+    arr.forEach((d) => allTimes.add(d.time))
+  );
   const sortedTimes = Array.from(allTimes).sort();
   const datasets = Object.entries(apiData).map(([api, arr], idx) => {
     // Map time to selected metric for this API
     const timeMap = {};
-    arr.forEach(d => { timeMap[d.time] = d[metric]; });
+    arr.forEach((d) => {
+      timeMap[d.time] = d[metric];
+    });
     return {
       label: api,
-      data: sortedTimes.map(t => timeMap[t] !== undefined ? timeMap[t] : null),
-      borderColor: `hsl(${(idx*47)%360},70%,50%)`,
-      backgroundColor: 'rgba(0,0,0,0)',
+      data: sortedTimes.map((t) =>
+        timeMap[t] !== undefined ? timeMap[t] : null
+      ),
+      borderColor: `hsl(${(idx * 47) % 360},70%,50%)`,
+      backgroundColor: "rgba(0,0,0,0)",
       spanGaps: true,
       tension: 0.2,
       pointRadius: 1.5,
     };
   });
   return new Chart(ctx, {
-    type: 'line',
+    type: "line",
     data: {
-      labels: sortedTimes.map(t => new Date(Number(t)).toLocaleTimeString()),
+      labels: sortedTimes.map((t) => new Date(Number(t)).toLocaleTimeString()),
       datasets,
     },
     options: {
       plugins: {
         tooltip: { enabled: true },
-        legend: { display: true, position: 'bottom' },
+        legend: { display: true, position: "bottom" },
       },
-      interaction: { mode: 'nearest', intersect: false },
+      interaction: { mode: "nearest", intersect: false },
       scales: {
-        y: { title: { display: true, text: metric === 'count' ? 'Count' : 'Duration (ms)' } },
-        x: { title: { display: true, text: 'Time' } }
+        y: {
+          title: {
+            display: true,
+            text: metric === "count" ? "Count" : "Duration (ms)",
+          },
+        },
+        x: { title: { display: true, text: "Time" } },
       },
       elements: { line: { borderWidth: 2 } },
-    }
+    },
   });
 }
 
+async function getActiveTabDomain() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        try {
+          const url = new URL(tabs[0].url);
+          resolve(url.hostname); // domain part only
+        } catch {
+          resolve(null);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
 // Export for use in popup.js
 window.renderApiOverTimeChart = renderApiOverTimeChart;
 

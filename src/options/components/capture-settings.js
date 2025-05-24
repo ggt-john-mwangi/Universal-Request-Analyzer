@@ -1,4 +1,5 @@
-// Capture settings component for options page
+import { sendMessageWithResponse } from "../../background/utils/message-handler";
+
 export default function renderCaptureSettings() {
   const container = document.createElement("div");
   container.className = "capture-settings-section";
@@ -6,13 +7,11 @@ export default function renderCaptureSettings() {
   container.innerHTML = `
     <h2>Capture Settings</h2>
 
+    <!-- General Settings -->
     <div class="settings-group">
       <h3>General Capture Settings</h3>
       <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureEnabled">
-          Enable Request Capture
-        </label>
+        <label><input type="checkbox" id="captureEnabled"> Enable Request Capture</label>
         <span class="description">Capture and analyze network requests</span>
       </div>
       <div class="setting-row">
@@ -21,37 +20,17 @@ export default function renderCaptureSettings() {
         <span class="description">Maximum number of requests to keep in storage</span>
       </div>
       <div class="setting-row">
-        <label>
-          <input type="checkbox" id="autoStartCapture">
-          Auto-start Capture
-        </label>
+        <label><input type="checkbox" id="autoStartCapture"> Auto-start Capture</label>
         <span class="description">Automatically start capturing when browser launches</span>
       </div>
     </div>
 
+    <!-- Content Settings -->
     <div class="settings-group">
       <h3>Capture Content Settings</h3>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureHeaders">
-          Capture Headers
-        </label>
-        <span class="description">Include request and response headers</span>
-      </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureRequestBody">
-          Capture Request Body
-        </label>
-        <span class="description">Include request body data (POST, PUT, etc.)</span>
-      </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureResponseBody">
-          Capture Response Body
-        </label>
-        <span class="description">Include response body data</span>
-      </div>
+      <div class="setting-row"><label><input type="checkbox" id="captureHeaders"> Capture Headers</label></div>
+      <div class="setting-row"><label><input type="checkbox" id="captureRequestBody"> Capture Request Body</label></div>
+      <div class="setting-row"><label><input type="checkbox" id="captureResponseBody"> Capture Response Body</label></div>
       <div class="setting-row">
         <label for="maxBodySize">Maximum Body Size (KB):</label>
         <input type="number" id="maxBodySize" min="0" max="5120" step="64">
@@ -59,53 +38,26 @@ export default function renderCaptureSettings() {
       </div>
     </div>
 
+    <!-- Request Types -->
     <div class="settings-group">
       <h3>Request Types</h3>
+      <div class="setting-row"><label><input type="checkbox" id="captureXHR"> XMLHttpRequest/Fetch</label></div>
+      <div class="setting-row"><label><input type="checkbox" id="captureWebSocket"> WebSocket Connections</label></div>
+      <div class="setting-row"><label><input type="checkbox" id="captureEventSource"> Server-Sent Events</label></div>
       <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureXHR">
-          XMLHttpRequest/Fetch
-        </label>
-      </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureWebSocket">
-          WebSocket Connections
-        </label>
-      </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureEventSource">
-          Server-Sent Events
-        </label>
-      </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureResources">
-          Resource Requests
-        </label>
+        <label><input type="checkbox" id="captureResources"> Resource Requests</label>
         <span class="description">Images, scripts, stylesheets, etc.</span>
       </div>
     </div>
 
+    <!-- Performance Monitoring -->
     <div class="settings-group">
       <h3>Performance Monitoring</h3>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureTimings">
-          Capture Timing Data
-        </label>
-        <span class="description">Include detailed network timing information</span>
-      </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureSize">
-          Capture Size Information
-        </label>
-        <span class="description">Track request/response sizes</span>
-      </div>
+      <div class="setting-row"><label><input type="checkbox" id="captureTimings"> Capture Timing Data</label></div>
+      <div class="setting-row"><label><input type="checkbox" id="captureSize"> Capture Size Information</label></div>
     </div>
 
+    <!-- Actions -->
     <div class="settings-actions">
       <button id="saveCaptureSettings" class="primary-btn">Save Changes</button>
       <button id="resetCaptureSettings" class="secondary-btn">Reset to Defaults</button>
@@ -114,106 +66,99 @@ export default function renderCaptureSettings() {
     <div id="captureSettingsStatus" class="status-message" style="display: none;"></div>
   `;
 
-  // Default settings
-  const defaultSettings = {
-    captureEnabled: false, // Changed from true to false - disabled by default
-    maxStoredRequests: 1000,
-    autoStartCapture: false,
-    captureHeaders: true,
-    captureRequestBody: true,
-    captureResponseBody: true,
-    maxBodySize: 256, // KB
-    captureXHR: true,
-    captureWebSocket: true,
-    captureEventSource: true,
-    captureResources: false,
-    captureTimings: true,
-    captureSize: true,
+  const showStatus = (message, success = true) => {
+    const status = container.querySelector("#captureSettingsStatus");
+    status.textContent = message;
+    status.style.display = "block";
+    status.style.color = success ? "green" : "red";
+    setTimeout(() => (status.style.display = "none"), 3000);
   };
 
-  // Show status message
-  function showStatus(message, success = true) {
-    let status = document.getElementById('captureSettingsStatus');
-    if (!status) {
-      status = document.createElement('div');
-      status.id = 'captureSettingsStatus';
-      status.className = 'status-message';
-      container.appendChild(status);
-    }
-    status.textContent = message;
-    status.style.display = 'block';
-    status.style.color = success ? 'green' : 'red';
-    setTimeout(() => { status.style.display = 'none'; }, 3000);
-  }
+  const getBoolean = (id, fallback = true) =>
+    container.querySelector(`#${id}`)?.checked ?? fallback;
 
-  // Save settings
-  function saveCaptureSettings() {
+  const getNumber = (id, fallback = 0) =>
+    parseInt(container.querySelector(`#${id}`)?.value, 10) || fallback;
+
+  const saveCaptureSettings = async () => {
     const settings = {
-      captureEnabled: document.getElementById('captureEnabled').checked,
-      maxStoredRequests: parseInt(document.getElementById('maxStoredRequests').value, 10),
-      autoStartCapture: document.getElementById('autoStartCapture').checked,
-      captureHeaders: document.getElementById('captureHeaders')?.checked ?? true,
-      captureRequestBody: document.getElementById('captureRequestBody')?.checked ?? true,
-      captureResponseBody: document.getElementById('captureResponseBody')?.checked ?? true,
-      maxBodySize: parseInt(document.getElementById('maxBodySize')?.value, 10) || 0,
-      captureXHR: document.getElementById('captureXHR')?.checked ?? true,
-      captureWebSocket: document.getElementById('captureWebSocket')?.checked ?? true,
-      captureEventSource: document.getElementById('captureEventSource')?.checked ?? true,
-      captureResources: document.getElementById('captureResources')?.checked ?? false,
-      captureTimings: document.getElementById('captureTimings')?.checked ?? true,
-      captureSize: document.getElementById('captureSize')?.checked ?? true,
+      captureEnabled: getBoolean("captureEnabled", false),
+      maxStoredRequests: getNumber("maxStoredRequests", 1000),
+      autoStartCapture: getBoolean("autoStartCapture", false),
+      captureHeaders: getBoolean("captureHeaders"),
+      captureRequestBody: getBoolean("captureRequestBody"),
+      captureResponseBody: getBoolean("captureResponseBody"),
+      maxBodySize: getNumber("maxBodySize", 256),
+      captureXHR: getBoolean("captureXHR"),
+      captureWebSocket: getBoolean("captureWebSocket"),
+      captureEventSource: getBoolean("captureEventSource"),
+      captureResources: getBoolean("captureResources", false),
+      captureTimings: getBoolean("captureTimings"),
+      captureSize: getBoolean("captureSize"),
     };
-    const requestId = 'saveCapture_' + Date.now();
-    chrome.runtime.sendMessage({ action: 'updateConfig', data: { capture: settings }, requestId });
-    function handler(msg) {
-      if (msg.requestId === requestId) {
-        showStatus(msg.success ? 'Capture settings saved.' : ('Error: ' + (msg.error || 'Failed to save')), msg.success);
-        chrome.runtime.onMessage.removeListener(handler);
-      }
+
+    try {
+      const response = await sendMessageWithResponse("updateConfig", {
+        capture: settings,
+      });
+      showStatus(
+        response.success
+          ? "Capture settings saved."
+          : "Error: " + (response.error || "Failed to save"),
+        response.success
+      );
+    } catch (error) {
+      showStatus("Unexpected error: " + error.message, false);
     }
-    chrome.runtime.onMessage.addListener(handler);
-  }
+  };
 
-  // Load settings
-  function loadCaptureSettings() {
-    const requestId = 'loadCapture_' + Date.now();
-    chrome.runtime.sendMessage({ action: 'getConfig', requestId });
-    function handler(msg) {
-      if (msg.requestId === requestId && msg.config) {
-        const settings = msg.config.capture || {};
-        document.getElementById('captureEnabled').checked = settings.captureEnabled ?? false;
-        document.getElementById('maxStoredRequests').value = settings.maxStoredRequests ?? 1000;
-        document.getElementById('autoStartCapture').checked = settings.autoStartCapture ?? false;
-        document.getElementById('captureHeaders').checked = settings.captureHeaders ?? true;
-        document.getElementById('captureRequestBody').checked = settings.captureRequestBody ?? true;
-        document.getElementById('captureResponseBody').checked = settings.captureResponseBody ?? true;
-        document.getElementById('maxBodySize').value = settings.maxBodySize ?? 256;
-        document.getElementById('captureXHR').checked = settings.captureXHR ?? true;
-        document.getElementById('captureWebSocket').checked = settings.captureWebSocket ?? true;
-        document.getElementById('captureEventSource').checked = settings.captureEventSource ?? true;
-        document.getElementById('captureResources').checked = settings.captureResources ?? false;
-        document.getElementById('captureTimings').checked = settings.captureTimings ?? true;
-        document.getElementById('captureSize').checked = settings.captureSize ?? true;
-        chrome.runtime.onMessage.removeListener(handler);
-      }
+  const loadCaptureSettings = async () => {
+    try {
+      const response = await sendMessageWithResponse("getConfig");
+      const settings = response.config?.capture || {};
+
+      container.querySelector("#captureEnabled").checked =
+        settings.captureEnabled ?? false;
+      container.querySelector("#maxStoredRequests").value =
+        settings.maxStoredRequests ?? 1000;
+      container.querySelector("#autoStartCapture").checked =
+        settings.autoStartCapture ?? false;
+      container.querySelector("#captureHeaders").checked =
+        settings.captureHeaders ?? true;
+      container.querySelector("#captureRequestBody").checked =
+        settings.captureRequestBody ?? true;
+      container.querySelector("#captureResponseBody").checked =
+        settings.captureResponseBody ?? true;
+      container.querySelector("#maxBodySize").value =
+        settings.maxBodySize ?? 256;
+      container.querySelector("#captureXHR").checked =
+        settings.captureXHR ?? true;
+      container.querySelector("#captureWebSocket").checked =
+        settings.captureWebSocket ?? true;
+      container.querySelector("#captureEventSource").checked =
+        settings.captureEventSource ?? true;
+      container.querySelector("#captureResources").checked =
+        settings.captureResources ?? false;
+      container.querySelector("#captureTimings").checked =
+        settings.captureTimings ?? true;
+      container.querySelector("#captureSize").checked =
+        settings.captureSize ?? true;
+    } catch (error) {
+      showStatus("Failed to load settings: " + error.message, false);
     }
-    chrome.runtime.onMessage.addListener(handler);
-  }
+  };
 
-  // Reset settings to defaults
-  function resetSettings() {
-    loadCaptureSettings();
-    showStatus('Settings reset to last saved.', true);
-  }
+  container
+    .querySelector("#saveCaptureSettings")
+    .addEventListener("click", saveCaptureSettings);
+  container
+    .querySelector("#resetCaptureSettings")
+    .addEventListener("click", () => {
+      loadCaptureSettings();
+      showStatus("Settings reset to last saved.", true);
+    });
 
-  // Initialize component
-  container.querySelector('#saveCaptureSettings').addEventListener('click', saveCaptureSettings);
-  container.querySelector('#resetCaptureSettings').addEventListener('click', resetSettings);
-
-  // Initial load
   loadCaptureSettings();
-  // Always reload from backend/database on reset
-  container.querySelector('#resetCaptureSettings').addEventListener('click', resetSettings);
 
   return container;
 }

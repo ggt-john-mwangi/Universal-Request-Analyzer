@@ -15,7 +15,13 @@ import { initSettingsUI } from "./settings-ui.js";
 import DataVisualization from "../components/data-visualization.js";
 
 // --- Harmonized Config/Filters Sync System ---
-import { getHarmonizedConfig, updateHarmonizedConfig, listenForConfigUpdates } from "../../popup/js/settings-manager.js";
+import {
+  getHarmonizedConfig,
+  updateHarmonizedConfig,
+  listenForConfigUpdates,
+} from "../../popup/js/settings-manager.js";
+import { generateRequestId } from "../../background/utils/message-handler.js";
+import { formatBytes } from "../../background/utils/utils.js";
 
 // On load, fetch config/filters from background
 getHarmonizedConfig().then((config) => {
@@ -64,8 +70,8 @@ let activeFilters = {
 };
 
 // Sorting and Search State
-let sortState = { column: null, direction: 'asc' };
-let searchQuery = '';
+let sortState = { column: null, direction: "asc" };
+let searchQuery = "";
 let lastLoadedRequests = [];
 
 // Config - Load relevant parts needed for popup operation (like itemsPerPage)
@@ -123,7 +129,6 @@ let pendingGetRequests = {};
 let pendingGetStats = {};
 
 let renderRequestsTable;
-let loadStats;
 // --- Event-based request/response helpers ---
 const pendingPopupRequests = {};
 function eventRequest(action, payload, callback) {
@@ -134,24 +139,28 @@ function eventRequest(action, payload, callback) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("[popup.js] onMessage received:", message);
   if (message && message.requestId && pendingPopupRequests[message.requestId]) {
-    console.log("[popup.js] Routing to pendingPopupRequests callback for requestId:", message.requestId);
+    console.log(
+      "[popup.js] Routing to pendingPopupRequests callback for requestId:",
+      message.requestId
+    );
     pendingPopupRequests[message.requestId](message);
     delete pendingPopupRequests[message.requestId];
   }
   if (message && message.requestId && pendingGetRequests[message.requestId]) {
-    console.log("[popup.js] Routing to pendingGetRequests callback for requestId:", message.requestId);
+    console.log(
+      "[popup.js] Routing to pendingGetRequests callback for requestId:",
+      message.requestId
+    );
     pendingGetRequests[message.requestId](message);
     delete pendingGetRequests[message.requestId];
   }
 });
 
-function generateRequestId() {
-  return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-}
-
 // Event-based fetch for request headers and timings
 function fetchRequestHeaders(requestId, callback) {
-  const eventRequestId = `popup_headers_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const eventRequestId = `popup_headers_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2)}`;
   function handler(message) {
     if (message && message.requestId === eventRequestId) {
       callback(message);
@@ -159,11 +168,17 @@ function fetchRequestHeaders(requestId, callback) {
     }
   }
   chrome.runtime.onMessage.addListener(handler);
-  chrome.runtime.sendMessage({ action: "getRequestHeaders", requestId, requestIdFor: eventRequestId });
+  chrome.runtime.sendMessage({
+    action: "getRequestHeaders",
+    requestId,
+    requestIdFor: eventRequestId,
+  });
 }
 
 function fetchRequestTimings(requestId, callback) {
-  const eventRequestId = `popup_timings_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const eventRequestId = `popup_timings_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2)}`;
   function handler(message) {
     if (message && message.requestId === eventRequestId) {
       callback(message);
@@ -171,7 +186,11 @@ function fetchRequestTimings(requestId, callback) {
     }
   }
   chrome.runtime.onMessage.addListener(handler);
-  chrome.runtime.sendMessage({ action: "getRequestTimings", requestId, requestIdFor: eventRequestId });
+  chrome.runtime.sendMessage({
+    action: "getRequestTimings",
+    requestId,
+    requestIdFor: eventRequestId,
+  });
 }
 
 // Example usage for getConfig:
@@ -199,7 +218,8 @@ function loadStatsEventBased(filters, callback) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  try { // Add try block
+  try {
+    // Add try block
     console.log("popup.js: DOMContentLoaded event fired"); // Log DOM ready
 
     // Initialize theme manager first
@@ -271,18 +291,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("popup.js: Error initializing Settings UI:", error);
     }
 
-    // --- Utility Functions ---
-
-    // Function to format bytes
-    function formatBytes(bytes, decimals = 2) {
-      if (bytes === 0) return "0 Bytes";
-      const k = 1024;
-      const dm = decimals < 0 ? 0 : decimals;
-      const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-    }
-
     // Function to show notifications
     function showNotification(message, isError = false) {
       if (notificationElement) {
@@ -291,9 +299,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         notificationElement.classList.add(isError ? "error" : "success");
         notificationElement.classList.add("visible");
 
-        setTimeout(() => {
-          notificationElement.classList.remove("visible");
-        }, isError ? 6000 : 4000);
+        setTimeout(
+          () => {
+            notificationElement.classList.remove("visible");
+          },
+          isError ? 6000 : 4000
+        );
       } else {
         console.warn("Notification element not found in popup.html");
         if (isError) {
@@ -310,7 +321,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!panelElement) return;
 
       const isOpening =
-        panelElement.style.display === "none" || panelElement.style.display === "";
+        panelElement.style.display === "none" ||
+        panelElement.style.display === "";
 
       if (activePanel && activePanel !== panelElement) {
         activePanel.style.display = "none";
@@ -360,7 +372,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 targetContent.innerHTML = "";
                 targetContent.appendChild(viz);
                 targetContent._vizMounted = viz;
-              } else if (targetContent._vizMounted && typeof targetContent._vizMounted.reload === "function") {
+              } else if (
+                targetContent._vizMounted &&
+                typeof targetContent._vizMounted.reload === "function"
+              ) {
                 targetContent._vizMounted.reload(activeFilters);
               }
             }
@@ -391,7 +406,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         } else if (activeTabId === "plots") {
           // If plots tab, reload visualization if possible
           const plotsTab = document.getElementById("plots-tab");
-          if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+          if (
+            plotsTab &&
+            plotsTab._vizMounted &&
+            typeof plotsTab._vizMounted.reload === "function"
+          ) {
             plotsTab._vizMounted.reload(activeFilters);
           }
         }
@@ -414,60 +433,89 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
-    attachHeaderButtonListener(filterBtn, () => {
-      console.log("popup.js: Filter button clicked");
-      togglePanel(filterPanel);
-    }, 'Filter');
+    attachHeaderButtonListener(
+      filterBtn,
+      () => {
+        console.log("popup.js: Filter button clicked");
+        togglePanel(filterPanel);
+      },
+      "Filter"
+    );
 
-    attachHeaderButtonListener(exportBtn, () => {
-      console.log("popup.js: Export button clicked");
-      togglePanel(exportPanel);
-    }, 'Export');
+    attachHeaderButtonListener(
+      exportBtn,
+      () => {
+        console.log("popup.js: Export button clicked");
+        togglePanel(exportPanel);
+      },
+      "Export"
+    );
 
-    attachHeaderButtonListener(importBtn, () => {
-      console.log("popup.js: Import button clicked");
-      togglePanel(importPanel);
-    }, 'Import');
+    attachHeaderButtonListener(
+      importBtn,
+      () => {
+        console.log("popup.js: Import button clicked");
+        togglePanel(importPanel);
+      },
+      "Import"
+    );
 
-    attachHeaderButtonListener(clearBtn, () => {
-      console.log("popup.js: Clear button clicked");
-      clearRequests();
-    }, 'Clear');
+    attachHeaderButtonListener(
+      clearBtn,
+      () => {
+        console.log("popup.js: Clear button clicked");
+        clearRequests();
+      },
+      "Clear"
+    );
 
-    attachHeaderButtonListener(refreshBtn, () => {
-      console.log("popup.js: Refresh button clicked");
-      // Always refresh the current active tab
-      const activeTabButton = document.querySelector(".tab-btn.active");
-      if (activeTabButton) {
-        const activeTabId = activeTabButton.getAttribute("data-tab");
-        if (activeTabId === "requests") {
-          loadRequests();
-        } else if (activeTabId === "stats") {
-          loadStats();
-        } else if (activeTabId === "plots") {
-          // If plots tab, reload visualization if possible
-          const plotsTab = document.getElementById("plots-tab");
-          if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
-            plotsTab._vizMounted.reload(activeFilters);
+    attachHeaderButtonListener(
+      refreshBtn,
+      () => {
+        console.log("popup.js: Refresh button clicked");
+        // Always refresh the current active tab
+        const activeTabButton = document.querySelector(".tab-btn.active");
+        if (activeTabButton) {
+          const activeTabId = activeTabButton.getAttribute("data-tab");
+          if (activeTabId === "requests") {
+            loadRequests();
+          } else if (activeTabId === "stats") {
+            loadStats();
+          } else if (activeTabId === "plots") {
+            // If plots tab, reload visualization if possible
+            const plotsTab = document.getElementById("plots-tab");
+            if (
+              plotsTab &&
+              plotsTab._vizMounted &&
+              typeof plotsTab._vizMounted.reload === "function"
+            ) {
+              plotsTab._vizMounted.reload(activeFilters);
+            }
           }
+        } else {
+          loadRequests();
         }
-      } else {
-        loadRequests();
-      }
-      showNotification("Data refreshed.");
-    }, 'Refresh');
+        showNotification("Data refreshed.");
+      },
+      "Refresh"
+    );
 
-    attachHeaderButtonListener(OptionsPage, openOptionsPage, 'Options');
+    attachHeaderButtonListener(OptionsPage, openOptionsPage, "Options");
 
     const closeFilterBtn = filterPanel?.querySelector(".close-btn");
     const closeExportBtn = exportPanel?.querySelector(".close-btn"); // Assuming export panel has one
     const closeImportBtn = importPanel?.querySelector(".close-btn"); // Assuming import panel has one
 
-    if (closeFilterBtn) closeFilterBtn.addEventListener("click", () => togglePanel(filterPanel));
-    if (cancelExportBtn && exportPanel) cancelExportBtn.addEventListener("click", () => togglePanel(exportPanel)); // Keep original cancel
-    if (closeExportBtn && exportPanel && closeExportBtn !== cancelExportBtn) closeExportBtn.addEventListener("click", () => togglePanel(exportPanel)); // Add close if different
-    if (cancelImportBtn && importPanel) cancelImportBtn.addEventListener("click", () => togglePanel(importPanel)); // Keep original cancel
-    if (closeImportBtn && importPanel && closeImportBtn !== cancelImportBtn) closeImportBtn.addEventListener("click", () => togglePanel(importPanel)); // Add close if different
+    if (closeFilterBtn)
+      closeFilterBtn.addEventListener("click", () => togglePanel(filterPanel));
+    if (cancelExportBtn && exportPanel)
+      cancelExportBtn.addEventListener("click", () => togglePanel(exportPanel)); // Keep original cancel
+    if (closeExportBtn && exportPanel && closeExportBtn !== cancelExportBtn)
+      closeExportBtn.addEventListener("click", () => togglePanel(exportPanel)); // Add close if different
+    if (cancelImportBtn && importPanel)
+      cancelImportBtn.addEventListener("click", () => togglePanel(importPanel)); // Keep original cancel
+    if (closeImportBtn && importPanel && closeImportBtn !== cancelImportBtn)
+      closeImportBtn.addEventListener("click", () => togglePanel(importPanel)); // Add close if different
 
     if (applyFilterBtn) applyFilterBtn.addEventListener("click", applyFilters);
     if (resetFilterBtn) resetFilterBtn.addEventListener("click", resetFilters);
@@ -482,10 +530,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!th) return;
         const column = th.getAttribute("data-sort");
         if (sortState.column === column) {
-          sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+          sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
         } else {
           sortState.column = column;
-          sortState.direction = 'asc';
+          sortState.direction = "asc";
         }
         renderRequestsTable(lastLoadedRequests);
         updateSortIndicators();
@@ -523,10 +571,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     setTimeout(() => {
       console.log("popup.js: Setting initial tab...");
       const defaultTabId = config?.display?.defaultTab || "requests";
-      const initialActiveTabButton = tabsContainer?.querySelector(`.tab-btn[data-tab="${defaultTabId}"]`);
+      const initialActiveTabButton = tabsContainer?.querySelector(
+        `.tab-btn[data-tab="${defaultTabId}"]`
+      );
       let activeTabSet = false;
 
-      if (initialActiveTabButton && !initialActiveTabButton.classList.contains("active")) {
+      if (
+        initialActiveTabButton &&
+        !initialActiveTabButton.classList.contains("active")
+      ) {
         console.log(`popup.js: Clicking default tab: ${defaultTabId}`);
         initialActiveTabButton.click();
         activeTabSet = true;
@@ -535,8 +588,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Ensure data loads for the already active tab if needed
         const activeTabButton = document.querySelector(".tab-btn.active");
         const activeTabId = activeTabButton?.getAttribute("data-tab");
-        if (activeTabId === "requests" && requestsTableBody && requestsTableBody.rows.length === 0) {
-          console.log("popup.js: Loading requests for already active requests tab.");
+        if (
+          activeTabId === "requests" &&
+          requestsTableBody &&
+          requestsTableBody.rows.length === 0
+        ) {
+          console.log(
+            "popup.js: Loading requests for already active requests tab."
+          );
           loadRequests();
         } else if (activeTabId === "stats") {
           console.log("popup.js: Loading stats for already active stats tab.");
@@ -582,12 +641,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     console.log("popup.js: DOMContentLoaded handler finished.");
-  } catch (error) { // Add catch block
+  } catch (error) {
+    // Add catch block
     console.error("Error during popup initialization:", error);
     // Optionally display an error message to the user in the popup UI
-    const body = document.querySelector('body');
+    const body = document.querySelector("body");
     if (body) {
-        body.innerHTML = '<div style="padding: 20px; color: red;">Error initializing popup. Please check the console.</div>';
+      body.innerHTML =
+        '<div style="padding: 20px; color: red;">Error initializing popup. Please check the console.</div>';
     }
   }
 });
@@ -602,13 +663,15 @@ function renderQuickFilters() {
     <button class="quick-filter-btn" data-filter="error">Errors</button>
     <button class="quick-filter-btn" data-filter="slow">Slow</button>
   `;
-  container.querySelectorAll(".quick-filter-btn").forEach(btn => {
+  container.querySelectorAll(".quick-filter-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const filter = btn.getAttribute("data-filter");
       activeFilters.quick = filter;
       persistFiltersToConfig(); // Persist quick filter
       loadRequests();
-      container.querySelectorAll(".quick-filter-btn").forEach(b => b.classList.remove("active"));
+      container
+        .querySelectorAll(".quick-filter-btn")
+        .forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
     });
   });
@@ -616,46 +679,51 @@ function renderQuickFilters() {
 
 // Patch loadRequests to apply quick filter
 // const originalRenderRequestsTable = renderRequestsTable;
-renderRequestsTable = function(requests) {
+renderRequestsTable = function (requests) {
   if (!requestsTableBody) return;
   lastLoadedRequests = requests;
   let filtered = requests;
   if (activeFilters.quick && activeFilters.quick !== "all") {
     if (activeFilters.quick === "success") {
-      filtered = filtered.filter(r => r.statusCode >= 200 && r.statusCode < 300);
+      filtered = filtered.filter(
+        (r) => r.statusCode >= 200 && r.statusCode < 300
+      );
     } else if (activeFilters.quick === "error") {
-      filtered = filtered.filter(r => r.statusCode >= 400 || r.status === "error");
+      filtered = filtered.filter(
+        (r) => r.statusCode >= 400 || r.status === "error"
+      );
     } else if (activeFilters.quick === "slow") {
-      filtered = filtered.filter(r => r.duration && r.duration > 1000);
+      filtered = filtered.filter((r) => r.duration && r.duration > 1000);
     }
   }
   if (searchQuery) {
-    filtered = filtered.filter(r =>
-      (r.method && r.method.toLowerCase().includes(searchQuery)) ||
-      (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
-      (r.path && r.path.toLowerCase().includes(searchQuery)) ||
-      (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
-      (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
-      (r.type && r.type.toLowerCase().includes(searchQuery)) ||
-      (r.url && r.url.toLowerCase().includes(searchQuery))
+    filtered = filtered.filter(
+      (r) =>
+        (r.method && r.method.toLowerCase().includes(searchQuery)) ||
+        (r.domain && r.domain.toLowerCase().includes(searchQuery)) ||
+        (r.path && r.path.toLowerCase().includes(searchQuery)) ||
+        (r.statusCode && String(r.statusCode).includes(searchQuery)) ||
+        (r.status && String(r.status).toLowerCase().includes(searchQuery)) ||
+        (r.type && r.type.toLowerCase().includes(searchQuery)) ||
+        (r.url && r.url.toLowerCase().includes(searchQuery))
     );
   }
   if (sortState.column) {
     filtered = filtered.slice().sort((a, b) => {
       let valA = a[sortState.column];
       let valB = b[sortState.column];
-      if (sortState.column === 'size' || sortState.column === 'duration') {
+      if (sortState.column === "size" || sortState.column === "duration") {
         valA = Number(valA) || 0;
         valB = Number(valB) || 0;
-      } else if (sortState.column === 'time') {
+      } else if (sortState.column === "time") {
         valA = a.startTime;
         valB = b.startTime;
       } else {
-        valA = (valA || '').toString().toLowerCase();
-        valB = (valB || '').toString().toLowerCase();
+        valA = (valA || "").toString().toLowerCase();
+        valB = (valB || "").toString().toLowerCase();
       }
-      if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+      if (valA < valB) return sortState.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortState.direction === "asc" ? 1 : -1;
       return 0;
     });
   }
@@ -708,7 +776,9 @@ function renderDomainSummaryAndSparklines(requests) {
   const container = document.getElementById("requestsSummarySparklines");
   if (!container) return;
   // Get all unique domains
-  const allDomains = Array.from(new Set(requests.map(r => r.domain).filter(Boolean)));
+  const allDomains = Array.from(
+    new Set(requests.map((r) => r.domain).filter(Boolean))
+  );
   // Domain selector if multiple domains
   let domain = activeFilters.domain || null;
   if (!domain && requests.length > 0) {
@@ -718,14 +788,14 @@ function renderDomainSummaryAndSparklines(requests) {
   if (allDomains.length > 1) {
     const select = document.createElement("select");
     select.id = "domainSummarySelect";
-    allDomains.forEach(d => {
+    allDomains.forEach((d) => {
       const opt = document.createElement("option");
       opt.value = d;
       opt.textContent = d;
       if (d === domain) opt.selected = true;
       select.appendChild(opt);
     });
-    select.addEventListener("change", e => {
+    select.addEventListener("change", (e) => {
       activeFilters.domain = select.value;
       persistFiltersToConfig(); // Persist domain filter
       loadRequests();
@@ -733,35 +803,53 @@ function renderDomainSummaryAndSparklines(requests) {
     container.appendChild(select);
   }
   // Filter requests for current domain
-  const domainRequests = domain ? requests.filter(r => r.domain === domain) : requests;
+  const domainRequests = domain
+    ? requests.filter((r) => r.domain === domain)
+    : requests;
   if (!domainRequests.length) {
-    container.innerHTML += '<div class="no-data">No requests for this domain.</div>';
+    container.innerHTML +=
+      '<div class="no-data">No requests for this domain.</div>';
     return;
   }
   // Stats
-  const durations = domainRequests.map(r => r.duration || 0).filter(x => x > 0);
-  const avg = durations.reduce((sum, v) => sum + v, 0) / (durations.length || 1);
+  const durations = domainRequests
+    .map((r) => r.duration || 0)
+    .filter((x) => x > 0);
+  const avg =
+    durations.reduce((sum, v) => sum + v, 0) / (durations.length || 1);
   const max = Math.max(...durations);
   const min = Math.min(...durations);
   const sorted = durations.slice().sort((a, b) => a - b);
   const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
   const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
-  const successCount = domainRequests.filter(r => r.statusCode >= 200 && r.statusCode < 300).length;
-  const errorCount = domainRequests.filter(r => r.statusCode >= 400).length;
-  const slowCount = domainRequests.filter(r => r.duration > 1000).length;
-  const mostStatus = mode(domainRequests.map(r => r.statusCode));
-  const mostMethod = mode(domainRequests.map(r => r.method));
+  const successCount = domainRequests.filter(
+    (r) => r.statusCode >= 200 && r.statusCode < 300
+  ).length;
+  const errorCount = domainRequests.filter((r) => r.statusCode >= 400).length;
+  const slowCount = domainRequests.filter((r) => r.duration > 1000).length;
+  const mostStatus = mode(domainRequests.map((r) => r.statusCode));
+  const mostMethod = mode(domainRequests.map((r) => r.method));
   // Summary
   container.innerHTML += `
     <div class="domain-summary">
-      <b>Domain:</b> ${domain} &nbsp; <b>Requests:</b> ${domainRequests.length} &nbsp; <b>Success:</b> ${successCount} &nbsp; <b>Errors:</b> ${errorCount} &nbsp; <b>Slow:</b> ${slowCount}<br>
-      <b>Avg:</b> ${Math.round(avg)}ms &nbsp; <b>Median:</b> ${Math.round(median)}ms &nbsp; <b>P95:</b> ${Math.round(p95)}ms &nbsp; <b>Min:</b> ${Math.round(min)}ms &nbsp; <b>Max:</b> ${Math.round(max)}ms<br>
-      <b>Most Status:</b> ${mostStatus || '-'} &nbsp; <b>Most Method:</b> ${mostMethod || '-'}
+      <b>Domain:</b> ${domain} &nbsp; <b>Requests:</b> ${
+    domainRequests.length
+  } &nbsp; <b>Success:</b> ${successCount} &nbsp; <b>Errors:</b> ${errorCount} &nbsp; <b>Slow:</b> ${slowCount}<br>
+      <b>Avg:</b> ${Math.round(avg)}ms &nbsp; <b>Median:</b> ${Math.round(
+    median
+  )}ms &nbsp; <b>P95:</b> ${Math.round(p95)}ms &nbsp; <b>Min:</b> ${Math.round(
+    min
+  )}ms &nbsp; <b>Max:</b> ${Math.round(max)}ms<br>
+      <b>Most Status:</b> ${mostStatus || "-"} &nbsp; <b>Most Method:</b> ${
+    mostMethod || "-"
+  }
     </div>
     <canvas id="domainSparkline" width="160" height="32" style="vertical-align:middle;"></canvas>
   `;
   // Recent response times (last 10)
-  const recent = domainRequests.slice(0, 10).map(r => Math.round(r.duration || 0));
+  const recent = domainRequests
+    .slice(0, 10)
+    .map((r) => Math.round(r.duration || 0));
   // Draw sparkline with outlier coloring, tooltip, and moving average
   const canvas = document.getElementById("domainSparkline");
   if (canvas && recent.length > 1) {
@@ -772,7 +860,10 @@ function renderDomainSummaryAndSparklines(requests) {
     ctx.beginPath();
     for (let i = 0; i < recent.length; i++) {
       const x = (i / (recent.length - 1)) * (canvas.width - 2) + 1;
-      const y = canvas.height - 2 - ((recent[i] - min) / (max - min || 1)) * (canvas.height - 4);
+      const y =
+        canvas.height -
+        2 -
+        ((recent[i] - min) / (max - min || 1)) * (canvas.height - 4);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -781,7 +872,10 @@ function renderDomainSummaryAndSparklines(requests) {
     for (let i = 0; i < recent.length; i++) {
       if (recent[i] > 1000) {
         const x = (i / (recent.length - 1)) * (canvas.width - 2) + 1;
-        const y = canvas.height - 2 - ((recent[i] - min) / (max - min || 1)) * (canvas.height - 4);
+        const y =
+          canvas.height -
+          2 -
+          ((recent[i] - min) / (max - min || 1)) * (canvas.height - 4);
         ctx.fillStyle = "#e74c3c";
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, 2 * Math.PI);
@@ -796,30 +890,39 @@ function renderDomainSummaryAndSparklines(requests) {
       sum += recent[i];
       const avg = sum / (i + 1);
       const x = (i / (recent.length - 1)) * (canvas.width - 2) + 1;
-      const y = canvas.height - 2 - ((avg - min) / (max - min || 1)) * (canvas.height - 4);
+      const y =
+        canvas.height -
+        2 -
+        ((avg - min) / (max - min || 1)) * (canvas.height - 4);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
     // Tooltip on hover
-    canvas.onmousemove = function(e) {
+    canvas.onmousemove = function (e) {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
-      const idx = Math.round((mx - 1) / (canvas.width - 2) * (recent.length - 1));
+      const idx = Math.round(
+        ((mx - 1) / (canvas.width - 2)) * (recent.length - 1)
+      );
       if (recent[idx] !== undefined) {
         canvas.title = `#${idx + 1}: ${recent[idx]}ms`;
       } else {
-        canvas.title = '';
+        canvas.title = "";
       }
     };
-    canvas.setAttribute('aria-label', 'Recent response times sparkline for domain ' + domain);
+    canvas.setAttribute(
+      "aria-label",
+      "Recent response times sparkline for domain " + domain
+    );
   }
 }
 function mode(arr) {
   if (!arr.length) return null;
   const counts = {};
-  let max = 0, maxVal = null;
-  arr.forEach(v => {
+  let max = 0,
+    maxVal = null;
+  arr.forEach((v) => {
     if (v == null) return;
     counts[v] = (counts[v] || 0) + 1;
     if (counts[v] > max) {
@@ -844,7 +947,11 @@ function applyFilters() {
   loadRequests();
   // Also reload Plots tab if mounted
   const plotsTab = document.getElementById("plots-tab");
-  if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+  if (
+    plotsTab &&
+    plotsTab._vizMounted &&
+    typeof plotsTab._vizMounted.reload === "function"
+  ) {
     plotsTab._vizMounted.reload(activeFilters);
   }
   togglePanel(filterPanel);
@@ -859,13 +966,25 @@ function resetFilters() {
   if (startDateFilter) startDateFilter.value = "";
   if (endDateFilter) endDateFilter.value = "";
 
-  activeFilters = { status: "all", type: "all", domain: "", url: "", startDate: "", endDate: "", quick: "all" };
+  activeFilters = {
+    status: "all",
+    type: "all",
+    domain: "",
+    url: "",
+    startDate: "",
+    endDate: "",
+    quick: "all",
+  };
   currentPage = 1;
   persistFiltersToConfig(); // Persist filters
   loadRequests();
   // Also reload Plots tab if mounted
   const plotsTab = document.getElementById("plots-tab");
-  if (plotsTab && plotsTab._vizMounted && typeof plotsTab._vizMounted.reload === "function") {
+  if (
+    plotsTab &&
+    plotsTab._vizMounted &&
+    typeof plotsTab._vizMounted.reload === "function"
+  ) {
     plotsTab._vizMounted.reload(activeFilters);
   }
   showNotification("Filters reset.");
@@ -875,7 +994,10 @@ function loadExportPanelData() {
   // Fetch DB Stats for size
   chrome.runtime.sendMessage({ action: "getDatabaseStats" }, (response) => {
     if (chrome.runtime.lastError) {
-      console.error("Error fetching DB stats for export panel:", chrome.runtime.lastError.message);
+      console.error(
+        "Error fetching DB stats for export panel:",
+        chrome.runtime.lastError.message
+      );
       if (exportDbSizeSpan) exportDbSizeSpan.textContent = "Error";
       return;
     }
@@ -884,7 +1006,10 @@ function loadExportPanelData() {
     } else if (exportDbSizeSpan) {
       exportDbSizeSpan.textContent = "N/A";
       if (response && !response.success) {
-        console.error("Failed to load DB stats for export panel:", response.error);
+        console.error(
+          "Failed to load DB stats for export panel:",
+          response.error
+        );
       }
     }
   });
@@ -898,28 +1023,35 @@ function loadExportPanelData() {
   // Populate export format options (assuming exportManager provides these)
   // For now, let's hardcode common options. Ideally, this comes from background.
   if (exportFormatSelect) {
-    exportFormatSelect.innerHTML = ''; // Clear existing options
-    const formats = ['json', 'csv', 'sqlite']; // Example formats
-    formats.forEach(format => {
-        const option = document.createElement('option');
-        option.value = format;
-        option.textContent = format.toUpperCase();
-        exportFormatSelect.appendChild(option);
+    exportFormatSelect.innerHTML = ""; // Clear existing options
+    const formats = ["json", "csv", "sqlite"]; // Example formats
+    formats.forEach((format) => {
+      const option = document.createElement("option");
+      option.value = format;
+      option.textContent = format.toUpperCase();
+      exportFormatSelect.appendChild(option);
     });
     // Set default format from config if available
-    exportFormatSelect.value = config?.export?.defaultFormat || config?.display?.defaultExportFormat || "json";
+    exportFormatSelect.value =
+      config?.export?.defaultFormat ||
+      config?.display?.defaultExportFormat ||
+      "json";
   }
 }
 
 function handleExportData() {
   const format = exportFormatSelect?.value || "json";
-  const filename = exportFilenameInput?.value.trim() || `ura-export-${Date.now()}`;
+  const filename =
+    exportFilenameInput?.value.trim() || `ura-export-${Date.now()}`;
   showNotification(`Exporting data as ${format.toUpperCase()}...`);
   eventRequest("exportData", { format, filename }, (response) => {
     if (response && response.success) {
       showNotification("Data exported successfully.");
     } else {
-      showNotification(`Error exporting data: ${response?.error || "Unknown error"}`, true);
+      showNotification(
+        `Error exporting data: ${response?.error || "Unknown error"}`,
+        true
+      );
     }
     togglePanel(exportPanel);
   });
@@ -945,7 +1077,10 @@ function handleImportData() {
     if (format === "db") format = "sqlite";
 
     if (!["json", "csv", "sqlite"].includes(format)) {
-      showNotification(`Unsupported import format: ${format}. Use JSON, CSV, or SQLite.`, true);
+      showNotification(
+        `Unsupported import format: ${format}. Use JSON, CSV, or SQLite.`,
+        true
+      );
       return;
     }
 
@@ -954,8 +1089,13 @@ function handleImportData() {
 
     eventRequest("importData", { format, data: fileContent }, (response) => {
       if (response && response.success) {
-        showNotification(`Import successful! ${response.count || 0} records added.`);
-        if (importStatus) importStatus.textContent = `Import successful! ${response.count || 0} records added.`;
+        showNotification(
+          `Import successful! ${response.count || 0} records added.`
+        );
+        if (importStatus)
+          importStatus.textContent = `Import successful! ${
+            response.count || 0
+          } records added.`;
         loadRequests();
         loadStats();
       } else {
@@ -1031,15 +1171,13 @@ function loadRequests() {
       }
     }
   };
-  chrome.runtime.sendMessage(
-    {
-      action: "getRequests",
-      page: currentPage,
-      limit: itemsPerPage,
-      filters: activeFilters,
-      requestId
-    }
-  );
+  chrome.runtime.sendMessage({
+    action: "getRequests",
+    page: currentPage,
+    limit: itemsPerPage,
+    filters: activeFilters,
+    requestId,
+  });
 }
 
 // Update pagination UI
@@ -1067,27 +1205,56 @@ function updateStatsSummary(stats) {
     successRateEl.textContent = "Error";
     return;
   }
-  totalRequestsEl.textContent = (stats?.requestCount ?? stats?.totalRequests ?? totalItems)?.toLocaleString() || "0";
-  avgResponseTimeEl.textContent = stats?.avgResponseTime ? `${Math.round(stats.avgResponseTime)} ms` : "0 ms";
-  successRateEl.textContent = stats?.successRate ? `${stats.successRate.toFixed(1)}%` : "0%";
+  totalRequestsEl.textContent =
+    (
+      stats?.requestCount ??
+      stats?.totalRequests ??
+      totalItems
+    )?.toLocaleString() || "0";
+  avgResponseTimeEl.textContent = stats?.avgResponseTime
+    ? `${Math.round(stats.avgResponseTime)} ms`
+    : "0 ms";
+  successRateEl.textContent = stats?.successRate
+    ? `${stats.successRate.toFixed(1)}%`
+    : "0%";
 }
 
 // Update statistics tab UI
 function updateStatisticsTab(stats) {
-  document.getElementById("statsTotalRequests").textContent = stats?.requestCount?.toLocaleString() || "0";
-  document.getElementById("statsAvgResponseTime").textContent = stats?.avgResponseTime ? `${Math.round(stats.avgResponseTime)} ms` : "0 ms";
-  document.getElementById("statsSuccessfulRequests").textContent = stats?.successCount?.toLocaleString() || "0";
-  document.getElementById("statsFailedRequests").textContent = stats?.errorCount?.toLocaleString() || "0";
+  document.getElementById("statsTotalRequests").textContent =
+    stats?.requestCount?.toLocaleString() || "0";
+  document.getElementById("statsAvgResponseTime").textContent =
+    stats?.avgResponseTime ? `${Math.round(stats.avgResponseTime)} ms` : "0 ms";
+  document.getElementById("statsSuccessfulRequests").textContent =
+    stats?.successCount?.toLocaleString() || "0";
+  document.getElementById("statsFailedRequests").textContent =
+    stats?.errorCount?.toLocaleString() || "0";
   // Advanced metrics
-  document.getElementById("statsDbSize").textContent = stats?.size ? `${(stats.size/1024/1024).toFixed(2)} MB` : "-";
-  document.getElementById("statsAvgDns").textContent = stats?.avgTimings?.avgDns ? `${Math.round(stats.avgTimings.avgDns)} ms` : "-";
-  document.getElementById("statsAvgTcp").textContent = stats?.avgTimings?.avgTcp ? `${Math.round(stats.avgTimings.avgTcp)} ms` : "-";
-  document.getElementById("statsAvgSsl").textContent = stats?.avgTimings?.avgSsl ? `${Math.round(stats.avgTimings.avgSsl)} ms` : "-";
-  document.getElementById("statsAvgTtfb").textContent = stats?.avgTimings?.avgTtfb ? `${Math.round(stats.avgTimings.avgTtfb)} ms` : "-";
-  document.getElementById("statsAvgDownload").textContent = stats?.avgTimings?.avgDownload ? `${Math.round(stats.avgTimings.avgDownload)} ms` : "-";
+  document.getElementById("statsDbSize").textContent = stats?.size
+    ? `${(stats.size / 1024 / 1024).toFixed(2)} MB`
+    : "-";
+  document.getElementById("statsAvgDns").textContent = stats?.avgTimings?.avgDns
+    ? `${Math.round(stats.avgTimings.avgDns)} ms`
+    : "-";
+  document.getElementById("statsAvgTcp").textContent = stats?.avgTimings?.avgTcp
+    ? `${Math.round(stats.avgTimings.avgTcp)} ms`
+    : "-";
+  document.getElementById("statsAvgSsl").textContent = stats?.avgTimings?.avgSsl
+    ? `${Math.round(stats.avgTimings.avgSsl)} ms`
+    : "-";
+  document.getElementById("statsAvgTtfb").textContent = stats?.avgTimings
+    ?.avgTtfb
+    ? `${Math.round(stats.avgTimings.avgTtfb)} ms`
+    : "-";
+  document.getElementById("statsAvgDownload").textContent = stats?.avgTimings
+    ?.avgDownload
+    ? `${Math.round(stats.avgTimings.avgDownload)} ms`
+    : "-";
   // Status codes
   const statusCodesEl = document.getElementById("statsStatusCodes");
   statusCodesEl.innerHTML = stats?.statusCodes?.length
-    ? stats.statusCodes.map(s => `<div>${s.status}: ${s.count}</div>`).join("")
+    ? stats.statusCodes
+        .map((s) => `<div>${s.status}: ${s.count}</div>`)
+        .join("")
     : "-";
 }

@@ -27,7 +27,7 @@ function mapRowsToObjects(result) {
   if (!result || !result.columns || !result.values) {
     return [];
   }
-  return result.values.map(row => {
+  return result.values.map((row) => {
     const obj = {};
     result.columns.forEach((col, index) => {
       obj[col] = row[index];
@@ -45,7 +45,11 @@ async function loadDatabaseFromOPFS() {
     const file = await fileHandle.getFile();
     return new Uint8Array(await file.arrayBuffer());
   } catch (error) {
-    log("warn", "Failed to load database from OPFS. Creating a new one.", error);
+    log(
+      "warn",
+      "Failed to load database from OPFS. Creating a new one.",
+      error
+    );
     return null;
   }
 }
@@ -78,7 +82,9 @@ export async function logErrorToDatabase(dbInstance, error) {
   }
 
   try {
-    const tableCheck = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
+    const tableCheck = dbInstance.exec(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='errors'"
+    );
     if (!tableCheck[0] || !tableCheck[0].values.length === 0) {
       log("warn", "Errors table does not exist. Cannot log error.");
       return;
@@ -179,7 +185,10 @@ function executeTransaction(queries) {
       log("error", "Rollback failed:", rollbackError);
       logErrorToDatabase(db, rbError);
     }
-    const transactionError = error instanceof DatabaseError ? error : new DatabaseError("Transaction failed", error);
+    const transactionError =
+      error instanceof DatabaseError
+        ? error
+        : new DatabaseError("Transaction failed", error);
     logErrorToDatabase(db, transactionError);
     throw transactionError;
   }
@@ -279,13 +288,15 @@ function getRequests({ page = 1, limit = 100, filters = {} }) {
   const countResult = executeQuery(countQuery, params.slice(0, -2));
 
   // Map rows to objects using columns
-  const requests = results[0] ? results[0].values.map(row => {
-    const obj = {};
-    results[0].columns.forEach((col, i) => {
-      obj[col] = row[i];
-    });
-    return obj;
-  }) : [];
+  const requests = results[0]
+    ? results[0].values.map((row) => {
+        const obj = {};
+        results[0].columns.forEach((col, i) => {
+          obj[col] = row[i];
+        });
+        return obj;
+      })
+    : [];
 
   return {
     requests,
@@ -420,21 +431,24 @@ function getRequestHeaders(requestId) {
 }
 
 // Get headers for a request (event-based wrapper)
-export async function getRequestHeadersEventBased(requestId, requestIdForEvent) {
+export async function getRequestHeadersEventBased(
+  requestId,
+  requestIdForEvent
+) {
   try {
     const headers = getRequestHeaders(requestId);
     chrome.runtime.sendMessage({
       action: "getRequestHeadersResult",
       requestId: requestIdForEvent,
       success: true,
-      headers
+      headers,
     });
   } catch (error) {
     chrome.runtime.sendMessage({
       action: "getRequestHeadersResult",
       requestId: requestIdForEvent,
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 }
@@ -488,21 +502,24 @@ function getRequestTimings(requestId) {
 }
 
 // Get timing data for a request (event-based wrapper)
-export async function getRequestTimingsEventBased(requestId, requestIdForEvent) {
+export async function getRequestTimingsEventBased(
+  requestId,
+  requestIdForEvent
+) {
   try {
     const timings = getRequestTimings(requestId);
     chrome.runtime.sendMessage({
       action: "getRequestTimingsResult",
       requestId: requestIdForEvent,
       success: true,
-      timings
+      timings,
     });
   } catch (error) {
     chrome.runtime.sendMessage({
       action: "getRequestTimingsResult",
       requestId: requestIdForEvent,
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 }
@@ -555,7 +572,7 @@ async function saveImportedData(data) {
         startTime, endTime, duration, size, timestamp, tabId, pageUrl, error
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    data.requests.forEach(req => {
+    data.requests.forEach((req) => {
       requestStmt.run([
         req.id,
         req.url,
@@ -580,7 +597,7 @@ async function saveImportedData(data) {
     const headerStmt = db.prepare(
       "INSERT OR IGNORE INTO request_headers (requestId, name, value) VALUES (?, ?, ?)"
     );
-    data.headers.forEach(header => {
+    data.headers.forEach((header) => {
       headerStmt.run([header.requestId, header.name, header.value]);
     });
     headerStmt.free();
@@ -590,7 +607,7 @@ async function saveImportedData(data) {
         requestId, dns, tcp, ssl, ttfb, download
       ) VALUES (?, ?, ?, ?, ?, ?)
     `);
-    data.timings.forEach(timing => {
+    data.timings.forEach((timing) => {
       timingStmt.run([
         timing.requestId,
         timing.dns || 0,
@@ -606,16 +623,21 @@ async function saveImportedData(data) {
     eventBus.publish("database:imported", { count: data.requests.length });
     log("info", `[DB] Successfully imported ${data.requests.length} requests.`);
     return { success: true, count: data.requests.length };
-
   } catch (error) {
     log("error", "Failed to save imported data:", error);
     try {
       db.exec("ROLLBACK");
     } catch (rollbackError) {
       log("error", "Rollback failed:", rollbackError);
-      logErrorToDatabase(db, new DatabaseError("Rollback failed during import", rollbackError));
+      logErrorToDatabase(
+        db,
+        new DatabaseError("Rollback failed during import", rollbackError)
+      );
     }
-    const importError = new DatabaseError("Failed to save imported data", error);
+    const importError = new DatabaseError(
+      "Failed to save imported data",
+      error
+    );
     logErrorToDatabase(db, importError);
     throw importError;
   }
@@ -662,51 +684,90 @@ async function getFilteredStats(filters = {}) {
       params.push(`%${filters.domain}%`);
     }
     const size = await getDatabaseSize();
-    const countResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause}`, params);
+    const countResult = executeQuery(
+      `SELECT COUNT(*) FROM requests ${whereClause}`,
+      params
+    );
     const requestCount = countResult[0]?.values[0]?.[0] || 0;
-    const avgDurationResult = executeQuery(`SELECT AVG(duration) FROM requests ${whereClause} AND duration > 0`, params);
+    const avgDurationResult = executeQuery(
+      `SELECT AVG(duration) FROM requests ${whereClause} AND duration > 0`,
+      params
+    );
     const avgResponseTime = avgDurationResult[0]?.values[0]?.[0] || 0;
-    const successCountResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause} AND status >= 200 AND status < 300`, params);
+    const successCountResult = executeQuery(
+      `SELECT COUNT(*) FROM requests ${whereClause} AND status >= 200 AND status < 300`,
+      params
+    );
     const successCount = successCountResult[0]?.values[0]?.[0] || 0;
-    const errorCountResult = executeQuery(`SELECT COUNT(*) FROM requests ${whereClause} AND status >= 400`, params);
+    const errorCountResult = executeQuery(
+      `SELECT COUNT(*) FROM requests ${whereClause} AND status >= 400`,
+      params
+    );
     const errorCount = errorCountResult[0]?.values[0]?.[0] || 0;
-    const statusCodesResult = executeQuery(`SELECT status, COUNT(*) as count FROM requests ${whereClause} GROUP BY status ORDER BY count DESC`, params);
+    const statusCodesResult = executeQuery(
+      `SELECT status, COUNT(*) as count FROM requests ${whereClause} GROUP BY status ORDER BY count DESC`,
+      params
+    );
     const statusCodes = mapRowsToObjects(statusCodesResult[0]);
-    const typesResult = executeQuery(`SELECT type, COUNT(*) as count FROM requests ${whereClause} GROUP BY type ORDER BY count DESC`, params);
+    const typesResult = executeQuery(
+      `SELECT type, COUNT(*) as count FROM requests ${whereClause} GROUP BY type ORDER BY count DESC`,
+      params
+    );
     const requestTypes = mapRowsToObjects(typesResult[0]);
 
     // --- Response Time Time Series (group by minute) ---
-    const timeSeriesResult = executeQuery(`SELECT strftime('%H:%M', datetime(timestamp/1000, 'unixepoch')) as time, AVG(duration) as avgDuration, COUNT(*) as count FROM requests ${whereClause} GROUP BY time ORDER BY time`, params);
+    const timeSeriesResult = executeQuery(
+      `SELECT strftime('%H:%M', datetime(timestamp/1000, 'unixepoch')) as time, AVG(duration) as avgDuration, COUNT(*) as count FROM requests ${whereClause} GROUP BY time ORDER BY time`,
+      params
+    );
     const timeSeries = mapRowsToObjects(timeSeriesResult[0]);
 
     // --- Time Distribution Histogram ---
-    const timeBins = [0,100,300,500,1000,2000,5000,10000];
+    const timeBins = [0, 100, 300, 500, 1000, 2000, 5000, 10000];
     const timeCounts = [];
     for (let i = 0; i < timeBins.length; i++) {
       const min = timeBins[i];
-      const max = timeBins[i+1] || 1e9;
-      const countRes = executeQuery(`SELECT COUNT(*) as count FROM requests ${whereClause} AND duration >= ? AND duration < ?`, [...params, min, max]);
+      const max = timeBins[i + 1] || 1e9;
+      const countRes = executeQuery(
+        `SELECT COUNT(*) as count FROM requests ${whereClause} AND duration >= ? AND duration < ?`,
+        [...params, min, max]
+      );
       timeCounts.push(countRes[0]?.values[0]?.[0] || 0);
     }
     const timeDistribution = { bins: timeBins, counts: timeCounts };
 
     // --- Size Distribution Histogram ---
-    const sizeBins = [0,1024,10*1024,100*1024,1024*1024,10*1024*1024];
+    const sizeBins = [
+      0,
+      1024,
+      10 * 1024,
+      100 * 1024,
+      1024 * 1024,
+      10 * 1024 * 1024,
+    ];
     const sizeCounts = [];
     for (let i = 0; i < sizeBins.length; i++) {
       const min = sizeBins[i];
-      const max = sizeBins[i+1] || 1e12;
-      const countRes = executeQuery(`SELECT COUNT(*) as count FROM requests ${whereClause} AND size >= ? AND size < ?`, [...params, min, max]);
+      const max = sizeBins[i + 1] || 1e12;
+      const countRes = executeQuery(
+        `SELECT COUNT(*) as count FROM requests ${whereClause} AND size >= ? AND size < ?`,
+        [...params, min, max]
+      );
       sizeCounts.push(countRes[0]?.values[0]?.[0] || 0);
     }
     const sizeDistribution = { bins: sizeBins, counts: sizeCounts };
 
     // --- Response Times Data (for legacy support) ---
-    const timesResult = executeQuery(`SELECT timestamp, duration FROM requests ${whereClause} ORDER BY timestamp DESC LIMIT 100`, params);
+    const timesResult = executeQuery(
+      `SELECT timestamp, duration FROM requests ${whereClause} ORDER BY timestamp DESC LIMIT 100`,
+      params
+    );
     const responseTimes = mapRowsToObjects(timesResult[0]).reverse();
     const responseTimesData = {
-      timestamps: responseTimes.map(r => new Date(r.timestamp).toLocaleTimeString()),
-      durations: responseTimes.map(r => r.duration),
+      timestamps: responseTimes.map((r) =>
+        new Date(r.timestamp).toLocaleTimeString()
+      ),
+      durations: responseTimes.map((r) => r.duration),
     };
 
     return {
@@ -736,11 +797,13 @@ async function getDistinctDomains() {
     return [];
   }
   try {
-    const result = executeQuery("SELECT DISTINCT domain FROM requests WHERE domain IS NOT NULL AND domain != '' ORDER BY domain");
+    const result = executeQuery(
+      "SELECT DISTINCT domain FROM requests WHERE domain IS NOT NULL AND domain != '' ORDER BY domain"
+    );
     if (!result[0] || !result[0].values) {
       return [];
     }
-    return result[0].values.map(row => row[0]);
+    return result[0].values.map((row) => row[0]);
   } catch (error) {
     log("error", "Failed to get distinct domains:", error);
     throw new DatabaseError("Failed to get distinct domains", error);
@@ -786,11 +849,14 @@ function getDistinctValues(field, filters = {}) {
       params.push(filters.method);
     }
     query += ` ORDER BY ${field}`;
+
+    console.log("[db-manager]-[getDistinctValues]:Query:-" + query);
+
     const result = executeQuery(query, params);
     if (!result[0] || !result[0].values) {
       return [];
     }
-    return result[0].values.map(row => row[0]);
+    return result[0].values.map((row) => row[0]);
   } catch (error) {
     log("error", `Failed to get distinct values for field ${field}:`, error);
     return [];
@@ -861,7 +927,10 @@ async function exportDatabase(format) {
     }
   } catch (error) {
     log("error", `Failed to export database as ${format}:`, error);
-    const exportError = new DatabaseError(`Failed to export database as ${format}`, error);
+    const exportError = new DatabaseError(
+      `Failed to export database as ${format}`,
+      error
+    );
     logErrorToDatabase(db, exportError);
     throw exportError;
   }
@@ -875,8 +944,10 @@ async function clearDatabase() {
   }
 
   try {
-    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
-    const tables = tablesResult[0]?.values.map(row => row[0]) || [];
+    const tablesResult = executeQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
+    );
+    const tables = tablesResult[0]?.values.map((row) => row[0]) || [];
 
     db.exec("BEGIN TRANSACTION");
     for (const table of tables) {
@@ -893,7 +964,9 @@ async function clearDatabase() {
     return true;
   } catch (error) {
     log("error", "Failed to clear database:", error);
-    try { db.exec("ROLLBACK"); } catch (rbError) { }
+    try {
+      db.exec("ROLLBACK");
+    } catch (rbError) {}
     const clearError = new DatabaseError("Failed to clear database", error);
     logErrorToDatabase(db, clearError);
     throw clearError;
@@ -1006,18 +1079,21 @@ async function backupDatabase(meta = {}) {
   try {
     const data = db.export();
     const timestamp = Date.now();
-    const backupKey = `database_backup_${new Date(timestamp).toISOString().replace(/[:.]/g, "-")}`;
+    const backupKey = `database_backup_${new Date(timestamp)
+      .toISOString()
+      .replace(/[:.]/g, "-")}`;
     const size = data.length;
     db.exec(
       `INSERT INTO backups (key, data, createdAt, size, meta) VALUES (?, ?, ?, ?, ?)`,
       [backupKey, data, timestamp, size, JSON.stringify(meta)]
     );
-    eventBus && eventBus.publish("database:backup_created", {
-      timestamp,
-      backupKey,
-      size,
-      meta
-    });
+    eventBus &&
+      eventBus.publish("database:backup_created", {
+        timestamp,
+        backupKey,
+        size,
+        meta,
+      });
     log("info", `[DB] Backup created with key: ${backupKey}`);
     return backupKey;
   } catch (error) {
@@ -1030,7 +1106,9 @@ async function backupDatabase(meta = {}) {
 async function getBackupList() {
   if (!db) throw new DatabaseError("Database not initialized");
   try {
-    const result = executeQuery("SELECT key, createdAt, size, meta FROM backups ORDER BY createdAt DESC");
+    const result = executeQuery(
+      "SELECT key, createdAt, size, meta FROM backups ORDER BY createdAt DESC"
+    );
     return result[0] ? mapRowsToObjects(result[0]) : [];
   } catch (error) {
     log("error", "Failed to get backup list:", error);
@@ -1043,7 +1121,11 @@ async function deleteBackup(key) {
   if (!db) throw new DatabaseError("Database not initialized");
   try {
     db.exec("DELETE FROM backups WHERE key = ?", [key]);
-    eventBus && eventBus.publish("database:backup_deleted", { key, timestamp: Date.now() });
+    eventBus &&
+      eventBus.publish("database:backup_deleted", {
+        key,
+        timestamp: Date.now(),
+      });
     log("info", `[DB] Backup deleted: ${key}`);
     return true;
   } catch (error) {
@@ -1061,16 +1143,22 @@ async function deleteBackup(key) {
 export async function backupAllData(configManager) {
   if (!db) throw new DatabaseError("Database not initialized");
   // Requests
-  const requests = await (typeof getAllRequests === 'function' ? getAllRequests() : []);
+  const requests = await (typeof getAllRequests === "function"
+    ? getAllRequests()
+    : []);
   // Timings
-  const timings = await (typeof getAllRequestTimings === 'function' ? getAllRequestTimings() : []);
+  const timings = await (typeof getAllRequestTimings === "function"
+    ? getAllRequestTimings()
+    : []);
   // Headers
-  const headers = await (typeof getAllRequestHeaders === 'function' ? getAllRequestHeaders() : []);
+  const headers = await (typeof getAllRequestHeaders === "function"
+    ? getAllRequestHeaders()
+    : []);
   // Config/settings
   let config = null;
-  if (configManager && typeof configManager.getConfig === 'function') {
+  if (configManager && typeof configManager.getConfig === "function") {
     config = await configManager.getConfig();
-  } else if (typeof loadConfigFromDb === 'function') {
+  } else if (typeof loadConfigFromDb === "function") {
     config = loadConfigFromDb();
   }
   return { requests, timings, headers, config };
@@ -1103,9 +1191,13 @@ export async function restoreAllData(backup, configManager) {
     }
   }
   // Restore config/settings
-  if (backup.config && configManager && typeof configManager.updateConfig === 'function') {
+  if (
+    backup.config &&
+    configManager &&
+    typeof configManager.updateConfig === "function"
+  ) {
     await configManager.updateConfig(backup.config);
-  } else if (backup.config && typeof saveConfigToDb === 'function') {
+  } else if (backup.config && typeof saveConfigToDb === "function") {
     saveConfigToDb(backup.config);
   }
   eventBus && eventBus.publish("database:restored", { timestamp: Date.now() });
@@ -1119,7 +1211,9 @@ export async function initializeDatabase() {
   while (retries > 0) {
     try {
       log("info", "Initializing database...");
-      const SQL = await initSqlJs({ locateFile: file => `assets/wasm/${file}` });
+      const SQL = await initSqlJs({
+        locateFile: (file) => `assets/wasm/${file}`,
+      });
       let dbInstance = null;
       let dbData = null;
 
@@ -1145,9 +1239,13 @@ export async function initializeDatabase() {
       log("info", "Database initialized successfully.");
       db = dbInstance;
       return dbInstance;
-
     } catch (error) {
-      log("error", `Database initialization failed: ${error.message}. Retries left: ${retries - 1}`);
+      log(
+        "error",
+        `Database initialization failed: ${error.message}. Retries left: ${
+          retries - 1
+        }`
+      );
       retries--;
       if (retries === 0) {
         logErrorToDatabase(db, error);
@@ -1155,9 +1253,12 @@ export async function initializeDatabase() {
           error: "init_failed",
           message: error.message,
         });
-        throw new DatabaseError("Database initialization failed after multiple retries", error);
+        throw new DatabaseError(
+          "Database initialization failed after multiple retries",
+          error
+        );
       }
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 }
@@ -1177,7 +1278,10 @@ function setupAutoSave(dbInstance = db) {
         await saveDatabaseToOPFS(data);
       } catch (error) {
         log("error", "Auto-save failed:", error);
-        logErrorToDatabase(dbInstance, new DatabaseError("Auto-save failed", error));
+        logErrorToDatabase(
+          dbInstance,
+          new DatabaseError("Auto-save failed", error)
+        );
         eventBus.publish("database:error", {
           error: "autosave_failed",
           message: error.message,
@@ -1187,7 +1291,10 @@ function setupAutoSave(dbInstance = db) {
       }
     }
   }, interval);
-  log("info", `Database auto-save configured with interval: ${interval / 1000}s`);
+  log(
+    "info",
+    `Database auto-save configured with interval: ${interval / 1000}s`
+  );
 }
 
 // Stops the auto-save interval and cleans up resources
@@ -1232,7 +1339,7 @@ async function getTableColumns(tableName) {
   try {
     const result = executeQuery(`PRAGMA table_info(${tableName})`);
     if (result[0] && result[0].values) {
-      return result[0].values.map(colInfo => colInfo[1]);
+      return result[0].values.map((colInfo) => colInfo[1]);
     }
     const sample = executeQuery(`SELECT * FROM ${tableName} LIMIT 0`);
     if (sample[0] && sample[0].columns) {
@@ -1251,11 +1358,13 @@ function getDatabaseSchemaSummary() {
     throw new DatabaseError("Database not initialized");
   }
   try {
-    const tablesResult = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
+    const tablesResult = executeQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
+    );
     if (!tablesResult[0] || !tablesResult[0].values) {
       return [];
     }
-    const tables = tablesResult[0].values.map(row => row[0]);
+    const tables = tablesResult[0].values.map((row) => row[0]);
     const summary = [];
     for (const tableName of tables) {
       try {
@@ -1263,8 +1372,12 @@ function getDatabaseSchemaSummary() {
         const rowCount = countResult[0]?.values[0]?.[0] || 0;
         summary.push({ name: tableName, rows: rowCount });
       } catch (countError) {
-        log("warn", `Could not get row count for table ${tableName}:`, countError);
-        summary.push({ name: tableName, rows: 'Error' });
+        log(
+          "warn",
+          `Could not get row count for table ${tableName}:`,
+          countError
+        );
+        summary.push({ name: tableName, rows: "Error" });
       }
     }
     return summary;
@@ -1280,12 +1393,16 @@ function getLoggedErrors(limit = 100) {
     throw new DatabaseError("Database not initialized");
   }
   try {
-    const tableCheck = executeQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='errors'");
+    const tableCheck = executeQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='errors'"
+    );
     if (!tableCheck[0] || !tableCheck[0].values.length === 0) {
       log("info", "Errors table does not exist. No errors to fetch.");
       return [];
     }
-    const result = executeQuery(`SELECT id, category, message, stack, timestamp, context FROM errors ORDER BY timestamp DESC LIMIT ${limit}`);
+    const result = executeQuery(
+      `SELECT id, category, message, stack, timestamp, context FROM errors ORDER BY timestamp DESC LIMIT ${limit}`
+    );
     return result[0] ? mapRowsToObjects(result[0]) : [];
   } catch (error) {
     log("error", "Failed to get logged errors:", error);
@@ -1301,7 +1418,13 @@ async function saveSqlToHistoryDb(sql, success, errorMessage, durationMs) {
   try {
     db.exec(
       `INSERT INTO sql_history (query, executed_at, success, error_message, duration_ms) VALUES (?, ?, ?, ?, ?)`,
-      [sql, Date.now(), success ? 1 : 0, errorMessage || null, durationMs || null]
+      [
+        sql,
+        Date.now(),
+        success ? 1 : 0,
+        errorMessage || null,
+        durationMs || null,
+      ]
     );
   } catch (e) {
     log("warn", "Failed to save SQL to history table", e);
@@ -1330,19 +1453,36 @@ async function executeRawSql(sql, opts = {}) {
   }
   const lowerSql = sql.toLowerCase().trim();
   const allowed = [
-    "select", "pragma", "explain", "insert", "update", "delete", "create", "drop", "alter", "replace", "vacuum", "begin", "commit", "rollback"
+    "select",
+    "pragma",
+    "explain",
+    "insert",
+    "update",
+    "delete",
+    "create",
+    "drop",
+    "alter",
+    "replace",
+    "vacuum",
+    "begin",
+    "commit",
+    "rollback",
   ];
   const statements = lowerSql
-    .split(';')
-    .map(s => s.replace(/--.*$/gm, '').trim())
+    .split(";")
+    .map((s) => s.replace(/--.*$/gm, "").trim())
     .filter(Boolean);
   let affectedRows = 0;
   for (const stmt of statements) {
     const firstWord = stmt.split(/\s+/)[0];
     if (!allowed.includes(firstWord)) {
-      const securityError = new DatabaseError(`Raw SQL execution denied for non-allowed query type.`);
+      const securityError = new DatabaseError(
+        `Raw SQL execution denied for non-allowed query type.`
+      );
       log("warn", "Attempting to execute potentially harmful SQL:", stmt);
-      try { await logErrorToDatabase(db, securityError); } catch {}
+      try {
+        await logErrorToDatabase(db, securityError);
+      } catch {}
       await saveSqlToHistoryDb(sql, false, securityError.message, null);
       throw securityError;
     }
@@ -1357,7 +1497,17 @@ async function executeRawSql(sql, opts = {}) {
         const res = executeQuery(stmt, []);
         if (res) results = results.concat(res);
         // For non-select, count affected rows
-        if (["update", "delete", "insert", "replace", "create", "drop", "alter"].includes(stmt.split(/\s+/)[0])) {
+        if (
+          [
+            "update",
+            "delete",
+            "insert",
+            "replace",
+            "create",
+            "drop",
+            "alter",
+          ].includes(stmt.split(/\s+/)[0])
+        ) {
           if (typeof db.getRowsModified === "function") {
             affectedRows += db.getRowsModified();
           }
@@ -1367,15 +1517,15 @@ async function executeRawSql(sql, opts = {}) {
     db.exec("COMMIT");
     const duration = Date.now() - start;
     await saveSqlToHistoryDb(sql, true, null, duration);
-    const mappedResults = results.map(result => ({
+    const mappedResults = results.map((result) => ({
       columns: result.columns || [],
-      values: result.values || []
+      values: result.values || [],
     }));
     if (opts.exportCsv && mappedResults[0]) {
       const columns = mappedResults[0].columns;
       let csv = columns.join(",") + "\n";
-      mappedResults[0].values.forEach(row => {
-        const escapedRow = row.map(field => {
+      mappedResults[0].values.forEach((row) => {
+        const escapedRow = row.map((field) => {
           if (field === null || field === undefined) return "";
           const str = String(field);
           if (str.includes(",") || str.includes("\n") || str.includes('"')) {
@@ -1390,10 +1540,15 @@ async function executeRawSql(sql, opts = {}) {
     // Return affectedRows for non-select queries
     return mappedResults.length ? mappedResults : { affectedRows };
   } catch (error) {
-    try { db.exec("ROLLBACK"); } catch {}
+    try {
+      db.exec("ROLLBACK");
+    } catch {}
     log("error", "Raw SQL execution failed:", error.message, { sql });
     await saveSqlToHistoryDb(sql, false, error.message, null);
-    throw new DatabaseError(`Raw SQL execution failed: ${error.message || 'Unknown reason'}`, error);
+    throw new DatabaseError(
+      `Raw SQL execution failed: ${error.message || "Unknown reason"}`,
+      error
+    );
   }
 }
 
@@ -1404,19 +1559,20 @@ async function executeRawSql(sql, opts = {}) {
  * @param {object} config - The configuration object to save.
  * @param {string} [key='main'] - The config key (default: 'main').
  */
-export function saveConfigToDb(config, key = 'main') {
-  if (!db) throw new DatabaseError('Database not initialized');
+export function saveConfigToDb(config, key = "main") {
+  if (!db) throw new DatabaseError("Database not initialized");
   try {
     db.exec(
       `INSERT OR REPLACE INTO config (key, value, updatedAt) VALUES (?, ?, ?)`,
       [key, JSON.stringify(config), Date.now()]
     );
-    eventBus && eventBus.publish('config:saved', { key, timestamp: Date.now() });
-    log('info', `[DB] Config saved to DB (key: ${key})`);
+    eventBus &&
+      eventBus.publish("config:saved", { key, timestamp: Date.now() });
+    log("info", `[DB] Config saved to DB (key: ${key})`);
     return true;
   } catch (error) {
-    log('error', 'Failed to save config to DB:', error);
-    throw new DatabaseError('Failed to save config to DB', error);
+    log("error", "Failed to save config to DB:", error);
+    throw new DatabaseError("Failed to save config to DB", error);
   }
 }
 
@@ -1425,16 +1581,18 @@ export function saveConfigToDb(config, key = 'main') {
  * @param {string} [key='main'] - The config key (default: 'main').
  * @returns {object|null}
  */
-export function loadConfigFromDb(key = 'main') {
-  if (!db) throw new DatabaseError('Database not initialized');
+export function loadConfigFromDb(key = "main") {
+  if (!db) throw new DatabaseError("Database not initialized");
   try {
-    const result = executeQuery('SELECT value FROM config WHERE key = ?', [key]);
+    const result = executeQuery("SELECT value FROM config WHERE key = ?", [
+      key,
+    ]);
     if (result[0] && result[0].values.length > 0) {
       return JSON.parse(result[0].values[0][0]);
     }
     return null;
   } catch (error) {
-    log('error', 'Failed to load config from DB:', error);
+    log("error", "Failed to load config from DB:", error);
     return null;
   }
 }
@@ -1444,18 +1602,19 @@ export function loadConfigFromDb(key = 'main') {
  * @param {object} newConfig - The new configuration object to merge and update.
  * @param {string} [key='main'] - The config key (default: 'main').
  */
-export function updateConfigInDb(newConfig, key = 'main') {
-  if (!db) throw new DatabaseError('Database not initialized');
+export function updateConfigInDb(newConfig, key = "main") {
+  if (!db) throw new DatabaseError("Database not initialized");
   try {
     const current = loadConfigFromDb(key) || {};
     const updated = { ...current, ...newConfig };
     saveConfigToDb(updated, key);
-    eventBus && eventBus.publish('config:updated', { key, timestamp: Date.now() });
-    log('info', `[DB] Config updated in DB (key: ${key})`);
+    eventBus &&
+      eventBus.publish("config:updated", { key, timestamp: Date.now() });
+    log("info", `[DB] Config updated in DB (key: ${key})`);
     return true;
   } catch (error) {
-    log('error', 'Failed to update config in DB:', error);
-    throw new DatabaseError('Failed to update config in DB', error);
+    log("error", "Failed to update config in DB:", error);
+    throw new DatabaseError("Failed to update config in DB", error);
   }
 }
 
@@ -1520,28 +1679,33 @@ async function getApiPerformanceOverTime(filters = {}) {
     );
     const rows = mapRowsToObjects(result[0]);
     // Debug: log number of rows found
-    if (typeof console !== 'undefined') {
-      console.log('[DB] getApiPerformanceOverTime rows:', rows.length, 'filters:', filters);
+    if (typeof console !== "undefined") {
+      console.log(
+        "[DB] getApiPerformanceOverTime rows:",
+        rows.length,
+        "filters:",
+        filters
+      );
     }
     // Group by path
     const apiOverTime = {};
-    rows.forEach(row => {
+    rows.forEach((row) => {
       if (!apiOverTime[row.path]) apiOverTime[row.path] = [];
       apiOverTime[row.path].push({
         time: row.time,
         count: row.count,
         avgDuration: row.avgDuration,
         minDuration: row.minDuration,
-        maxDuration: row.maxDuration
+        maxDuration: row.maxDuration,
       });
     });
     return { apiOverTime };
   } catch (err) {
-    return { error: err.message || 'Failed to load API performance data' };
+    return { error: err.message || "Failed to load API performance data" };
   }
 }
 
-async function clearRequests(){
+async function clearRequests() {
   //clears this tables in db
   if (!db) {
     log("error", "Database is not initialized or invalid.");
@@ -1643,7 +1807,9 @@ async function getPageLoadMetrics(filters = {}) {
        ${whereClause} AND type = 'pageload'`,
       params
     );
-    return result[0] && result[0].values.length ? mapRowsToObjects(result[0])[0] : {};
+    return result[0] && result[0].values.length
+      ? mapRowsToObjects(result[0])[0]
+      : {};
   } catch (error) {
     log("error", "Failed to get page load metrics:", error);
     return {};
@@ -1734,6 +1900,6 @@ function createDbInterface() {
     getPageLoadMetrics,
     getResourceBreakdown,
     backupAllData,
-    restoreAllData
+    restoreAllData,
   };
 }

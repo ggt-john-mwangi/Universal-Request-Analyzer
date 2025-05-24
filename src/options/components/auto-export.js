@@ -1,3 +1,5 @@
+import { sendMessageWithResponse } from "../../background/utils/message-handler.js";
+
 export default function renderAutoExport() {
   const container = document.createElement("div");
   container.innerHTML = `
@@ -24,67 +26,68 @@ export default function renderAutoExport() {
       <label for="exportPath">Export Directory (optional):</label>
       <input type="text" id="autoExportPath" placeholder="Default downloads directory">
     </div>
+    <div id="autoExportStatus" class="status-message" style="display: none;"></div>
   `;
 
-  // --- Event-based Save/Load for Auto Export Settings ---
-  // Use a single global handler for all requests
-  const pendingRequests = {};
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-      if (msg && msg.requestId && pendingRequests[msg.requestId]) {
-        pendingRequests[msg.requestId](msg);
-        delete pendingRequests[msg.requestId];
-      }
-    });
-  }
-
   function showStatus(message, success = true) {
-    let status = document.getElementById('autoExportStatus');
-    if (!status) {
-      status = document.createElement('div');
-      status.id = 'autoExportStatus';
-      status.className = 'status-message';
-      container.appendChild(status);
-    }
+    const status = container.querySelector("#autoExportStatus");
     status.textContent = message;
-    status.style.display = 'block';
-    status.style.color = success ? 'green' : 'red';
-    setTimeout(() => { status.style.display = 'none'; }, 3000);
+    status.style.display = "block";
+    status.style.color = success ? "green" : "red";
+    setTimeout(() => {
+      status.style.display = "none";
+    }, 3000);
   }
 
-  function saveAutoExportSettings() {
+  async function saveAutoExportSettings() {
     const settings = {
-      autoExport: document.getElementById('autoExport').checked,
-      exportFormat: document.getElementById('autoExportFormat').value,
-      exportInterval: parseInt(document.getElementById('autoExportInterval').value, 10) * 60000,
-      exportPath: document.getElementById('autoExportPath').value.trim(),
+      autoExport: document.getElementById("autoExport").checked,
+      exportFormat: document.getElementById("autoExportFormat").value,
+      exportInterval:
+        parseInt(document.getElementById("autoExportInterval").value, 10) *
+        60000,
+      exportPath: document.getElementById("autoExportPath").value.trim(),
     };
-    const requestId = 'saveAutoExport_' + Date.now();
-    pendingRequests[requestId] = (msg) => {
-      showStatus(msg.success ? 'Auto export settings saved.' : ('Error: ' + (msg.error || 'Failed to save')), msg.success);
-    };
-    chrome.runtime.sendMessage({ action: 'updateConfig', data: { export: settings }, requestId });
+
+    const response = await sendMessageWithResponse("updateConfig", {
+      export: settings,
+    });
+    showStatus(
+      response.success
+        ? "Auto export settings saved."
+        : `Error: ${response.error || "Failed to save"}`,
+      response.success
+    );
   }
 
-  function loadAutoExportSettings() {
-    const requestId = 'loadAutoExport_' + Date.now();
-    pendingRequests[requestId] = (msg) => {
-      if (msg.config) {
-        const settings = msg.config.export || {};
-        document.getElementById('autoExport').checked = settings.autoExport ?? false;
-        document.getElementById('autoExportFormat').value = settings.exportFormat || 'json';
-        document.getElementById('autoExportInterval').value = (settings.exportInterval || 86400000) / 60000;
-        document.getElementById('autoExportPath').value = settings.exportPath || '';
-      }
-    };
-    chrome.runtime.sendMessage({ action: 'getConfig', requestId });
+  async function loadAutoExportSettings() {
+    const response = await sendMessageWithResponse("getConfig");
+    if (response.config) {
+      const settings = response.config.export || {};
+      document.getElementById("autoExport").checked =
+        settings.autoExport ?? false;
+      document.getElementById("autoExportFormat").value =
+        settings.exportFormat || "json";
+      document.getElementById("autoExportInterval").value =
+        (settings.exportInterval || 86400000) / 60000;
+      document.getElementById("autoExportPath").value =
+        settings.exportPath || "";
+    }
   }
 
   // Attach event listeners
-  container.querySelector('#autoExport').addEventListener('change', saveAutoExportSettings);
-  container.querySelector('#autoExportFormat').addEventListener('change', saveAutoExportSettings);
-  container.querySelector('#autoExportInterval').addEventListener('change', saveAutoExportSettings);
-  container.querySelector('#autoExportPath').addEventListener('change', saveAutoExportSettings);
+  container
+    .querySelector("#autoExport")
+    .addEventListener("change", saveAutoExportSettings);
+  container
+    .querySelector("#autoExportFormat")
+    .addEventListener("change", saveAutoExportSettings);
+  container
+    .querySelector("#autoExportInterval")
+    .addEventListener("change", saveAutoExportSettings);
+  container
+    .querySelector("#autoExportPath")
+    .addEventListener("change", saveAutoExportSettings);
 
   // Initial load
   loadAutoExportSettings();
