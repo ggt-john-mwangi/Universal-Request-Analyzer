@@ -193,6 +193,35 @@ export async function createTables(db) {
     )
   `)
 
+  // Add/ensure table for page load metrics
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS page_load_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pageUrl TEXT,
+      domain TEXT,
+      timestamp REAL,
+      loadTime REAL,
+      size INTEGER,
+      resources INTEGER,
+      ttfb REAL,
+      domContentLoaded REAL,
+      domComplete REAL
+    )
+  `)
+
+  // Add/ensure table for resource breakdown (by type, count, size)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS resource_breakdown (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      domain TEXT,
+      pageUrl TEXT,
+      type TEXT,
+      count INTEGER,
+      totalSize INTEGER,
+      timestamp REAL
+    )
+  `)
+
   console.log("Database schema created successfully")
   return true
 }

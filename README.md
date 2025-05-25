@@ -131,6 +131,16 @@ The extension utilizes an SQLite database to store captured request data efficie
 | name      | TEXT    | Header name                           |
 | value     | TEXT    | Header value                          |
 
+## Site Analysis & Performance Insights
+
+- **Site Analysis Tools**: Evaluate web pages for performance, accessibility, and best practices using built-in analyzers. Get actionable insights on load speed, resource usage, and optimization opportunities.
+- **Performance Scoring**: Each analyzed page receives a unique performance score based on request timings, resource efficiency, and detected issues.
+- **Actionable Recommendations**: Receive tailored suggestions to improve site speed, reduce bottlenecks, and enhance user experience.
+- **Accessibility Checks**: Identify common accessibility issues and get tips for remediation.
+- **Customizable Audits**: Select which aspects to analyze, including network, rendering, and accessibility, directly from the Options Analytics or DevTools panel.
+
+These features are seamlessly integrated into both the **Options Analytics** page and the **DevTools panel**, providing a unified experience for in-depth site evaluation and optimization.
+
 ## Future Enhancements
 
 - **Enhanced Data Analysis**: Implement more visual analytics for trend monitoring.

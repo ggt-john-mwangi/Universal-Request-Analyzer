@@ -118,6 +118,10 @@ function handleBeforeRequest(details) {
       ttfb: 0,
       download: 0,
     },
+    userId: "",
+    projectId: "",
+    environmentId: "",
+    tags: [],
   };
 
   // Get the page URL
@@ -251,6 +255,36 @@ function handlePerformanceData(entries, tab) {
   console.log("[Capture] handlePerformanceData", entries);
   if (!config.enabled || !entries || entries.length === 0) return;
 
+  // If entry is a page load metric, save it
+  entries.forEach((entry) => {
+    if (entry.initiatorType === 'navigation' && entry.loadTime) {
+      dbManager.savePageLoadMetrics({
+        pageUrl: entry.name,
+        domain: parseUrl(entry.name).domain,
+        timestamp: Date.now(),
+        loadTime: entry.loadTime,
+        size: entry.size || 0,
+        resources: entry.resources || 0,
+        ttfb: entry.timings?.ttfb || 0,
+        domContentLoaded: entry.timings?.domContentLoaded || 0,
+        domComplete: entry.timings?.domComplete || 0
+      });
+      uiLog('info', '[Capture] Saved page load metrics', entry);
+    }
+    // If entry is a resource, save breakdown
+    if (entry.initiatorType && entry.size) {
+      saveResourceBreakdown.saveResourceBreakdown({
+        domain: parseUrl(entry.name).domain,
+        pageUrl: tab ? tab.url : '',
+        type: entry.initiatorType,
+        count: 1,
+        totalSize: entry.size,
+        timestamp: Date.now()
+      });
+      uiLog('info', '[Capture] Saved resource breakdown', entry);
+    }
+  });
+
   entries.forEach((entry) => {
     // Build a details-like object for filtering
     const details = { type: entry.initiatorType, url: entry.name };
@@ -307,6 +341,10 @@ function handlePerformanceData(entries, tab) {
           ttfb: entry.timings.ttfb,
           download: entry.timings.download,
         },
+        userId: "",
+        projectId: "",
+        environmentId: "",
+        tags: [],
       };
 
       updateRequestData(request.id, request);
@@ -351,6 +389,10 @@ function handlePageLoad(data, tab) {
       ttfb: data.performance.ttfbTime || 0,
       download: data.performance.downloadTime || 0,
     },
+    userId: "",
+    projectId: "",
+    environmentId: "",
+    tags: [],
   };
 
   updateRequestData(request.id, request);
@@ -429,6 +471,10 @@ function handleXhrFetchCompleted(data, tab) {
         ttfb: 0,
         download: 0,
       },
+      userId: "",
+      projectId: "",
+      environmentId: "",
+      tags: [],
     };
     // Save headers if available and enabled
     if (config.capture && config.capture.captureHeaders && data.headers && dbManager) {
@@ -484,6 +530,10 @@ function handleFetchError(data, tab) {
         ttfb: 0,
         download: 0,
       },
+      userId: "",
+      projectId: "",
+      environmentId: "",
+      tags: [],
     };
     // Save headers if available and enabled
     if (config.capture && config.capture.captureHeaders && data.headers && dbManager) {

@@ -36,7 +36,7 @@ function mapRowsToObjects(result) {
   });
 }
 
-async function loadDatabaseFromOPFS() {
+export async function loadDatabaseFromOPFS() {
   try {
     const fsHandle = await navigator.storage.getDirectory();
     const fileHandle = await fsHandle.getFileHandle(DB_FILE_NAME, {
@@ -54,7 +54,7 @@ async function loadDatabaseFromOPFS() {
   }
 }
 
-async function saveDatabaseToOPFS(data) {
+export async function saveDatabaseToOPFS(data) {
   try {
     const fsHandle = await navigator.storage.getDirectory();
     const fileHandle = await fsHandle.getFileHandle(DB_FILE_NAME, {
@@ -129,7 +129,7 @@ export async function initDatabase(dbConfig, encryptionMgr, events, configMgr) {
 }
 
 // Vacuum database to optimize storage
-function vacuumDatabase() {
+export function vacuumDatabase() {
   if (!db) return;
 
   try {
@@ -146,7 +146,7 @@ function vacuumDatabase() {
 }
 
 // Execute a single query
-function executeQuery(query, params = []) {
+export function executeQuery(query, params = []) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     return;
@@ -162,7 +162,7 @@ function executeQuery(query, params = []) {
 }
 
 // Execute multiple queries in a transaction
-function executeTransaction(queries) {
+export function executeTransaction(queries) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     throw new DatabaseError("Database not initialized");
@@ -195,7 +195,7 @@ function executeTransaction(queries) {
 }
 
 // Get requests with pagination and filtering
-function getRequests({ page = 1, limit = 100, filters = {} }) {
+export function getRequests({ page = 1, limit = 100, filters = {} }) {
   if (!db) {
     log("error", "Database is not initialized or invalid.");
     return;
@@ -671,7 +671,84 @@ async function getDatabaseStats() {
   }
 }
 
-// Get filtered database statistics
+// --- Page Load Metrics ---
+async function savePageLoadMetrics(metrics) {
+  try {
+    const stmt = db.prepare(`INSERT INTO page_load_metrics (pageUrl, domain, timestamp, loadTime, size, resources, ttfb, domContentLoaded, domComplete)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    stmt.run([
+      metrics.pageUrl,
+      metrics.domain,
+      metrics.timestamp,
+      metrics.loadTime,
+      metrics.size,
+      metrics.resources,
+      metrics.ttfb,
+      metrics.domContentLoaded,
+      metrics.domComplete
+    ]);
+    stmt.free();
+    log('info', '[DB] Saved page load metrics', metrics);
+  } catch (err) {
+    log('error', '[DB] Failed to save page load metrics', err);
+  }
+}
+
+async function getPageLoadMetrics(filters = {}) {
+  try {
+    let query = 'SELECT * FROM page_load_metrics WHERE 1=1';
+    const params = [];
+    if (filters.domain) { query += ' AND domain LIKE ?'; params.push(`%${filters.domain}%`); }
+    if (filters.pageUrl) { query += ' AND pageUrl LIKE ?'; params.push(`%${filters.pageUrl}%`); }
+    if (filters.startDate) { query += ' AND timestamp >= ?'; params.push(new Date(filters.startDate).getTime()); }
+    if (filters.endDate) { query += ' AND timestamp <= ?'; params.push(new Date(filters.endDate).getTime()); }
+    query += ' ORDER BY timestamp DESC LIMIT 100';
+    const result = executeQuery(query, params);
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (err) {
+    log('error', '[DB] Failed to get page load metrics', err);
+    return [];
+  }
+}
+
+// --- Resource Breakdown ---
+async function saveResourceBreakdown(breakdown) {
+  try {
+    const stmt = db.prepare(`INSERT INTO resource_breakdown (domain, pageUrl, type, count, totalSize, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?)`);
+    stmt.run([
+      breakdown.domain,
+      breakdown.pageUrl,
+      breakdown.type,
+      breakdown.count,
+      breakdown.totalSize,
+      breakdown.timestamp
+    ]);
+    stmt.free();
+    log('info', '[DB] Saved resource breakdown', breakdown);
+  } catch (err) {
+    log('error', '[DB] Failed to save resource breakdown', err);
+  }
+}
+
+async function getResourceBreakdown(filters = {}) {
+  try {
+    let query = 'SELECT * FROM resource_breakdown WHERE 1=1';
+    const params = [];
+    if (filters.domain) { query += ' AND domain LIKE ?'; params.push(`%${filters.domain}%`); }
+    if (filters.pageUrl) { query += ' AND pageUrl LIKE ?'; params.push(`%${filters.pageUrl}%`); }
+    if (filters.startDate) { query += ' AND timestamp >= ?'; params.push(new Date(filters.startDate).getTime()); }
+    if (filters.endDate) { query += ' AND timestamp <= ?'; params.push(new Date(filters.endDate).getTime()); }
+    query += ' ORDER BY timestamp DESC LIMIT 100';
+    const result = executeQuery(query, params);
+    return result[0] ? mapRowsToObjects(result[0]) : [];
+  } catch (err) {
+    log('error', '[DB] Failed to get resource breakdown', err);
+    return [];
+  }
+}
+
+// --- Update getFilteredStats to include new metrics ---
 async function getFilteredStats(filters = {}) {
   if (!db) {
     return { error: "Database not initialized" };
@@ -770,6 +847,9 @@ async function getFilteredStats(filters = {}) {
       durations: responseTimes.map((r) => r.duration),
     };
 
+    const pageLoadMetrics = await getPageLoadMetrics(filters);
+    const resourceBreakdown = await getResourceBreakdown(filters);
+
     return {
       size,
       requestCount,
@@ -783,6 +863,8 @@ async function getFilteredStats(filters = {}) {
       timeDistribution,
       sizeDistribution,
       responseTimesData,
+      pageLoadMetrics,
+      resourceBreakdown,
     };
   } catch (error) {
     log("error", "Failed to get filtered database stats:", error);
@@ -1779,7 +1861,7 @@ async function getResourceTimings(filters = {}) {
 }
 
 // Get page load metrics (aggregated)
-async function getPageLoadMetrics(filters = {}) {
+async function getAggregatedPageLoadMetrics(filters = {}) {
   if (!db) return {};
   try {
     const params = [];
@@ -1811,13 +1893,13 @@ async function getPageLoadMetrics(filters = {}) {
       ? mapRowsToObjects(result[0])[0]
       : {};
   } catch (error) {
-    log("error", "Failed to get page load metrics:", error);
+    log("error", "Failed to get aggregated page load metrics:", error);
     return {};
   }
 }
 
-// Get resource breakdown (by type, count, and size)
-async function getResourceBreakdown(filters = {}) {
+// Get resource breakdown (by type, count, and size) - AGGREGATED
+async function getAggregatedResourceBreakdown(filters = {}) {
   if (!db) return {};
   try {
     const params = [];
@@ -1849,13 +1931,13 @@ async function getResourceBreakdown(filters = {}) {
     );
     return result[0] ? mapRowsToObjects(result[0]) : [];
   } catch (error) {
-    log("error", "Failed to get resource breakdown:", error);
+    log("error", "Failed to get aggregated resource breakdown:", error);
     return {};
   }
 }
 
 // Helper to create the returned DB interface object
-function createDbInterface() {
+export function createDbInterface() {
   return {
     executeQuery,
     executeTransaction,
@@ -1898,8 +1980,12 @@ function createDbInterface() {
     clearHistoryLog,
     getResourceTimings,
     getPageLoadMetrics,
+    getAggregatedPageLoadMetrics,
     getResourceBreakdown,
+    getAggregatedResourceBreakdown,
     backupAllData,
     restoreAllData,
+    savePageLoadMetrics,
+    saveResourceBreakdown,
   };
 }
