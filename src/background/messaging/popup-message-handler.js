@@ -126,6 +126,7 @@ async function handleGetPageStats(data) {
 
     try {
       if (dbManager?.executeQuery) {
+        // Note: executeQuery may be synchronous depending on implementation
         const result = dbManager.executeQuery(query, [domain, fiveMinutesAgo]);
         
         if (result && result[0]?.values && result[0].values.length > 0) {

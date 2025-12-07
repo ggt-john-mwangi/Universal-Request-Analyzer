@@ -176,9 +176,14 @@ export class LocalAuthManager {
 
   /**
    * Simple password hashing (for local storage only)
-   * NOT secure for production - use bcrypt or similar for real backend
+   * WARNING: NOT secure for production - use bcrypt or similar for real backend
+   * This is only suitable for local browser storage where data is already
+   * protected by the browser's security model.
    */
   async hashPassword(password) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('Using SHA-256 hashing for local storage. Not suitable for production backend.');
+    }
     const encoder = new TextEncoder();
     const data = encoder.encode(password + 'local-salt-2024');
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);

@@ -77,12 +77,8 @@ function setupEventListeners() {
 
   // Quick actions
   document.getElementById('openDevtools')?.addEventListener('click', () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        // Open devtools panel
-        chrome.devtools?.inspectedWindow && chrome.devtools.open();
-      }
-    });
+    // Open options page with devtools tab
+    chrome.runtime.openOptionsPage();
   });
 
   document.getElementById('openDashboard')?.addEventListener('click', () => {
