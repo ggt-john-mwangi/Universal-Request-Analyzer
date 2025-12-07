@@ -5,53 +5,98 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer - Config</title>
+  <link rel="stylesheet" href="../css/themes.css">
   <link rel="stylesheet" href="../assets/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="/css/themes.css">
   <link rel="stylesheet" href="css/options.css">
   <link rel="stylesheet" href="css/data-purge.css">
+  <script src="../lib/shared-theme-init.js"></script>
 </head>
 
 <body>
-  <div id="app">
-    <header class="header">
-      <h1>Universal Request Analyzer Settings</h1>
-    </header>
+  <div id="app" class="dashboard-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../assets/icons/icon48.png" alt="URA" class="sidebar-logo">
+        <h1 class="sidebar-title">URA Dashboard</h1>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="dashboard">
+          <i class="fas fa-chart-line"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-tab="general">
+          <i class="fas fa-cog"></i>
+          <span>General</span>
+        </button>
+        <button class="nav-item" data-tab="monitoring">
+          <i class="fas fa-chart-bar"></i>
+          <span>Monitoring</span>
+        </button>
+        <button class="nav-item" data-tab="filters">
+          <i class="fas fa-filter"></i>
+          <span>Filters</span>
+        </button>
+        <button class="nav-item" data-tab="export">
+          <i class="fas fa-file-export"></i>
+          <span>Export</span>
+        </button>
+        <button class="nav-item" data-tab="retention">
+          <i class="fas fa-database"></i>
+          <span>Data Retention</span>
+        </button>
+        <button class="nav-item" data-tab="security">
+          <i class="fas fa-shield-alt"></i>
+          <span>Security</span>
+        </button>
+        <button class="nav-item" data-tab="themes">
+          <i class="fas fa-palette"></i>
+          <span>Themes</span>
+        </button>
+        <button class="nav-item" data-tab="advanced">
+          <i class="fas fa-code"></i>
+          <span>Advanced</span>
+        </button>
+      </nav>
 
-    <nav class="nav-tabs">
-      <button class="tab-button active" data-tab="dashboard">
-        <i class="fas fa-chart-line"></i> Dashboard
-      </button>
-      <button class="tab-button" data-tab="general">
-        <i class="fas fa-cog"></i> General
-      </button>
-      <button class="tab-button" data-tab="monitoring">
-        <i class="fas fa-chart-bar"></i> Monitoring
-      </button>
-      <button class="tab-button" data-tab="filters">
-        <i class="fas fa-filter"></i> Filters
-      </button>
-      <button class="tab-button" data-tab="export">
-        <i class="fas fa-file-export"></i> Export
-      </button>
-      <button class="tab-button" data-tab="retention">
-        <i class="fas fa-database"></i> Data Retention
-      </button>
-      <button class="tab-button" data-tab="security">
-        <i class="fas fa-shield-alt"></i> Security
-      </button>
-      <button class="tab-button" data-tab="themes">
-        <i class="fas fa-palette"></i> Themes
-      </button>
-    </nav>
+      <div class="sidebar-footer">
+        <div class="version-info">
+          <i class="fas fa-info-circle"></i>
+          <span>Version 1.0.0</span>
+        </div>
+      </div>
+    </aside>
 
-    <main class="main-content">
+    <!-- Main Content Area -->
+    <div class="main-area">
+      <header class="content-header">
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="header-actions">
+          <button id="saveAllBtn" class="btn-primary">
+            <i class="fas fa-save"></i> Save All
+          </button>
+        </div>
+      </header>
+
+      <main class="content-body">
       <!-- Dashboard Tab -->
       <section id="dashboard" class="tab-content active">
         <div class="dashboard-container">
           <div class="dashboard-header">
             <h2><i class="fas fa-tachometer-alt"></i> Performance Dashboard</h2>
             <div class="dashboard-controls">
+              <label>
+                <span style="margin-right: 5px;">Site Filter:</span>
+                <select id="dashboardSiteFilter" style="min-width: 200px;">
+                  <option value="all">All Sites</option>
+                </select>
+              </label>
+              <label>
+                <input type="checkbox" id="dashboardAutoRefresh" checked>
+                <span>Auto-refresh (30s)</span>
+              </label>
               <select id="dashboardTimeRange">
                 <option value="3600">Last Hour</option>
                 <option value="21600">Last 6 Hours</option>
@@ -62,6 +107,11 @@
                 <i class="fas fa-sync-alt"></i> Refresh
               </button>
             </div>
+          </div>
+
+          <!-- Loading Indicator -->
+          <div id="dashboardLoading" class="loading-indicator" style="display: none;">
+            <i class="fas fa-spinner fa-spin"></i> Loading dashboard data...
           </div>
 
           <!-- Key Metrics Cards -->
@@ -170,10 +220,85 @@
                 <input type="checkbox" id="captureEnabled">
                 Enable Request Capture
               </label>
+              <span id="captureStatus" class="status-indicator"></span>
             </div>
             <div class="option-row">
               <label for="maxStoredRequests">Maximum Stored Requests:</label>
               <input type="number" id="maxStoredRequests" min="100" max="100000" step="100">
+              <div class="storage-usage">
+                <span id="currentStorageCount">0</span> / <span id="maxStorageDisplay">10,000</span> requests
+                <div class="usage-bar">
+                  <div id="usageBarFill" class="usage-bar-fill" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+            <div class="option-row">
+              <label>Quick Presets:</label>
+              <div class="preset-buttons">
+                <button class="preset-btn" data-value="1000">Light (1K)</button>
+                <button class="preset-btn" data-value="10000">Medium (10K)</button>
+                <button class="preset-btn" data-value="50000">Heavy (50K)</button>
+                <button class="preset-btn" data-value="100000">Max (100K)</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="option-section">
+            <h2><i class="fas fa-globe-americas"></i> Site Tracking Configuration</h2>
+            <p class="description">Configure specific sites to track for analysis. Content scripts will filter data based on these sites.</p>
+            
+            <div class="option-row">
+              <label for="trackingSites">Sites to Track:</label>
+              <textarea id="trackingSites" rows="6" placeholder="Enter one site pattern per line, e.g.:
+https://example.com
+https://*.github.com
+/api\.example\.com/ (regex)
+*.mysite.com
+example.org/api/*"></textarea>
+              <p class="help-text">
+                <strong>Supported formats:</strong><br>
+                • Full URLs: https://example.com<br>
+                • Wildcards: *.example.com or example.com/*<br>
+                • Regex patterns: /pattern/ (between slashes)<br>
+                • Mixed: https://*.api.example.com/v1/*
+              </p>
+            </div>
+
+            <div class="option-row">
+              <button id="validateSitesBtn" class="secondary-btn">
+                <i class="fas fa-check-circle"></i> Validate Patterns
+              </button>
+              <button id="addCurrentSiteBtn" class="secondary-btn">
+                <i class="fas fa-plus"></i> Add Current Site
+              </button>
+              <span id="sitesValidationResult" class="help-text"></span>
+            </div>
+
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="trackOnlyConfiguredSites" checked>
+                <span>Track ONLY configured sites (if unchecked, tracks all sites)</span>
+              </label>
+            </div>
+
+            <div class="tracked-sites-box" style="margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #667eea; border-radius: 4px;">
+              <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #667eea;">
+                <i class="fas fa-info-circle"></i> Currently Tracked Sites
+              </h4>
+              <div id="trackedSitesList">
+                <p class="placeholder" style="color: #999; font-style: italic; margin: 0;">
+                  No sites configured. Add sites above to start tracking specific URLs.
+                </p>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <label>Quick Site Presets:</label>
+              <div class="preset-buttons">
+                <button class="site-preset-btn" data-preset="current">Add Current Tab</button>
+                <button class="site-preset-btn" data-preset="popular">Popular APIs</button>
+                <button class="site-preset-btn" data-preset="clear">Clear All</button>
+              </div>
             </div>
           </div>
         </div>
@@ -219,6 +344,17 @@
         <div class="options-container">
           <div class="option-section">
             <h2>Capture Filters</h2>
+            <p class="description">Configure what requests to capture. Changes are automatically applied to all visualizations.</p>
+            
+            <div class="filter-auto-apply">
+              <label>
+                <input type="checkbox" id="autoApplyFilters" checked>
+                <span>Auto-apply filters to all visualizations</span>
+              </label>
+              <span class="status-indicator active" id="filterApplyStatus"></span>
+            </div>
+
+            <h3><i class="fas fa-network-wired"></i> Request Types</h3>
             <div class="option-row">
               <label>Request Types to Capture:</label>
               <div class="checkbox-group">
@@ -245,13 +381,97 @@
                 </label>
               </div>
             </div>
+
+            <h3><i class="fas fa-globe"></i> Domain Filters</h3>
             <div class="option-row">
               <label for="includeDomains">Include Domains (comma separated):</label>
-              <input type="text" id="includeDomains" placeholder="Leave empty to include all">
+              <input type="text" id="includeDomains" placeholder="example.com, api.example.com (leave empty for all)">
+              <span id="includeDomainsError" class="error-message"></span>
+              <p class="help-text">Wildcard support: *.example.com matches all subdomains</p>
             </div>
             <div class="option-row">
               <label for="excludeDomains">Exclude Domains (comma separated):</label>
-              <input type="text" id="excludeDomains" placeholder="Leave empty to exclude none">
+              <input type="text" id="excludeDomains" placeholder="cdn.com, analytics.com (leave empty for none)">
+              <span id="excludeDomainsError" class="error-message"></span>
+              <p class="help-text">Wildcard support: *.analytics.com matches all subdomains</p>
+            </div>
+
+            <h3><i class="fas fa-cogs"></i> Advanced Filters</h3>
+            <div class="option-row">
+              <label for="urlPattern">URL Pattern (Regex):</label>
+              <input type="text" id="urlPattern" placeholder="/api/.*|/graphql.*">
+              <span id="urlPatternError" class="error-message"></span>
+              <p class="help-text">JavaScript regex pattern to match request URLs</p>
+            </div>
+            
+            <div class="option-row">
+              <label>HTTP Status Codes:</label>
+              <div class="status-filter-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="2xx" checked> 2xx Success
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="3xx" checked> 3xx Redirect
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="4xx" checked> 4xx Client Error
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="5xx" checked> 5xx Server Error
+                </label>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <label for="minResponseTime">Min Response Time (ms):</label>
+              <input type="number" id="minResponseTime" min="0" placeholder="0">
+            </div>
+
+            <div class="option-row">
+              <label for="maxResponseTime">Max Response Time (ms):</label>
+              <input type="number" id="maxResponseTime" min="0" placeholder="Leave empty for no limit">
+            </div>
+
+            <div class="option-row">
+              <label for="minSize">Min Response Size (bytes):</label>
+              <input type="number" id="minSize" min="0" placeholder="0">
+            </div>
+
+            <div class="option-row">
+              <label for="maxSize">Max Response Size (bytes):</label>
+              <input type="number" id="maxSize" min="0" placeholder="Leave empty for no limit">
+            </div>
+
+            <h3><i class="fas fa-flask"></i> Filter Actions</h3>
+            <div class="option-row">
+              <button id="testFiltersBtn" class="secondary-btn">
+                <i class="fas fa-vial"></i> Test Filters
+              </button>
+              <button id="applyFiltersBtn" class="btn-primary">
+                <i class="fas fa-check"></i> Apply to Visualizations
+              </button>
+              <button id="clearFiltersBtn" class="secondary-btn">
+                <i class="fas fa-eraser"></i> Clear All Filters
+              </button>
+              <span id="filterTestResult" class="help-text"></span>
+            </div>
+            
+            <div class="option-row">
+              <label>Filter Presets:</label>
+              <div class="preset-buttons">
+                <button class="filter-preset-btn" data-preset="api">API Only</button>
+                <button class="filter-preset-btn" data-preset="noImages">No Images/Fonts</button>
+                <button class="filter-preset-btn" data-preset="errors">Errors Only</button>
+                <button class="filter-preset-btn" data-preset="slow">Slow Requests</button>
+                <button class="filter-preset-btn" data-preset="all">Capture All</button>
+              </div>
+            </div>
+
+            <div class="filter-status-box">
+              <h4><i class="fas fa-info-circle"></i> Active Filters Summary</h4>
+              <div id="activeFiltersSummary">
+                <p class="placeholder">No filters applied. Showing all requests.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -261,12 +481,32 @@
       <section id="export" class="tab-content">
         <div class="options-container">
           <div class="option-section">
+            <h2>Manual Export</h2>
+            <div class="option-row">
+              <button id="exportNowBtn" class="btn-primary">
+                <i class="fas fa-download"></i> Export Now
+              </button>
+              <select id="manualExportFormat">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+                <option value="sqlite">SQLite</option>
+              </select>
+              <p class="description">Immediately export all collected data</p>
+            </div>
+            <div class="option-row">
+              <label>Last Export:</label>
+              <span id="lastExportTime">Never</span>
+            </div>
+          </div>
+
+          <div class="option-section">
             <h2>Auto Export</h2>
             <div class="option-row">
               <label>
                 <input type="checkbox" id="autoExport">
                 Enable Auto Export
               </label>
+              <span id="autoExportStatus" class="status-indicator"></span>
             </div>
             <div class="option-row">
               <label for="exportFormat">Export Format:</label>
@@ -279,6 +519,7 @@
             <div class="option-row">
               <label for="exportInterval">Export Interval (minutes):</label>
               <input type="number" id="exportInterval" min="5" max="1440" step="5">
+              <span class="help-text">Next export in: <span id="nextExportTime">--</span></span>
             </div>
             <div class="option-row">
               <label for="exportPath">Export Directory (optional):</label>
@@ -290,7 +531,71 @@
 
       <!-- Data Retention Tab -->
       <section id="retention" class="tab-content">
-        <div id="dataPurge"></div>
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Data Retention & Cleanup</h2>
+            
+            <div class="info-box">
+              <h4><i class="fas fa-database"></i> Current Database Status</h4>
+              <div class="db-status-grid">
+                <div class="db-stat">
+                  <span class="label">Total Size:</span>
+                  <span id="currentDbSize" class="value">Calculating...</span>
+                </div>
+                <div class="db-stat">
+                  <span class="label">Total Records:</span>
+                  <span id="currentDbRecords" class="value">0</span>
+                </div>
+                <div class="db-stat">
+                  <span class="label">Oldest Record:</span>
+                  <span id="oldestRecord" class="value">N/A</span>
+                </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-clock"></i> Cleanup Preview</h3>
+            <div class="option-row">
+              <label for="cleanupAge">Delete records older than (days):</label>
+              <input type="number" id="cleanupAge" min="1" max="365" value="30">
+            </div>
+            
+            <div class="option-row">
+              <button id="previewCleanupBtn" class="secondary-btn">
+                <i class="fas fa-eye"></i> Preview Cleanup
+              </button>
+              <div id="cleanupPreview" class="preview-box" style="display: none;">
+                <h4>Cleanup Preview:</h4>
+                <p>Records to delete: <strong id="previewRecordsCount">0</strong></p>
+                <p>Estimated size freed: <strong id="previewSizeFreed">0 MB</strong></p>
+                <p>Records remaining: <strong id="previewRecordsRemaining">0</strong></p>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <button id="createBackupBtn" class="btn-primary">
+                <i class="fas fa-save"></i> Create Backup Before Cleanup
+              </button>
+              <span id="lastBackupTime" class="help-text">Last backup: Never</span>
+            </div>
+
+            <div class="danger-zone">
+              <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+              <div class="option-row">
+                <button id="executeCleanupBtn" class="danger-btn" disabled>
+                  <i class="fas fa-broom"></i> Execute Cleanup
+                </button>
+                <p class="description">⚠️ This action cannot be undone. Create a backup first!</p>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-history"></i> Cleanup History</h3>
+            <div id="cleanupHistory" class="history-box">
+              <p class="placeholder">No cleanup history available</p>
+            </div>
+          </div>
+
+          <div id="dataPurge"></div>
+        </div>
       </section>
 
       <!-- Security Settings Tab -->
@@ -298,19 +603,75 @@
         <div class="options-container">
           <div class="option-section">
             <h2>Settings Import/Export</h2>
-            <div class="option-row">
-              <button id="exportSettingsBtn" class="primary-btn">
-                Export Settings
-              </button>
-              <p class="description">Export all settings to a file for backup or transfer</p>
+            
+            <div class="warning-box" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin-bottom: 20px;">
+              <i class="fas fa-exclamation-triangle" style="color: #ff9800;"></i>
+              <strong>Warning:</strong> Importing will overwrite your current settings. A backup will be created automatically.
             </div>
+            
+            <h3><i class="fas fa-file-export"></i> Export Settings</h3>
+            <div class="option-row">
+              <button id="exportSettingsBtn" class="btn-primary">
+                <i class="fas fa-download"></i> Export Settings
+              </button>
+              <p class="description">Export all settings to a JSON file for backup or transfer</p>
+            </div>
+            
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="encryptExport">
+                <span>Encrypt with password (coming soon)</span>
+              </label>
+            </div>
+
+            <h3><i class="fas fa-file-import"></i> Import Settings</h3>
             <div class="option-row">
               <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
-              <button id="importSettingsBtn" class="secondary-btn">
-                Import Settings
+              <button id="importSettingsBtn" class="btn-primary">
+                <i class="fas fa-upload"></i> Import Settings
               </button>
               <p class="description">Import settings from a previously exported file</p>
             </div>
+            
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="selectiveImport">
+                <span>Selective Import (choose specific sections)</span>
+              </label>
+            </div>
+
+            <div id="selectiveImportOptions" class="selective-import-box" style="display: none; margin-top: 10px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+              <h4 style="margin: 0 0 10px 0;">Select sections to import:</h4>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="general" checked> General Settings
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="filters" checked> Filters
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="monitoring" checked> Monitoring
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="export" checked> Export Settings
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="themes" checked> Themes
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="retention" checked> Data Retention
+                </label>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-info-circle"></i> Import Safety Features</h3>
+            <ul style="font-size: 13px; line-height: 1.8; color: #666;">
+              <li>✅ Automatic backup created before import</li>
+              <li>✅ Settings validation before applying</li>
+              <li>✅ Selective import to preserve specific settings</li>
+              <li>⏳ Version compatibility check (coming soon)</li>
+              <li>⏳ Password encryption support (coming soon)</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -343,7 +704,122 @@
           </div>
         </div>
       </section>
+
+      <!-- Advanced Tab -->
+      <section id="advanced" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Advanced Features</h2>
+            <p class="description">Advanced debugging and database management tools</p>
+
+            <h3><i class="fas fa-database"></i> Database Management</h3>
+            
+            <div class="option-row">
+              <label>Database Location:</label>
+              <code>IndexedDB: ura_medallion_db</code>
+            </div>
+
+            <div class="option-row">
+              <label>Database Size:</label>
+              <span id="advancedDbSize">Calculating...</span>
+            </div>
+
+            <div class="option-row">
+              <label>Total Records:</label>
+              <div class="db-layer-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Bronze:</span>
+                  <span id="advancedBronzeCount">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Silver:</span>
+                  <span id="advancedSilverCount">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Gold:</span>
+                  <span id="advancedGoldCount">0</span>
+                </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-search"></i> Direct Database Query</h3>
+            <div class="query-section">
+              <div class="option-row">
+                <label for="advancedQuery">SQL Query:</label>
+                <textarea id="advancedQuery" rows="5" placeholder="SELECT * FROM bronze_requests LIMIT 10"></textarea>
+              </div>
+              <div class="option-row">
+                <button id="executeQueryBtn" class="primary-btn">
+                  <i class="fas fa-play"></i> Execute Query
+                </button>
+                <button id="clearQueryBtn" class="secondary-btn">
+                  <i class="fas fa-eraser"></i> Clear
+                </button>
+              </div>
+              <div class="option-row">
+                <label>Query Result:</label>
+                <div id="queryResult" class="query-result">
+                  <p class="placeholder">Execute a query to see results...</p>
+                </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-tools"></i> Debug Tools</h3>
+            <div class="debug-actions">
+              <div class="option-row">
+                <button id="inspectSchemaBtn" class="secondary-btn">
+                  <i class="fas fa-table"></i> Inspect Database Schema
+                </button>
+                <p class="description">View all tables and their structures</p>
+              </div>
+              <div class="option-row">
+                <button id="viewLogsBtn" class="secondary-btn">
+                  <i class="fas fa-file-alt"></i> View Extension Logs
+                </button>
+                <p class="description">Open browser console to view logs</p>
+              </div>
+              <div class="option-row">
+                <button id="testConnectionBtn" class="secondary-btn">
+                  <i class="fas fa-plug"></i> Test Background Connection
+                </button>
+                <p class="description">Verify connection to background script</p>
+              </div>
+              <div class="option-row">
+                <button id="forceProcessBtn" class="warning-btn">
+                  <i class="fas fa-sync"></i> Force Data Processing
+                </button>
+                <p class="description">Manually trigger Bronze→Silver→Gold processing</p>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-download"></i> Advanced Export</h3>
+            <div class="option-row">
+              <button id="exportRawDbBtn" class="primary-btn">
+                <i class="fas fa-download"></i> Export Raw SQLite Database
+              </button>
+              <p class="description">Download the entire database as SQLite file</p>
+            </div>
+
+            <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+            <div class="danger-zone">
+              <div class="option-row">
+                <button id="resetDatabaseBtn" class="danger-btn">
+                  <i class="fas fa-trash-alt"></i> Reset Database
+                </button>
+                <p class="description">Delete all data and recreate database schema</p>
+              </div>
+              <div class="option-row">
+                <button id="clearCacheBtn" class="danger-btn">
+                  <i class="fas fa-broom"></i> Clear Extension Cache
+                </button>
+                <p class="description">Clear all cached data and force reload</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
+    </div>
   </div>
 
   <div id="notification" class="notification"></div>

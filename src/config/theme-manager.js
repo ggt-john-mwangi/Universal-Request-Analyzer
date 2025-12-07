@@ -210,9 +210,14 @@ class ThemeManager {
       };
 
       if (typeof chrome !== 'undefined' && chrome.storage) {
-        chrome.storage.local.set({ themeData: data }, resolve);
+        // Save both themeData and currentTheme separately for easy access
+        chrome.storage.local.set({ 
+          themeData: data,
+          currentTheme: this.currentTheme 
+        }, resolve);
       } else {
         localStorage.setItem('themeData', JSON.stringify(data));
+        localStorage.setItem('currentTheme', this.currentTheme);
         resolve();
       }
     });

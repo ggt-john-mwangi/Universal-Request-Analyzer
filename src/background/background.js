@@ -221,6 +221,28 @@ class IntegratedExtensionInitializer {
           const stats = await this.medallionManager.getDomainStatistics(message.domain);
           sendResponse({ success: true, data: stats });
           break;
+
+        case 'executeDirectQuery':
+          try {
+            const result = this.medallionDb.executeQuery(message.query);
+            sendResponse({ success: true, result });
+          } catch (queryError) {
+            sendResponse({ success: false, error: queryError.message });
+          }
+          break;
+
+        case 'ping':
+          sendResponse({ success: true, message: 'pong' });
+          break;
+
+        case 'resetDatabase':
+          try {
+            await this.medallionDb.resetDatabase();
+            sendResponse({ success: true });
+          } catch (resetError) {
+            sendResponse({ success: false, error: resetError.message });
+          }
+          break;
           
         default:
           sendResponse({ success: false, error: 'Unknown action' });

@@ -1,0 +1,221 @@
+/* Base theme variables */
+:root {
+  /* Light theme (default) */
+  --background-color: #ffffff;
+  --surface-color: #f5f5f5;
+  --primary-color: #0066cc;
+  --secondary-color: #6c757d;
+  --accent-color: #ff9800;
+  --error-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #17a2b8;
+  --success-color: #28a745;
+  --text-primary-color: #212529;
+  --text-secondary-color: #6c757d;
+  --text-disabled-color: #adb5bd;
+  --border-color: #dee2e6;
+  --divider-color: #e9ecef;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-color: #e9ecef;
+  --success-bg-color: #d4edda;
+  --error-bg-color: #f8d7da;
+  --warning-bg-color: #fff3cd;
+  --info-bg-color: #d1ecf1;
+}
+
+/* Dark theme */
+body.dark {
+  --background-color: #212529;
+  --surface-color: #343a40;
+  --primary-color: #0d6efd;
+  --secondary-color: #6c757d;
+  --accent-color: #fd7e14;
+  --error-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #0dcaf0;
+  --success-color: #198754;
+  --text-primary-color: #f8f9fa;
+  --text-secondary-color: #e9ecef;
+  --text-disabled-color: #adb5bd;
+  --border-color: #495057;
+  --divider-color: #6c757d;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --hover-color: #495057;
+  --success-bg-color: #1e4620;
+  --error-bg-color: #5a1f1f;
+  --warning-bg-color: #4d3b00;
+  --info-bg-color: #0f4852;
+}
+
+/* High Contrast theme */
+body.theme-highContrast {
+  --background-color: #000000;
+  --surface-color: #121212;
+  --primary-color: #ffffff;
+  --secondary-color: #cccccc;
+  --accent-color: #ffff00;
+  --error-color: #ff0000;
+  --warning-color: #ffff00;
+  --info-color: #00ffff;
+  --success-color: #00ff00;
+  --text-primary-color: #ffffff;
+  --text-secondary-color: #eeeeee;
+  --text-disabled-color: #aaaaaa;
+  --border-color: #ffffff;
+  --divider-color: #ffffff;
+  --shadow-color: rgba(255, 255, 255, 0.5);
+  --hover-color: #333333;
+  --success-bg-color: #003300;
+  --error-bg-color: #330000;
+  --warning-bg-color: #333300;
+  --info-bg-color: #003333;
+}
+
+/* Blue theme */
+body.theme-blue {
+  --background-color: #f0f8ff;
+  --surface-color: #e6f2ff;
+  --primary-color: #0066cc;
+  --secondary-color: #4d94ff;
+  --accent-color: #00ccff;
+  --error-color: #cc0000;
+  --warning-color: #ff9900;
+  --info-color: #0099cc;
+  --success-color: #009933;
+  --text-primary-color: #003366;
+  --text-secondary-color: #0066cc;
+  --text-disabled-color: #99ccff;
+  --border-color: #99ccff;
+  --divider-color: #cce6ff;
+  --shadow-color: rgba(0, 102, 204, 0.2);
+  --hover-color: #cce6ff;
+  --success-bg-color: #ccffcc;
+  --error-bg-color: #ffcccc;
+  --warning-bg-color: #fff0cc;
+  --info-bg-color: #ccf5ff;
+}
+
+/* Apply theme variables to elements */
+body {
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+}
+
+.popup_container,
+.options_container {
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+}
+
+header,
+.popup_header {
+  background-color: var(--surface-color);
+  border-color: var(--border-color);
+}
+
+.tabs {
+  background-color: var(--surface-color);
+  border-color: var(--border-color);
+}
+
+button {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary-color);
+}
+
+button:hover {
+  background-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.primary-btn {
+  background-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.primary-btn:hover {
+  background-color: var(--primary-color);
+  filter: brightness(90%);
+}
+
+.danger-btn {
+  background-color: var(--error-color);
+  color: #ffffff;
+}
+
+.danger-btn:hover {
+  background-color: var(--error-color);
+  filter: brightness(90%);
+}
+
+/* Status colors */
+.status-success {
+  color: var(--success-color);
+}
+.status-error {
+  color: var(--error-color);
+}
+.status-pending {
+  color: var(--warning-color);
+}
+.status-redirect {
+  color: var(--info-color);
+}
+
+/* Timing bars */
+.dns-bar {
+  background-color: var(--success-color);
+}
+.tcp-bar {
+  background-color: var(--info-color);
+}
+.ssl-bar {
+  background-color: var(--accent-color);
+}
+.ttfb-bar {
+  background-color: var(--warning-color);
+}
+.download-bar {
+  background-color: var(--error-color);
+}
+
+/* Settings panel */
+.settings-container {
+  background-color: var(--surface-color);
+  color: var(--text-primary-color);
+  border: 1px solid var(--border-color);
+}
+
+.settings-section {
+  border-bottom: 1px solid var(--divider-color);
+}
+
+input,
+select,
+textarea {
+  background-color: var(--background-color);
+  color: var(--text-primary-color);
+  border: 1px solid var(--border-color);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color, #0066cc);
+}
+
+/* Tables */
+table {
+  border-color: var(--border-color);
+}
+
+th {
+  background-color: var(--surface-color);
+  color: var(--text-primary-color);
+}
+
+tr:hover {
+  background-color: var(--surface-color);
+}
