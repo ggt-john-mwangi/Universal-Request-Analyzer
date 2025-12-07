@@ -12,9 +12,9 @@ module.exports = (env, argv) => {
     mode: argv.mode,
     devtool: isProduction ? false : "inline-source-map",
     entry: {
-      popup: "./src/popup/js/popup.js",
+      popup: "./src/popup/popup-simple.js",
       options: "./src/options/js/options.js",
-      background: "./src/background/background.js",
+      background: "./src/background/background-simple.js",
       // contentScript: "./src/content/content.js",
       content: "./src/content/content.js",
       // styles: "./src/styles.css", // Add styles.css as an entry point
@@ -95,7 +95,7 @@ module.exports = (env, argv) => {
         ],
       }),
       new HtmlWebpackPlugin({
-        template: "./src/popup/popup.html",
+        template: "./src/popup/popup-simple.html",
         filename: "popup.html",
         chunks: ["popup"],
       }),
@@ -108,6 +108,11 @@ module.exports = (env, argv) => {
         template: "./src/devtools/devtools.html",
         filename: "devtools.html",
         chunks: ["devtools"],
+      }),
+      new HtmlWebpackPlugin({
+        template: "./src/help.html",
+        filename: "help.html",
+        chunks: [],
       }),
       // Package the dist/ folder into a single ZIP for upload/sideload
       new ZipPlugin({
