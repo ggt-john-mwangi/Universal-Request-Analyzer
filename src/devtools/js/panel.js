@@ -341,6 +341,13 @@ export class DevToolsPanel {
 
   async collectMetrics() {
     try {
+      // Check if extension context is still valid
+      if (!chrome.runtime?.id) {
+        console.warn("Extension context invalidated, stopping metrics collection");
+        this.stopMetricsCollection();
+        return;
+      }
+
       const timeRange = document.getElementById("timeRange").value;
       const typeFilter = document.getElementById("requestTypeFilter").value;
       const statusFilter = document.getElementById("statusFilter").value;
@@ -358,7 +365,9 @@ export class DevToolsPanel {
         },
         (response) => {
           if (chrome.runtime.lastError) {
-            console.error("Runtime error:", chrome.runtime.lastError);
+            // Context invalidated or extension reloaded
+            console.warn("Runtime error (context may be invalidated):", chrome.runtime.lastError.message);
+            this.stopMetricsCollection();
             return;
           }
 
@@ -371,6 +380,16 @@ export class DevToolsPanel {
       );
     } catch (error) {
       console.error("Error collecting metrics:", error);
+      // Stop collection on error to prevent spam
+      this.stopMetricsCollection();
+    }
+  }
+
+  stopMetricsCollection() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+      console.log("Metrics collection stopped");
     }
   }
 
