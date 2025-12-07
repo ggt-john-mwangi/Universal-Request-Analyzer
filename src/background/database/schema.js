@@ -1,6 +1,39 @@
-// Database schema definition
-
+/**
+ * Create all database tables with proper schema definition.
+ * 
+ * Table Creation Order:
+ * 1. db_version - MUST be created first (required for migration tracking)
+ * 2. requests - Main table for HTTP request data
+ * 3. request_timings - Performance timing data (foreign key to requests)
+ * 4. request_headers - HTTP headers (foreign key to requests)
+ * 5. users, projects, environments - Multi-tenant organization
+ * 6. tags - Request categorization
+ * 7. performance_metrics, sessions, audit_log - Supporting tables
+ * 
+ * Data Flow:
+ * - db_version table is created BEFORE all other tables
+ * - This ensures migrateDatabase() can track which migrations have been applied
+ * - Prevents "no such table: db_version" errors during initialization
+ * - Foreign key constraints ensure referential integrity
+ * - Indexes are created for performance optimization on common queries
+ * 
+ * @param {SQL.Database} db - The SQL.js database instance
+ * @returns {Promise<boolean>} Returns true when all tables are created successfully
+ * @throws {Error} If table creation fails
+ */
 export async function createTables(db) {
+  // CRITICAL: Create db_version table FIRST before any other tables
+  // The migration system (migrations.js) requires this table to exist
+  // before it can track which migrations have been applied
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS db_version (
+      version INTEGER PRIMARY KEY,
+      description TEXT,
+      applied_at INTEGER,
+      status TEXT
+    )
+  `);
+
   // Create requests table
   db.exec(`
     CREATE TABLE IF NOT EXISTS requests (

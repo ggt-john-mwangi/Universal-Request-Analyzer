@@ -139,7 +139,6 @@ class IntegratedExtensionInitializer {
     // Set default configurations
     await this.configManager.setSetting('capture.enabled', true);
     await this.configManager.setSetting('analytics.enabled', true);
-    await this.configManager.setSetting('ohlc.generation', true);
     
     console.log('✓ Configuration Manager initialized');
   }
@@ -206,16 +205,6 @@ class IntegratedExtensionInitializer {
   async handleMedallionMessages(message, sender, sendResponse) {
     try {
       switch (message.action) {
-        case 'getOHLC':
-          const ohlc = await this.analyticsProcessor.generateOHLC(
-            message.timeframe,
-            message.startTime,
-            message.endTime,
-            message.options
-          );
-          sendResponse({ success: true, data: ohlc });
-          break;
-          
         case 'processToSilver':
           const count = await this.medallionManager.processBronzeToSilver();
           sendResponse({ success: true, processed: count });
@@ -250,54 +239,6 @@ class IntegratedExtensionInitializer {
       }
     }, 30000); // 30 seconds for better performance
     this.scheduledTasks.push(bronzeToSilver);
-    
-    // Generate OHLC for 1min/5min every 5 minutes
-    const shortOHLC = setInterval(async () => {
-      try {
-        const endTime = Date.now();
-        const startTime = endTime - (15 * 60 * 1000); // Last 15 minutes
-        
-        for (const timeframe of ['1min', '5min']) {
-          await this.analyticsProcessor.generateOHLC(timeframe, startTime, endTime);
-        }
-        console.log('Generated OHLC for 1min, 5min');
-      } catch (error) {
-        console.error('OHLC generation failed:', error);
-      }
-    }, 5 * 60 * 1000);
-    this.scheduledTasks.push(shortOHLC);
-    
-    // Generate OHLC for 15min/30min/1h every hour
-    const mediumOHLC = setInterval(async () => {
-      try {
-        const endTime = Date.now();
-        const startTime = endTime - (4 * 60 * 60 * 1000); // Last 4 hours
-        
-        for (const timeframe of ['15min', '30min', '1h']) {
-          await this.analyticsProcessor.generateOHLC(timeframe, startTime, endTime);
-        }
-        console.log('Generated OHLC for 15min, 30min, 1h');
-      } catch (error) {
-        console.error('OHLC generation failed:', error);
-      }
-    }, 60 * 60 * 1000);
-    this.scheduledTasks.push(mediumOHLC);
-    
-    // Generate OHLC for 4h/1d every 4 hours
-    const longOHLC = setInterval(async () => {
-      try {
-        const endTime = Date.now();
-        const startTime = endTime - (7 * 24 * 60 * 60 * 1000); // Last 7 days
-        
-        for (const timeframe of ['4h', '1d']) {
-          await this.analyticsProcessor.generateOHLC(timeframe, startTime, endTime);
-        }
-        console.log('Generated OHLC for 4h, 1d');
-      } catch (error) {
-        console.error('OHLC generation failed:', error);
-      }
-    }, 4 * 60 * 60 * 1000);
-    this.scheduledTasks.push(longOHLC);
     
     // Process Silver→Gold daily using chrome.alarms for reliability
     // Create alarm for daily processing at midnight
@@ -338,9 +279,6 @@ class IntegratedExtensionInitializer {
     
     console.log('✓ Periodic Tasks scheduled');
     console.log('  - Bronze→Silver: every 30 seconds');
-    console.log('  - OHLC (1min/5min): every 5 minutes');
-    console.log('  - OHLC (15min/30min/1h): every hour');
-    console.log('  - OHLC (4h/1d): every 4 hours');
     console.log('  - Silver→Gold: daily at midnight (chrome.alarms)');
   }
 
