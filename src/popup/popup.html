@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./css/popup.css">
   <link rel="stylesheet" href="./css/auth.css">
   <script src="../lib/shared-theme-init.js"></script>
+  <script src="../lib/chart.min.js"></script>
   <style>
     /* Auth Screen Styles */
     .auth-container {
@@ -249,6 +250,172 @@
       color: var(--primary-color, #667eea);
     }
 
+    /* Timeline Chart */
+    .timeline-chart {
+      margin-top: 20px;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+
+    /* Status Breakdown */
+    .status-breakdown,
+    .request-types,
+    .recent-errors {
+      margin-top: 15px;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .breakdown-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .status-badge {
+      padding: 10px 8px;
+      border-radius: 8px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .status-badge.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-badge.redirect {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+    }
+
+    .status-badge.client-error {
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+    }
+
+    .status-badge.server-error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+
+    .status-count {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    /* Request Types */
+    .types-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .type-item {
+      display: grid;
+      grid-template-columns: 50px 1fr 30px;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+
+    .type-name {
+      font-weight: 600;
+      color: #4a5568;
+    }
+
+    .type-bar {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .type-bar-fill {
+      display: block;
+      height: 100%;
+      background: var(--primary-color, #667eea);
+      transition: width 0.3s ease;
+    }
+
+    .type-count {
+      text-align: right;
+      font-weight: 700;
+      color: #2d3748;
+    }
+
+    /* Recent Errors */
+    .errors-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .error-item {
+      padding: 8px;
+      background: #fff5f5;
+      border-left: 3px solid #f56565;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+
+    .error-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .error-url {
+      font-weight: 600;
+      color: #c53030;
+      margin-bottom: 2px;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .error-details {
+      color: #718096;
+      font-size: 10px;
+    }
+
+    .placeholder {
+      color: #a0aec0;
+      font-style: italic;
+      font-size: 12px;
+      text-align: center;
+      padding: 10px;
+    }
+
     .quick-actions {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -462,6 +629,57 @@
         <div class="stat-item">
           <div class="stat-label">Data Transferred</div>
           <div class="stat-value" id="dataTransferred">0KB</div>
+        </div>
+      </div>
+
+      <!-- Request Timeline Chart -->
+      <div class="timeline-chart">
+        <div class="chart-title">Request Timeline (Last 5 min)</div>
+        <canvas id="requestTimelineChart" height="80"></canvas>
+      </div>
+
+      <!-- Status Breakdown -->
+      <div class="status-breakdown">
+        <div class="breakdown-title">Status Codes</div>
+        <div class="status-grid">
+          <div class="status-badge success">
+            <span class="status-label">2xx</span>
+            <span class="status-count" id="status2xx">0</span>
+          </div>
+          <div class="status-badge redirect">
+            <span class="status-label">3xx</span>
+            <span class="status-count" id="status3xx">0</span>
+          </div>
+          <div class="status-badge client-error">
+            <span class="status-label">4xx</span>
+            <span class="status-count" id="status4xx">0</span>
+          </div>
+          <div class="status-badge server-error">
+            <span class="status-label">5xx</span>
+            <span class="status-count" id="status5xx">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Request Types -->
+      <div class="request-types">
+        <div class="breakdown-title">Request Types</div>
+        <div class="types-list" id="requestTypesList">
+          <div class="type-item">
+            <span class="type-name">XHR</span>
+            <span class="type-bar"><span class="type-bar-fill" style="width: 0%"></span></span>
+            <span class="type-count">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Errors -->
+      <div class="recent-errors">
+        <div class="breakdown-title">
+          <i class="fas fa-exclamation-triangle"></i> Recent Errors
+        </div>
+        <div class="errors-list" id="recentErrorsList">
+          <p class="placeholder">No errors in the last 5 minutes</p>
         </div>
       </div>
     </div>

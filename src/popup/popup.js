@@ -252,21 +252,23 @@ async function loadPageSummary() {
       return;
     }
 
-    // Get page stats from background
+    // Get detailed filtered stats from background
     const response = await chrome.runtime.sendMessage({
-      action: 'getPageStats',
-      data: { tabId: currentTab.id, url: currentTab.url }
+      action: 'getFilteredStats',
+      filters: { pageUrl: currentTab.url, timeRange: 300 } // Last 5 minutes
     });
 
-    if (response.success && response.stats) {
-      updatePageSummary(response.stats);
+    if (response.success) {
+      updatePageSummary(response);
+      updateDetailedViews(response);
     } else {
       // Show default values
       updatePageSummary({
         totalRequests: 0,
-        avgResponse: 0,
-        errorCount: 0,
-        dataTransferred: 0
+        timestamps: [],
+        responseTimes: [],
+        requestTypes: {},
+        statusCodes: {}
       });
     }
 
@@ -278,13 +280,24 @@ async function loadPageSummary() {
 }
 
 // Update page summary display
-function updatePageSummary(stats) {
-  document.getElementById('totalRequests').textContent = stats.totalRequests || 0;
-  document.getElementById('avgResponse').textContent = `${Math.round(stats.avgResponse || 0)}ms`;
-  document.getElementById('errorCount').textContent = stats.errorCount || 0;
+function updatePageSummary(data) {
+  const totalRequests = data.totalRequests || 0;
+  const responseTimes = data.responseTimes || [];
+  const avgResponse = responseTimes.length > 0 
+    ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+    : 0;
   
-  // Format data transferred
-  const bytes = stats.dataTransferred || 0;
+  // Count errors (4xx and 5xx)
+  const statusCodes = data.statusCodes || {};
+  const errorCount = (statusCodes[400] || 0) + (statusCodes[500] || 0);
+  
+  document.getElementById('totalRequests').textContent = totalRequests;
+  document.getElementById('avgResponse').textContent = `${Math.round(avgResponse)}ms`;
+  document.getElementById('errorCount').textContent = errorCount;
+  
+  // Estimate data transferred (rough calculation)
+  const dataTransferred = totalRequests * 5 * 1024; // Rough estimate: 5KB per request
+  const bytes = dataTransferred;
   let formatted;
   if (bytes < 1024) {
     formatted = bytes + 'B';
@@ -294,6 +307,195 @@ function updatePageSummary(stats) {
     formatted = (bytes / (1024 * 1024)).toFixed(2) + 'MB';
   }
   document.getElementById('dataTransferred').textContent = formatted;
+}
+
+// Update detailed QA views
+let timelineChart = null;
+
+function updateDetailedViews(data) {
+  // Update status code breakdown
+  updateStatusBreakdown(data.statusCodes || {});
+  
+  // Update request types
+  updateRequestTypes(data.requestTypes || {});
+  
+  // Update timeline chart
+  updateTimelineChart(data.timestamps || [], data.responseTimes || []);
+  
+  // Update recent errors (we'll need to fetch this separately)
+  updateRecentErrors();
+}
+
+// Update status code breakdown
+function updateStatusBreakdown(statusCodes) {
+  const status2xx = (statusCodes[200] || 0);
+  const status3xx = (statusCodes[300] || 0);
+  const status4xx = (statusCodes[400] || 0);
+  const status5xx = (statusCodes[500] || 0);
+  
+  document.getElementById('status2xx').textContent = status2xx;
+  document.getElementById('status3xx').textContent = status3xx;
+  document.getElementById('status4xx').textContent = status4xx;
+  document.getElementById('status5xx').textContent = status5xx;
+}
+
+// Update request types visualization
+function updateRequestTypes(requestTypes) {
+  const container = document.getElementById('requestTypesList');
+  if (!container) return;
+  
+  const types = Object.entries(requestTypes);
+  if (types.length === 0) {
+    container.innerHTML = '<p class="placeholder">No requests yet</p>';
+    return;
+  }
+  
+  const total = types.reduce((sum, [, count]) => sum + count, 0);
+  
+  let html = '';
+  types.forEach(([type, count]) => {
+    const percentage = total > 0 ? (count / total) * 100 : 0;
+    html += `
+      <div class="type-item">
+        <span class="type-name">${type.toUpperCase()}</span>
+        <span class="type-bar">
+          <span class="type-bar-fill" style="width: ${percentage}%"></span>
+        </span>
+        <span class="type-count">${count}</span>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+// Update timeline chart
+function updateTimelineChart(timestamps, responseTimes) {
+  const canvas = document.getElementById('requestTimelineChart');
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  
+  // Destroy existing chart
+  if (timelineChart) {
+    timelineChart.destroy();
+  }
+  
+  // Create new chart (using simple drawing if Chart.js not available)
+  if (typeof Chart !== 'undefined') {
+    timelineChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timestamps.slice(-20), // Last 20 data points
+        datasets: [{
+          label: 'Response Time (ms)',
+          data: responseTimes.slice(-20),
+          borderColor: 'rgb(102, 126, 234)',
+          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              font: {
+                size: 10
+              }
+            }
+          },
+          x: {
+            ticks: {
+              font: {
+                size: 9
+              },
+              maxRotation: 0
+            }
+          }
+        }
+      }
+    });
+  } else {
+    // Fallback: simple canvas drawing
+    drawSimpleChart(ctx, timestamps.slice(-20), responseTimes.slice(-20));
+  }
+}
+
+// Simple chart fallback
+function drawSimpleChart(ctx, labels, data) {
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const maxValue = Math.max(...data, 100);
+  const padding = 20;
+  
+  ctx.clearRect(0, 0, width, height);
+  
+  // Draw line
+  ctx.strokeStyle = 'rgb(102, 126, 234)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  
+  data.forEach((value, index) => {
+    const x = padding + (index / (data.length - 1 || 1)) * (width - 2 * padding);
+    const y = height - padding - (value / maxValue) * (height - 2 * padding);
+    
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  
+  ctx.stroke();
+}
+
+// Update recent errors
+async function updateRecentErrors() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) return;
+    
+    // Get filtered stats with error filter
+    const response = await chrome.runtime.sendMessage({
+      action: 'getFilteredStats',
+      filters: { 
+        pageUrl: currentTab.url, 
+        timeRange: 300,
+        statusPrefix: '4xx'
+      }
+    });
+    
+    const container = document.getElementById('recentErrorsList');
+    if (!container) return;
+    
+    // For now, show placeholder until we implement full error details
+    if (!response.success || response.totalRequests === 0) {
+      container.innerHTML = '<p class="placeholder">No errors in the last 5 minutes</p>';
+      return;
+    }
+    
+    // We'll show a summary for now
+    container.innerHTML = `
+      <div class="error-item">
+        <span class="error-url">${response.totalRequests} failed requests detected</span>
+        <span class="error-details">Check Analytics for details</span>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Failed to load recent errors:', error);
+  }
 }
 
 // Show error message
