@@ -54,12 +54,9 @@ async function loadDatabaseFromChromeStorage() {
     const result = await chrome.storage.local.get(["db_backup"]);
     if (result.db_backup) {
       console.log("[DB] Found database backup in Chrome storage.");
-      // Convert base64 string back to Uint8Array
+      // Convert base64 string back to Uint8Array using efficient method
       const binaryString = atob(result.db_backup);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
       return bytes;
     }
     return null;
@@ -75,8 +72,14 @@ async function saveDatabaseToChromeStorage(data) {
       return;
     }
     
-    // Convert Uint8Array to base64 string for storage
-    const binaryString = String.fromCharCode.apply(null, data);
+    // Convert Uint8Array to base64 string for storage using chunked approach
+    // to avoid stack overflow with large databases
+    const CHUNK_SIZE = 8192;
+    let binaryString = '';
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+      const chunk = data.subarray(i, Math.min(i + CHUNK_SIZE, data.length));
+      binaryString += String.fromCharCode.apply(null, chunk);
+    }
     const base64String = btoa(binaryString);
     
     // Chrome storage has a limit, so we'll only save if it's not too large
@@ -848,6 +851,25 @@ function backupDatabase() {
  * Handles retries, migration, and periodic auto-saving.
  *
  * @returns {Promise<SQL.Database>} The initialized database instance
+ */
+/**
+ * Initialize the database with robust error handling and multiple fallback strategies.
+ * 
+ * This function attempts to initialize the SQLite database using the following strategies in order:
+ * 1. Load from Origin Private File System (OPFS) if supported
+ * 2. Load from Chrome local storage backup if OPFS fails
+ * 3. Create a new database if no existing data is found
+ * 4. As a last resort fallback (after MAX_RETRIES), creates an in-memory database WITHOUT persistence
+ * 
+ * The function will retry initialization up to MAX_RETRIES times with exponential backoff.
+ * 
+ * @returns {Promise<Database>} The initialized SQL.js database instance
+ * @throws {Error} If all initialization attempts fail, including the in-memory fallback
+ * 
+ * @note If all retries fail, the function creates an in-memory database without persistence.
+ *       This is a significant behavior change that means data will be lost when the extension
+ *       is reloaded or the service worker is suspended. This is a last-resort fallback to ensure
+ *       the extension remains functional even if persistent storage is unavailable.
  */
 export async function initializeDatabase() {
   const MAX_RETRIES = 3;
