@@ -830,3 +830,321 @@ async function loadAdvancedStats() {
     console.error('Failed to load advanced stats:', error);
   }
 }
+
+// New Features Implementation
+
+// Dashboard Auto-refresh
+let dashboardRefreshInterval = null;
+
+function initializeDashboard() {
+  const autoRefreshCheckbox = document.getElementById('dashboardAutoRefresh');
+  
+  if (autoRefreshCheckbox) {
+    autoRefreshCheckbox.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        startDashboardAutoRefresh();
+      } else {
+        stopDashboardAutoRefresh();
+      }
+    });
+    
+    // Start if checked
+    if (autoRefreshCheckbox.checked) {
+      startDashboardAutoRefresh();
+    }
+  }
+}
+
+function startDashboardAutoRefresh() {
+  // Clear existing interval
+  stopDashboardAutoRefresh();
+  
+  // Set new interval (30 seconds)
+  dashboardRefreshInterval = setInterval(() => {
+    loadDashboardData();
+  }, 30000);
+}
+
+function stopDashboardAutoRefresh() {
+  if (dashboardRefreshInterval) {
+    clearInterval(dashboardRefreshInterval);
+    dashboardRefreshInterval = null;
+  }
+}
+
+async function loadDashboardData() {
+  const loadingEl = document.getElementById('dashboardLoading');
+  if (loadingEl) loadingEl.style.display = 'block';
+  
+  try {
+    // Load dashboard stats
+    await loadAdvancedStats();
+    
+    // Update dashboard metrics if the component is available
+    // The dashboard component will handle its own rendering
+  } catch (error) {
+    console.error('Failed to load dashboard data:', error);
+    showNotification('Failed to load dashboard data', true);
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+// Storage Usage Indicator
+async function updateStorageUsage() {
+  const currentCount = document.getElementById('currentStorageCount');
+  const maxDisplay = document.getElementById('maxStorageDisplay');
+  const usageBarFill = document.getElementById('usageBarFill');
+  const maxInput = document.getElementById('maxStoredRequests');
+  
+  if (!currentCount || !maxDisplay || !usageBarFill || !maxInput) return;
+  
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDashboardStats',
+      timeRange: 86400
+    });
+    
+    if (response && response.success && response.stats) {
+      const current = response.stats.layerCounts?.bronze || 0;
+      const max = parseInt(maxInput.value) || 10000;
+      const percentage = (current / max) * 100;
+      
+      currentCount.textContent = current.toLocaleString();
+      maxDisplay.textContent = max.toLocaleString();
+      usageBarFill.style.width = `${Math.min(percentage, 100)}%`;
+      
+      // Update capture status indicator
+      const captureStatus = document.getElementById('captureStatus');
+      const captureEnabled = document.getElementById('captureEnabled');
+      if (captureStatus && captureEnabled) {
+        if (captureEnabled.checked) {
+          captureStatus.className = 'status-indicator active';
+          captureStatus.title = 'Capture is active';
+        } else {
+          captureStatus.className = 'status-indicator inactive';
+          captureStatus.title = 'Capture is disabled';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to update storage usage:', error);
+  }
+}
+
+// Preset Buttons
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const value = parseInt(btn.dataset.value);
+    const maxInput = document.getElementById('maxStoredRequests');
+    if (maxInput) {
+      maxInput.value = value;
+      updateStorageUsage();
+    }
+  });
+});
+
+// Filter Presets
+document.querySelectorAll('.filter-preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = btn.dataset.preset;
+    const checkboxes = document.querySelectorAll('input[name="captureType"]');
+    const includeDomains = document.getElementById('includeDomains');
+    const excludeDomains = document.getElementById('excludeDomains');
+    
+    if (preset === 'api') {
+      // API Only: XHR and Fetch only
+      checkboxes.forEach(cb => {
+        cb.checked = cb.value === 'xmlhttprequest' || cb.value === 'fetch';
+      });
+      if (includeDomains) includeDomains.value = '';
+      if (excludeDomains) excludeDomains.value = '';
+    } else if (preset === 'noImages') {
+      // No Images/Fonts: Everything except images and fonts
+      checkboxes.forEach(cb => {
+        cb.checked = cb.value !== 'image' && cb.value !== 'font';
+      });
+      if (excludeDomains) excludeDomains.value = '';
+    } else if (preset === 'all') {
+      // Capture All
+      checkboxes.forEach(cb => {
+        cb.checked = true;
+      });
+      if (includeDomains) includeDomains.value = '';
+      if (excludeDomains) excludeDomains.value = '';
+    }
+    
+    showNotification(`Applied "${preset}" filter preset`);
+  });
+});
+
+// Domain Validation
+function validateDomains(domainString) {
+  if (!domainString || !domainString.trim()) return { valid: true, domains: [] };
+  
+  const domains = domainString.split(',').map(d => d.trim()).filter(d => d);
+  const invalidDomains = [];
+  
+  domains.forEach(domain => {
+    // Allow wildcard at start
+    const testDomain = domain.replace(/^\*\./, '');
+    // Basic domain validation regex
+    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+    
+    if (!domainRegex.test(testDomain)) {
+      invalidDomains.push(domain);
+    }
+  });
+  
+  return {
+    valid: invalidDomains.length === 0,
+    domains: domains,
+    invalidDomains: invalidDomains
+  };
+}
+
+// Add validation listeners (using existing includeDomains and excludeDomains variables)
+if (includeDomains) {
+  includeDomains.addEventListener('blur', () => {
+    const result = validateDomains(includeDomains.value);
+    const errorEl = document.getElementById('includeDomainsError');
+    if (errorEl) {
+      if (!result.valid) {
+        errorEl.textContent = `Invalid domains: ${result.invalidDomains.join(', ')}`;
+      } else {
+        errorEl.textContent = '';
+      }
+    }
+  });
+}
+
+if (excludeDomains) {
+  excludeDomains.addEventListener('blur', () => {
+    const result = validateDomains(excludeDomains.value);
+    const errorEl = document.getElementById('excludeDomainsError');
+    if (errorEl) {
+      if (!result.valid) {
+        errorEl.textContent = `Invalid domains: ${result.invalidDomains.join(', ')}`;
+      } else {
+        errorEl.textContent = '';
+      }
+    }
+  });
+}
+
+// Test Filters Button
+const testFiltersBtn = document.getElementById('testFiltersBtn');
+if (testFiltersBtn) {
+  testFiltersBtn.addEventListener('click', () => {
+    const includeResult = validateDomains(includeDomains?.value || '');
+    const excludeResult = validateDomains(excludeDomains?.value || '');
+    const resultEl = document.getElementById('filterTestResult');
+    
+    if (!includeResult.valid || !excludeResult.valid) {
+      if (resultEl) resultEl.textContent = '❌ Please fix domain validation errors first';
+      return;
+    }
+    
+    const selectedTypes = Array.from(document.querySelectorAll('input[name="captureType"]:checked'))
+      .map(cb => cb.value);
+    
+    if (resultEl) {
+      resultEl.textContent = `✅ Filter valid: ${selectedTypes.length} types, ${includeResult.domains.length} included, ${excludeResult.domains.length} excluded`;
+    }
+    showNotification('Filters validated successfully');
+  });
+}
+
+// Export Now Button
+const exportNowBtn = document.getElementById('exportNowBtn');
+const manualExportFormat = document.getElementById('manualExportFormat');
+
+if (exportNowBtn) {
+  exportNowBtn.addEventListener('click', async () => {
+    const format = manualExportFormat?.value || 'json';
+    const filename = `ura-export-${new Date().toISOString().slice(0, 10)}.${format}`;
+    
+    exportNowBtn.disabled = true;
+    exportNowBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'exportDatabase',
+        format: format,
+        filename: filename
+      });
+      
+      if (response && response.success) {
+        showNotification('Export completed successfully!');
+        
+        // Update last export time
+        const lastExportTime = document.getElementById('lastExportTime');
+        if (lastExportTime) {
+          lastExportTime.textContent = new Date().toLocaleString();
+        }
+        
+        // Save last export time
+        await chrome.storage.local.set({ lastExportTime: Date.now() });
+      } else {
+        showNotification('Export failed: ' + (response?.error || 'Unknown error'), true);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      showNotification('Export failed: ' + error.message, true);
+    } finally {
+      exportNowBtn.disabled = false;
+      exportNowBtn.innerHTML = '<i class="fas fa-download"></i> Export Now';
+    }
+  });
+}
+
+// Auto Export Status (using existing autoExport variable)
+const autoExportStatus = document.getElementById('autoExportStatus');
+
+if (autoExport && autoExportStatus) {
+  autoExport.addEventListener('change', () => {
+    if (autoExport.checked) {
+      autoExportStatus.className = 'status-indicator active';
+      autoExportStatus.title = 'Auto-export is enabled';
+    } else {
+      autoExportStatus.className = 'status-indicator inactive';
+      autoExportStatus.title = 'Auto-export is disabled';
+    }
+  });
+  
+  // Set initial state
+  if (autoExport.checked) {
+    autoExportStatus.className = 'status-indicator active';
+  } else {
+    autoExportStatus.className = 'status-indicator inactive';
+  }
+}
+
+// Load last export time
+async function loadLastExportTime() {
+  const lastExportTimeEl = document.getElementById('lastExportTime');
+  if (lastExportTimeEl) {
+    const result = await chrome.storage.local.get('lastExportTime');
+    if (result.lastExportTime) {
+      lastExportTimeEl.textContent = new Date(result.lastExportTime).toLocaleString();
+    } else {
+      lastExportTimeEl.textContent = 'Never';
+    }
+  }
+}
+
+// Initialize new features on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  initializeDashboard();
+  updateStorageUsage();
+  loadLastExportTime();
+  
+  // Update storage usage when max changes
+  const maxInput = document.getElementById('maxStoredRequests');
+  if (maxInput) {
+    maxInput.addEventListener('change', updateStorageUsage);
+  }
+  
+  // Update storage usage periodically
+  setInterval(updateStorageUsage, 10000); // Every 10 seconds
+});
