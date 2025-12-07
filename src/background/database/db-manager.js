@@ -15,14 +15,14 @@
 // 1. Extension Startup (background.js)
 //    └─> calls initDatabase()
 //
-// 2. initDatabase() [THIS FILE - Line 124]
+// 2. initDatabase() [THIS FILE - Line 235]
 //    ├─> Sets up encryption manager (optional)
 //    ├─> Creates/uses event bus for pub/sub (with default fallback)
-//    ├─> Calls initializeDatabase() [Line 899]
+//    ├─> Calls initializeDatabase() [Line 1021]
 //    ├─> Publishes "database:ready" event
 //    └─> Returns database API object
 //
-// 3. initializeDatabase() [THIS FILE - Line 899]
+// 3. initializeDatabase() [THIS FILE - Line 1021]
 //    ├─> Initializes SQL.js WASM module
 //    ├─> Attempts to load existing database:
 //    │   ├─> Strategy 1: Load from OPFS (Origin Private File System)

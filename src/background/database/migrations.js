@@ -137,8 +137,6 @@ async function getDatabaseVersion(db) {
     const result = db.exec(
       "SELECT version FROM db_version ORDER BY version DESC LIMIT 1"
     );
-    // If table is empty (new database), return 0
-    // If table has records, return the highest version number
     return result[0] ? result[0].values[0][0] : 0;
   } catch (error) {
     // Error indicates table doesn't exist or query failed
