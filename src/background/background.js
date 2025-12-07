@@ -198,15 +198,35 @@ class IntegratedExtensionInitializer {
   initializeMessageHandlers() {
     console.log('→ Initializing Message Handlers...');
     
-    initializePopupMessageHandler(this.localAuth, this.medallionDb);
+    // Get popup message handler function
+    this.popupMessageHandler = initializePopupMessageHandler(this.localAuth, this.medallionDb);
     
-    // Add additional message handlers for medallion features
+    // Single consolidated message listener for better browser compatibility
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleMedallionMessages(message, sender, sendResponse);
+      this.handleAllMessages(message, sender, sendResponse);
       return true; // Keep channel open for async response
     });
     
     console.log('✓ Message Handlers initialized');
+  }
+
+  async handleAllMessages(message, sender, sendResponse) {
+    try {
+      // First try popup/options handlers (register, login, getPageStats, query, etc.)
+      if (this.popupMessageHandler) {
+        const popupResponse = await this.popupMessageHandler(message, sender);
+        if (popupResponse) {
+          sendResponse(popupResponse);
+          return;
+        }
+      }
+      
+      // Then try medallion-specific handlers
+      await this.handleMedallionMessages(message, sender, sendResponse);
+    } catch (error) {
+      console.error('Message handling error:', error);
+      sendResponse({ success: false, error: error.message });
+    }
   }
 
   async handleMedallionMessages(message, sender, sendResponse) {

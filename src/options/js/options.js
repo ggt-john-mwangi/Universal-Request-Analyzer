@@ -1999,19 +1999,33 @@ async function populateSiteFilterDropdown() {
   if (!dropdown) return;
   
   try {
-    const result = await chrome.storage.local.get('trackingSites');
-    const sites = result.trackingSites || [];
+    // Fetch unique domains from database
+    const response = await chrome.runtime.sendMessage({
+      action: 'query',
+      query: `
+        SELECT DISTINCT domain 
+        FROM bronze_requests 
+        WHERE domain IS NOT NULL AND domain != '' 
+        ORDER BY domain
+      `
+    });
     
     // Clear existing options except "All Sites"
     dropdown.innerHTML = '<option value="all">All Sites</option>';
     
-    // Add each tracked site as an option
-    sites.forEach(site => {
-      const option = document.createElement('option');
-      option.value = site;
-      option.textContent = site;
-      dropdown.appendChild(option);
-    });
+    if (response && response.success && response.data) {
+      const domains = response.data.map(row => row.domain).filter(Boolean);
+      
+      // Add each domain as an option
+      domains.forEach(domain => {
+        const option = document.createElement('option');
+        option.value = domain;
+        option.textContent = domain;
+        dropdown.appendChild(option);
+      });
+      
+      console.log(`Populated site filter with ${domains.length} domains`);
+    }
     
     // Add change listener to filter dashboard
     dropdown.addEventListener('change', () => {

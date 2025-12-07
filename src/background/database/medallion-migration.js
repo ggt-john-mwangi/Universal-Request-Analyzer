@@ -86,11 +86,25 @@ async function checkLegacyTables(db) {
  */
 async function migrateLegacyRequests(db) {
   try {
-    // Check if statusText column exists in legacy requests table
+    // Check what columns exist in legacy requests table
     const columnsResult = db.exec(`PRAGMA table_info(requests)`);
-    const hasStatusText = columnsResult[0]?.values?.some(col => col[1] === 'statusText') || false;
+    if (!columnsResult || !columnsResult[0]?.values) {
+      console.log('  No legacy requests table found, skipping migration');
+      return;
+    }
     
-    const statusTextColumn = hasStatusText ? 'statusText' : 'NULL';
+    const columns = columnsResult[0].values.map(col => col[1]); // Get column names
+    console.log('  Legacy columns:', columns.join(', '));
+    
+    // Map legacy column names to bronze column names with fallbacks
+    const columnMap = {
+      statusText: columns.includes('statusText') ? 'statusText' : (columns.includes('status_text') ? 'status_text' : 'NULL'),
+      startTime: columns.includes('startTime') ? 'startTime' : (columns.includes('start_time') ? 'start_time' : 'timestamp'),
+      endTime: columns.includes('endTime') ? 'endTime' : (columns.includes('end_time') ? 'end_time' : 'timestamp'),
+      size: columns.includes('size') ? 'size' : (columns.includes('size_bytes') ? 'size_bytes' : '0'),
+      tabId: columns.includes('tabId') ? 'tabId' : (columns.includes('tab_id') ? 'tab_id' : 'NULL'),
+      pageUrl: columns.includes('pageUrl') ? 'pageUrl' : (columns.includes('page_url') ? 'page_url' : 'NULL')
+    };
     
     db.exec(`
       INSERT OR IGNORE INTO bronze_requests (
@@ -99,9 +113,9 @@ async function migrateLegacyRequests(db) {
         tab_id, page_url, error, created_at
       )
       SELECT 
-        id, url, method, type, status, ${statusTextColumn}, domain, path,
-        startTime, endTime, duration, size, timestamp,
-        tabId, pageUrl, error, timestamp
+        id, url, method, type, status, ${columnMap.statusText}, domain, path,
+        ${columnMap.startTime}, ${columnMap.endTime}, duration, ${columnMap.size}, timestamp,
+        ${columnMap.tabId}, ${columnMap.pageUrl}, error, timestamp
       FROM requests
       WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='requests')
     `);

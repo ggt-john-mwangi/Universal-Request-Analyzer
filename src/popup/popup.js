@@ -47,14 +47,14 @@ function showApp() {
 function setupEventListeners() {
   // Auth form toggles
   document.getElementById('showLogin')?.addEventListener('click', () => {
-    document.getElementById('registerForm').style.display = 'none';
-    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('registerForm').classList.add('hidden');
+    document.getElementById('loginForm').classList.remove('hidden');
     clearMessages();
   });
 
   document.getElementById('showRegister')?.addEventListener('click', () => {
-    document.getElementById('loginForm').style.display = 'none';
-    document.getElementById('registerForm').style.display = 'block';
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('registerForm').classList.remove('hidden');
     clearMessages();
   });
 
@@ -249,19 +249,28 @@ async function loadPageSummary() {
     const currentTab = tabs[0];
 
     if (!currentTab || !currentTab.url) {
+      console.log('No current tab or URL');
       return;
     }
 
+    console.log('Loading page summary for:', currentTab.url);
+
     // Get detailed filtered stats from background
     const response = await chrome.runtime.sendMessage({
-      action: 'getFilteredStats',
-      filters: { pageUrl: currentTab.url, timeRange: 300 } // Last 5 minutes
+      action: 'getPageStats',
+      data: { 
+        url: currentTab.url,
+        tabId: currentTab.id
+      }
     });
 
-    if (response.success) {
-      updatePageSummary(response);
-      updateDetailedViews(response);
+    console.log('Page stats response:', response);
+
+    if (response && response.success && response.stats) {
+      updatePageSummary(response.stats);
+      updateDetailedViews(response.stats);
     } else {
+      console.warn('No stats available, showing defaults');
       // Show default values
       updatePageSummary({
         totalRequests: 0,
@@ -539,42 +548,40 @@ async function loadTrackedSites() {
     const siteSelect = document.getElementById('siteSelect');
     if (!siteSelect) return;
 
-    // Get tracking sites from storage/settings
-    const result = await chrome.storage.local.get('trackingSites');
-    const sites = result.trackingSites || [];
+    // Clear existing options except "Current Page"
+    siteSelect.innerHTML = '<option value="">Current Page</option>';
 
-    // Parse sites and add to selector
-    if (sites.length > 0) {
-      sites.forEach(site => {
-        const option = document.createElement('option');
-        option.value = site;
-        option.textContent = site;
-        siteSelect.appendChild(option);
+    // Fetch unique domains from database
+    const response = await chrome.runtime.sendMessage({
+      action: 'query',
+      query: `
+        SELECT DISTINCT domain, COUNT(*) as request_count
+        FROM bronze_requests 
+        WHERE domain IS NOT NULL AND domain != '' 
+          AND created_at > ?
+        GROUP BY domain
+        ORDER BY request_count DESC
+        LIMIT 20
+      `,
+      params: [Date.now() - (7 * 24 * 60 * 60 * 1000)] // Last 7 days
+    });
+
+    if (response && response.success && response.data) {
+      const domains = response.data;
+      console.log(`Loaded ${domains.length} domains for site selector`);
+
+      domains.forEach(row => {
+        const domain = row.domain;
+        const count = row.request_count;
+        if (domain) {
+          const option = document.createElement('option');
+          option.value = `https://${domain}`;
+          option.textContent = `${domain} (${count} requests)`;
+          siteSelect.appendChild(option);
+        }
       });
-    }
-
-    // Also load from medallion DB - get top domains
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'getDashboardStats',
-        timeRange: 604800 // Last 7 days
-      });
-
-      if (response.success && response.stats && response.stats.topDomains) {
-        const domains = response.stats.topDomains.labels || [];
-        domains.forEach(domain => {
-          // Don't add duplicates
-          const exists = Array.from(siteSelect.options).some(opt => opt.value.includes(domain));
-          if (!exists && domain) {
-            const option = document.createElement('option');
-            option.value = `https://${domain}`;
-            option.textContent = domain;
-            siteSelect.appendChild(option);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load domains from DB:', error);
+    } else {
+      console.warn('No domains found or query failed');
     }
   } catch (error) {
     console.error('Failed to load tracked sites:', error);

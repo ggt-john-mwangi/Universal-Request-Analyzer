@@ -8,17 +8,10 @@ let dbManager = null;
 export function initializePopupMessageHandler(auth, database) {
   localAuthManager = auth;
   dbManager = database;
-
-  // Listen for messages from popup
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    handleMessage(message, sender)
-      .then(response => sendResponse(response))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    
-    return true; // Keep channel open for async response
-  });
-
   console.log('Popup message handler initialized');
+  
+  // Return the handler function to be used by central listener
+  return handleMessage;
 }
 
 // Handle incoming messages
@@ -49,6 +42,9 @@ async function handleMessage(message, sender) {
     
     case 'getMetrics':
       return await handleGetMetrics(message.timeRange);
+    
+    case 'query':
+      return await handleQuery(message.query, message.params);
     
     default:
       return { success: false, error: 'Unknown action' };
@@ -119,37 +115,74 @@ async function handleGetPageStats(data) {
     // Query requests for this domain in the last 5 minutes
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
     
-    const query = `
-      SELECT 
-        COUNT(*) as totalRequests,
-        AVG(duration) as avgResponse,
-        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errorCount,
-        SUM(size_bytes) as dataTransferred
-      FROM bronze_requests
-      WHERE domain = ? AND timestamp > ?
-    `;
-
     let stats = {
       totalRequests: 0,
       avgResponse: 0,
       errorCount: 0,
-      dataTransferred: 0
+      dataTransferred: 0,
+      requestTypes: {},
+      statusCodes: {},
+      timestamps: [],
+      responseTimes: []
     };
 
     try {
-      if (dbManager?.executeQuery) {
-        // Use executeQuery method
-        const result = dbManager.executeQuery(query, [domain, fiveMinutesAgo]);
+      if (dbManager && dbManager.db) {
+        // Query aggregate stats
+        const aggregateQuery = `
+          SELECT 
+            COUNT(*) as totalRequests,
+            AVG(duration) as avgResponse,
+            SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errorCount,
+            SUM(size_bytes) as dataTransferred
+          FROM bronze_requests
+          WHERE domain = ? AND created_at > ?
+        `;
         
-        if (result && result[0]?.values && result[0].values.length > 0) {
-          const [total, avg, errors, bytes] = result[0].values[0];
-          stats = {
-            totalRequests: total || 0,
-            avgResponse: avg || 0,
-            errorCount: errors || 0,
-            dataTransferred: bytes || 0
-          };
+        const aggregateResult = dbManager.db.exec(aggregateQuery, [domain, fiveMinutesAgo]);
+        
+        if (aggregateResult && aggregateResult[0]?.values && aggregateResult[0].values.length > 0) {
+          const [total, avg, errors, bytes] = aggregateResult[0].values[0];
+          stats.totalRequests = total || 0;
+          stats.avgResponse = Math.round(avg || 0);
+          stats.errorCount = errors || 0;
+          stats.dataTransferred = bytes || 0;
         }
+
+        // Query detailed request data for charts
+        const detailQuery = `
+          SELECT type, status, duration, created_at
+          FROM bronze_requests
+          WHERE domain = ? AND created_at > ?
+          ORDER BY created_at DESC
+          LIMIT 100
+        `;
+        
+        const detailResult = dbManager.db.exec(detailQuery, [domain, fiveMinutesAgo]);
+        
+        if (detailResult && detailResult[0]?.values) {
+          detailResult[0].values.forEach(row => {
+            const [type, status, duration, timestamp] = row;
+            
+            // Aggregate by type
+            if (type) {
+              stats.requestTypes[type] = (stats.requestTypes[type] || 0) + 1;
+            }
+            
+            // Aggregate by status code
+            if (status) {
+              stats.statusCodes[status] = (stats.statusCodes[status] || 0) + 1;
+            }
+            
+            // Collect timestamps and response times
+            if (timestamp) stats.timestamps.push(timestamp);
+            if (duration) stats.responseTimes.push(duration);
+          });
+        }
+
+        console.log(`Page stats for ${domain}: ${stats.totalRequests} requests`);
+      } else {
+        console.warn('Database manager not available');
       }
     } catch (queryError) {
       console.error('Query error:', queryError);
@@ -471,6 +504,39 @@ async function handleGetMetrics(timeRange = 86400) {
     return result;
   } catch (error) {
     console.error('Get metrics error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle database query
+async function handleQuery(query, params = []) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: 'Database not initialized' };
+    }
+
+    // Execute query
+    const result = dbManager.db.exec(query, params);
+    
+    if (!result || result.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    // Convert SQL.js result format to array of objects
+    const columns = result[0].columns;
+    const values = result[0].values;
+    
+    const data = values.map(row => {
+      const obj = {};
+      columns.forEach((col, index) => {
+        obj[col] = row[index];
+      });
+      return obj;
+    });
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Query handler error:', error);
     return { success: false, error: error.message };
   }
 }
