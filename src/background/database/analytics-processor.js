@@ -1,5 +1,5 @@
-// Analytics Processor - Generates OHLC and Star Schema data
-// Processes data from Silver layer into Star Schema fact tables
+// Analytics Processor - Processes data from Silver layer into Star Schema fact tables
+// Simplified version focusing on performance tracking over time (requests, response times, errors)
 
 import { DatabaseError } from "../errors/error-types.js";
 import { 
@@ -11,11 +11,10 @@ export class AnalyticsProcessor {
   constructor(db, eventBus) {
     this.db = db;
     this.eventBus = eventBus;
-    this.supportedTimeframes = ['1min', '5min', '15min', '30min', '1h', '4h', '1d'];
   }
 
   /**
-   * Process request into fact table
+   * Process request into fact table for performance tracking
    */
   async processRequestToFact(request) {
     try {
@@ -55,7 +54,7 @@ export class AnalyticsProcessor {
         [dnsTime, tcpTime, sslTime, waitTime, downloadTime] = metricsResult[0].values[0];
       }
       
-      // Insert into fact table
+      // Insert into fact table for time-series performance analysis
       this.db.exec(`
         INSERT INTO fact_requests (
           request_id, time_key, domain_key, resource_type_key, status_code_key,
@@ -93,226 +92,100 @@ export class AnalyticsProcessor {
   }
 
   /**
-   * Generate OHLC data for a specific timeframe
+   * Get performance metrics over time for charts
+   * Returns time-series data for tracking requests and performance
    */
-  async generateOHLC(timeframe, startTime, endTime, options = {}) {
+  async getPerformanceOverTime(startTime, endTime, groupBy = '1h', filters = {}) {
     try {
       const {
         domainKey = null,
-        resourceTypeKey = null
-      } = options;
+        resourceTypeKey = null,
+        statusFilter = null
+      } = filters;
       
-      // Get period column name based on timeframe
-      const periodColumn = this.getPeriodColumn(timeframe);
-      
-      // Get unique periods in the time range
-      const periodsResult = this.db.exec(`
-        SELECT DISTINCT dt.${periodColumn} as period, dt.time_key
-        FROM dim_time dt
-        WHERE dt.timestamp >= ? AND dt.timestamp <= ?
-        ORDER BY period
-      `, [startTime, endTime]);
-      
-      if (!periodsResult || !periodsResult[0]?.values.length) {
-        return [];
-      }
-      
-      const periods = periodsResult[0].values;
-      const ohlcData = [];
-      
-      for (const [period, timeKey] of periods) {
-        const ohlc = await this.calculateOHLCForPeriod(
-          timeframe,
-          period,
-          timeKey,
-          domainKey,
-          resourceTypeKey
-        );
-        
-        if (ohlc) {
-          ohlcData.push(ohlc);
-        }
-      }
-      
-      return ohlcData;
-    } catch (error) {
-      console.error(`Failed to generate OHLC for ${timeframe}:`, error);
-      throw new DatabaseError(`Failed to generate OHLC for ${timeframe}`, error);
-    }
-  }
-
-  /**
-   * Calculate OHLC for a specific period
-   */
-  async calculateOHLCForPeriod(timeframe, period, timeKey, domainKey, resourceTypeKey) {
-    try {
-      const periodColumn = this.getPeriodColumn(timeframe);
-      const now = Date.now();
-      
-      // Build query with optional filters
-      let whereClause = `dt.${periodColumn} = ?`;
-      const params = [period];
+      // Build WHERE clause
+      let whereClause = 'dt.timestamp >= ? AND dt.timestamp <= ?';
+      const params = [startTime, endTime];
       
       if (domainKey) {
-        whereClause += ` AND fr.domain_key = ?`;
+        whereClause += ' AND fr.domain_key = ?';
         params.push(domainKey);
       }
       
       if (resourceTypeKey) {
-        whereClause += ` AND fr.resource_type_key = ?`;
+        whereClause += ' AND fr.resource_type_key = ?';
         params.push(resourceTypeKey);
       }
       
-      // Get OHLC metrics
-      const metricsResult = this.db.exec(`
+      if (statusFilter) {
+        whereClause += ' AND sc.is_' + statusFilter + ' = 1';
+      }
+      
+      // Get aggregated metrics grouped by time period
+      const periodColumn = this.getPeriodColumn(groupBy);
+      const result = this.db.exec(`
         SELECT 
-          MIN(fr.created_at) as first_time,
-          MAX(fr.created_at) as last_time,
+          dt.${periodColumn} as period,
+          dt.timestamp as period_timestamp,
           COUNT(*) as request_count,
-          SUM(fr.size_bytes) as total_bytes,
           AVG(fr.duration_ms) as avg_response_time,
+          MIN(fr.duration_ms) as min_response_time,
+          MAX(fr.duration_ms) as max_response_time,
+          SUM(fr.size_bytes) as total_bytes,
           SUM(CASE WHEN sc.is_success = 1 THEN 1 ELSE 0 END) as success_count,
           SUM(CASE WHEN sc.is_error = 1 THEN 1 ELSE 0 END) as error_count,
-          AVG(fr.performance_score) as avg_performance_score,
-          AVG(fr.quality_score) as avg_quality_score
+          AVG(fr.performance_score) as avg_performance_score
         FROM fact_requests fr
         JOIN dim_time dt ON fr.time_key = dt.time_key
         LEFT JOIN dim_status_code sc ON fr.status_code_key = sc.status_code_key
         WHERE ${whereClause}
+        GROUP BY dt.${periodColumn}
+        ORDER BY dt.timestamp
       `, params);
       
-      if (!metricsResult || !metricsResult[0]?.values.length) {
-        return null;
+      if (!result || !result[0]?.values.length) {
+        return [];
       }
       
-      const [firstTime, lastTime, requestCount, totalBytes, avgResponseTime, 
-             successCount, errorCount, avgPerfScore, avgQualityScore] = metricsResult[0].values[0];
-      
-      if (!requestCount) {
-        return null;
-      }
-      
-      // Get OHLC for duration
-      const ohlcResult = this.db.exec(`
-        WITH ordered_durations AS (
-          SELECT 
-            fr.duration_ms,
-            ROW_NUMBER() OVER (ORDER BY fr.created_at) as first_rank,
-            ROW_NUMBER() OVER (ORDER BY fr.created_at DESC) as last_rank
-          FROM fact_requests fr
-          JOIN dim_time dt ON fr.time_key = dt.time_key
-          WHERE ${whereClause}
-        )
-        SELECT 
-          (SELECT duration_ms FROM ordered_durations WHERE first_rank = 1) as open,
-          MAX(duration_ms) as high,
-          MIN(duration_ms) as low,
-          (SELECT duration_ms FROM ordered_durations WHERE last_rank = 1) as close
-        FROM ordered_durations
-      `, params);
-      
-      const [openTime, highTime, lowTime, closeTime] = ohlcResult[0]?.values[0] || [0, 0, 0, 0];
-      
-      // Calculate percentiles
-      const percentiles = this.calculatePercentiles(whereClause, params);
-      
-      // Calculate period boundaries
-      const periodStart = this.getPeriodStart(timeframe, period);
-      const periodEnd = this.getPeriodEnd(timeframe, period);
-      
-      const errorRate = requestCount > 0 ? (errorCount / requestCount) * 100 : 0;
-      
-      // Insert or update OHLC fact
-      this.db.exec(`
-        INSERT OR REPLACE INTO fact_ohlc_performance (
-          time_key, period_type, domain_key, resource_type_key,
-          open_time, high_time, low_time, close_time,
-          request_count, total_bytes,
-          avg_response_time, median_response_time, p95_response_time, p99_response_time,
-          success_count, error_count, error_rate,
-          avg_performance_score, avg_quality_score,
-          period_start, period_end, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        timeKey,
-        timeframe,
-        domainKey,
-        resourceTypeKey,
-        openTime || 0,
-        highTime || 0,
-        lowTime || 0,
-        closeTime || 0,
-        requestCount || 0,
-        totalBytes || 0,
-        avgResponseTime || 0,
-        percentiles.median || 0,
-        percentiles.p95 || 0,
-        percentiles.p99 || 0,
-        successCount || 0,
-        errorCount || 0,
-        errorRate,
-        avgPerfScore || 0,
-        avgQualityScore || 0,
-        periodStart,
-        periodEnd,
-        now
-      ]);
-      
-      return {
-        timeKey,
-        period,
-        periodType: timeframe,
-        open: openTime,
-        high: highTime,
-        low: lowTime,
-        close: closeTime,
-        volume: requestCount,
-        avgResponseTime,
-        periodStart,
-        periodEnd
-      };
+      return result[0].values.map(row => ({
+        period: row[0],
+        timestamp: row[1],
+        requestCount: row[2],
+        avgResponseTime: row[3],
+        minResponseTime: row[4],
+        maxResponseTime: row[5],
+        totalBytes: row[6],
+        successCount: row[7],
+        errorCount: row[8],
+        avgPerformanceScore: row[9],
+        errorRate: row[2] > 0 ? (row[8] / row[2]) * 100 : 0
+      }));
     } catch (error) {
-      console.error('Failed to calculate OHLC for period:', error);
-      return null;
+      console.error('Failed to get performance over time:', error);
+      throw new DatabaseError('Failed to get performance over time', error);
     }
   }
 
   /**
-   * Calculate percentiles for metrics
+   * Get period column name based on grouping
    */
-  calculatePercentiles(whereClause, params) {
-    try {
-      const result = this.db.exec(`
-        WITH ordered_durations AS (
-          SELECT 
-            fr.duration_ms,
-            ROW_NUMBER() OVER (ORDER BY fr.duration_ms) as row_num,
-            COUNT(*) OVER () as total_count
-          FROM fact_requests fr
-          JOIN dim_time dt ON fr.time_key = dt.time_key
-          WHERE ${whereClause}
-        )
-        SELECT 
-          MAX(CASE WHEN row_num = CAST(total_count * 0.50 AS INTEGER) THEN duration_ms END) as median,
-          MAX(CASE WHEN row_num = CAST(total_count * 0.95 AS INTEGER) THEN duration_ms END) as p95,
-          MAX(CASE WHEN row_num = CAST(total_count * 0.99 AS INTEGER) THEN duration_ms END) as p99
-        FROM ordered_durations
-      `, params);
-      
-      if (result && result[0]?.values.length > 0) {
-        const [median, p95, p99] = result[0].values[0];
-        return { median, p95, p99 };
-      }
-      
-      return { median: 0, p95: 0, p99: 0 };
-    } catch (error) {
-      console.error('Failed to calculate percentiles:', error);
-      return { median: 0, p95: 0, p99: 0 };
-    }
+  getPeriodColumn(groupBy) {
+    const mapping = {
+      '1min': 'period_1min',
+      '5min': 'period_5min',
+      '15min': 'period_15min',
+      '30min': 'period_30min',
+      '1h': 'period_1h',
+      '4h': 'period_4h',
+      '1d': 'period_1d',
+      '1w': 'period_1w',
+      '1m': 'period_1m'
+    };
+    return mapping[groupBy] || 'period_1h';
   }
 
   /**
-   * Generate quality metrics
+   * Generate quality metrics for monitoring
    */
   async generateQualityMetrics(timeKey, domainKey, periodStart, periodEnd) {
     try {
@@ -387,95 +260,47 @@ export class AnalyticsProcessor {
         now
       ]);
       
+      return true;
     } catch (error) {
       console.error('Failed to generate quality metrics:', error);
+      return false;
     }
   }
 
   /**
-   * Calculate reliability score based on variance
+   * Calculate reliability score based on response time variance
    */
   calculateReliabilityScore(timeKey, domainKey) {
     try {
       const result = this.db.exec(`
         SELECT 
           AVG(duration_ms) as avg_duration,
-          AVG((duration_ms - (SELECT AVG(duration_ms) FROM fact_requests WHERE time_key = ?)) 
-              * (duration_ms - (SELECT AVG(duration_ms) FROM fact_requests WHERE time_key = ?))) as variance
+          STDEV(duration_ms) as std_duration,
+          COUNT(*) as request_count
         FROM fact_requests
         WHERE time_key = ? ${domainKey ? 'AND domain_key = ?' : ''}
-      `, domainKey ? [timeKey, timeKey, timeKey, domainKey] : [timeKey, timeKey, timeKey]);
+      `, domainKey ? [timeKey, domainKey] : [timeKey]);
       
-      if (result && result[0]?.values.length > 0) {
-        const [avgDuration, variance] = result[0].values[0];
-        const stdDev = Math.sqrt(variance || 0);
-        const coefficientOfVariation = avgDuration > 0 ? (stdDev / avgDuration) * 100 : 0;
-        
-        // Lower coefficient of variation = higher reliability
-        // Score from 0-100 (inverted coefficient, capped at 100)
-        return Math.max(0, 100 - coefficientOfVariation);
+      if (!result || !result[0]?.values.length) {
+        return 0;
       }
       
-      return 50; // Default middle score
+      const [avgDuration, stdDuration, count] = result[0].values[0];
+      
+      if (!count || count === 0 || !avgDuration) {
+        return 0;
+      }
+      
+      // Calculate coefficient of variation (lower is more reliable)
+      const coefficientOfVariation = (stdDuration / avgDuration) * 100;
+      
+      // Convert to score (0-100, higher is better)
+      const reliabilityScore = Math.max(0, 100 - coefficientOfVariation);
+      
+      return reliabilityScore;
     } catch (error) {
       console.error('Failed to calculate reliability score:', error);
-      return 50;
+      return 0;
     }
   }
-
-  /**
-   * Get period column name for timeframe
-   */
-  getPeriodColumn(timeframe) {
-    const mapping = {
-      '1min': 'period_1min',
-      '5min': 'period_5min',
-      '15min': 'period_15min',
-      '30min': 'period_30min',
-      '1h': 'period_1h',
-      '4h': 'period_4h',
-      '1d': 'period_1d'
-    };
-    
-    return mapping[timeframe] || 'period_1h';
-  }
-
-  /**
-   * Get period start timestamp
-   */
-  getPeriodStart(timeframe, period) {
-    const durations = {
-      '1min': 60000,
-      '5min': 300000,
-      '15min': 900000,
-      '30min': 1800000,
-      '1h': 3600000,
-      '4h': 14400000,
-      '1d': 86400000
-    };
-    
-    return period * (durations[timeframe] || 3600000);
-  }
-
-  /**
-   * Get period end timestamp
-   */
-  getPeriodEnd(timeframe, period) {
-    const durations = {
-      '1min': 60000,
-      '5min': 300000,
-      '15min': 900000,
-      '1h': 3600000,
-      '4h': 14400000,
-      '1d': 86400000,
-      '1w': 604800000,
-      '1m': 2592000000
-    };
-    
-    return (period + 1) * (durations[timeframe] || 3600000) - 1;
-  }
-}
-
-export function createAnalyticsProcessor(db, eventBus) {
-  return new AnalyticsProcessor(db, eventBus);
 }
