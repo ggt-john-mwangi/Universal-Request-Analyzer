@@ -352,7 +352,7 @@ class IntegratedExtensionInitializer {
     return tomorrow.getTime();
   }
 
-  cleanup() {
+  async cleanup() {
     console.log('Cleaning up scheduled tasks...');
     this.scheduledTasks.forEach(task => clearInterval(task));
     this.scheduledTasks = [];
@@ -360,6 +360,16 @@ class IntegratedExtensionInitializer {
     // Clear alarms
     if (typeof chrome !== 'undefined' && chrome.alarms) {
       chrome.alarms.clear('dailyGoldProcessing');
+    }
+    
+    // Save database before cleanup
+    try {
+      console.log('Saving database before cleanup...');
+      const { saveDatabase } = await import('./database/db-manager.js');
+      await saveDatabase();
+      console.log('Database saved successfully.');
+    } catch (error) {
+      console.error('Failed to save database during cleanup:', error);
     }
   }
 }
