@@ -269,14 +269,15 @@ export class AnalyticsProcessor {
 
   /**
    * Calculate reliability score based on response time variance
+   * Uses manual standard deviation calculation since SQLite doesn't have STDEV
    */
   calculateReliabilityScore(timeKey, domainKey) {
     try {
       const result = this.db.exec(`
         SELECT 
           AVG(duration_ms) as avg_duration,
-          STDEV(duration_ms) as std_duration,
-          COUNT(*) as request_count
+          COUNT(*) as request_count,
+          SUM(duration_ms * duration_ms) as sum_sq
         FROM fact_requests
         WHERE time_key = ? ${domainKey ? 'AND domain_key = ?' : ''}
       `, domainKey ? [timeKey, domainKey] : [timeKey]);
@@ -285,11 +286,15 @@ export class AnalyticsProcessor {
         return 0;
       }
       
-      const [avgDuration, stdDuration, count] = result[0].values[0];
+      const [avgDuration, count, sumSq] = result[0].values[0];
       
       if (!count || count === 0 || !avgDuration) {
         return 0;
       }
+      
+      // Calculate standard deviation manually: sqrt((sum(x^2) / n) - (avg^2))
+      const variance = (sumSq / count) - (avgDuration * avgDuration);
+      const stdDuration = Math.sqrt(Math.max(0, variance)); // Ensure non-negative
       
       // Calculate coefficient of variation (lower is more reliable)
       const coefficientOfVariation = (stdDuration / avgDuration) * 100;

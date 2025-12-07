@@ -1,4 +1,4 @@
-// Import required modules and components (from shared library)
+// Import required modules and components from shared library
 import "../../lib/shared-components/chart-components.js";
 import "../../lib/shared-components/chart-renderer.js";
 import "../../lib/shared-components/data-filter-panel.js";
@@ -11,6 +11,7 @@ import "../../lib/shared-components/performance-monitor.js";
 import "../../lib/shared-components/settings-manager.js";
 import "../../lib/shared-components/settings-ui.js";
 import "../../lib/shared-components/tab-manager.js";
+// Import additional modules
 import "../../auth/acl-manager.js";
 import "../../config/feature-flags.js";
 import "../../config/theme-manager.js";
