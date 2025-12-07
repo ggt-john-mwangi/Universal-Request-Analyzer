@@ -403,14 +403,14 @@ async function handleGetDashboardStats(timeRange = 86400) {
           FROM bronze_requests
           WHERE timestamp > ?
           GROUP BY hour
-          ORDER BY timestamp DESC
+          ORDER BY timestamp ASC
           LIMIT ?
         `;
         const volumeResult = dbManager.executeQuery(hourlyQuery, [startTime, hoursToShow]);
         
         if (volumeResult && volumeResult[0]?.values) {
-          stats.volumeTimeline.labels = volumeResult[0].values.map(r => r[0]).reverse();
-          stats.volumeTimeline.values = volumeResult[0].values.map(r => r[1]).reverse();
+          stats.volumeTimeline.labels = volumeResult[0].values.map(r => r[0]);
+          stats.volumeTimeline.values = volumeResult[0].values.map(r => r[1]);
         }
 
         // Get performance trend (hourly average)
@@ -421,14 +421,14 @@ async function handleGetDashboardStats(timeRange = 86400) {
           FROM bronze_requests
           WHERE timestamp > ? AND duration IS NOT NULL
           GROUP BY hour
-          ORDER BY timestamp DESC
+          ORDER BY timestamp ASC
           LIMIT ?
         `;
         const perfResult = dbManager.executeQuery(perfQuery, [startTime, hoursToShow]);
         
         if (perfResult && perfResult[0]?.values) {
-          stats.performanceTrend.labels = perfResult[0].values.map(r => r[0]).reverse();
-          stats.performanceTrend.values = perfResult[0].values.map(r => Math.round(r[1])).reverse();
+          stats.performanceTrend.labels = perfResult[0].values.map(r => r[0]);
+          stats.performanceTrend.values = perfResult[0].values.map(r => Math.round(r[1]));
         }
 
         // Get layer counts
