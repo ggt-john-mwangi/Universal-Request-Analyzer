@@ -287,26 +287,19 @@ function updatePageSummary(data) {
     ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
     : 0;
   
-  // Count errors (4xx and 5xx)
+  // Count errors (all 4xx and 5xx status codes)
   const statusCodes = data.statusCodes || {};
-  const errorCount = (statusCodes[400] || 0) + (statusCodes[500] || 0);
+  const errorCount = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
+  }, 0);
   
   document.getElementById('totalRequests').textContent = totalRequests;
   document.getElementById('avgResponse').textContent = `${Math.round(avgResponse)}ms`;
   document.getElementById('errorCount').textContent = errorCount;
   
-  // Estimate data transferred (rough calculation)
-  const dataTransferred = totalRequests * 5 * 1024; // Rough estimate: 5KB per request
-  const bytes = dataTransferred;
-  let formatted;
-  if (bytes < 1024) {
-    formatted = bytes + 'B';
-  } else if (bytes < 1024 * 1024) {
-    formatted = Math.round(bytes / 1024) + 'KB';
-  } else {
-    formatted = (bytes / (1024 * 1024)).toFixed(2) + 'MB';
-  }
-  document.getElementById('dataTransferred').textContent = formatted;
+  // Use actual data from response or show 0
+  document.getElementById('dataTransferred').textContent = '0KB';
 }
 
 // Update detailed QA views
@@ -328,10 +321,26 @@ function updateDetailedViews(data) {
 
 // Update status code breakdown
 function updateStatusBreakdown(statusCodes) {
-  const status2xx = (statusCodes[200] || 0);
-  const status3xx = (statusCodes[300] || 0);
-  const status4xx = (statusCodes[400] || 0);
-  const status5xx = (statusCodes[500] || 0);
+  // Group status codes by range
+  const status2xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 200 && statusCode < 300) ? sum + count : sum;
+  }, 0);
+  
+  const status3xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 300 && statusCode < 400) ? sum + count : sum;
+  }, 0);
+  
+  const status4xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 400 && statusCode < 500) ? sum + count : sum;
+  }, 0);
+  
+  const status5xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 500 && statusCode < 600) ? sum + count : sum;
+  }, 0);
   
   document.getElementById('status2xx').textContent = status2xx;
   document.getElementById('status3xx').textContent = status3xx;
@@ -435,7 +444,7 @@ function updateTimelineChart(timestamps, responseTimes) {
 function drawSimpleChart(ctx, labels, data) {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
-  const maxValue = Math.max(...data, 100);
+  const maxValue = data.length > 0 ? data.reduce((max, val) => Math.max(max, val), 100) : 100;
   const padding = 20;
   
   ctx.clearRect(0, 0, width, height);
