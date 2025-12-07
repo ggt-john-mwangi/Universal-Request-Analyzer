@@ -88,6 +88,17 @@ function setupEventListeners() {
   document.getElementById('openHelp')?.addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
   });
+
+  // Footer links
+  document.getElementById('viewPrivacy')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'https://github.com/ModernaCyber/Universal-Request-Analyzer' });
+  });
+
+  document.getElementById('reportIssue')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'https://github.com/ModernaCyber/Universal-Request-Analyzer/issues' });
+  });
 }
 
 // Handle registration

@@ -13,42 +13,73 @@
 </head>
 
 <body>
-  <div id="app">
-    <header class="header">
-      <h1>Universal Request Analyzer Settings</h1>
-    </header>
+  <div id="app" class="dashboard-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../assets/icons/icon48.png" alt="URA" class="sidebar-logo">
+        <h1 class="sidebar-title">URA Dashboard</h1>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="dashboard">
+          <i class="fas fa-chart-line"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-tab="general">
+          <i class="fas fa-cog"></i>
+          <span>General</span>
+        </button>
+        <button class="nav-item" data-tab="monitoring">
+          <i class="fas fa-chart-bar"></i>
+          <span>Monitoring</span>
+        </button>
+        <button class="nav-item" data-tab="filters">
+          <i class="fas fa-filter"></i>
+          <span>Filters</span>
+        </button>
+        <button class="nav-item" data-tab="export">
+          <i class="fas fa-file-export"></i>
+          <span>Export</span>
+        </button>
+        <button class="nav-item" data-tab="retention">
+          <i class="fas fa-database"></i>
+          <span>Data Retention</span>
+        </button>
+        <button class="nav-item" data-tab="security">
+          <i class="fas fa-shield-alt"></i>
+          <span>Security</span>
+        </button>
+        <button class="nav-item" data-tab="themes">
+          <i class="fas fa-palette"></i>
+          <span>Themes</span>
+        </button>
+        <button class="nav-item" data-tab="advanced">
+          <i class="fas fa-code"></i>
+          <span>Advanced</span>
+        </button>
+      </nav>
 
-    <nav class="nav-tabs">
-      <button class="tab-button active" data-tab="dashboard">
-        <i class="fas fa-chart-line"></i> Dashboard
-      </button>
-      <button class="tab-button" data-tab="general">
-        <i class="fas fa-cog"></i> General
-      </button>
-      <button class="tab-button" data-tab="monitoring">
-        <i class="fas fa-chart-bar"></i> Monitoring
-      </button>
-      <button class="tab-button" data-tab="filters">
-        <i class="fas fa-filter"></i> Filters
-      </button>
-      <button class="tab-button" data-tab="export">
-        <i class="fas fa-file-export"></i> Export
-      </button>
-      <button class="tab-button" data-tab="retention">
-        <i class="fas fa-database"></i> Data Retention
-      </button>
-      <button class="tab-button" data-tab="security">
-        <i class="fas fa-shield-alt"></i> Security
-      </button>
-      <button class="tab-button" data-tab="themes">
-        <i class="fas fa-palette"></i> Themes
-      </button>
-      <button class="tab-button" data-tab="advanced">
-        <i class="fas fa-code"></i> Advanced
-      </button>
-    </nav>
+      <div class="sidebar-footer">
+        <div class="version-info">
+          <i class="fas fa-info-circle"></i>
+          <span>Version 1.0.0</span>
+        </div>
+      </div>
+    </aside>
 
-    <main class="main-content">
+    <!-- Main Content Area -->
+    <div class="main-area">
+      <header class="content-header">
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="header-actions">
+          <button id="saveAllBtn" class="btn-primary">
+            <i class="fas fa-save"></i> Save All
+          </button>
+        </div>
+      </header>
+
+      <main class="content-body">
       <!-- Dashboard Tab -->
       <section id="dashboard" class="tab-content active">
         <div class="dashboard-container">
@@ -461,6 +492,7 @@
         </div>
       </section>
     </main>
+    </div>
   </div>
 
   <div id="notification" class="notification"></div>

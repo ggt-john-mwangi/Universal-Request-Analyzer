@@ -437,19 +437,61 @@ function renderThemeCards() {
 
 // Setup tab navigation
 function setupTabNavigation() {
-  const tabs = document.querySelectorAll(".tab-button");
+  const navItems = document.querySelectorAll(".nav-item");
   const tabContents = document.querySelectorAll(".tab-content");
+  const pageTitle = document.getElementById("pageTitle");
 
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      // Remove active class from all tabs and contents
-      tabs.forEach((t) => t.classList.remove("active"));
+  // Tab titles mapping
+  const tabTitles = {
+    dashboard: "Dashboard",
+    general: "General Settings",
+    monitoring: "Monitoring",
+    filters: "Filters",
+    export: "Export Settings",
+    retention: "Data Retention",
+    security: "Security Settings",
+    themes: "Themes",
+    advanced: "Advanced Tools"
+  };
+
+  navItems.forEach((item) => {
+    item.addEventListener("click", () => {
+      const tab = item.dataset.tab;
+
+      // Remove active class from all items and contents
+      navItems.forEach((i) => i.classList.remove("active"));
       tabContents.forEach((c) => c.classList.remove("active"));
 
-      // Add active class to clicked tab and corresponding content
-      tab.classList.add("active");
+      // Add active class to clicked item and corresponding content
+      item.classList.add("active");
+      const content = document.getElementById(tab);
+      if (content) {
+        content.classList.add("active");
+      }
+
+      // Update page title
+      if (pageTitle && tabTitles[tab]) {
+        pageTitle.textContent = tabTitles[tab];
+      }
+    });
+  });
+
+  // Also support old tab-button class for backwards compatibility
+  const oldTabs = document.querySelectorAll(".tab-button");
+  oldTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
       const tabId = tab.dataset.tab;
-      document.getElementById(tabId).classList.add("active");
+
+      // Update active button
+      oldTabs.forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      // Update active content
+      tabContents.forEach((c) => c.classList.remove("active"));
+      const content = document.getElementById(tabId);
+      if (content) {
+        content.classList.add("active");
+      }
     });
   });
 }
@@ -516,6 +558,12 @@ if (exportSettingsBtn) {
 if (importSettingsBtn && importSettingsFile) {
   importSettingsBtn.addEventListener("click", () => importSettingsFile.click());
   importSettingsFile.addEventListener("change", importSettings);
+}
+
+// Save All button
+const saveAllBtn = document.getElementById('saveAllBtn');
+if (saveAllBtn) {
+  saveAllBtn.addEventListener('click', saveOptions);
 }
 
 // Advanced Tab Functionality
