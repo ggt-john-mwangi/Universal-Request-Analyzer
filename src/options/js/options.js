@@ -951,6 +951,12 @@ document.querySelectorAll('.filter-preset-btn').forEach(btn => {
     const checkboxes = document.querySelectorAll('input[name="captureType"]');
     const includeDomains = document.getElementById('includeDomains');
     const excludeDomains = document.getElementById('excludeDomains');
+    const statusFilters = document.querySelectorAll('input[name="statusFilter"]');
+    const urlPattern = document.getElementById('urlPattern');
+    const minResponseTime = document.getElementById('minResponseTime');
+    const maxResponseTime = document.getElementById('maxResponseTime');
+    const minSize = document.getElementById('minSize');
+    const maxSize = document.getElementById('maxSize');
     
     if (preset === 'api') {
       // API Only: XHR and Fetch only
@@ -959,24 +965,317 @@ document.querySelectorAll('.filter-preset-btn').forEach(btn => {
       });
       if (includeDomains) includeDomains.value = '';
       if (excludeDomains) excludeDomains.value = '';
+      if (urlPattern) urlPattern.value = '';
+      statusFilters.forEach(cb => cb.checked = true);
+      if (minResponseTime) minResponseTime.value = '';
+      if (maxResponseTime) maxResponseTime.value = '';
+      if (minSize) minSize.value = '';
+      if (maxSize) maxSize.value = '';
     } else if (preset === 'noImages') {
       // No Images/Fonts: Everything except images and fonts
       checkboxes.forEach(cb => {
         cb.checked = cb.value !== 'image' && cb.value !== 'font';
       });
       if (excludeDomains) excludeDomains.value = '';
+      if (urlPattern) urlPattern.value = '';
+      statusFilters.forEach(cb => cb.checked = true);
+    } else if (preset === 'errors') {
+      // Errors Only: Only 4xx and 5xx
+      checkboxes.forEach(cb => cb.checked = true);
+      statusFilters.forEach(cb => {
+        cb.checked = cb.value === '4xx' || cb.value === '5xx';
+      });
+      if (urlPattern) urlPattern.value = '';
+      if (minResponseTime) minResponseTime.value = '';
+    } else if (preset === 'slow') {
+      // Slow Requests: Response time > 1000ms
+      checkboxes.forEach(cb => cb.checked = true);
+      statusFilters.forEach(cb => cb.checked = true);
+      if (minResponseTime) minResponseTime.value = '1000';
+      if (maxResponseTime) maxResponseTime.value = '';
+      if (urlPattern) urlPattern.value = '';
     } else if (preset === 'all') {
       // Capture All
-      checkboxes.forEach(cb => {
-        cb.checked = true;
-      });
+      checkboxes.forEach(cb => cb.checked = true);
+      statusFilters.forEach(cb => cb.checked = true);
       if (includeDomains) includeDomains.value = '';
       if (excludeDomains) excludeDomains.value = '';
+      if (urlPattern) urlPattern.value = '';
+      if (minResponseTime) minResponseTime.value = '';
+      if (maxResponseTime) maxResponseTime.value = '';
+      if (minSize) minSize.value = '';
+      if (maxSize) maxSize.value = '';
     }
     
     showNotification(`Applied "${preset}" filter preset`);
+    updateActiveFiltersSummary();
+    
+    // Auto-apply if enabled
+    const autoApply = document.getElementById('autoApplyFilters');
+    if (autoApply && autoApply.checked) {
+      applyFiltersToVisualizations();
+    }
   });
 });
+
+// Advanced Filter Functions
+function updateActiveFiltersSummary() {
+  const summaryEl = document.getElementById('activeFiltersSummary');
+  if (!summaryEl) return;
+  
+  const filters = collectActiveFilters();
+  
+  if (filters.length === 0) {
+    summaryEl.innerHTML = '<p class="placeholder">No filters applied. Showing all requests.</p>';
+    return;
+  }
+  
+  let html = '<ul>';
+  filters.forEach(filter => {
+    html += `<li><strong>${filter.type}:</strong> ${filter.value}</li>`;
+  });
+  html += '</ul>';
+  summaryEl.innerHTML = html;
+}
+
+function collectActiveFilters() {
+  const filters = [];
+  
+  // Request types
+  const selectedTypes = Array.from(document.querySelectorAll('input[name="captureType"]:checked'))
+    .map(cb => cb.value);
+  if (selectedTypes.length > 0 && selectedTypes.length < 7) {
+    filters.push({
+      type: 'Request Types',
+      value: selectedTypes.join(', ')
+    });
+  }
+  
+  // Domains
+  const includeDomains = document.getElementById('includeDomains');
+  if (includeDomains && includeDomains.value.trim()) {
+    filters.push({
+      type: 'Include Domains',
+      value: includeDomains.value
+    });
+  }
+  
+  const excludeDomains = document.getElementById('excludeDomains');
+  if (excludeDomains && excludeDomains.value.trim()) {
+    filters.push({
+      type: 'Exclude Domains',
+      value: excludeDomains.value
+    });
+  }
+  
+  // URL Pattern
+  const urlPattern = document.getElementById('urlPattern');
+  if (urlPattern && urlPattern.value.trim()) {
+    filters.push({
+      type: 'URL Pattern',
+      value: urlPattern.value
+    });
+  }
+  
+  // Status codes
+  const selectedStatus = Array.from(document.querySelectorAll('input[name="statusFilter"]:checked'))
+    .map(cb => cb.value);
+  if (selectedStatus.length > 0 && selectedStatus.length < 4) {
+    filters.push({
+      type: 'Status Codes',
+      value: selectedStatus.join(', ')
+    });
+  }
+  
+  // Response time
+  const minResponseTime = document.getElementById('minResponseTime');
+  const maxResponseTime = document.getElementById('maxResponseTime');
+  if (minResponseTime && minResponseTime.value) {
+    const min = minResponseTime.value;
+    const max = maxResponseTime && maxResponseTime.value ? maxResponseTime.value : '∞';
+    filters.push({
+      type: 'Response Time',
+      value: `${min}ms - ${max}ms`
+    });
+  }
+  
+  // Size
+  const minSize = document.getElementById('minSize');
+  const maxSize = document.getElementById('maxSize');
+  if (minSize && minSize.value) {
+    const min = minSize.value;
+    const max = maxSize && maxSize.value ? maxSize.value : '∞';
+    filters.push({
+      type: 'Response Size',
+      value: `${min} - ${max} bytes`
+    });
+  }
+  
+  return filters;
+}
+
+async function applyFiltersToVisualizations() {
+  const applyBtn = document.getElementById('applyFiltersBtn');
+  if (applyBtn) {
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+  }
+  
+  try {
+    // Collect all filter settings
+    const filterConfig = {
+      requestTypes: Array.from(document.querySelectorAll('input[name="captureType"]:checked'))
+        .map(cb => cb.value),
+      includeDomains: document.getElementById('includeDomains')?.value?.split(',').map(d => d.trim()).filter(d => d) || [],
+      excludeDomains: document.getElementById('excludeDomains')?.value?.split(',').map(d => d.trim()).filter(d => d) || [],
+      urlPattern: document.getElementById('urlPattern')?.value?.trim() || '',
+      statusCodes: Array.from(document.querySelectorAll('input[name="statusFilter"]:checked'))
+        .map(cb => cb.value),
+      minResponseTime: parseInt(document.getElementById('minResponseTime')?.value) || 0,
+      maxResponseTime: parseInt(document.getElementById('maxResponseTime')?.value) || 0,
+      minSize: parseInt(document.getElementById('minSize')?.value) || 0,
+      maxSize: parseInt(document.getElementById('maxSize')?.value) || 0,
+    };
+    
+    // Save filter configuration
+    await chrome.runtime.sendMessage({
+      action: 'updateVisualizationFilters',
+      filters: filterConfig
+    });
+    
+    // Trigger dashboard refresh if on dashboard tab
+    const dashboardRefreshBtn = document.getElementById('dashboardRefresh');
+    if (dashboardRefreshBtn) {
+      dashboardRefreshBtn.click();
+    }
+    
+    showNotification('Filters applied to all visualizations');
+    
+    // Update status indicator
+    const statusIndicator = document.getElementById('filterApplyStatus');
+    if (statusIndicator) {
+      statusIndicator.className = 'status-indicator active';
+      statusIndicator.title = 'Filters applied';
+    }
+  } catch (error) {
+    console.error('Failed to apply filters:', error);
+    showNotification('Failed to apply filters', true);
+  } finally {
+    if (applyBtn) {
+      applyBtn.disabled = false;
+      applyBtn.innerHTML = '<i class="fas fa-check"></i> Apply to Visualizations';
+    }
+  }
+}
+
+// Clear All Filters
+const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+if (clearFiltersBtn) {
+  clearFiltersBtn.addEventListener('click', () => {
+    document.querySelectorAll('input[name="captureType"]').forEach(cb => cb.checked = true);
+    document.querySelectorAll('input[name="statusFilter"]').forEach(cb => cb.checked = true);
+    
+    const includeDomains = document.getElementById('includeDomains');
+    const excludeDomains = document.getElementById('excludeDomains');
+    const urlPattern = document.getElementById('urlPattern');
+    const minResponseTime = document.getElementById('minResponseTime');
+    const maxResponseTime = document.getElementById('maxResponseTime');
+    const minSize = document.getElementById('minSize');
+    const maxSize = document.getElementById('maxSize');
+    
+    if (includeDomains) includeDomains.value = '';
+    if (excludeDomains) excludeDomains.value = '';
+    if (urlPattern) urlPattern.value = '';
+    if (minResponseTime) minResponseTime.value = '';
+    if (maxResponseTime) maxResponseTime.value = '';
+    if (minSize) minSize.value = '';
+    if (maxSize) maxSize.value = '';
+    
+    updateActiveFiltersSummary();
+    showNotification('All filters cleared');
+    
+    // Auto-apply if enabled
+    const autoApply = document.getElementById('autoApplyFilters');
+    if (autoApply && autoApply.checked) {
+      applyFiltersToVisualizations();
+    }
+  });
+}
+
+// Apply Filters Button
+const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+if (applyFiltersBtn) {
+  applyFiltersBtn.addEventListener('click', applyFiltersToVisualizations);
+}
+
+// Auto-apply toggle
+const autoApplyFilters = document.getElementById('autoApplyFilters');
+if (autoApplyFilters) {
+  autoApplyFilters.addEventListener('change', () => {
+    const statusIndicator = document.getElementById('filterApplyStatus');
+    if (statusIndicator) {
+      if (autoApplyFilters.checked) {
+        statusIndicator.className = 'status-indicator active';
+        statusIndicator.title = 'Auto-apply enabled';
+        applyFiltersToVisualizations();
+      } else {
+        statusIndicator.className = 'status-indicator inactive';
+        statusIndicator.title = 'Auto-apply disabled';
+      }
+    }
+  });
+}
+
+// Add change listeners to all filter inputs for auto-apply
+const filterInputs = [
+  ...document.querySelectorAll('input[name="captureType"]'),
+  ...document.querySelectorAll('input[name="statusFilter"]'),
+  document.getElementById('includeDomains'),
+  document.getElementById('excludeDomains'),
+  document.getElementById('urlPattern'),
+  document.getElementById('minResponseTime'),
+  document.getElementById('maxResponseTime'),
+  document.getElementById('minSize'),
+  document.getElementById('maxSize'),
+].filter(el => el);
+
+filterInputs.forEach(input => {
+  const eventType = input.type === 'checkbox' ? 'change' : 'blur';
+  input.addEventListener(eventType, () => {
+    updateActiveFiltersSummary();
+    
+    const autoApply = document.getElementById('autoApplyFilters');
+    if (autoApply && autoApply.checked) {
+      // Debounce auto-apply for text inputs
+      if (input.type !== 'checkbox') {
+        clearTimeout(window.filterApplyTimeout);
+        window.filterApplyTimeout = setTimeout(() => {
+          applyFiltersToVisualizations();
+        }, 1000);
+      } else {
+        applyFiltersToVisualizations();
+      }
+    }
+  });
+});
+
+// URL Pattern validation
+const urlPattern = document.getElementById('urlPattern');
+if (urlPattern) {
+  urlPattern.addEventListener('blur', () => {
+    const pattern = urlPattern.value.trim();
+    const errorEl = document.getElementById('urlPatternError');
+    
+    if (pattern && errorEl) {
+      try {
+        new RegExp(pattern);
+        errorEl.textContent = '';
+      } catch (e) {
+        errorEl.textContent = `Invalid regex pattern: ${e.message}`;
+      }
+    }
+  });
+}
 
 // Domain Validation
 function validateDomains(domainString) {
@@ -1138,6 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeDashboard();
   updateStorageUsage();
   loadLastExportTime();
+  updateActiveFiltersSummary(); // Initialize filter summary
   
   // Update storage usage when max changes
   const maxInput = document.getElementById('maxStoredRequests');

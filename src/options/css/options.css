@@ -910,3 +910,74 @@ code {
   display: block;
   margin-top: 4px;
 }
+
+/* Filter Auto-Apply */
+.filter-auto-apply {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: #e8f5e9;
+  border-left: 4px solid #4CAF50;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.filter-auto-apply label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Status Filter Group */
+.status-filter-group {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Filter Status Box */
+.filter-status-box {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+.filter-status-box h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #667eea;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-status-box .placeholder {
+  color: #999;
+  font-style: italic;
+  margin: 0;
+}
+
+#activeFiltersSummary {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+#activeFiltersSummary ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+#activeFiltersSummary li {
+  margin: 4px 0;
+}
+
+/* Advanced filter inputs */
+input[type="number"] {
+  max-width: 200px;
+}

@@ -279,6 +279,17 @@
         <div class="options-container">
           <div class="option-section">
             <h2>Capture Filters</h2>
+            <p class="description">Configure what requests to capture. Changes are automatically applied to all visualizations.</p>
+            
+            <div class="filter-auto-apply">
+              <label>
+                <input type="checkbox" id="autoApplyFilters" checked>
+                <span>Auto-apply filters to all visualizations</span>
+              </label>
+              <span class="status-indicator active" id="filterApplyStatus"></span>
+            </div>
+
+            <h3><i class="fas fa-network-wired"></i> Request Types</h3>
             <div class="option-row">
               <label>Request Types to Capture:</label>
               <div class="checkbox-group">
@@ -305,6 +316,8 @@
                 </label>
               </div>
             </div>
+
+            <h3><i class="fas fa-globe"></i> Domain Filters</h3>
             <div class="option-row">
               <label for="includeDomains">Include Domains (comma separated):</label>
               <input type="text" id="includeDomains" placeholder="example.com, api.example.com (leave empty for all)">
@@ -317,18 +330,82 @@
               <span id="excludeDomainsError" class="error-message"></span>
               <p class="help-text">Wildcard support: *.analytics.com matches all subdomains</p>
             </div>
+
+            <h3><i class="fas fa-cogs"></i> Advanced Filters</h3>
+            <div class="option-row">
+              <label for="urlPattern">URL Pattern (Regex):</label>
+              <input type="text" id="urlPattern" placeholder="/api/.*|/graphql.*">
+              <span id="urlPatternError" class="error-message"></span>
+              <p class="help-text">JavaScript regex pattern to match request URLs</p>
+            </div>
+            
+            <div class="option-row">
+              <label>HTTP Status Codes:</label>
+              <div class="status-filter-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="2xx" checked> 2xx Success
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="3xx" checked> 3xx Redirect
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="4xx" checked> 4xx Client Error
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="statusFilter" value="5xx" checked> 5xx Server Error
+                </label>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <label for="minResponseTime">Min Response Time (ms):</label>
+              <input type="number" id="minResponseTime" min="0" placeholder="0">
+            </div>
+
+            <div class="option-row">
+              <label for="maxResponseTime">Max Response Time (ms):</label>
+              <input type="number" id="maxResponseTime" min="0" placeholder="Leave empty for no limit">
+            </div>
+
+            <div class="option-row">
+              <label for="minSize">Min Response Size (bytes):</label>
+              <input type="number" id="minSize" min="0" placeholder="0">
+            </div>
+
+            <div class="option-row">
+              <label for="maxSize">Max Response Size (bytes):</label>
+              <input type="number" id="maxSize" min="0" placeholder="Leave empty for no limit">
+            </div>
+
+            <h3><i class="fas fa-flask"></i> Filter Actions</h3>
             <div class="option-row">
               <button id="testFiltersBtn" class="secondary-btn">
                 <i class="fas fa-vial"></i> Test Filters
               </button>
+              <button id="applyFiltersBtn" class="btn-primary">
+                <i class="fas fa-check"></i> Apply to Visualizations
+              </button>
+              <button id="clearFiltersBtn" class="secondary-btn">
+                <i class="fas fa-eraser"></i> Clear All Filters
+              </button>
               <span id="filterTestResult" class="help-text"></span>
             </div>
+            
             <div class="option-row">
               <label>Filter Presets:</label>
               <div class="preset-buttons">
                 <button class="filter-preset-btn" data-preset="api">API Only</button>
                 <button class="filter-preset-btn" data-preset="noImages">No Images/Fonts</button>
+                <button class="filter-preset-btn" data-preset="errors">Errors Only</button>
+                <button class="filter-preset-btn" data-preset="slow">Slow Requests</button>
                 <button class="filter-preset-btn" data-preset="all">Capture All</button>
+              </div>
+            </div>
+
+            <div class="filter-status-box">
+              <h4><i class="fas fa-info-circle"></i> Active Filters Summary</h4>
+              <div id="activeFiltersSummary">
+                <p class="placeholder">No filters applied. Showing all requests.</p>
               </div>
             </div>
           </div>
