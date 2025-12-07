@@ -11,7 +11,7 @@ export class AnalyticsProcessor {
   constructor(db, eventBus) {
     this.db = db;
     this.eventBus = eventBus;
-    this.supportedTimeframes = ['1min', '5min', '15min', '1h', '4h', '1d', '1w', '1m'];
+    this.supportedTimeframes = ['1min', '5min', '15min', '30min', '1h', '4h', '1d'];
   }
 
   /**
@@ -431,11 +431,10 @@ export class AnalyticsProcessor {
       '1min': 'period_1min',
       '5min': 'period_5min',
       '15min': 'period_15min',
+      '30min': 'period_30min',
       '1h': 'period_1h',
       '4h': 'period_4h',
-      '1d': 'period_1d',
-      '1w': 'period_1w',
-      '1m': 'period_1m'
+      '1d': 'period_1d'
     };
     
     return mapping[timeframe] || 'period_1h';
@@ -449,11 +448,10 @@ export class AnalyticsProcessor {
       '1min': 60000,
       '5min': 300000,
       '15min': 900000,
+      '30min': 1800000,
       '1h': 3600000,
       '4h': 14400000,
-      '1d': 86400000,
-      '1w': 604800000,
-      '1m': 2592000000 // Approximate
+      '1d': 86400000
     };
     
     return period * (durations[timeframe] || 3600000);

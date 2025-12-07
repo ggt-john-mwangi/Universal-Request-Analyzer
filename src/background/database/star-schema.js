@@ -11,7 +11,8 @@
 
 /**
  * Create time dimension table
- * Supports multiple timeframes: 1min, 5min, 15min, 1h, 4h, 1d, 1w, 1m
+ * Supports multiple timeframes: 1min, 5min, 15min, 30min, 1h, 4h, 1d
+ * Note: Removed 1w and 1m as web requests complete in ms-seconds, not weeks/months
  */
 export function createTimeDimension(db) {
   db.exec(`
@@ -32,15 +33,15 @@ export function createTimeDimension(db) {
       period_1min INTEGER NOT NULL,
       period_5min INTEGER NOT NULL,
       period_15min INTEGER NOT NULL,
+      period_30min INTEGER NOT NULL,
       period_1h INTEGER NOT NULL,
       period_4h INTEGER NOT NULL,
-      period_1d INTEGER NOT NULL,
-      period_1w INTEGER NOT NULL,
-      period_1m INTEGER NOT NULL
+      period_1d INTEGER NOT NULL
     )
   `);
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_dim_time_timestamp ON dim_time(timestamp)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_dim_time_period_15min ON dim_time(period_15min)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_dim_time_period_1h ON dim_time(period_1h)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_dim_time_period_4h ON dim_time(period_4h)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_dim_time_period_1d ON dim_time(period_1d)`);
@@ -232,7 +233,7 @@ export function createOHLCFactTable(db) {
       
       -- Time dimension
       time_key INTEGER NOT NULL,
-      period_type TEXT NOT NULL CHECK(period_type IN ('1min', '5min', '15min', '1h', '4h', '1d', '1w', '1m')),
+      period_type TEXT NOT NULL CHECK(period_type IN ('1min', '5min', '15min', '30min', '1h', '4h', '1d')),
       
       -- Optional dimensions for drill-down
       domain_key INTEGER,
@@ -424,11 +425,10 @@ export function getOrCreateTimeDimensionKey(db, timestamp) {
   const period1min = Math.floor(timestamp / 60000); // 1 minute
   const period5min = Math.floor(timestamp / 300000); // 5 minutes
   const period15min = Math.floor(timestamp / 900000); // 15 minutes
+  const period30min = Math.floor(timestamp / 1800000); // 30 minutes
   const period1h = Math.floor(timestamp / 3600000); // 1 hour
   const period4h = Math.floor(timestamp / 14400000); // 4 hours
   const period1d = Math.floor(timestamp / 86400000); // 1 day
-  const period1w = Math.floor(timestamp / 604800000); // 1 week
-  const period1m = year * 12 + month; // Month number
   
   const dayOfWeek = date.getDay();
   const startOfYear = new Date(year, 0, 1);
@@ -442,14 +442,14 @@ export function getOrCreateTimeDimensionKey(db, timestamp) {
     INSERT INTO dim_time (
       timestamp, year, quarter, month, week, day, hour, minute,
       day_of_week, day_of_year, is_weekend, is_business_hour,
-      period_1min, period_5min, period_15min, period_1h, period_4h,
-      period_1d, period_1w, period_1m
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      period_1min, period_5min, period_15min, period_30min, period_1h, period_4h,
+      period_1d
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     timestamp, year, quarter, month, Math.floor(dayOfYear / 7), day, hour, minute,
     dayOfWeek, dayOfYear, isWeekend ? 1 : 0, isBusinessHour ? 1 : 0,
-    period1min, period5min, period15min, period1h, period4h,
-    period1d, period1w, period1m
+    period1min, period5min, period15min, period30min, period1h, period4h,
+    period1d
   ]);
   
   // Get the inserted key
