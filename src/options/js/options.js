@@ -99,6 +99,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log('Options page: Rendering theme options...');
     renderThemeOptions();
     
+    // Initialize advanced tab
+    console.log('Options page: Initializing advanced tab...');
+    initializeAdvancedTab();
+    
     console.log('Options page: Initialization complete!');
   } catch (error) {
     console.error("Error initializing options:", error);
@@ -826,8 +830,3 @@ async function loadAdvancedStats() {
     console.error('Failed to load advanced stats:', error);
   }
 }
-
-// Call this when the advanced tab is shown
-document.addEventListener('DOMContentLoaded', () => {
-  initializeAdvancedTab();
-});
