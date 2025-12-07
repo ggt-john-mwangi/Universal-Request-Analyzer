@@ -88,6 +88,12 @@
             <h2><i class="fas fa-tachometer-alt"></i> Performance Dashboard</h2>
             <div class="dashboard-controls">
               <label>
+                <span style="margin-right: 5px;">Site Filter:</span>
+                <select id="dashboardSiteFilter" style="min-width: 200px;">
+                  <option value="all">All Sites</option>
+                </select>
+              </label>
+              <label>
                 <input type="checkbox" id="dashboardAutoRefresh" checked>
                 <span>Auto-refresh (30s)</span>
               </label>
@@ -233,6 +239,65 @@
                 <button class="preset-btn" data-value="10000">Medium (10K)</button>
                 <button class="preset-btn" data-value="50000">Heavy (50K)</button>
                 <button class="preset-btn" data-value="100000">Max (100K)</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="option-section">
+            <h2><i class="fas fa-globe-americas"></i> Site Tracking Configuration</h2>
+            <p class="description">Configure specific sites to track for analysis. Content scripts will filter data based on these sites.</p>
+            
+            <div class="option-row">
+              <label for="trackingSites">Sites to Track:</label>
+              <textarea id="trackingSites" rows="6" placeholder="Enter one site pattern per line, e.g.:
+https://example.com
+https://*.github.com
+/api\.example\.com/ (regex)
+*.mysite.com
+example.org/api/*"></textarea>
+              <p class="help-text">
+                <strong>Supported formats:</strong><br>
+                • Full URLs: https://example.com<br>
+                • Wildcards: *.example.com or example.com/*<br>
+                • Regex patterns: /pattern/ (between slashes)<br>
+                • Mixed: https://*.api.example.com/v1/*
+              </p>
+            </div>
+
+            <div class="option-row">
+              <button id="validateSitesBtn" class="secondary-btn">
+                <i class="fas fa-check-circle"></i> Validate Patterns
+              </button>
+              <button id="addCurrentSiteBtn" class="secondary-btn">
+                <i class="fas fa-plus"></i> Add Current Site
+              </button>
+              <span id="sitesValidationResult" class="help-text"></span>
+            </div>
+
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="trackOnlyConfiguredSites" checked>
+                <span>Track ONLY configured sites (if unchecked, tracks all sites)</span>
+              </label>
+            </div>
+
+            <div class="tracked-sites-box" style="margin-top: 15px; padding: 12px; background: #f0f8ff; border-left: 4px solid #667eea; border-radius: 4px;">
+              <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #667eea;">
+                <i class="fas fa-info-circle"></i> Currently Tracked Sites
+              </h4>
+              <div id="trackedSitesList">
+                <p class="placeholder" style="color: #999; font-style: italic; margin: 0;">
+                  No sites configured. Add sites above to start tracking specific URLs.
+                </p>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <label>Quick Site Presets:</label>
+              <div class="preset-buttons">
+                <button class="site-preset-btn" data-preset="current">Add Current Tab</button>
+                <button class="site-preset-btn" data-preset="popular">Popular APIs</button>
+                <button class="site-preset-btn" data-preset="clear">Clear All</button>
               </div>
             </div>
           </div>

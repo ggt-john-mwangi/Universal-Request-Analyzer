@@ -1508,6 +1508,8 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStorageUsage();
   loadLastExportTime();
   updateActiveFiltersSummary(); // Initialize filter summary
+  loadTrackedSites(); // Initialize site tracking
+  populateSiteFilterDropdown(); // Initialize dashboard site filter
   
   // Update storage usage when max changes
   const maxInput = document.getElementById('maxStoredRequests');
@@ -1518,3 +1520,282 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update storage usage periodically
   setInterval(updateStorageUsage, 10000); // Every 10 seconds
 });
+
+// Site Tracking Configuration
+async function loadTrackedSites() {
+  const trackingSites = document.getElementById('trackingSites');
+  const trackedSitesList = document.getElementById('trackedSitesList');
+  
+  if (!trackingSites) return;
+  
+  try {
+    const result = await chrome.storage.local.get('trackingSites');
+    const sites = result.trackingSites || [];
+    
+    if (sites.length > 0) {
+      trackingSites.value = sites.join('\n');
+      updateTrackedSitesList(sites);
+    }
+  } catch (error) {
+    console.error('Failed to load tracked sites:', error);
+  }
+}
+
+function updateTrackedSitesList(sites) {
+  const trackedSitesList = document.getElementById('trackedSitesList');
+  if (!trackedSitesList) return;
+  
+  if (sites.length === 0) {
+    trackedSitesList.innerHTML = '<p class="placeholder" style="color: #999; font-style: italic; margin: 0;">No sites configured. Add sites above to start tracking specific URLs.</p>';
+    return;
+  }
+  
+  let html = '<ul style="margin: 5px 0; padding-left: 20px; font-size: 13px; line-height: 1.8;">';
+  sites.forEach(site => {
+    const isRegex = site.startsWith('/') && site.endsWith('/');
+    const icon = isRegex ? 'fa-code' : site.includes('*') ? 'fa-asterisk' : 'fa-link';
+    html += `<li><i class="fas ${icon}" style="color: #667eea; margin-right: 5px;"></i> <code style="background: #e8f0fe; padding: 2px 6px; border-radius: 3px;">${site}</code></li>`;
+  });
+  html += '</ul>';
+  trackedSitesList.innerHTML = html;
+}
+
+function validateSitePatterns(patterns) {
+  const results = {
+    valid: [],
+    invalid: [],
+    warnings: []
+  };
+  
+  patterns.forEach(pattern => {
+    if (!pattern.trim()) return;
+    
+    pattern = pattern.trim();
+    
+    // Check if it's a regex pattern
+    if (pattern.startsWith('/') && pattern.endsWith('/')) {
+      try {
+        new RegExp(pattern.slice(1, -1));
+        results.valid.push(pattern);
+      } catch (e) {
+        results.invalid.push({ pattern, error: `Invalid regex: ${e.message}` });
+      }
+    }
+    // Check if it's a wildcard pattern
+    else if (pattern.includes('*')) {
+      // Convert wildcard to regex for validation
+      const regexPattern = pattern
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*');
+      try {
+        new RegExp(regexPattern);
+        results.valid.push(pattern);
+      } catch (e) {
+        results.invalid.push({ pattern, error: 'Invalid wildcard pattern' });
+      }
+    }
+    // Check if it's a URL
+    else {
+      try {
+        // Try to parse as URL
+        if (pattern.startsWith('http://') || pattern.startsWith('https://')) {
+          new URL(pattern);
+          results.valid.push(pattern);
+        } else {
+          // Assume it's a domain pattern
+          const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?/;
+          if (domainRegex.test(pattern)) {
+            results.valid.push(pattern);
+            results.warnings.push({ pattern, warning: 'Domain pattern without protocol. Consider adding https://' });
+          } else {
+            results.invalid.push({ pattern, error: 'Invalid URL or domain format' });
+          }
+        }
+      } catch (e) {
+        results.invalid.push({ pattern, error: 'Invalid URL format' });
+      }
+    }
+  });
+  
+  return results;
+}
+
+// Validate Sites Button
+const validateSitesBtn = document.getElementById('validateSitesBtn');
+if (validateSitesBtn) {
+  validateSitesBtn.addEventListener('click', () => {
+    const trackingSites = document.getElementById('trackingSites');
+    const resultEl = document.getElementById('sitesValidationResult');
+    
+    if (!trackingSites || !resultEl) return;
+    
+    const patterns = trackingSites.value.split('\n').filter(p => p.trim());
+    
+    if (patterns.length === 0) {
+      resultEl.textContent = '⚠️ No patterns to validate';
+      resultEl.style.color = '#ff9800';
+      return;
+    }
+    
+    const validation = validateSitePatterns(patterns);
+    
+    if (validation.invalid.length > 0) {
+      resultEl.innerHTML = `❌ ${validation.invalid.length} invalid pattern(s): ${validation.invalid[0].pattern} - ${validation.invalid[0].error}`;
+      resultEl.style.color = '#f44336';
+    } else if (validation.warnings.length > 0) {
+      resultEl.innerHTML = `⚠️ ${validation.valid.length} valid, ${validation.warnings.length} warning(s)`;
+      resultEl.style.color = '#ff9800';
+    } else {
+      resultEl.innerHTML = `✅ All ${validation.valid.length} pattern(s) valid`;
+      resultEl.style.color = '#4CAF50';
+    }
+    
+    // Save valid patterns
+    if (validation.valid.length > 0) {
+      chrome.storage.local.set({ trackingSites: validation.valid });
+      updateTrackedSitesList(validation.valid);
+      
+      // Notify content scripts to update tracking
+      chrome.runtime.sendMessage({
+        action: 'updateTrackingSites',
+        sites: validation.valid
+      });
+      
+      // Update dashboard dropdown
+      populateSiteFilterDropdown();
+    }
+  });
+}
+
+// Add Current Site Button
+const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
+if (addCurrentSiteBtn) {
+  addCurrentSiteBtn.addEventListener('click', async () => {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs.length > 0 && tabs[0].url) {
+        const url = new URL(tabs[0].url);
+        const site = `${url.protocol}//${url.hostname}`;
+        
+        const trackingSites = document.getElementById('trackingSites');
+        if (trackingSites) {
+          const currentSites = trackingSites.value.trim();
+          trackingSites.value = currentSites ? `${currentSites}\n${site}` : site;
+          showNotification(`Added: ${site}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to add current site:', error);
+      showNotification('Failed to add current site', true);
+    }
+  });
+}
+
+// Track Only Configured Sites Toggle
+const trackOnlyConfigured = document.getElementById('trackOnlyConfiguredSites');
+if (trackOnlyConfigured) {
+  // Load saved setting
+  chrome.storage.local.get('trackOnlyConfiguredSites').then(result => {
+    trackOnlyConfigured.checked = result.trackOnlyConfiguredSites !== false; // Default true
+  });
+  
+  trackOnlyConfigured.addEventListener('change', () => {
+    chrome.storage.local.set({ trackOnlyConfiguredSites: trackOnlyConfigured.checked });
+    chrome.runtime.sendMessage({
+      action: 'updateTrackingMode',
+      trackOnlyConfigured: trackOnlyConfigured.checked
+    });
+  });
+}
+
+// Site Preset Buttons
+document.querySelectorAll('.site-preset-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const preset = btn.dataset.preset;
+    const trackingSites = document.getElementById('trackingSites');
+    
+    if (!trackingSites) return;
+    
+    if (preset === 'current') {
+      // Trigger add current site
+      document.getElementById('addCurrentSiteBtn')?.click();
+    } else if (preset === 'popular') {
+      const popularSites = [
+        'https://api.github.com',
+        'https://*.googleapis.com',
+        'https://api.twitter.com',
+        'https://graph.facebook.com',
+        'https://*.stripe.com',
+        '/api\\./',  // Matches any URL with /api/ path
+      ].join('\n');
+      trackingSites.value = trackingSites.value ? `${trackingSites.value}\n${popularSites}` : popularSites;
+      showNotification('Added popular API sites');
+    } else if (preset === 'clear') {
+      if (confirm('Clear all tracked sites?')) {
+        trackingSites.value = '';
+        chrome.storage.local.set({ trackingSites: [] });
+        updateTrackedSitesList([]);
+        showNotification('All sites cleared');
+      }
+    }
+  });
+});
+
+// Dashboard Site Filter Dropdown
+async function populateSiteFilterDropdown() {
+  const dropdown = document.getElementById('dashboardSiteFilter');
+  if (!dropdown) return;
+  
+  try {
+    const result = await chrome.storage.local.get('trackingSites');
+    const sites = result.trackingSites || [];
+    
+    // Clear existing options except "All Sites"
+    dropdown.innerHTML = '<option value="all">All Sites</option>';
+    
+    // Add each tracked site as an option
+    sites.forEach(site => {
+      const option = document.createElement('option');
+      option.value = site;
+      option.textContent = site;
+      dropdown.appendChild(option);
+    });
+    
+    // Add change listener to filter dashboard
+    dropdown.addEventListener('change', () => {
+      const selectedSite = dropdown.value;
+      filterDashboardBySite(selectedSite);
+    });
+  } catch (error) {
+    console.error('Failed to populate site filter:', error);
+  }
+}
+
+async function filterDashboardBySite(site) {
+  const loadingEl = document.getElementById('dashboardLoading');
+  if (loadingEl) loadingEl.style.display = 'block';
+  
+  try {
+    // Send filter request to background
+    const response = await chrome.runtime.sendMessage({
+      action: 'filterDashboardBySite',
+      site: site === 'all' ? null : site
+    });
+    
+    if (response && response.success) {
+      // Refresh dashboard with filtered data
+      const dashboardRefreshBtn = document.getElementById('dashboardRefresh');
+      if (dashboardRefreshBtn) {
+        dashboardRefreshBtn.click();
+      }
+      
+      const siteName = site === 'all' ? 'all sites' : site;
+      showNotification(`Dashboard filtered to: ${siteName}`);
+    }
+  } catch (error) {
+    console.error('Failed to filter dashboard:', error);
+    showNotification('Failed to filter dashboard', true);
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
