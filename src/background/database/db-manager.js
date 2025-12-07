@@ -121,10 +121,35 @@ export function logErrorToDatabase(db, error) {
 }
 
 // Initialize the database
-export async function initDatabase(dbConfig, encryptionMgr, events) {
+export async function initDatabase(dbConfig = {}, encryptionMgr = null, events = null) {
   try {
     encryptionManager = encryptionMgr;
-    eventBus = events;
+    
+    // Create a default event bus if not provided
+    if (!events) {
+      const subscribers = new Map();
+      eventBus = {
+        subscribe: (event, callback) => {
+          if (!subscribers.has(event)) {
+            subscribers.set(event, []);
+          }
+          subscribers.get(event).push(callback);
+        },
+        publish: (event, data) => {
+          if (subscribers.has(event)) {
+            subscribers.get(event).forEach(callback => {
+              try {
+                callback(data);
+              } catch (error) {
+                console.error(`Event handler error for ${event}:`, error);
+              }
+            });
+          }
+        }
+      };
+    } else {
+      eventBus = events;
+    }
 
     db = await initializeDatabase();
 

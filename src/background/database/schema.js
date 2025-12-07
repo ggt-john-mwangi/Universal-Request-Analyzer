@@ -1,6 +1,16 @@
 // Database schema definition
 
 export async function createTables(db) {
+  // Create db_version table first (required for migrations)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS db_version (
+      version INTEGER PRIMARY KEY,
+      description TEXT,
+      applied_at INTEGER,
+      status TEXT
+    )
+  `);
+
   // Create requests table
   db.exec(`
     CREATE TABLE IF NOT EXISTS requests (
