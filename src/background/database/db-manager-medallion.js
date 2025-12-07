@@ -448,3 +448,108 @@ export async function cleanup() {
   medallionManager = null;
   configManager = null;
 }
+
+/**
+ * Class wrapper for backward compatibility
+ */
+export class DatabaseManagerMedallion {
+  constructor() {
+    this.initialized = false;
+    this.dbApi = null;
+  }
+
+  async initialize(config = {}, encryptionMgr = null, events = null) {
+    if (this.initialized) {
+      console.warn('DatabaseManagerMedallion already initialized');
+      return this.dbApi;
+    }
+
+    try {
+      this.dbApi = await initDatabase(config, encryptionMgr, events);
+      this.initialized = true;
+      return this.dbApi;
+    } catch (error) {
+      console.error('Failed to initialize DatabaseManagerMedallion:', error);
+      throw error;
+    }
+  }
+
+  // Proxy methods to the API
+  executeQuery(...args) {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.executeQuery(...args);
+  }
+
+  executeTransaction(...args) {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.executeTransaction(...args);
+  }
+
+  async saveDatabase() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.saveDatabase();
+  }
+
+  getRequests(...args) {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.getRequests(...args);
+  }
+
+  saveRequest(...args) {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.saveRequest(...args);
+  }
+
+  getDatabaseSize() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.getDatabaseSize();
+  }
+
+  getDatabaseStats() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.getDatabaseStats();
+  }
+
+  exportDatabase() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.exportDatabase();
+  }
+
+  clearDatabase() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.clearDatabase();
+  }
+
+  vacuumDatabase() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.vacuumDatabase();
+  }
+
+  get medallion() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.medallion;
+  }
+
+  get config() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    return this.dbApi.config;
+  }
+
+  get db() {
+    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    // Return the module-level db instance that was initialized
+    return db;
+  }
+
+  get isReady() {
+    return this.initialized && this.dbApi !== null && db !== null;
+  }
+
+  async cleanup() {
+    if (this.initialized) {
+      await cleanup();
+      this.initialized = false;
+      this.dbApi = null;
+    }
+  }
+}

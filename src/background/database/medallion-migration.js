@@ -411,3 +411,138 @@ export async function isMedallionMigrationComplete(db) {
     return false;
   }
 }
+
+/**
+ * Migrate legacy data to medallion architecture
+ * Wrapper function for compatibility with background.js
+ */
+export async function migrateLegacyToMedallion(legacyDbManager, medallionDbManager) {
+  console.log('Starting legacy to medallion migration...');
+  
+  try {
+    // Ensure medallion database is fully initialized and ready
+    if (!medallionDbManager.isReady) {
+      console.log('Medallion database not yet ready, skipping migration for now');
+      return true;
+    }
+    
+    // Check if legacy data exists
+    const hasLegacyData = await checkLegacyDataInManager(legacyDbManager);
+    
+    if (!hasLegacyData) {
+      console.log('No legacy data found, migration skipped');
+      return true;
+    }
+    
+    // Get medallion manager from the API
+    const medallionManager = medallionDbManager.medallion;
+    if (!medallionManager) {
+      console.warn('Medallion manager not available, skipping migration');
+      return true;
+    }
+    
+    // Migrate legacy requests to bronze layer
+    await migrateLegacyRequestsFromManager(legacyDbManager, medallionManager);
+    console.log('✓ Legacy requests migrated to Bronze layer');
+    
+    console.log('✓ Legacy to medallion migration completed successfully');
+    return true;
+    
+  } catch (error) {
+    console.error('Legacy migration failed:', error);
+    // Don't throw - just log and continue
+    console.warn('Continuing without legacy migration');
+    return false;
+  }
+}
+
+/**
+ * Check if legacy data exists in the legacy database manager
+ */
+async function checkLegacyDataInManager(legacyDbManager) {
+  try {
+    const result = await legacyDbManager.executeQuery(`
+      SELECT COUNT(*) as count FROM sqlite_master 
+      WHERE type='table' AND name='requests'
+    `);
+    
+    if (!result || !result[0] || !result[0].values || !result[0].values[0]) {
+      return false;
+    }
+    
+    const tableExists = result[0].values[0][0] > 0;
+    
+    if (!tableExists) {
+      return false;
+    }
+    
+    // Check if there are any requests
+    const countResult = await legacyDbManager.executeQuery(`
+      SELECT COUNT(*) as count FROM requests
+    `);
+    
+    return countResult && countResult[0]?.values[0]?.[0] > 0;
+  } catch (error) {
+    console.error('Error checking legacy data:', error);
+    return false;
+  }
+}
+
+/**
+ * Migrate legacy requests from manager to medallion bronze layer
+ */
+async function migrateLegacyRequestsFromManager(legacyDbManager, medallionManager) {
+  try {
+    // Get all requests from legacy database
+    const requestsResult = await legacyDbManager.executeQuery(`
+      SELECT * FROM requests ORDER BY timestamp DESC LIMIT 10000
+    `);
+    
+    if (!requestsResult || !requestsResult[0] || !requestsResult[0].values) {
+      console.log('No requests to migrate');
+      return;
+    }
+    
+    const columns = requestsResult[0].columns;
+    const requests = requestsResult[0].values.map(row => {
+      const req = {};
+      columns.forEach((col, idx) => {
+        req[col] = row[idx];
+      });
+      return req;
+    });
+    
+    console.log(`Migrating ${requests.length} requests...`);
+    
+    // Insert into bronze layer using medallion manager
+    for (const request of requests) {
+      try {
+        await medallionManager.insertBronzeRequest({
+          id: request.id,
+          url: request.url,
+          method: request.method || 'GET',
+          type: request.type || 'other',
+          status: request.status,
+          statusText: request.statusText || '',
+          domain: request.domain || new URL(request.url).hostname,
+          path: request.path || new URL(request.url).pathname,
+          startTime: request.startTime || request.timestamp,
+          endTime: request.endTime || request.timestamp,
+          duration: request.duration || 0,
+          size: request.size || 0,
+          timestamp: request.timestamp,
+          tabId: request.tabId,
+          pageUrl: request.pageUrl,
+          error: request.error
+        });
+      } catch (error) {
+        console.warn(`Failed to migrate request ${request.id}:`, error.message);
+      }
+    }
+    
+    console.log(`✓ Migrated ${requests.length} requests to Bronze layer`);
+  } catch (error) {
+    console.error('Error migrating legacy requests:', error);
+    throw error;
+  }
+}

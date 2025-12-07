@@ -87,14 +87,16 @@ class IntegratedExtensionInitializer {
     console.log('→ Initializing Medallion Database...');
     
     try {
-      // Initialize legacy database first
-      this.dbManager = await initDatabase();
-      
-      // Initialize medallion database
+      // Step 1: Initialize medallion database FIRST
       this.medallionDb = new DatabaseManagerMedallion();
-      await this.medallionDb.initialize();
+      await this.medallionDb.initialize(null, null, this.eventBus);
+      console.log('✓ Medallion Database core initialized');
       
-      // Check if migration is needed
+      // Step 2: Initialize legacy database
+      this.dbManager = await initDatabase();
+      console.log('✓ Legacy Database initialized');
+      
+      // Step 3: Check if migration is needed
       const needsMigration = await this.checkLegacyData();
       if (needsMigration) {
         console.log('→ Migrating legacy data to medallion architecture...');
@@ -102,7 +104,7 @@ class IntegratedExtensionInitializer {
         console.log('✓ Legacy data migration complete');
       }
       
-      console.log('✓ Medallion Database initialized');
+      console.log('✓ Database initialization complete');
     } catch (error) {
       console.error('Database initialization failed:', error);
       throw error;
@@ -136,9 +138,13 @@ class IntegratedExtensionInitializer {
     this.configManager = new ConfigSchemaManager(this.medallionDb.db, this.eventBus);
     await this.configManager.initialize();
     
-    // Set default configurations
-    await this.configManager.setSetting('capture.enabled', true);
-    await this.configManager.setSetting('analytics.enabled', true);
+    // Set default configurations using the correct method name
+    try {
+      await this.configManager.setAppSetting('capture.enabled', true);
+      await this.configManager.setAppSetting('analytics.enabled', true);
+    } catch (error) {
+      console.warn('Failed to set default config:', error.message);
+    }
     
     console.log('✓ Configuration Manager initialized');
   }
@@ -147,6 +153,7 @@ class IntegratedExtensionInitializer {
     console.log('→ Initializing Medallion Manager...');
     
     this.medallionManager = new MedallionManager(this.medallionDb.db, this.eventBus);
+    await this.medallionManager.initialize();
     
     // Subscribe to Bronze layer events for automatic processing
     this.eventBus.subscribe('bronze:new_request', async (data) => {

@@ -12,6 +12,35 @@ export class ConfigSchemaManager {
     this.eventBus = eventBus;
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
+    this.initialized = false;
+  }
+
+  /**
+   * Initialize the configuration manager
+   */
+  async initialize() {
+    if (this.initialized) {
+      console.warn('ConfigSchemaManager already initialized');
+      return;
+    }
+
+    try {
+      // Verify config tables exist
+      const result = this.db.exec(`
+        SELECT COUNT(*) as count FROM sqlite_master 
+        WHERE type='table' AND name='config_app_settings'
+      `);
+      
+      if (!result || !result[0] || !result[0].values[0] || result[0].values[0][0] === 0) {
+        console.warn('Config tables not found');
+      }
+      
+      this.initialized = true;
+      console.log('ConfigSchemaManager initialized');
+    } catch (error) {
+      console.error('Failed to initialize ConfigSchemaManager:', error);
+      throw error;
+    }
   }
 
   /**

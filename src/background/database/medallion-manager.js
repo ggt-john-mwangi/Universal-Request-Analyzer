@@ -12,6 +12,35 @@ export class MedallionManager {
     this.eventBus = eventBus;
     this.processingQueue = [];
     this.isProcessing = false;
+    this.initialized = false;
+  }
+
+  /**
+   * Initialize the medallion manager
+   */
+  async initialize() {
+    if (this.initialized) {
+      console.warn('MedallionManager already initialized');
+      return;
+    }
+
+    try {
+      // Verify medallion tables exist
+      const result = this.db.exec(`
+        SELECT COUNT(*) as count FROM sqlite_master 
+        WHERE type='table' AND name IN ('bronze_requests', 'silver_requests', 'gold_daily_analytics')
+      `);
+      
+      if (!result || !result[0] || !result[0].values[0] || result[0].values[0][0] < 3) {
+        console.warn('Some medallion tables not found');
+      }
+      
+      this.initialized = true;
+      console.log('MedallionManager initialized');
+    } catch (error) {
+      console.error('Failed to initialize MedallionManager:', error);
+      throw error;
+    }
   }
 
   /**
@@ -21,34 +50,37 @@ export class MedallionManager {
     try {
       const now = Date.now();
       
+      // Helper function to convert undefined to null
+      const toSqlValue = (val) => val === undefined ? null : val;
+      
       this.db.exec(`
-        INSERT INTO bronze_requests (
+        INSERT OR REPLACE INTO bronze_requests (
           id, url, method, type, status, status_text, domain, path,
           query_string, protocol, start_time, end_time, duration,
           size_bytes, timestamp, tab_id, frame_id, page_url,
           initiator, error, from_cache, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        requestData.id,
-        requestData.url,
-        requestData.method,
-        requestData.type,
-        requestData.status,
-        requestData.statusText,
-        requestData.domain,
-        requestData.path,
-        requestData.queryString,
-        requestData.protocol,
-        requestData.startTime,
-        requestData.endTime,
-        requestData.duration,
-        requestData.sizeBytes,
-        requestData.timestamp || now,
-        requestData.tabId,
-        requestData.frameId,
-        requestData.pageUrl,
-        requestData.initiator,
-        requestData.error,
+        toSqlValue(requestData.id),
+        toSqlValue(requestData.url),
+        toSqlValue(requestData.method) || 'GET',
+        toSqlValue(requestData.type) || 'other',
+        toSqlValue(requestData.status),
+        toSqlValue(requestData.statusText),
+        toSqlValue(requestData.domain),
+        toSqlValue(requestData.path),
+        toSqlValue(requestData.queryString),
+        toSqlValue(requestData.protocol),
+        toSqlValue(requestData.startTime),
+        toSqlValue(requestData.endTime),
+        toSqlValue(requestData.duration) || 0,
+        toSqlValue(requestData.sizeBytes) || 0,
+        toSqlValue(requestData.timestamp) || now,
+        toSqlValue(requestData.tabId),
+        toSqlValue(requestData.frameId),
+        toSqlValue(requestData.pageUrl),
+        toSqlValue(requestData.initiator),
+        toSqlValue(requestData.error),
         requestData.fromCache ? 1 : 0,
         now
       ]);
@@ -90,6 +122,9 @@ export class MedallionManager {
     try {
       const now = Date.now();
       
+      // Helper function to convert undefined to null or 0 for numeric values
+      const toNumeric = (val) => (val === undefined || val === null) ? 0 : val;
+      
       this.db.exec(`
         INSERT INTO bronze_request_timings (
           request_id, dns_start, dns_end, dns_duration,
@@ -101,11 +136,11 @@ export class MedallionManager {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         requestId,
-        timings.dnsStart, timings.dnsEnd, timings.dnsDuration,
-        timings.tcpStart, timings.tcpEnd, timings.tcpDuration,
-        timings.sslStart, timings.sslEnd, timings.sslDuration,
-        timings.requestStart, timings.requestEnd, timings.requestDuration,
-        timings.responseStart, timings.responseEnd, timings.responseDuration,
+        toNumeric(timings.dnsStart), toNumeric(timings.dnsEnd), toNumeric(timings.dnsDuration),
+        toNumeric(timings.tcpStart), toNumeric(timings.tcpEnd), toNumeric(timings.tcpDuration),
+        toNumeric(timings.sslStart), toNumeric(timings.sslEnd), toNumeric(timings.sslDuration),
+        toNumeric(timings.requestStart), toNumeric(timings.requestEnd), toNumeric(timings.requestDuration),
+        toNumeric(timings.responseStart), toNumeric(timings.responseEnd), toNumeric(timings.responseDuration),
         now
       ]);
     } catch (error) {
@@ -119,20 +154,23 @@ export class MedallionManager {
    */
   async insertBronzeEvent(eventData) {
     try {
+      // Helper function to convert undefined to null
+      const toSqlValue = (val) => val === undefined ? null : val;
+      
       this.db.exec(`
         INSERT INTO bronze_events (
           event_type, event_name, source, data,
           request_id, user_id, session_id, timestamp
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        eventData.eventType,
-        eventData.eventName,
-        eventData.source,
+        toSqlValue(eventData.eventType),
+        toSqlValue(eventData.eventName),
+        toSqlValue(eventData.source),
         eventData.data ? JSON.stringify(eventData.data) : null,
-        eventData.requestId,
-        eventData.userId,
-        eventData.sessionId,
-        eventData.timestamp || Date.now()
+        toSqlValue(eventData.requestId),
+        toSqlValue(eventData.userId),
+        toSqlValue(eventData.sessionId),
+        toSqlValue(eventData.timestamp) || Date.now()
       ]);
     } catch (error) {
       console.error('Failed to insert bronze event:', error);
@@ -145,20 +183,23 @@ export class MedallionManager {
    */
   async insertBronzeError(errorData) {
     try {
+      // Helper function to convert undefined to null
+      const toSqlValue = (val) => val === undefined ? null : val;
+      
       this.db.exec(`
         INSERT INTO bronze_errors (
           error_type, message, stack, source,
           request_id, user_id, severity, timestamp
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        errorData.errorType,
-        errorData.message,
-        errorData.stack,
-        errorData.source,
-        errorData.requestId,
-        errorData.userId,
-        errorData.severity || 'medium',
-        errorData.timestamp || Date.now()
+        toSqlValue(errorData.errorType),
+        toSqlValue(errorData.message),
+        toSqlValue(errorData.stack),
+        toSqlValue(errorData.source),
+        toSqlValue(errorData.requestId),
+        toSqlValue(errorData.userId),
+        toSqlValue(errorData.severity) || 'medium',
+        toSqlValue(errorData.timestamp) || Date.now()
       ]);
     } catch (error) {
       console.error('Failed to insert bronze error:', error);
@@ -220,6 +261,14 @@ export class MedallionManager {
       
       const now = Date.now();
       
+      // Helper function to convert undefined/null to default or null
+      const toSqlValue = (val, defaultVal = null) => {
+        if (val === undefined || val === null) {
+          return defaultVal;
+        }
+        return val;
+      };
+      
       // Insert into Silver
       this.db.exec(`
         INSERT OR REPLACE INTO silver_requests (
@@ -230,25 +279,25 @@ export class MedallionManager {
           quality_score, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        request.id,
-        request.url,
-        request.method,
-        request.type,
-        request.status,
-        request.status_text,
-        request.domain,
-        request.path,
-        request.protocol,
-        request.duration,
-        request.size_bytes,
-        request.timestamp,
-        request.tab_id,
-        request.page_url,
+        toSqlValue(request.id),
+        toSqlValue(request.url),
+        toSqlValue(request.method, 'GET'),
+        toSqlValue(request.type, 'other'),
+        toSqlValue(request.status, 0),
+        toSqlValue(request.status_text, ''),
+        toSqlValue(request.domain),
+        toSqlValue(request.path),
+        toSqlValue(request.protocol),
+        toSqlValue(request.duration, 0),
+        toSqlValue(request.size_bytes, 0),
+        toSqlValue(request.timestamp, now),
+        toSqlValue(request.tab_id),
+        toSqlValue(request.page_url),
         enrichedData.isThirdParty ? 1 : 0,
         enrichedData.isSecure ? 1 : 0,
         enrichedData.hasError ? 1 : 0,
-        enrichedData.performanceScore,
-        enrichedData.qualityScore,
+        toSqlValue(enrichedData.performanceScore, 0),
+        toSqlValue(enrichedData.qualityScore, 0),
         now,
         now
       ]);
@@ -288,6 +337,9 @@ export class MedallionManager {
       const timing = this.mapResultToObject(timings[0]);
       const now = Date.now();
 
+      // Helper function to convert undefined to 0 for numeric values
+      const toNumeric = (val) => (val === undefined || val === null) ? 0 : val;
+
       this.db.exec(`
         INSERT OR REPLACE INTO silver_request_metrics (
           request_id, total_time, dns_time, tcp_time,
@@ -295,12 +347,12 @@ export class MedallionManager {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         requestId,
-        timing.request_duration + timing.response_duration,
-        timing.dns_duration,
-        timing.tcp_duration,
-        timing.ssl_duration,
-        timing.request_duration,
-        timing.response_duration,
+        toNumeric(timing.request_duration) + toNumeric(timing.response_duration),
+        toNumeric(timing.dns_duration),
+        toNumeric(timing.tcp_duration),
+        toNumeric(timing.ssl_duration),
+        toNumeric(timing.request_duration),
+        toNumeric(timing.response_duration),
         now
       ]);
     } catch (error) {
