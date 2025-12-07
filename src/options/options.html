@@ -43,6 +43,9 @@
       <button class="tab-button" data-tab="themes">
         <i class="fas fa-palette"></i> Themes
       </button>
+      <button class="tab-button" data-tab="advanced">
+        <i class="fas fa-code"></i> Advanced
+      </button>
     </nav>
 
     <main class="main-content">
@@ -339,6 +342,120 @@
             <div class="option-row actions">
               <button id="saveThemeBtn" class="primary-btn">Save Changes</button>
               <button id="resetThemeBtn" class="secondary-btn">Reset to Default</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Advanced Tab -->
+      <section id="advanced" class="tab-content">
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Advanced Features</h2>
+            <p class="description">Advanced debugging and database management tools</p>
+
+            <h3><i class="fas fa-database"></i> Database Management</h3>
+            
+            <div class="option-row">
+              <label>Database Location:</label>
+              <code>IndexedDB: ura_medallion_db</code>
+            </div>
+
+            <div class="option-row">
+              <label>Database Size:</label>
+              <span id="advancedDbSize">Calculating...</span>
+            </div>
+
+            <div class="option-row">
+              <label>Total Records:</label>
+              <div class="db-layer-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Bronze:</span>
+                  <span id="advancedBronzeCount">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Silver:</span>
+                  <span id="advancedSilverCount">0</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Gold:</span>
+                  <span id="advancedGoldCount">0</span>
+                </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-search"></i> Direct Database Query</h3>
+            <div class="query-section">
+              <div class="option-row">
+                <label for="advancedQuery">SQL Query:</label>
+                <textarea id="advancedQuery" rows="5" placeholder="SELECT * FROM bronze_requests LIMIT 10"></textarea>
+              </div>
+              <div class="option-row">
+                <button id="executeQueryBtn" class="primary-btn">
+                  <i class="fas fa-play"></i> Execute Query
+                </button>
+                <button id="clearQueryBtn" class="secondary-btn">
+                  <i class="fas fa-eraser"></i> Clear
+                </button>
+              </div>
+              <div class="option-row">
+                <label>Query Result:</label>
+                <div id="queryResult" class="query-result">
+                  <p class="placeholder">Execute a query to see results...</p>
+                </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-tools"></i> Debug Tools</h3>
+            <div class="debug-actions">
+              <div class="option-row">
+                <button id="inspectSchemaBtn" class="secondary-btn">
+                  <i class="fas fa-table"></i> Inspect Database Schema
+                </button>
+                <p class="description">View all tables and their structures</p>
+              </div>
+              <div class="option-row">
+                <button id="viewLogsBtn" class="secondary-btn">
+                  <i class="fas fa-file-alt"></i> View Extension Logs
+                </button>
+                <p class="description">Open browser console to view logs</p>
+              </div>
+              <div class="option-row">
+                <button id="testConnectionBtn" class="secondary-btn">
+                  <i class="fas fa-plug"></i> Test Background Connection
+                </button>
+                <p class="description">Verify connection to background script</p>
+              </div>
+              <div class="option-row">
+                <button id="forceProcessBtn" class="warning-btn">
+                  <i class="fas fa-sync"></i> Force Data Processing
+                </button>
+                <p class="description">Manually trigger Bronze→Silver→Gold processing</p>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-download"></i> Advanced Export</h3>
+            <div class="option-row">
+              <button id="exportRawDbBtn" class="primary-btn">
+                <i class="fas fa-download"></i> Export Raw SQLite Database
+              </button>
+              <p class="description">Download the entire database as SQLite file</p>
+            </div>
+
+            <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+            <div class="danger-zone">
+              <div class="option-row">
+                <button id="resetDatabaseBtn" class="danger-btn">
+                  <i class="fas fa-trash-alt"></i> Reset Database
+                </button>
+                <p class="description">Delete all data and recreate database schema</p>
+              </div>
+              <div class="option-row">
+                <button id="clearCacheBtn" class="danger-btn">
+                  <i class="fas fa-broom"></i> Clear Extension Cache
+                </button>
+                <p class="description">Clear all cached data and force reload</p>
+              </div>
             </div>
           </div>
         </div>

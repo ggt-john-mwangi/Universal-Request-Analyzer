@@ -60,17 +60,26 @@ const resetThemeBtn = document.getElementById("resetThemeBtn");
 // Load when DOM is ready
 document.addEventListener("DOMContentLoaded", async () => {
   try {
+    console.log('Options page: DOM loaded, initializing...');
+    
     // Initialize settings manager
+    console.log('Options page: Initializing settings manager...');
     await settingsManager.initialize();
+    console.log('Options page: Settings manager initialized');
 
     // Initialize theme manager
+    console.log('Options page: Initializing theme manager...');
+    const currentTheme = settingsManager.getAllSettings()?.theme?.current || "light";
     await themeManager.initialize({
-      initialTheme: settingsManager.getAllSettings().theme.current || "light",
+      initialTheme: currentTheme,
       onUpdate: handleThemeUpdate,
     });
+    console.log('Options page: Theme manager initialized');
 
     // Load initial settings
+    console.log('Options page: Loading options...');
     await loadOptions();
+    console.log('Options page: Options loaded');
 
     // Add settings change listener
     settingsManager.addSettingsListener(handleSettingsChange);
@@ -78,61 +87,136 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Initialize data purge component
     const dataPurgeContainer = document.getElementById("dataPurge");
     if (dataPurgeContainer) {
+      console.log('Options page: Rendering data purge component...');
       dataPurgeContainer.appendChild(renderDataPurge());
     }
 
     // Set up tab navigation
+    console.log('Options page: Setting up tab navigation...');
     setupTabNavigation();
 
     // Render theme options
+    console.log('Options page: Rendering theme options...');
     renderThemeOptions();
+    
+    console.log('Options page: Initialization complete!');
   } catch (error) {
     console.error("Error initializing options:", error);
-    showNotification("Failed to initialize options", true);
+    console.error("Error stack:", error.stack);
+    showNotification("Failed to initialize options: " + error.message, true);
   }
 });
 
 // Load options from storage
 async function loadOptions() {
-  const allSettings = settingsManager.getAllSettings();
-  const settings = allSettings.settings;
+  try {
+    const allSettings = settingsManager.getAllSettings();
+    const settings = allSettings.settings;
 
-  // Update capture settings
-  captureEnabled.checked = settings.capture.enabled;
-  maxStoredRequests.value = settings.general.maxStoredRequests;
+    // Update capture settings - with null checks
+    if (captureEnabled) captureEnabled.checked = settings?.capture?.enabled ?? true;
+    if (maxStoredRequests) maxStoredRequests.value = settings?.general?.maxStoredRequests ?? 10000;
 
-  // Update capture types
-  captureTypeCheckboxes.forEach((checkbox) => {
-    checkbox.checked = settings.capture.captureFilters.includeTypes.includes(
-      checkbox.value
-    );
-  });
+    // Update capture types
+    if (captureTypeCheckboxes && captureTypeCheckboxes.length > 0) {
+      const includeTypes = settings?.capture?.captureFilters?.includeTypes || [];
+      captureTypeCheckboxes.forEach((checkbox) => {
+        checkbox.checked = includeTypes.includes(checkbox.value);
+      });
+    }
 
-  // Update domains
-  includeDomains.value =
-    settings.capture.captureFilters.includeDomains.join(", ");
-  excludeDomains.value =
-    settings.capture.captureFilters.excludeDomains.join(", ");
+    // Update domains
+    if (includeDomains) {
+      includeDomains.value = (settings?.capture?.captureFilters?.includeDomains || []).join(", ");
+    }
+    if (excludeDomains) {
+      excludeDomains.value = (settings?.capture?.captureFilters?.excludeDomains || []).join(", ");
+    }
 
-  // Update export settings
-  autoExport.checked = settings.general.autoExport;
-  exportFormat.value = settings.general.defaultExportFormat;
-  exportInterval.value = settings.general.autoExportInterval / 60000; // Convert to minutes
-  exportPath.value = settings.general.exportPath || "";
+    // Update export settings
+    if (autoExport) autoExport.checked = settings?.general?.autoExport ?? false;
+    if (exportFormat) exportFormat.value = settings?.general?.defaultExportFormat || 'json';
+    if (exportInterval) exportInterval.value = (settings?.general?.autoExportInterval || 3600000) / 60000; // Convert to minutes
+    if (exportPath) exportPath.value = settings?.general?.exportPath || "";
 
-  // Update visualization settings
-  plotEnabled.checked = settings.display.showCharts;
-  plotTypeCheckboxes.forEach((checkbox) => {
-    checkbox.checked = settings.display.enabledCharts.includes(checkbox.value);
-  });
+    // Update visualization settings
+    if (plotEnabled) plotEnabled.checked = settings?.display?.showCharts ?? true;
+    if (plotTypeCheckboxes && plotTypeCheckboxes.length > 0) {
+      const enabledCharts = settings?.display?.enabledCharts || [];
+      plotTypeCheckboxes.forEach((checkbox) => {
+        checkbox.checked = enabledCharts.includes(checkbox.value);
+      });
+    }
 
-  // Update theme settings
-  currentThemeSelect.value = themeManager.currentTheme;
-  renderThemeCards();
+    // Update theme settings
+    if (currentThemeSelect && themeManager) {
+      currentThemeSelect.value = themeManager.currentTheme || 'light';
+      renderThemeCards();
+    }
 
-  // Load database info
-  await loadDatabaseInfo();
-  loadSqliteExportToggle();
+    // Load database info
+    await loadDatabaseInfo();
+    if (typeof loadSqliteExportToggle === 'function') {
+      loadSqliteExportToggle();
+    }
+  } catch (error) {
+    console.error('Error in loadOptions:', error);
+    showNotification('Error loading some settings: ' + error.message, true);
+  }
+}
+
+// Load database information
+async function loadDatabaseInfo() {
+  try {
+    // Skip if elements don't exist
+    if (!dbTotalRequests && !dbSize && !lastExport) {
+      console.log('Database info elements not found, skipping...');
+      return;
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDashboardStats',
+      timeRange: 86400
+    });
+
+    if (response && response.success && response.stats) {
+      const stats = response.stats;
+      
+      if (dbTotalRequests) {
+        dbTotalRequests.textContent = stats.totalRequests || 0;
+      }
+      
+      // Estimate database size
+      const totalRecords = (stats.layerCounts?.bronze || 0) + 
+                          (stats.layerCounts?.silver || 0) + 
+                          (stats.layerCounts?.gold || 0);
+      const estimatedSize = Math.round(totalRecords * 0.5); // ~0.5KB per record
+      
+      if (dbSize) {
+        dbSize.textContent = estimatedSize < 1024 
+          ? `${estimatedSize} KB` 
+          : `${(estimatedSize / 1024).toFixed(2)} MB`;
+      }
+      
+      if (lastExport) {
+        // Get last export time from storage
+        const result = await chrome.storage.local.get('lastExportTime');
+        if (result.lastExportTime) {
+          lastExport.textContent = new Date(result.lastExportTime).toLocaleString();
+        } else {
+          lastExport.textContent = 'Never';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load database info:', error);
+  }
+}
+
+// Placeholder for SQLite export toggle (if needed by other components)
+function loadSqliteExportToggle() {
+  console.log('loadSqliteExportToggle called');
+  // Implementation can be added here if needed
 }
 
 // Handle settings changes from other views
@@ -433,3 +517,269 @@ if (importSettingsBtn && importSettingsFile) {
   importSettingsBtn.addEventListener("click", () => importSettingsFile.click());
   importSettingsFile.addEventListener("change", importSettings);
 }
+
+// Advanced Tab Functionality
+function initializeAdvancedTab() {
+  // Execute Query
+  const executeQueryBtn = document.getElementById('executeQueryBtn');
+  const clearQueryBtn = document.getElementById('clearQueryBtn');
+  const advancedQuery = document.getElementById('advancedQuery');
+  const queryResult = document.getElementById('queryResult');
+
+  if (executeQueryBtn) {
+    executeQueryBtn.addEventListener('click', async () => {
+      const query = advancedQuery?.value?.trim();
+      if (!query) {
+        showNotification('Please enter a query', true);
+        return;
+      }
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'executeDirectQuery',
+          query: query
+        });
+
+        if (response.success && queryResult) {
+          displayQueryResult(response.result, queryResult);
+          showNotification('Query executed successfully');
+        } else {
+          if (queryResult) {
+            queryResult.innerHTML = `<p style="color: red;">Error: ${response.error || 'Query failed'}</p>`;
+          }
+          showNotification('Query failed: ' + (response.error || 'Unknown error'), true);
+        }
+      } catch (error) {
+        console.error('Query execution error:', error);
+        if (queryResult) {
+          queryResult.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+        showNotification('Query execution failed', true);
+      }
+    });
+  }
+
+  if (clearQueryBtn && advancedQuery && queryResult) {
+    clearQueryBtn.addEventListener('click', () => {
+      advancedQuery.value = '';
+      queryResult.innerHTML = '<p class="placeholder">Execute a query to see results...</p>';
+    });
+  }
+
+  // Inspect Schema
+  const inspectSchemaBtn = document.getElementById('inspectSchemaBtn');
+  if (inspectSchemaBtn) {
+    inspectSchemaBtn.addEventListener('click', async () => {
+      const query = "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name";
+      if (advancedQuery) advancedQuery.value = query;
+      
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'executeDirectQuery',
+          query: query
+        });
+
+        if (response.success && queryResult) {
+          displayQueryResult(response.result, queryResult);
+          showNotification('Schema loaded successfully');
+        }
+      } catch (error) {
+        showNotification('Failed to load schema', true);
+      }
+    });
+  }
+
+  // View Logs
+  const viewLogsBtn = document.getElementById('viewLogsBtn');
+  if (viewLogsBtn) {
+    viewLogsBtn.addEventListener('click', () => {
+      console.log('=== Universal Request Analyzer Debug Info ===');
+      console.log('Extension version: 1.0.0');
+      console.log('Current time:', new Date().toISOString());
+      showNotification('Check browser console for logs');
+    });
+  }
+
+  // Test Connection
+  const testConnectionBtn = document.getElementById('testConnectionBtn');
+  if (testConnectionBtn) {
+    testConnectionBtn.addEventListener('click', async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'ping'
+        });
+        
+        if (response && response.success) {
+          showNotification('✓ Background script connection successful');
+        } else {
+          showNotification('⚠ Background script not responding properly', true);
+        }
+      } catch (error) {
+        showNotification('✗ Failed to connect to background script', true);
+      }
+    });
+  }
+
+  // Force Processing
+  const forceProcessBtn = document.getElementById('forceProcessBtn');
+  if (forceProcessBtn) {
+    forceProcessBtn.addEventListener('click', async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'processToSilver'
+        });
+        
+        if (response && response.success) {
+          showNotification(`Processed ${response.processed || 0} records to Silver layer`);
+          await loadAdvancedStats();
+        } else {
+          showNotification('Processing failed', true);
+        }
+      } catch (error) {
+        showNotification('Failed to trigger processing', true);
+      }
+    });
+  }
+
+  // Export Raw DB
+  const exportRawDbBtn = document.getElementById('exportRawDbBtn');
+  if (exportRawDbBtn) {
+    exportRawDbBtn.addEventListener('click', async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'exportDatabase',
+          format: 'sqlite'
+        });
+        
+        if (response && response.success) {
+          showNotification('Database export initiated');
+        } else {
+          showNotification('Export failed', true);
+        }
+      } catch (error) {
+        showNotification('Failed to export database', true);
+      }
+    });
+  }
+
+  // Reset Database
+  const resetDatabaseBtn = document.getElementById('resetDatabaseBtn');
+  if (resetDatabaseBtn) {
+    resetDatabaseBtn.addEventListener('click', async () => {
+      if (confirm('⚠️ WARNING: This will delete ALL data and cannot be undone!\n\nAre you sure you want to reset the database?')) {
+        if (confirm('This is your last chance. Really reset the database?')) {
+          try {
+            const response = await chrome.runtime.sendMessage({
+              action: 'resetDatabase'
+            });
+            
+            if (response && response.success) {
+              showNotification('Database reset successfully');
+              await loadAdvancedStats();
+            } else {
+              showNotification('Reset failed', true);
+            }
+          } catch (error) {
+            showNotification('Failed to reset database', true);
+          }
+        }
+      }
+    });
+  }
+
+  // Clear Cache
+  const clearCacheBtn = document.getElementById('clearCacheBtn');
+  if (clearCacheBtn) {
+    clearCacheBtn.addEventListener('click', async () => {
+      if (confirm('Clear extension cache and reload?')) {
+        try {
+          await chrome.storage.local.clear();
+          showNotification('Cache cleared. Reloading...');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } catch (error) {
+          showNotification('Failed to clear cache', true);
+        }
+      }
+    });
+  }
+
+  // Load advanced stats
+  loadAdvancedStats();
+}
+
+// Display query result in table format
+function displayQueryResult(result, container) {
+  if (!result || !result[0]) {
+    container.innerHTML = '<p class="placeholder">No results</p>';
+    return;
+  }
+
+  const data = result[0];
+  if (!data.columns || !data.values || data.values.length === 0) {
+    container.innerHTML = '<p class="placeholder">No results</p>';
+    return;
+  }
+
+  let html = '<table><thead><tr>';
+  data.columns.forEach(col => {
+    html += `<th>${col}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  data.values.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => {
+      const displayValue = cell === null ? 'NULL' : cell;
+      html += `<td>${displayValue}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.values.length} row(s)</p>`;
+  container.innerHTML = html;
+}
+
+// Load advanced statistics
+async function loadAdvancedStats() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDashboardStats',
+      timeRange: 86400 // 24 hours
+    });
+
+    if (response && response.success && response.stats) {
+      const stats = response.stats;
+      
+      // Update layer counts
+      const bronzeCount = document.getElementById('advancedBronzeCount');
+      const silverCount = document.getElementById('advancedSilverCount');
+      const goldCount = document.getElementById('advancedGoldCount');
+      
+      if (bronzeCount) bronzeCount.textContent = stats.layerCounts?.bronze || 0;
+      if (silverCount) silverCount.textContent = stats.layerCounts?.silver || 0;
+      if (goldCount) goldCount.textContent = stats.layerCounts?.gold || 0;
+      
+      // Estimate database size (rough estimate)
+      const totalRecords = (stats.layerCounts?.bronze || 0) + 
+                          (stats.layerCounts?.silver || 0) + 
+                          (stats.layerCounts?.gold || 0);
+      const estimatedSize = Math.round(totalRecords * 0.5); // ~0.5KB per record
+      const dbSizeEl = document.getElementById('advancedDbSize');
+      if (dbSizeEl) {
+        dbSizeEl.textContent = estimatedSize < 1024 
+          ? `${estimatedSize} KB` 
+          : `${(estimatedSize / 1024).toFixed(2)} MB`;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load advanced stats:', error);
+  }
+}
+
+// Call this when the advanced tab is shown
+document.addEventListener('DOMContentLoaded', () => {
+  initializeAdvancedTab();
+});
