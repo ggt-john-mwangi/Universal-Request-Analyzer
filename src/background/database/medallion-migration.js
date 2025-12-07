@@ -86,6 +86,12 @@ async function checkLegacyTables(db) {
  */
 async function migrateLegacyRequests(db) {
   try {
+    // Check if statusText column exists in legacy requests table
+    const columnsResult = db.exec(`PRAGMA table_info(requests)`);
+    const hasStatusText = columnsResult[0]?.values?.some(col => col[1] === 'statusText') || false;
+    
+    const statusTextColumn = hasStatusText ? 'statusText' : 'NULL';
+    
     db.exec(`
       INSERT OR IGNORE INTO bronze_requests (
         id, url, method, type, status, status_text, domain, path,
@@ -93,7 +99,7 @@ async function migrateLegacyRequests(db) {
         tab_id, page_url, error, created_at
       )
       SELECT 
-        id, url, method, type, status, statusText, domain, path,
+        id, url, method, type, status, ${statusTextColumn}, domain, path,
         startTime, endTime, duration, size, timestamp,
         tabId, pageUrl, error, timestamp
       FROM requests

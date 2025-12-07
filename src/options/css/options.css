@@ -99,6 +99,15 @@
   background: #f7fafc;
 }
 
+/* Tab Content Visibility Control */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
 .content-header {
   background: white;
   padding: 20px 30px;

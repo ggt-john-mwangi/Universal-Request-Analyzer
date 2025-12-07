@@ -515,6 +515,8 @@ function setupTabNavigation() {
   const tabContents = document.querySelectorAll('.tab-content');
   const pageTitle = document.getElementById('pageTitle');
 
+  console.log(`Found ${navItems.length} nav items and ${tabContents.length} tab contents`);
+
   // Tab titles mapping
   const tabTitles = {
     dashboard: 'Dashboard',
@@ -528,9 +530,13 @@ function setupTabNavigation() {
     advanced: 'Advanced Tools'
   };
 
-  navItems.forEach((item) => {
+  navItems.forEach((item, index) => {
+    const tabName = item.dataset.tab;
+    console.log(`Nav item ${index}: ${tabName}`);
+    
     item.addEventListener('click', () => {
       const tab = item.dataset.tab;
+      console.log(`Tab clicked: ${tab}`);
 
       // Remove active class from all items and contents
       navItems.forEach((i) => i.classList.remove('active'));
@@ -541,6 +547,9 @@ function setupTabNavigation() {
       const content = document.getElementById(tab);
       if (content) {
         content.classList.add('active');
+        console.log(`Activated content for: ${tab}`);
+      } else {
+        console.error(`No content found for tab: ${tab}`);
       }
 
       // Update page title

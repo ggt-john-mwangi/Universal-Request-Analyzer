@@ -16,7 +16,8 @@ module.exports = (env, argv) => {
       options: "./src/options/js/options.js",
       background: "./src/background/background.js",
       content: "./src/content/content.js",
-      devtools: ["./src/devtools/js/devtools.js", "./src/devtools/js/panel.js"],
+      devtools: "./src/devtools/js/devtools.js",
+      panel: "./src/devtools/js/panel.js",
     },
     output: {
       path: path.resolve(__dirname, "dist"),
@@ -87,7 +88,6 @@ module.exports = (env, argv) => {
           },
           // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
-          { from: "./src/devtools/js/**/*", to: "[name][ext]" },
 
           { from: "./src/**/css/*", to: "css/[name][ext]" },
         ],
@@ -110,8 +110,8 @@ module.exports = (env, argv) => {
       new HtmlWebpackPlugin({
         template: "./src/devtools/panel.html",
         filename: "panel.html",
-        chunks: ["devtools"],
-      }),
+        chunks: ["panel"],
+      }), 
       new HtmlWebpackPlugin({
         template: "./src/help.html",
         filename: "help.html",
