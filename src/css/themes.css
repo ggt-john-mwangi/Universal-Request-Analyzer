@@ -21,6 +21,8 @@
   --error-bg-color: #f8d7da;
   --warning-bg-color: #fff3cd;
   --info-bg-color: #d1ecf1;
+  --sidebar-bg: #2d3748;
+  --sidebar-text: #ffffff;
 }
 
 /* Dark theme */
@@ -45,6 +47,8 @@ body.dark {
   --error-bg-color: #5a1f1f;
   --warning-bg-color: #4d3b00;
   --info-bg-color: #0f4852;
+  --sidebar-bg: #1a1d23;
+  --sidebar-text: #e9ecef;
 }
 
 /* High Contrast theme */
