@@ -23,7 +23,7 @@ export function initializePopupMessageHandler(auth, database) {
 
 // Handle incoming messages
 async function handleMessage(message, sender) {
-  const { action, data } = message;
+  const { action, data, filters } = message;
 
   switch (action) {
     case 'register':
@@ -37,6 +37,12 @@ async function handleMessage(message, sender) {
     
     case 'getPageStats':
       return await handleGetPageStats(data);
+    
+    case 'getFilteredStats':
+      return await handleGetFilteredStats(filters);
+    
+    case 'exportFilteredData':
+      return await handleExportFilteredData(filters, message.format);
     
     default:
       return { success: false, error: 'Unknown action' };
@@ -125,8 +131,21 @@ async function handleGetPageStats(data) {
     };
 
     try {
-      if (dbManager?.executeQuery) {
-        // Note: executeQuery may be synchronous depending on implementation
+      if (dbManager?.db) {
+        // Use db.exec directly
+        const result = dbManager.db.exec(query, [domain, fiveMinutesAgo]);
+        
+        if (result && result[0]?.values && result[0].values.length > 0) {
+          const [total, avg, errors, bytes] = result[0].values[0];
+          stats = {
+            totalRequests: total || 0,
+            avgResponse: avg || 0,
+            errorCount: errors || 0,
+            dataTransferred: bytes || 0
+          };
+        }
+      } else if (dbManager?.executeQuery) {
+        // Fallback to executeQuery method
         const result = dbManager.executeQuery(query, [domain, fiveMinutesAgo]);
         
         if (result && result[0]?.values && result[0].values.length > 0) {
@@ -149,4 +168,162 @@ async function handleGetPageStats(data) {
     console.error('Get page stats error:', error);
     return { success: false, error: error.message };
   }
+}
+
+// Handle get filtered stats for DevTools panel
+async function handleGetFilteredStats(filters) {
+  try {
+    const { pageUrl, timeRange, type, statusPrefix } = filters || {};
+    
+    // Default to last 5 minutes if not specified
+    const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 5 * 60 * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    let query = `
+      SELECT 
+        id, url, method, type, status, duration, size_bytes, timestamp, domain
+      FROM bronze_requests
+      WHERE timestamp > ?
+    `;
+    
+    const params = [startTime];
+    
+    // Add page URL filter
+    if (pageUrl) {
+      const domain = new URL(pageUrl).hostname;
+      query += ' AND domain = ?';
+      params.push(domain);
+    }
+    
+    // Add type filter
+    if (type) {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    
+    // Add status filter
+    if (statusPrefix) {
+      if (statusPrefix === '3xx') {
+        query += ' AND status >= 300 AND status < 400';
+      } else if (statusPrefix === '4xx') {
+        query += ' AND status >= 400 AND status < 500';
+      } else if (statusPrefix === '5xx') {
+        query += ' AND status >= 500 AND status < 600';
+      } else {
+        query += ' AND status = ?';
+        params.push(parseInt(statusPrefix));
+      }
+    }
+    
+    query += ' ORDER BY timestamp DESC LIMIT 1000';
+    
+    let requests = [];
+    
+    try {
+      if (dbManager?.db) {
+        const result = dbManager.db.exec(query, params);
+        if (result && result[0]) {
+          requests = mapResultToArray(result[0]);
+        }
+      } else if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, params);
+        if (result && result[0]) {
+          requests = mapResultToArray(result[0]);
+        }
+      }
+    } catch (queryError) {
+      console.error('Filtered stats query error:', queryError);
+    }
+    
+    // Process data for charts
+    const timestamps = [];
+    const responseTimes = [];
+    const requestTypes = {};
+    const statusCodes = {};
+    
+    requests.forEach(req => {
+      // Collect timestamps and response times
+      if (req.timestamp && req.duration) {
+        timestamps.push(new Date(req.timestamp).toLocaleTimeString());
+        responseTimes.push(req.duration);
+      }
+      
+      // Count request types
+      if (req.type) {
+        requestTypes[req.type] = (requestTypes[req.type] || 0) + 1;
+      }
+      
+      // Count status codes
+      if (req.status) {
+        const statusGroup = Math.floor(req.status / 100) * 100;
+        statusCodes[statusGroup] = (statusCodes[statusGroup] || 0) + 1;
+      }
+    });
+    
+    return {
+      success: true,
+      timestamps: timestamps.slice(-50), // Last 50 data points
+      responseTimes: responseTimes.slice(-50),
+      requestTypes,
+      statusCodes,
+      totalRequests: requests.length
+    };
+  } catch (error) {
+    console.error('Get filtered stats error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle export filtered data
+async function handleExportFilteredData(filters, format) {
+  try {
+    // Get filtered stats first
+    const statsResult = await handleGetFilteredStats(filters);
+    
+    if (!statsResult.success) {
+      return statsResult;
+    }
+    
+    // Format based on requested format
+    let exportData;
+    if (format === 'json') {
+      exportData = JSON.stringify(statsResult, null, 2);
+    } else if (format === 'csv') {
+      // Simple CSV export
+      exportData = 'Timestamp,Response Time,Type,Status\n';
+      // Add CSV data from statsResult
+    } else {
+      exportData = JSON.stringify(statsResult);
+    }
+    
+    // Create download
+    const blob = new Blob([exportData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    await chrome.downloads.download({
+      url: url,
+      filename: `request-analyzer-export-${Date.now()}.${format || 'json'}`,
+      saveAs: true
+    });
+    
+    return { success: true, message: 'Export initiated' };
+  } catch (error) {
+    console.error('Export error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Helper function to map SQL result to array of objects
+function mapResultToArray(result) {
+  if (!result || !result.columns || !result.values) {
+    return [];
+  }
+
+  return result.values.map(row => {
+    const obj = {};
+    result.columns.forEach((col, idx) => {
+      obj[col] = row[idx];
+    });
+    return obj;
+  });
 }
