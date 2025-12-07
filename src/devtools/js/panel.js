@@ -5,6 +5,12 @@ export class DevToolsPanel {
     this.charts = {};
     this.currentUrl = "";
     this.refreshInterval = null;
+    
+    // Constants
+    this.SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
+    this.MAX_CHART_POINTS = 20;
+    this.ERROR_STATUS_PREFIX = '4xx';
+    
     this.initialize();
   }
 
@@ -595,8 +601,8 @@ export class DevToolsPanel {
 
     // Update performance chart
     if (this.charts.performance && metrics.timestamps && metrics.responseTimes) {
-      this.charts.performance.data.labels = metrics.timestamps.slice(-20); // Last 20 points
-      this.charts.performance.data.datasets[0].data = metrics.responseTimes.slice(-20);
+      this.charts.performance.data.labels = metrics.timestamps.slice(-this.MAX_CHART_POINTS);
+      this.charts.performance.data.datasets[0].data = metrics.responseTimes.slice(-this.MAX_CHART_POINTS);
       this.charts.performance.update();
     }
 
@@ -764,7 +770,7 @@ export class DevToolsPanel {
             // Load top domains from database
             const response = await chrome.runtime.sendMessage({
               action: 'getDashboardStats',
-              timeRange: 604800 // Last 7 days
+              timeRange: this.SEVEN_DAYS_SECONDS
             });
             
             if (response.success && response.stats && response.stats.topDomains) {
@@ -849,7 +855,10 @@ export class DevToolsPanel {
         return;
       }
       
-      // For now, show a placeholder since we need to enhance the backend to return full request details
+      // TODO: Implement full request table with detailed request information
+      // This requires enhancing the backend to return individual request details
+      // including method, full URL, headers, response size, and timing information
+      // GitHub Issue: TBD
       tbody.innerHTML = `
         <tr>
           <td colspan="7" class="info-message">
@@ -919,6 +928,10 @@ export class DevToolsPanel {
 
   // Load endpoints data
   async loadEndpointsData() {
+    // TODO: Implement API endpoint analysis feature
+    // This will group requests by endpoint pattern (e.g., /api/users/:id)
+    // and show call frequency, average response time, and error rates per endpoint
+    // GitHub Issue: TBD
     document.getElementById('endpointsTable').innerHTML = `
       <p class="info-message">
         <i class="fas fa-info-circle"></i> 
@@ -930,7 +943,7 @@ export class DevToolsPanel {
   // Load errors data
   async loadErrorsData() {
     try {
-      const filters = {...this.getActiveFilters(), statusPrefix: '4xx'};
+      const filters = {...this.getActiveFilters(), statusPrefix: this.ERROR_STATUS_PREFIX};
       const response = await chrome.runtime.sendMessage({
         action: 'getFilteredStats',
         filters
