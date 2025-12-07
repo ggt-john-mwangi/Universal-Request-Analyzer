@@ -238,7 +238,7 @@ class IntegratedExtensionInitializer {
   schedulePeriodicTasks() {
     console.log('→ Scheduling Periodic Tasks...');
     
-    // Process Bronze→Silver every 5 seconds
+    // Process Bronze→Silver every 30 seconds (batch processing)
     const bronzeToSilver = setInterval(async () => {
       try {
         const count = await this.medallionManager.processBronzeToSilver();
@@ -248,7 +248,7 @@ class IntegratedExtensionInitializer {
       } catch (error) {
         console.error('Bronze→Silver processing failed:', error);
       }
-    }, 5000);
+    }, 30000); // 30 seconds for better performance
     this.scheduledTasks.push(bronzeToSilver);
     
     // Generate OHLC for 1min/5min every 5 minutes
@@ -299,32 +299,68 @@ class IntegratedExtensionInitializer {
     }, 4 * 60 * 60 * 1000);
     this.scheduledTasks.push(longOHLC);
     
-    // Process Silver→Gold daily at midnight
-    const dailyGold = setInterval(async () => {
-      try {
-        const now = new Date();
-        if (now.getHours() === 0) { // Midnight
-          await this.medallionManager.processSilverToGold();
-          console.log('Processed Silver→Gold for daily aggregation');
+    // Process Silver→Gold daily using chrome.alarms for reliability
+    // Create alarm for daily processing at midnight
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.create('dailyGoldProcessing', {
+        when: this.getNextMidnight(),
+        periodInMinutes: 24 * 60 // Daily
+      });
+      
+      chrome.alarms.onAlarm.addListener(async (alarm) => {
+        if (alarm.name === 'dailyGoldProcessing') {
+          try {
+            await this.medallionManager.processSilverToGold();
+            console.log('Processed Silver→Gold for daily aggregation');
+          } catch (error) {
+            console.error('Silver→Gold processing failed:', error);
+          }
         }
-      } catch (error) {
-        console.error('Silver→Gold processing failed:', error);
-      }
-    }, 60 * 60 * 1000); // Check every hour
-    this.scheduledTasks.push(dailyGold);
+      });
+    } else {
+      // Fallback to interval-based check
+      const dailyGold = setInterval(async () => {
+        try {
+          const now = new Date();
+          const hour = now.getHours();
+          const minute = now.getMinutes();
+          // Process between midnight and 1am
+          if (hour === 0 && minute < 30) {
+            await this.medallionManager.processSilverToGold();
+            console.log('Processed Silver→Gold for daily aggregation');
+          }
+        } catch (error) {
+          console.error('Silver→Gold processing failed:', error);
+        }
+      }, 30 * 60 * 1000); // Check every 30 minutes
+      this.scheduledTasks.push(dailyGold);
+    }
     
     console.log('✓ Periodic Tasks scheduled');
-    console.log('  - Bronze→Silver: every 5 seconds');
+    console.log('  - Bronze→Silver: every 30 seconds');
     console.log('  - OHLC (1min/5min): every 5 minutes');
     console.log('  - OHLC (15min/30min/1h): every hour');
     console.log('  - OHLC (4h/1d): every 4 hours');
-    console.log('  - Silver→Gold: daily at midnight');
+    console.log('  - Silver→Gold: daily at midnight (chrome.alarms)');
+  }
+
+  getNextMidnight() {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow.getTime();
   }
 
   cleanup() {
     console.log('Cleaning up scheduled tasks...');
     this.scheduledTasks.forEach(task => clearInterval(task));
     this.scheduledTasks = [];
+    
+    // Clear alarms
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.clear('dailyGoldProcessing');
+    }
   }
 }
 

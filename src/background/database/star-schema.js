@@ -12,7 +12,8 @@
 /**
  * Create time dimension table
  * Supports multiple timeframes: 1min, 5min, 15min, 30min, 1h, 4h, 1d
- * Note: Removed 1w and 1m as web requests complete in ms-seconds, not weeks/months
+ * Note: Removed 1w and 1m as they are not meaningful for real-time web request
+ * analytics which focuses on shorter-term patterns and immediate performance insights.
  */
 export function createTimeDimension(db) {
   db.exec(`
