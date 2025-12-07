@@ -108,6 +108,11 @@ module.exports = (env, argv) => {
         chunks: ["devtools"],
       }),
       new HtmlWebpackPlugin({
+        template: "./src/devtools/panel.html",
+        filename: "panel.html",
+        chunks: ["devtools"],
+      }),
+      new HtmlWebpackPlugin({
         template: "./src/help.html",
         filename: "help.html",
         chunks: [],
