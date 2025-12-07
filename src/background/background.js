@@ -1,15 +1,15 @@
 // Integrated Background Script with Medallion Architecture
 // Full implementation connecting all components
 
-import { initDatabase } from "./database/db-manager.js";
-import { setupLocalAuth } from "./auth/local-auth-manager.js";
-import { initializePopupMessageHandler } from "./messaging/popup-message-handler.js";
-import { DatabaseManagerMedallion } from "./database/db-manager-medallion.js";
-import { MedallionManager } from "./database/medallion-manager.js";
-import { AnalyticsProcessor } from "./database/analytics-processor.js";
-import { ConfigSchemaManager } from "./database/config-schema-manager.js";
-import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
-import { migrateLegacyToMedallion } from "./database/medallion-migration.js";
+import { initDatabase } from './database/db-manager.js';
+import { setupLocalAuth } from './auth/local-auth-manager.js';
+import { initializePopupMessageHandler } from './messaging/popup-message-handler.js';
+import { DatabaseManagerMedallion } from './database/db-manager-medallion.js';
+import { MedallionManager } from './database/medallion-manager.js';
+import { AnalyticsProcessor } from './database/analytics-processor.js';
+import { ConfigSchemaManager } from './database/config-schema-manager.js';
+import { RequestCaptureIntegration } from './capture/request-capture-integration.js';
+import { migrateLegacyToMedallion } from './database/medallion-migration.js';
 
 class IntegratedExtensionInitializer {
   constructor() {

@@ -6,125 +6,125 @@
 
 const DEFAULT_THEMES = {
   light: {
-    id: "light",
-    name: "Light",
-    description: "Default light theme",
+    id: 'light',
+    name: 'Light',
+    description: 'Default light theme',
     colors: {
-      background: "#ffffff",
-      surface: "#f5f5f5",
-      primary: "#0066cc",
-      secondary: "#6c757d",
-      accent: "#ff9800",
-      error: "#dc3545",
-      warning: "#ffc107",
-      info: "#17a2b8",
-      success: "#28a745",
+      background: '#ffffff',
+      surface: '#f5f5f5',
+      primary: '#0066cc',
+      secondary: '#6c757d',
+      accent: '#ff9800',
+      error: '#dc3545',
+      warning: '#ffc107',
+      info: '#17a2b8',
+      success: '#28a745',
       text: {
-        primary: "#212529",
-        secondary: "#6c757d",
-        disabled: "#adb5bd",
+        primary: '#212529',
+        secondary: '#6c757d',
+        disabled: '#adb5bd',
       },
-      border: "#dee2e6",
-      divider: "#e9ecef",
-      shadow: "rgba(0, 0, 0, 0.1)",
+      border: '#dee2e6',
+      divider: '#e9ecef',
+      shadow: 'rgba(0, 0, 0, 0.1)',
     },
   },
   dark: {
-    id: "dark",
-    name: "Dark",
-    description: "Default dark theme",
+    id: 'dark',
+    name: 'Dark',
+    description: 'Default dark theme',
     colors: {
-      background: "#212529",
-      surface: "#343a40",
-      primary: "#0d6efd",
-      secondary: "#6c757d",
-      accent: "#fd7e14",
-      error: "#dc3545",
-      warning: "#ffc107",
-      info: "#0dcaf0",
-      success: "#198754",
+      background: '#212529',
+      surface: '#343a40',
+      primary: '#0d6efd',
+      secondary: '#6c757d',
+      accent: '#fd7e14',
+      error: '#dc3545',
+      warning: '#ffc107',
+      info: '#0dcaf0',
+      success: '#198754',
       text: {
-        primary: "#f8f9fa",
-        secondary: "#e9ecef",
-        disabled: "#adb5bd",
+        primary: '#f8f9fa',
+        secondary: '#e9ecef',
+        disabled: '#adb5bd',
       },
-      border: "#495057",
-      divider: "#6c757d",
-      shadow: "rgba(0, 0, 0, 0.5)",
+      border: '#495057',
+      divider: '#6c757d',
+      shadow: 'rgba(0, 0, 0, 0.5)',
     },
   },
   highContrast: {
-    id: "highContrast",
-    name: "High Contrast",
-    description: "High contrast theme for accessibility",
+    id: 'highContrast',
+    name: 'High Contrast',
+    description: 'High contrast theme for accessibility',
     colors: {
-      background: "#000000",
-      surface: "#121212",
-      primary: "#ffffff",
-      secondary: "#cccccc",
-      accent: "#ffff00",
-      error: "#ff0000",
-      warning: "#ffff00",
-      info: "#00ffff",
-      success: "#00ff00",
+      background: '#000000',
+      surface: '#121212',
+      primary: '#ffffff',
+      secondary: '#cccccc',
+      accent: '#ffff00',
+      error: '#ff0000',
+      warning: '#ffff00',
+      info: '#00ffff',
+      success: '#00ff00',
       text: {
-        primary: "#ffffff",
-        secondary: "#eeeeee",
-        disabled: "#aaaaaa",
+        primary: '#ffffff',
+        secondary: '#eeeeee',
+        disabled: '#aaaaaa',
       },
-      border: "#ffffff",
-      divider: "#ffffff",
-      shadow: "rgba(255, 255, 255, 0.5)",
+      border: '#ffffff',
+      divider: '#ffffff',
+      shadow: 'rgba(255, 255, 255, 0.5)',
     },
   },
   blue: {
-    id: "blue",
-    name: "Blue",
-    description: "Blue-focused theme",
+    id: 'blue',
+    name: 'Blue',
+    description: 'Blue-focused theme',
     colors: {
-      background: "#f0f8ff",
-      surface: "#e6f2ff",
-      primary: "#0066cc",
-      secondary: "#4d94ff",
-      accent: "#00ccff",
-      error: "#cc0000",
-      warning: "#ff9900",
-      info: "#0099cc",
-      success: "#009933",
+      background: '#f0f8ff',
+      surface: '#e6f2ff',
+      primary: '#0066cc',
+      secondary: '#4d94ff',
+      accent: '#00ccff',
+      error: '#cc0000',
+      warning: '#ff9900',
+      info: '#0099cc',
+      success: '#009933',
       text: {
-        primary: "#003366",
-        secondary: "#0066cc",
-        disabled: "#99ccff",
+        primary: '#003366',
+        secondary: '#0066cc',
+        disabled: '#99ccff',
       },
-      border: "#99ccff",
-      divider: "#cce6ff",
-      shadow: "rgba(0, 102, 204, 0.2)",
+      border: '#99ccff',
+      divider: '#cce6ff',
+      shadow: 'rgba(0, 102, 204, 0.2)',
     },
   },
 };
 
 const CSS_VARIABLES = {
-  background: "--background-color",
-  surface: "--surface-color",
-  primary: "--primary-color",
-  secondary: "--secondary-color",
-  accent: "--accent-color",
-  error: "--error-color",
-  warning: "--warning-color",
-  info: "--info-color",
-  success: "--success-color",
-  "text.primary": "--text-primary-color",
-  "text.secondary": "--text-secondary-color",
-  "text.disabled": "--text-disabled-color",
-  border: "--border-color",
-  divider: "--divider-color",
-  shadow: "--shadow-color",
+  background: '--background-color',
+  surface: '--surface-color',
+  primary: '--primary-color',
+  secondary: '--secondary-color',
+  accent: '--accent-color',
+  error: '--error-color',
+  warning: '--warning-color',
+  info: '--info-color',
+  success: '--success-color',
+  'text.primary': '--text-primary-color',
+  'text.secondary': '--text-secondary-color',
+  'text.disabled': '--text-disabled-color',
+  border: '--border-color',
+  divider: '--divider-color',
+  shadow: '--shadow-color',
 };
 
 class ThemeManager {
   constructor() {
     this.themes = { ...DEFAULT_THEMES };
-    this.currentTheme = "light";
+    this.currentTheme = 'light';
     this.customThemes = {};
     this.initialized = false;
     this.onUpdateCallback = null;
@@ -132,9 +132,9 @@ class ThemeManager {
     // Listen for system color scheme changes
     if (window.matchMedia) {
       window
-        .matchMedia("(prefers-color-scheme: dark)")
-        .addEventListener("change", () => {
-          if (this.currentTheme === "system") {
+        .matchMedia('(prefers-color-scheme: dark)')
+        .addEventListener('change', () => {
+          if (this.currentTheme === 'system') {
             this.applyTheme();
           }
         });
@@ -157,7 +157,7 @@ class ThemeManager {
 
       if (
         options.initialTheme &&
-        (this.themes[options.initialTheme] || options.initialTheme === "system")
+        (this.themes[options.initialTheme] || options.initialTheme === 'system')
       ) {
         this.currentTheme = options.initialTheme;
       }
@@ -174,14 +174,14 @@ class ThemeManager {
       this.applyTheme();
       await this.saveToStorage();
 
-      console.log("Theme manager initialized:", {
+      console.log('Theme manager initialized:', {
         currentTheme: this.currentTheme,
         availableThemes: Object.keys(this.themes),
       });
     } catch (error) {
-      console.error("Error initializing theme manager:", error);
+      console.error('Error initializing theme manager:', error);
       this.themes = { ...DEFAULT_THEMES };
-      this.currentTheme = "light";
+      this.currentTheme = 'light';
       this.customThemes = {};
       this.initialized = true;
       this.applyTheme();
@@ -190,12 +190,12 @@ class ThemeManager {
 
   async loadFromStorage() {
     return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.get("themeData", (data) => {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get('themeData', (data) => {
           resolve(data.themeData || null);
         });
       } else {
-        const mockData = localStorage.getItem("themeData");
+        const mockData = localStorage.getItem('themeData');
         resolve(mockData ? JSON.parse(mockData) : null);
       }
     });
@@ -209,10 +209,10 @@ class ThemeManager {
         timestamp: Date.now(),
       };
 
-      if (typeof chrome !== "undefined" && chrome.storage) {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.local.set({ themeData: data }, resolve);
       } else {
-        localStorage.setItem("themeData", JSON.stringify(data));
+        localStorage.setItem('themeData', JSON.stringify(data));
         resolve();
       }
     });
@@ -220,15 +220,15 @@ class ThemeManager {
 
   applyTheme() {
     if (!this.initialized) {
-      console.warn("Theme manager not initialized, using default theme");
+      console.warn('Theme manager not initialized, using default theme');
       this.applyThemeToDocument(DEFAULT_THEMES.light);
       return;
     }
 
-    if (this.currentTheme === "system") {
+    if (this.currentTheme === 'system') {
       const prefersDark =
         window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
       const theme = prefersDark ? this.themes.dark : this.themes.light;
       this.applyThemeToDocument(theme);
       return;
@@ -249,27 +249,27 @@ class ThemeManager {
 
     // Update body classes
     document.body.classList.remove(
-      "theme-light",
-      "theme-dark",
-      "theme-high-contrast",
-      "theme-blue",
-      "dark"
+      'theme-light',
+      'theme-dark',
+      'theme-high-contrast',
+      'theme-blue',
+      'dark'
     );
     document.body.classList.add(`theme-${theme.id}`);
 
     // Handle dark mode class
-    if (theme.id === "dark" || theme.id === "highContrast") {
-      document.body.classList.add("dark");
+    if (theme.id === 'dark' || theme.id === 'highContrast') {
+      document.body.classList.add('dark');
     }
 
-    document.body.setAttribute("data-theme", theme.id);
+    document.body.setAttribute('data-theme', theme.id);
   }
 
-  applyColorsToCss(root, colors, prefix = "") {
+  applyColorsToCss(root, colors, prefix = '') {
     for (const [key, value] of Object.entries(colors)) {
       const fullKey = prefix ? `${prefix}.${key}` : key;
 
-      if (typeof value === "object") {
+      if (typeof value === 'object') {
         this.applyColorsToCss(root, value, fullKey);
       } else {
         const cssVar = CSS_VARIABLES[fullKey];
@@ -281,7 +281,7 @@ class ThemeManager {
   }
 
   async setTheme(themeId) {
-    if (themeId !== "system" && !this.themes[themeId]) {
+    if (themeId !== 'system' && !this.themes[themeId]) {
       console.error(`Theme "${themeId}" not found`);
       return false;
     }
@@ -301,15 +301,15 @@ class ThemeManager {
   }
 
   async addTheme(themeId, themeData, save = true) {
-    if (!themeId || typeof themeData !== "object") {
-      console.error("Invalid theme data");
+    if (!themeId || typeof themeData !== 'object') {
+      console.error('Invalid theme data');
       return false;
     }
 
     const theme = {
       id: themeId,
       name: themeData.name || themeId,
-      description: themeData.description || "",
+      description: themeData.description || '',
       colors: themeData.colors || DEFAULT_THEMES.light.colors,
     };
 
@@ -332,7 +332,7 @@ class ThemeManager {
 
   async removeTheme(themeId) {
     if (themeId in DEFAULT_THEMES) {
-      console.error("Cannot remove default theme");
+      console.error('Cannot remove default theme');
       return false;
     }
 
@@ -341,7 +341,7 @@ class ThemeManager {
       delete this.themes[themeId];
 
       if (this.currentTheme === themeId) {
-        this.currentTheme = "light";
+        this.currentTheme = 'light';
         this.applyTheme();
       }
 
@@ -362,7 +362,7 @@ class ThemeManager {
 
   async resetToDefaults() {
     this.themes = { ...DEFAULT_THEMES };
-    this.currentTheme = "light";
+    this.currentTheme = 'light';
     this.customThemes = {};
 
     this.applyTheme();
@@ -395,10 +395,10 @@ class ThemeManager {
   }
 
   getCurrentTheme() {
-    if (this.currentTheme === "system") {
+    if (this.currentTheme === 'system') {
       const prefersDark =
         window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
       return prefersDark ? this.themes.dark : this.themes.light;
     }
 
