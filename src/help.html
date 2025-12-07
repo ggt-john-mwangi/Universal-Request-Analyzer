@@ -16,64 +16,119 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: #f5f5f5;
-      color: #333;
+      background: var(--background-color, #f5f5f5);
+      color: var(--text-color, #333);
+      min-height: 100vh;
     }
 
     .container {
-      max-width: 900px;
+      max-width: 1000px;
       margin: 0 auto;
       padding: 20px;
     }
 
     .header {
-      background: #4CAF50;
+      background: var(--primary-color, #4CAF50);
       color: white;
-      padding: 30px 20px;
+      padding: 40px 20px;
       text-align: center;
       margin-bottom: 30px;
-      border-radius: 8px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
     .header h1 {
-      font-size: 32px;
+      font-size: 36px;
       margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+
+    .header h1 i {
+      font-size: 40px;
     }
 
     .header p {
-      font-size: 16px;
-      opacity: 0.9;
+      font-size: 18px;
+      opacity: 0.95;
     }
 
     .tabs {
       display: flex;
-      gap: 10px;
+      gap: 5px;
       margin-bottom: 30px;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      background: var(--surface-color, white);
+      padding: 8px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      flex-wrap: wrap;
     }
 
     .tab-btn {
       flex: 1;
-      padding: 12px 20px;
-      background: none;
-      border: none;
-      border-radius: 4px;
+      min-width: 120px;
+      padding: 14px 24px;
+      background: transparent;
+      border: 2px solid transparent;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-color, #666);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .tab-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--hover-color, #f0f0f0);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .tab-btn:hover::before {
+      opacity: 1;
     }
 
     .tab-btn:hover {
-      background: #f5f5f5;
+      border-color: var(--primary-color, #4CAF50);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
     .tab-btn.active {
-      background: #4CAF50;
+      background: var(--primary-color, #4CAF50);
       color: white;
+      border-color: var(--primary-color, #4CAF50);
+      box-shadow: 0 4px 16px rgba(76, 175, 80, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .tab-btn.active::before {
+      opacity: 0;
+    }
+
+    .tab-btn i {
+      position: relative;
+      z-index: 1;
+    }
+
+    .tab-btn span {
+      position: relative;
+      z-index: 1;
     }
 
     .tab-content {
@@ -85,153 +140,240 @@
     }
 
     .section {
-      background: white;
-      padding: 30px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      background: var(--surface-color, white);
+      padding: 35px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border: 1px solid var(--border-color, #e0e0e0);
+      transition: box-shadow 0.3s;
+    }
+
+    .section:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
     }
 
     .section h2 {
-      font-size: 24px;
-      margin-bottom: 20px;
-      color: #4CAF50;
+      font-size: 28px;
+      margin-bottom: 24px;
+      color: var(--primary-color, #4CAF50);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section h2 i {
+      font-size: 32px;
     }
 
     .section h3 {
-      font-size: 18px;
-      margin: 20px 0 10px;
-      color: #333;
+      font-size: 20px;
+      margin: 24px 0 12px;
+      color: var(--text-color, #333);
+      font-weight: 600;
     }
 
     .section p {
+      line-height: 1.8;
+      margin-bottom: 16px;
+      color: var(--text-secondary, #666);
+      font-size: 15px;
+    }
+
+    .section ul {
+      margin-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    .section ul li {
+      margin-bottom: 10px;
       line-height: 1.6;
-      margin-bottom: 15px;
-      color: #666;
+      color: var(--text-secondary, #666);
     }
 
     .faq-item {
-      margin-bottom: 20px;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid var(--border-color, #e0e0e0);
+      padding-bottom: 24px;
+      transition: all 0.3s;
     }
 
     .faq-item:last-child {
       border-bottom: none;
     }
 
+    .faq-item:hover {
+      transform: translateX(4px);
+    }
+
     .faq-question {
-      font-size: 16px;
+      font-size: 17px;
       font-weight: 600;
-      color: #333;
-      margin-bottom: 10px;
+      color: var(--text-color, #333);
+      margin-bottom: 12px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 12px;
+      border-radius: 8px;
+      transition: all 0.3s;
+      background: var(--hover-color, transparent);
     }
 
     .faq-question:hover {
-      color: #4CAF50;
+      color: var(--primary-color, #4CAF50);
+      background: var(--surface-secondary, #f9f9f9);
+      transform: scale(1.02);
+    }
+
+    .faq-question i {
+      transition: transform 0.3s;
+      color: var(--primary-color, #4CAF50);
+    }
+
+    .faq-question.expanded i {
+      transform: rotate(180deg);
     }
 
     .faq-answer {
-      color: #666;
-      line-height: 1.6;
-      margin-top: 10px;
+      color: var(--text-secondary, #666);
+      line-height: 1.8;
+      margin-top: 8px;
+      padding: 16px;
+      background: var(--surface-secondary, #f9f9f9);
+      border-radius: 8px;
+      border-left: 4px solid var(--primary-color, #4CAF50);
+      font-size: 15px;
     }
 
     .feature-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin-top: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 24px;
     }
 
     .feature-card {
-      background: #f9f9f9;
-      padding: 20px;
-      border-radius: 8px;
-      border-left: 4px solid #4CAF50;
+      background: var(--surface-secondary, #f9f9f9);
+      padding: 24px;
+      border-radius: 12px;
+      border-left: 4px solid var(--primary-color, #4CAF50);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      border-left-width: 6px;
     }
 
     .feature-card i {
-      font-size: 24px;
-      color: #4CAF50;
-      margin-bottom: 10px;
+      font-size: 32px;
+      color: var(--primary-color, #4CAF50);
+      margin-bottom: 16px;
+      display: block;
     }
 
     .feature-card h4 {
-      font-size: 16px;
-      margin-bottom: 8px;
-      color: #333;
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: var(--text-color, #333);
+      font-weight: 600;
     }
 
     .feature-card p {
       font-size: 14px;
-      color: #666;
-      line-height: 1.5;
+      color: var(--text-secondary, #666);
+      line-height: 1.6;
+      margin-bottom: 0;
     }
 
     .contact-info {
-      background: #f9f9f9;
-      padding: 20px;
-      border-radius: 8px;
-      margin-top: 20px;
+      background: var(--surface-secondary, #f9f9f9);
+      padding: 24px;
+      border-radius: 12px;
+      margin-top: 24px;
+      border: 2px solid var(--border-color, #e0e0e0);
     }
 
     .contact-info h4 {
-      margin-bottom: 15px;
-      color: #333;
+      margin-bottom: 20px;
+      color: var(--text-color, #333);
+      font-size: 20px;
+      font-weight: 600;
     }
 
     .contact-item {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-      color: #666;
+      gap: 12px;
+      margin-bottom: 16px;
+      color: var(--text-secondary, #666);
+      padding: 12px;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+
+    .contact-item:hover {
+      background: var(--surface-color, white);
+      transform: translateX(8px);
     }
 
     .contact-item i {
-      color: #4CAF50;
-      width: 20px;
+      color: var(--primary-color, #4CAF50);
+      width: 24px;
+      font-size: 18px;
     }
 
     .btn {
-      display: inline-block;
-      padding: 12px 24px;
-      background: #4CAF50;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      background: var(--primary-color, #4CAF50);
       color: white;
       text-decoration: none;
-      border-radius: 4px;
-      margin-top: 20px;
-      transition: background 0.2s;
+      border-radius: 8px;
+      margin-top: 24px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
     }
 
     .btn:hover {
-      background: #45a049;
+      background: var(--primary-dark, #45a049);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(76, 175, 80, 0.4);
+    }
+
+    .btn:active {
+      transform: translateY(0);
     }
 
     code {
-      background: #f5f5f5;
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-family: 'Courier New', monospace;
-      font-size: 13px;
-      color: #e91e63;
+      background: var(--surface-secondary, #f5f5f5);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', Consolas, monospace;
+      font-size: 14px;
+      color: var(--accent-color, #e91e63);
+      border: 1px solid var(--border-color, #e0e0e0);
     }
 
     .steps {
       counter-reset: step-counter;
       list-style: none;
+      padding: 0;
     }
 
     .steps li {
       counter-increment: step-counter;
-      margin-bottom: 20px;
+      margin-bottom: 28px;
       position: relative;
-      padding-left: 40px;
+      padding-left: 60px;
+      padding-top: 4px;
     }
 
     .steps li::before {
@@ -239,16 +381,102 @@
       position: absolute;
       left: 0;
       top: 0;
-      background: #4CAF50;
+      background: var(--primary-color, #4CAF50);
       color: white;
-      width: 28px;
-      height: 28px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 600;
-      font-size: 14px;
+      font-weight: 700;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    }
+
+    .steps li strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: var(--text-color, #333);
+    }
+
+    .steps li p {
+      margin: 0;
+      color: var(--text-secondary, #666);
+      line-height: 1.6;
+    }
+
+    /* Keyboard shortcut styling */
+    kbd {
+      background: var(--surface-secondary, #f5f5f5);
+      border: 1px solid var(--border-color, #ccc);
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 3px 8px;
+      font-family: 'Courier New', Consolas, monospace;
+      font-size: 13px;
+      color: var(--text-color, #333);
+    }
+
+    /* Info box */
+    .info-box {
+      background: var(--info-bg, #e3f2fd);
+      border-left: 4px solid var(--info-color, #2196f3);
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+
+    .info-box i {
+      color: var(--info-color, #2196f3);
+      margin-right: 8px;
+    }
+
+    /* Warning box */
+    .warning-box {
+      background: var(--warning-bg, #fff3e0);
+      border-left: 4px solid var(--warning-color, #ff9800);
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+
+    .warning-box i {
+      color: var(--warning-color, #ff9800);
+      margin-right: 8px;
+    }
+
+    /* Success box */
+    .success-box {
+      background: var(--success-bg, #e8f5e9);
+      border-left: 4px solid var(--success-color, #4caf50);
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+
+    .success-box i {
+      color: var(--success-color, #4caf50);
+      margin-right: 8px;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--surface-color, #f1f1f1);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary-color, #4CAF50);
+      border-radius: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--primary-dark, #45a049);
     }
   </style>
 </head>
@@ -260,101 +488,154 @@
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="getting-started">Getting Started</button>
-      <button class="tab-btn" data-tab="features">Features</button>
-      <button class="tab-btn" data-tab="faq">FAQ</button>
-      <button class="tab-btn" data-tab="support">Support</button>
+      <button class="tab-btn active" data-tab="getting-started">
+        <i class="fas fa-rocket"></i>
+        <span>Getting Started</span>
+      </button>
+      <button class="tab-btn" data-tab="features">
+        <i class="fas fa-star"></i>
+        <span>Features</span>
+      </button>
+      <button class="tab-btn" data-tab="faq">
+        <i class="fas fa-question"></i>
+        <span>FAQ</span>
+      </button>
+      <button class="tab-btn" data-tab="support">
+        <i class="fas fa-life-ring"></i>
+        <span>Support</span>
+      </button>
     </div>
 
     <!-- Getting Started Tab -->
     <div class="tab-content active" data-content="getting-started">
       <div class="section">
-        <h2>Getting Started</h2>
-        <p>Welcome to Universal Request Analyzer! Follow these simple steps to get started:</p>
+        <h2><i class="fas fa-rocket"></i> Getting Started</h2>
+        <p>Welcome to Universal Request Analyzer! Follow these simple steps to get started with powerful network request analysis:</p>
 
         <ol class="steps">
           <li>
             <strong>Register an Account</strong>
-            <p>Click the extension icon and create your account with an email and password. Your data is stored locally and securely.</p>
+            <p>Click the extension icon in your browser toolbar and create your account with an email and password. Your data is stored locally and securely in your browser using SQLite.</p>
           </li>
           <li>
             <strong>View Current Page Activity</strong>
-            <p>After logging in, the popup shows a summary of requests for the current page including total requests, response times, and errors.</p>
+            <p>After logging in, the popup shows a real-time summary of requests for the current page including total requests, average response times, status code breakdown, and error detection.</p>
           </li>
           <li>
-            <strong>Open Analytics</strong>
-            <p>Click "Open Analytics" to access the DevTools panel with advanced charts, filters, and detailed request analysis.</p>
+            <strong>Open DevTools Panel</strong>
+            <p>Press <kbd>F12</kbd> or right-click → Inspect to open DevTools, then click the "URA" tab for advanced charts, comprehensive filters, and detailed request analysis with performance metrics.</p>
           </li>
           <li>
             <strong>Explore the Dashboard</strong>
-            <p>Click "Dashboard" to access the full-featured options page with historical data, trends, and export capabilities.</p>
+            <p>Click "Dashboard" in the popup to access the full-featured options page with historical data, trend analysis, database inspection, and export capabilities.</p>
           </li>
         </ol>
 
+        <div class="success-box">
+          <i class="fas fa-check-circle"></i>
+          <strong>Pro Tip:</strong> The popup auto-refreshes every 5 seconds to show real-time data. Keep it open while testing to monitor request patterns!
+        </div>
+
         <h3>Quick Tips</h3>
         <ul>
-          <li>The popup auto-refreshes every 5 seconds to show real-time data</li>
-          <li>All data is stored locally in your browser using SQLite</li>
-          <li>Export your data anytime from the dashboard</li>
-          <li>Use DevTools panel for in-depth analysis of the current page</li>
+          <li>📊 All data is stored locally in your browser using efficient SQLite storage</li>
+          <li>🔄 Auto-refresh keeps data current without manual intervention</li>
+          <li>💾 Export your data anytime in JSON, CSV, or HAR format</li>
+          <li>🔍 Use DevTools panel for in-depth analysis of the current page</li>
+          <li>🎨 Customize the theme (Light, Dark, High Contrast, Blue) in settings</li>
+          <li>⚡ Filter requests by type, status, performance, and time range</li>
         </ul>
+
+        <div class="info-box">
+          <i class="fas fa-info-circle"></i>
+          <strong>First Time User?</strong> Check out the Features tab to learn about all the powerful capabilities available to you!
+        </div>
       </div>
     </div>
 
     <!-- Features Tab -->
     <div class="tab-content" data-content="features">
       <div class="section">
-        <h2>Features Overview</h2>
-        <p>Universal Request Analyzer provides comprehensive network request analysis and monitoring.</p>
+        <h2><i class="fas fa-star"></i> Features Overview</h2>
+        <p>Universal Request Analyzer provides comprehensive network request analysis and monitoring with powerful features designed for developers and QA teams.</p>
 
         <div class="feature-grid">
           <div class="feature-card">
             <i class="fas fa-exchange-alt"></i>
             <h4>Request Capture</h4>
-            <p>Automatically captures all network requests including headers, timings, and response data.</p>
+            <p>Automatically captures all network requests including headers, body, timings, and response data with zero configuration required.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-chart-line"></i>
             <h4>Analytics & Charts</h4>
-            <p>Visualize request data with interactive charts showing performance trends and patterns.</p>
+            <p>Visualize request data with interactive charts showing performance trends, status distributions, and request type breakdowns.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-clock"></i>
             <h4>Performance Metrics</h4>
-            <p>Track DNS, TCP, SSL/TLS timings and identify performance bottlenecks.</p>
+            <p>Track DNS, TCP, SSL/TLS timings, P95 response times, and identify performance bottlenecks with detailed timing breakdowns.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-filter"></i>
             <h4>Advanced Filtering</h4>
-            <p>Filter requests by status, method, domain, resource type, and more.</p>
+            <p>Filter requests by status code, method, domain, resource type, performance thresholds, and custom time ranges.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-database"></i>
-            <h4>Local Storage</h4>
-            <p>All data stored securely in SQLite with medallion architecture for analytics.</p>
+            <h4>Local SQLite Storage</h4>
+            <p>All data stored securely in SQLite with medallion architecture (Bronze, Silver, Gold) for efficient analytics.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-file-export"></i>
             <h4>Export Data</h4>
-            <p>Export requests in JSON, CSV, or HAR format for external analysis.</p>
+            <p>Export requests in JSON, CSV, or HAR format for external analysis, reporting, or sharing with team members.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-tachometer-alt"></i>
             <h4>Quality Metrics</h4>
-            <p>Monitor availability, performance, reliability, and security scores.</p>
+            <p>Monitor availability, performance, reliability, and security scores with automated quality assessments.</p>
           </div>
 
           <div class="feature-card">
             <i class="fas fa-history"></i>
             <h4>Historical Data</h4>
-            <p>Access historical request data with multiple timeframes (1min to 1 month).</p>
+            <p>Access historical request data with multiple timeframes from 1 minute to 1 month for trend analysis.</p>
           </div>
+
+          <div class="feature-card">
+            <i class="fas fa-bug"></i>
+            <h4>Error Detection</h4>
+            <p>Automatically detect and highlight failed requests (4xx/5xx) with detailed error information for quick debugging.</p>
+          </div>
+
+          <div class="feature-card">
+            <i class="fas fa-code"></i>
+            <h4>DevTools Integration</h4>
+            <p>Seamless integration with Chrome DevTools providing a dedicated panel with comprehensive analysis tools.</p>
+          </div>
+
+          <div class="feature-card">
+            <i class="fas fa-palette"></i>
+            <h4>Theme Support</h4>
+            <p>Multiple theme options (Light, Dark, High Contrast, Blue) with automatic theme detection and switching.</p>
+          </div>
+
+          <div class="feature-card">
+            <i class="fas fa-table"></i>
+            <h4>Database Inspection</h4>
+            <p>Direct access to SQLite tables with query history, table previews, and SQL injection protection.</p>
+          </div>
+        </div>
+
+        <div class="warning-box">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Note:</strong> Some features require specific permissions. Make sure to grant necessary permissions when prompted for full functionality.
         </div>
       </div>
     </div>
@@ -362,7 +643,7 @@
     <!-- FAQ Tab -->
     <div class="tab-content" data-content="faq">
       <div class="section">
-        <h2>Frequently Asked Questions</h2>
+        <h2><i class="fas fa-question-circle"></i> Frequently Asked Questions</h2>
 
         <div class="faq-item">
           <div class="faq-question">
@@ -370,7 +651,7 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Yes! All your data is stored locally in your browser using SQLite. Nothing is sent to external servers unless you explicitly enable backend sync in the future.
+            <strong>Absolutely!</strong> All your data is stored locally in your browser using SQLite. Nothing is sent to external servers unless you explicitly enable backend sync in the future. Your sensitive request data, headers, and credentials stay on your machine.
           </div>
         </div>
 
@@ -380,7 +661,7 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Go to the Dashboard (Options page) and use the "Clear Data" button in the settings section. You can also export your data before clearing.
+            Go to the Dashboard (Options page) by clicking the extension icon → Dashboard. Navigate to the <strong>Advanced</strong> tab where you'll find the "Clear Data" button in the database management section. You can also export your data before clearing for backup purposes.
           </div>
         </div>
 
@@ -390,7 +671,7 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Universal Request Analyzer supports Chrome, Edge, Brave, and other Chromium-based browsers. Firefox support is planned for future releases.
+            Universal Request Analyzer currently supports <strong>Chrome, Edge, Brave, Opera, and other Chromium-based browsers</strong>. Firefox support is planned for future releases as we adapt the extension to use Firefox's WebExtensions API.
           </div>
         </div>
 
@@ -400,7 +681,7 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Team collaboration features with backend sync are in development. Currently, the extension works locally, but we're building REST API integration for data sharing between team members.
+            Team collaboration features with backend sync and cloud storage are currently <strong>in development</strong>. The extension works locally now, but we're building REST API integration for data sharing, team dashboards, and collaborative analysis features.
           </div>
         </div>
 
@@ -410,7 +691,7 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Storage usage depends on your browsing activity. The extension uses efficient SQLite storage with automatic cleanup of old data. You can configure retention periods in settings.
+            Storage usage depends on your browsing activity and data retention settings. The extension uses <strong>efficient SQLite storage</strong> with automatic cleanup of old data. Typical usage is 10-50MB, but you can configure retention periods in settings to manage storage. You can also manually clear data anytime.
           </div>
         </div>
 
@@ -420,7 +701,13 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Yes! Export your data in JSON, CSV, or HAR (HTTP Archive) format from the Dashboard. You can export all data or filter specific time ranges.
+            <strong>Yes!</strong> Export your data in multiple formats:
+            <ul style="margin-top: 10px;">
+              <li><strong>JSON</strong> - For programmatic analysis and integration</li>
+              <li><strong>CSV</strong> - For spreadsheet analysis in Excel or Google Sheets</li>
+              <li><strong>HAR</strong> - HTTP Archive format for import into other tools</li>
+            </ul>
+            Export from the Dashboard with optional filters for specific time ranges, domains, or request types.
           </div>
         </div>
 
@@ -430,7 +717,7 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            The extension is optimized for minimal performance impact. Request capture runs in the background efficiently, and you can configure sampling rates to reduce overhead if needed.
+            The extension is <strong>optimized for minimal performance impact</strong>. Request capture runs efficiently in the background using Chrome's native APIs. You can also configure sampling rates in advanced settings to reduce overhead if needed. Most users experience no noticeable performance impact.
           </div>
         </div>
 
@@ -440,7 +727,41 @@
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="faq-answer">
-            Open Chrome DevTools (F12 or right-click → Inspect), then click on the "URA" or "Request Analyzer" tab. This panel shows detailed analysis for the current page.
+            <strong>Easy!</strong> Press <kbd>F12</kbd> (or <kbd>Cmd+Option+I</kbd> on Mac) to open Chrome DevTools, then click on the <strong>"URA"</strong> or <strong>"Request Analyzer"</strong> tab at the top. This panel shows detailed analysis with charts, filters, and performance metrics for the current page.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Q: Can I track specific APIs or endpoints?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            Yes! Use the <strong>Advanced Filtering</strong> feature in the DevTools panel to filter by:
+            <ul style="margin-top: 10px;">
+              <li>Specific domains or URLs</li>
+              <li>Request types (XHR, Fetch, etc.)</li>
+              <li>Status codes (2xx, 3xx, 4xx, 5xx)</li>
+              <li>Performance thresholds (slow requests)</li>
+              <li>Time ranges</li>
+            </ul>
+            The Endpoints tab also groups similar API calls for easy analysis.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span>Q: What's the medallion architecture?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            The extension uses a <strong>medallion (Bronze/Silver/Gold) data architecture</strong>:
+            <ul style="margin-top: 10px;">
+              <li><strong>Bronze Layer</strong> - Raw request data as captured</li>
+              <li><strong>Silver Layer</strong> - Cleaned and enriched data with quality metrics</li>
+              <li><strong>Gold Layer</strong> - Aggregated analytics and business metrics</li>
+            </ul>
+            This architecture enables efficient querying and powerful analytics while maintaining data integrity.
           </div>
         </div>
       </div>
@@ -503,41 +824,112 @@
   </div>
 
   <script>
-    // Tab switching
+    // Tab switching with smooth transitions
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
         
-        // Update active button
+        // Remove active from all buttons
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         
-        // Update active content
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        document.querySelector(`[data-content="${tab}"]`).classList.add('active');
+        // Hide all content with fade
+        document.querySelectorAll('.tab-content').forEach(c => {
+          c.classList.remove('active');
+        });
+        
+        // Show selected content with fade
+        setTimeout(() => {
+          const targetContent = document.querySelector(`[data-content="${tab}"]`);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        }, 50);
+        
+        // Scroll to top smoothly
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
 
-    // FAQ collapse/expand
+    // FAQ collapse/expand with enhanced interactions
     document.querySelectorAll('.faq-question').forEach(question => {
       question.addEventListener('click', () => {
         const answer = question.nextElementSibling;
         const icon = question.querySelector('i');
+        const isExpanded = answer.style.display === 'block';
         
-        if (answer.style.display === 'none' || !answer.style.display) {
-          answer.style.display = 'block';
-          icon.classList.remove('fa-chevron-down');
-          icon.classList.add('fa-chevron-up');
-        } else {
+        if (isExpanded) {
+          // Collapse
           answer.style.display = 'none';
           icon.classList.remove('fa-chevron-up');
           icon.classList.add('fa-chevron-down');
+          question.classList.remove('expanded');
+        } else {
+          // Expand
+          answer.style.display = 'block';
+          icon.classList.remove('fa-chevron-down');
+          icon.classList.add('fa-chevron-up');
+          question.classList.add('expanded');
+          
+          // Smooth scroll to question
+          setTimeout(() => {
+            question.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 100);
         }
       });
       
-      // Initially hide answers
-      question.nextElementSibling.style.display = 'none';
+      // Initially hide all answers
+      const answer = question.nextElementSibling;
+      if (answer) {
+        answer.style.display = 'none';
+      }
     });
+
+    // Add keyboard navigation for tabs
+    document.addEventListener('keydown', (e) => {
+      const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+      const activeTab = document.querySelector('.tab-btn.active');
+      const currentIndex = tabs.indexOf(activeTab);
+      
+      if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        tabs[currentIndex - 1].click();
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight' && currentIndex < tabs.length - 1) {
+        tabs[currentIndex + 1].click();
+        e.preventDefault();
+      }
+    });
+
+    // Add smooth animations for feature cards
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '0';
+          entry.target.style.transform = 'translateY(20px)';
+          
+          setTimeout(() => {
+            entry.target.style.transition = 'all 0.5s ease';
+            entry.target.style.opacity = '1';
+            entry.target.style.transform = 'translateY(0)';
+          }, 100);
+          
+          observer.unobserve(entry.target);
+        }
+      });
+    }, observerOptions);
+
+    // Observe feature cards for animation
+    document.querySelectorAll('.feature-card').forEach(card => {
+      observer.observe(card);
+    });
+
+    // Log page view
+    console.log('Universal Request Analyzer - Help Page loaded successfully');
   </script>
 </body>
 </html>

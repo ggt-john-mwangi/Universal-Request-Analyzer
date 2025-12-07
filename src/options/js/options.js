@@ -1,64 +1,64 @@
 // Import necessary modules
-import "../components/dashboard.js";
-import "../components/auto-export.js";
-import "../components/capture-filters.js";
-import "../components/capture-settings.js";
-import "../../lib/shared-components/chart-components.js";
-import "../../lib/shared-components/chart-renderer.js";
-import "../../lib/shared-components/data-filter-panel.js";
-import "../../lib/shared-components/data-loader.js";
-import "../components/data-purge.js";
-import "../../lib/shared-components/data-visualization.js";
-import "../components/export-db.js";
-import "../../lib/shared-components/export-panel.js";
-import "../../lib/shared-components/filters.js";
-import "../../lib/shared-components/notifications.js";
-import "../../lib/shared-components/performance-monitor.js";
-import settingsManager from "../../lib/shared-components/settings-manager.js";
-import "../../lib/shared-components/settings-ui.js";
-import "../../lib/shared-components/tab-manager.js";
-import "../components/visualization.js";
-import "../../auth/acl-manager.js";
-import "../../config/feature-flags.js";
-import themeManager from "../../config/theme-manager.js";
-import "../../lib/chart.min.js";
+import '../components/dashboard.js';
+import '../components/auto-export.js';
+import '../components/capture-filters.js';
+import '../components/capture-settings.js';
+import '../../lib/shared-components/chart-components.js';
+import '../../lib/shared-components/chart-renderer.js';
+import '../../lib/shared-components/data-filter-panel.js';
+import '../../lib/shared-components/data-loader.js';
+import renderDataPurge from '../components/data-purge.js';
+import '../../lib/shared-components/data-visualization.js';
+import '../components/export-db.js';
+import '../../lib/shared-components/export-panel.js';
+import '../../lib/shared-components/filters.js';
+import '../../lib/shared-components/notifications.js';
+import '../../lib/shared-components/performance-monitor.js';
+import settingsManager from '../../lib/shared-components/settings-manager.js';
+import '../../lib/shared-components/settings-ui.js';
+import '../../lib/shared-components/tab-manager.js';
+import '../components/visualization.js';
+import '../../auth/acl-manager.js';
+import '../../config/feature-flags.js';
+import themeManager from '../../config/theme-manager.js';
+import '../../lib/chart.min.js';
 
 // DOM elements
-const captureEnabled = document.getElementById("captureEnabled");
-const maxStoredRequests = document.getElementById("maxStoredRequests");
+const captureEnabled = document.getElementById('captureEnabled');
+const maxStoredRequests = document.getElementById('maxStoredRequests');
 const captureTypeCheckboxes = document.querySelectorAll(
   'input[name="captureType"]'
 );
-const includeDomains = document.getElementById("includeDomains");
-const excludeDomains = document.getElementById("excludeDomains");
-const autoExport = document.getElementById("autoExport");
-const exportFormat = document.getElementById("exportFormat");
-const exportInterval = document.getElementById("exportInterval");
-const exportPath = document.getElementById("exportPath");
-const plotEnabled = document.getElementById("plotEnabled");
+const includeDomains = document.getElementById('includeDomains');
+const excludeDomains = document.getElementById('excludeDomains');
+const autoExport = document.getElementById('autoExport');
+const exportFormat = document.getElementById('exportFormat');
+const exportInterval = document.getElementById('exportInterval');
+const exportPath = document.getElementById('exportPath');
+const plotEnabled = document.getElementById('plotEnabled');
 const plotTypeCheckboxes = document.querySelectorAll('input[name="plotType"]');
-const saveBtn = document.getElementById("saveBtn");
-const resetBtn = document.getElementById("resetBtn");
-const exportDbBtn = document.getElementById("exportDbBtn");
-const clearDbBtn = document.getElementById("clearDbBtn");
-const notification = document.getElementById("notification");
-const dbTotalRequests = document.getElementById("dbTotalRequests");
-const dbSize = document.getElementById("dbSize");
-const lastExport = document.getElementById("lastExport");
+const saveBtn = document.getElementById('saveBtn');
+const resetBtn = document.getElementById('resetBtn');
+const exportDbBtn = document.getElementById('exportDbBtn');
+const clearDbBtn = document.getElementById('clearDbBtn');
+const notification = document.getElementById('notification');
+const dbTotalRequests = document.getElementById('dbTotalRequests');
+const dbSize = document.getElementById('dbSize');
+const lastExport = document.getElementById('lastExport');
 
 // Add import/export elements
-const exportSettingsBtn = document.getElementById("exportSettingsBtn");
-const importSettingsBtn = document.getElementById("importSettingsBtn");
-const importSettingsFile = document.getElementById("importSettingsFile");
+const exportSettingsBtn = document.getElementById('exportSettingsBtn');
+const importSettingsBtn = document.getElementById('importSettingsBtn');
+const importSettingsFile = document.getElementById('importSettingsFile');
 
 // Theme elements
-const currentThemeSelect = document.getElementById("currentTheme");
-const themesContainer = document.querySelector(".themes-container");
-const saveThemeBtn = document.getElementById("saveThemeBtn");
-const resetThemeBtn = document.getElementById("resetThemeBtn");
+const currentThemeSelect = document.getElementById('currentTheme');
+const themesContainer = document.querySelector('.themes-container');
+const saveThemeBtn = document.getElementById('saveThemeBtn');
+const resetThemeBtn = document.getElementById('resetThemeBtn');
 
 // Load when DOM is ready
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener('DOMContentLoaded', async () => {
   try {
     console.log('Options page: DOM loaded, initializing...');
     
@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Initialize theme manager
     console.log('Options page: Initializing theme manager...');
-    const currentTheme = settingsManager.getAllSettings()?.theme?.current || "light";
+    const currentTheme = settingsManager.getAllSettings()?.theme?.current || 'light';
     await themeManager.initialize({
       initialTheme: currentTheme,
       onUpdate: handleThemeUpdate,
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     settingsManager.addSettingsListener(handleSettingsChange);
 
     // Initialize data purge component
-    const dataPurgeContainer = document.getElementById("dataPurge");
+    const dataPurgeContainer = document.getElementById('dataPurge');
     if (dataPurgeContainer) {
       console.log('Options page: Rendering data purge component...');
       dataPurgeContainer.appendChild(renderDataPurge());
@@ -105,9 +105,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     console.log('Options page: Initialization complete!');
   } catch (error) {
-    console.error("Error initializing options:", error);
-    console.error("Error stack:", error.stack);
-    showNotification("Failed to initialize options: " + error.message, true);
+    console.error('Error initializing options:', error);
+    console.error('Error stack:', error.stack);
+    showNotification('Failed to initialize options: ' + error.message, true);
   }
 });
 
@@ -131,17 +131,17 @@ async function loadOptions() {
 
     // Update domains
     if (includeDomains) {
-      includeDomains.value = (settings?.capture?.captureFilters?.includeDomains || []).join(", ");
+      includeDomains.value = (settings?.capture?.captureFilters?.includeDomains || []).join(', ');
     }
     if (excludeDomains) {
-      excludeDomains.value = (settings?.capture?.captureFilters?.excludeDomains || []).join(", ");
+      excludeDomains.value = (settings?.capture?.captureFilters?.excludeDomains || []).join(', ');
     }
 
     // Update export settings
     if (autoExport) autoExport.checked = settings?.general?.autoExport ?? false;
     if (exportFormat) exportFormat.value = settings?.general?.defaultExportFormat || 'json';
     if (exportInterval) exportInterval.value = (settings?.general?.autoExportInterval || 3600000) / 60000; // Convert to minutes
-    if (exportPath) exportPath.value = settings?.general?.exportPath || "";
+    if (exportPath) exportPath.value = settings?.general?.exportPath || '';
 
     // Update visualization settings
     if (plotEnabled) plotEnabled.checked = settings?.display?.showCharts ?? true;
@@ -255,11 +255,11 @@ async function saveOptions() {
           .filter((checkbox) => checkbox.checked)
           .map((checkbox) => checkbox.value),
         includeDomains: includeDomains.value
-          .split(",")
+          .split(',')
           .map((d) => d.trim())
           .filter((d) => d),
         excludeDomains: excludeDomains.value
-          .split(",")
+          .split(',')
           .map((d) => d.trim())
           .filter((d) => d),
       },
@@ -284,9 +284,9 @@ async function saveOptions() {
 
   const success = await settingsManager.updateSettings(newSettings);
   if (success) {
-    showNotification("Options saved successfully!");
+    showNotification('Options saved successfully!');
   } else {
-    showNotification("Error saving options", true);
+    showNotification('Error saving options', true);
   }
 }
 
@@ -295,9 +295,9 @@ async function resetOptions() {
   const success = await settingsManager.resetAllToDefaults();
   if (success) {
     await loadOptions();
-    showNotification("Options reset to defaults!");
+    showNotification('Options reset to defaults!');
   } else {
-    showNotification("Error resetting options", true);
+    showNotification('Error resetting options', true);
   }
 }
 
@@ -305,10 +305,10 @@ async function resetOptions() {
 function exportSettings() {
   const exportData = settingsManager.exportSettings();
   const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-    type: "application/json",
+    type: 'application/json',
   });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = url;
   a.download = `request-analyzer-settings-${new Date()
     .toISOString()
@@ -317,7 +317,7 @@ function exportSettings() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showNotification("Settings exported successfully!");
+  showNotification('Settings exported successfully!');
 }
 
 // Import settings from file
@@ -335,7 +335,7 @@ async function importSettings(event) {
     : 'Import all settings? This will overwrite ALL current settings. A backup will be created automatically.';
   
   if (!confirm(confirmMsg)) {
-    event.target.value = "";
+    event.target.value = '';
     return;
   }
 
@@ -372,7 +372,7 @@ async function importSettings(event) {
           
           if (selectedSections.length === 0) {
             showNotification('No sections selected for import', true);
-            event.target.value = "";
+            event.target.value = '';
             return;
           }
           
@@ -394,23 +394,23 @@ async function importSettings(event) {
 
         if (success) {
           await loadOptions(); // Reload UI with new settings
-          showNotification("Settings imported successfully! Backup saved to downloads.");
+          showNotification('Settings imported successfully! Backup saved to downloads.');
         } else {
-          showNotification("Failed to import settings", true);
+          showNotification('Failed to import settings', true);
         }
       } catch (error) {
-        console.error("Import error:", error);
+        console.error('Import error:', error);
         showNotification(`Invalid settings file: ${error.message}`, true);
       }
     };
     reader.readAsText(file);
   } catch (error) {
-    console.error("File read error:", error);
-    showNotification("Failed to read settings file", true);
+    console.error('File read error:', error);
+    showNotification('Failed to read settings file', true);
   }
 
   // Clear the file input for future imports
-  event.target.value = "";
+  event.target.value = '';
 }
 
 // Selective import toggle
@@ -426,13 +426,13 @@ if (selectiveImportCheckbox && selectiveImportOptions) {
 // Render theme options
 function renderThemeOptions() {
   // Handle theme selection change
-  currentThemeSelect.addEventListener("change", async (e) => {
+  currentThemeSelect.addEventListener('change', async (e) => {
     const themeId = e.target.value;
     await themeManager.setTheme(themeId);
   });
 
   // Handle theme save
-  saveThemeBtn.addEventListener("click", async () => {
+  saveThemeBtn.addEventListener('click', async () => {
     const success = await settingsManager.updateSettings({
       theme: {
         current: themeManager.currentTheme,
@@ -440,19 +440,19 @@ function renderThemeOptions() {
     });
 
     if (success) {
-      showNotification("Theme settings saved successfully!");
+      showNotification('Theme settings saved successfully!');
     } else {
-      showNotification("Error saving theme settings", true);
+      showNotification('Error saving theme settings', true);
     }
   });
 
   // Handle theme reset
-  resetThemeBtn.addEventListener("click", async () => {
-    if (confirm("Are you sure you want to reset theme settings to defaults?")) {
+  resetThemeBtn.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to reset theme settings to defaults?')) {
       await themeManager.resetToDefaults();
       currentThemeSelect.value = themeManager.currentTheme;
       renderThemeCards();
-      showNotification("Theme settings reset to defaults!");
+      showNotification('Theme settings reset to defaults!');
     }
   });
 
@@ -467,11 +467,11 @@ function renderThemeCards() {
     .map(
       (theme) => `
     <div class="theme-card ${
-      theme.isCurrentTheme ? "current-theme" : ""
-    }" data-theme-id="${theme.id}">
+  theme.isCurrentTheme ? 'current-theme' : ''
+}" data-theme-id="${theme.id}">
       <div class="theme-preview" style="background-color: ${
-        theme.previewColors.background
-      }">
+  theme.previewColors.background
+}">
         <div class="theme-preview-header" style="
           background-color: ${theme.previewColors.surface};
           color: ${theme.previewColors.text};
@@ -485,18 +485,18 @@ function renderThemeCards() {
       </div>
       <div class="theme-actions">
         <button class="theme-apply-btn" data-theme-id="${theme.id}"
-          ${theme.isCurrentTheme ? "disabled" : ""}>
-          ${theme.isCurrentTheme ? "Current Theme" : "Apply Theme"}
+          ${theme.isCurrentTheme ? 'disabled' : ''}>
+          ${theme.isCurrentTheme ? 'Current Theme' : 'Apply Theme'}
         </button>
       </div>
     </div>
   `
     )
-    .join("");
+    .join('');
 
   // Add theme card click handlers
-  document.querySelectorAll(".theme-apply-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
+  document.querySelectorAll('.theme-apply-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
       e.preventDefault();
       const themeId = e.target.dataset.themeId;
       await themeManager.setTheme(themeId);
@@ -511,36 +511,36 @@ function renderThemeCards() {
 
 // Setup tab navigation
 function setupTabNavigation() {
-  const navItems = document.querySelectorAll(".nav-item");
-  const tabContents = document.querySelectorAll(".tab-content");
-  const pageTitle = document.getElementById("pageTitle");
+  const navItems = document.querySelectorAll('.nav-item');
+  const tabContents = document.querySelectorAll('.tab-content');
+  const pageTitle = document.getElementById('pageTitle');
 
   // Tab titles mapping
   const tabTitles = {
-    dashboard: "Dashboard",
-    general: "General Settings",
-    monitoring: "Monitoring",
-    filters: "Filters",
-    export: "Export Settings",
-    retention: "Data Retention",
-    security: "Security Settings",
-    themes: "Themes",
-    advanced: "Advanced Tools"
+    dashboard: 'Dashboard',
+    general: 'General Settings',
+    monitoring: 'Monitoring',
+    filters: 'Filters',
+    export: 'Export Settings',
+    retention: 'Data Retention',
+    security: 'Security Settings',
+    themes: 'Themes',
+    advanced: 'Advanced Tools'
   };
 
   navItems.forEach((item) => {
-    item.addEventListener("click", () => {
+    item.addEventListener('click', () => {
       const tab = item.dataset.tab;
 
       // Remove active class from all items and contents
-      navItems.forEach((i) => i.classList.remove("active"));
-      tabContents.forEach((c) => c.classList.remove("active"));
+      navItems.forEach((i) => i.classList.remove('active'));
+      tabContents.forEach((c) => c.classList.remove('active'));
 
       // Add active class to clicked item and corresponding content
-      item.classList.add("active");
+      item.classList.add('active');
       const content = document.getElementById(tab);
       if (content) {
-        content.classList.add("active");
+        content.classList.add('active');
       }
 
       // Update page title
@@ -551,20 +551,20 @@ function setupTabNavigation() {
   });
 
   // Also support old tab-button class for backwards compatibility
-  const oldTabs = document.querySelectorAll(".tab-button");
+  const oldTabs = document.querySelectorAll('.tab-button');
   oldTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
+    tab.addEventListener('click', () => {
       const tabId = tab.dataset.tab;
 
       // Update active button
-      oldTabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
+      oldTabs.forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
 
       // Update active content
-      tabContents.forEach((c) => c.classList.remove("active"));
+      tabContents.forEach((c) => c.classList.remove('active'));
       const content = document.getElementById(tabId);
       if (content) {
-        content.classList.add("active");
+        content.classList.add('active');
       }
     });
   });
@@ -573,52 +573,52 @@ function setupTabNavigation() {
 // Show notification
 function showNotification(message, isError = false) {
   notification.textContent = message;
-  notification.className = "notification" + (isError ? " error" : "");
-  notification.classList.add("visible");
+  notification.className = 'notification' + (isError ? ' error' : '');
+  notification.classList.add('visible');
 
   setTimeout(() => {
-    notification.classList.remove("visible");
+    notification.classList.remove('visible');
   }, 5000);
 }
 
 // Add event listeners
 if (saveBtn) {
-  saveBtn.addEventListener("click", saveOptions);
+  saveBtn.addEventListener('click', saveOptions);
 }
 if (resetBtn) {
-  resetBtn.addEventListener("click", resetOptions);
+  resetBtn.addEventListener('click', resetOptions);
 }
 if (exportDbBtn) {
-  exportDbBtn.addEventListener("click", () => {
-  chrome.runtime.sendMessage(
-    {
-      action: "exportDatabase",
-      format: exportFormat.value,
-      filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
-        exportFormat.value
-      }`,
-    },
-    (response) => {
-      if (response && response.success) {
-        showNotification("Database exported successfully!");
-        lastExport.textContent = new Date().toLocaleString();
-      } else {
-        showNotification("Failed to export database", true);
+  exportDbBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'exportDatabase',
+        format: exportFormat.value,
+        filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
+          exportFormat.value
+        }`,
+      },
+      (response) => {
+        if (response && response.success) {
+          showNotification('Database exported successfully!');
+          lastExport.textContent = new Date().toLocaleString();
+        } else {
+          showNotification('Failed to export database', true);
+        }
       }
-    }
-  );
+    );
   });
 }
 
 if (clearDbBtn) {
-  clearDbBtn.addEventListener("click", () => {
-    if (confirm("Are you sure you want to clear all stored requests?")) {
-      chrome.runtime.sendMessage({ action: "clearDatabase" }, (response) => {
+  clearDbBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to clear all stored requests?')) {
+      chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
         if (response && response.success) {
-          showNotification("Database cleared successfully!");
+          showNotification('Database cleared successfully!');
           loadDatabaseInfo();
         } else {
-          showNotification("Failed to clear database", true);
+          showNotification('Failed to clear database', true);
         }
       });
     }
@@ -627,11 +627,11 @@ if (clearDbBtn) {
 
 // Add import/export event listeners
 if (exportSettingsBtn) {
-  exportSettingsBtn.addEventListener("click", exportSettings);
+  exportSettingsBtn.addEventListener('click', exportSettings);
 }
 if (importSettingsBtn && importSettingsFile) {
-  importSettingsBtn.addEventListener("click", () => importSettingsFile.click());
-  importSettingsFile.addEventListener("change", importSettings);
+  importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
+  importSettingsFile.addEventListener('change', importSettings);
 }
 
 // Save All button
@@ -665,11 +665,15 @@ function initializeAdvancedTab() {
         if (response.success && queryResult) {
           displayQueryResult(response.result, queryResult);
           showNotification('Query executed successfully');
+          // Save to query history
+          await saveQueryToHistory(query, true, null);
         } else {
           if (queryResult) {
             queryResult.innerHTML = `<p style="color: red;">Error: ${response.error || 'Query failed'}</p>`;
           }
           showNotification('Query failed: ' + (response.error || 'Unknown error'), true);
+          // Save failed query to history
+          await saveQueryToHistory(query, false, response.error || 'Unknown error');
         }
       } catch (error) {
         console.error('Query execution error:', error);
@@ -677,6 +681,8 @@ function initializeAdvancedTab() {
           queryResult.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
         }
         showNotification('Query execution failed', true);
+        // Save failed query to history
+        await saveQueryToHistory(query, false, error.message);
       }
     });
   }
@@ -829,6 +835,24 @@ function initializeAdvancedTab() {
 
   // Load advanced stats
   loadAdvancedStats();
+  
+  // Initialize database tables listing
+  loadDatabaseTables();
+  
+  // Initialize query history
+  loadQueryHistory();
+  
+  // Clear history button
+  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', async () => {
+      if (confirm('Clear all query history?')) {
+        await chrome.storage.local.set({ queryHistory: [] });
+        loadQueryHistory();
+        showNotification('Query history cleared');
+      }
+    });
+  }
 }
 
 // Display query result in table format
@@ -898,6 +922,225 @@ async function loadAdvancedStats() {
     }
   } catch (error) {
     console.error('Failed to load advanced stats:', error);
+  }
+}
+
+// Load database tables with counts
+async function loadDatabaseTables() {
+  const tablesListContainer = document.getElementById('tablesListContainer');
+  if (!tablesListContainer) return;
+
+  try {
+    // Query to get all tables
+    const response = await chrome.runtime.sendMessage({
+      action: 'executeDirectQuery',
+      query: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    });
+
+    if (response.success && response.result && response.result[0]) {
+      const tables = response.result[0].values || [];
+      
+      if (tables.length === 0) {
+        tablesListContainer.innerHTML = '<p class="placeholder">No tables found</p>';
+        return;
+      }
+
+      // Get count for each table
+      const tableData = [];
+      for (const [tableName] of tables) {
+        // Validate table name to prevent SQL injection
+        if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+          console.warn(`Invalid table name: ${tableName}`);
+          continue;
+        }
+        
+        try {
+          const countResponse = await chrome.runtime.sendMessage({
+            action: 'executeDirectQuery',
+            query: `SELECT COUNT(*) as count FROM ${tableName}`
+          });
+          
+          const count = countResponse.success && countResponse.result[0]?.values[0]?.[0] || 0;
+          tableData.push({ name: tableName, count });
+        } catch (error) {
+          console.error(`Error getting count for ${tableName}:`, error);
+          tableData.push({ name: tableName, count: 0 });
+        }
+      }
+
+      // Render table items
+      let html = '';
+      tableData.forEach(table => {
+        html += `
+          <div class="table-item" data-table="${table.name}">
+            <div class="table-item-name">
+              <i class="fas fa-table"></i>
+              ${table.name}
+            </div>
+            <div class="table-item-count">${table.count} records</div>
+          </div>
+        `;
+      });
+      tablesListContainer.innerHTML = html;
+
+      // Add click handlers
+      const tableItems = tablesListContainer.querySelectorAll('.table-item');
+      tableItems.forEach(item => {
+        item.addEventListener('click', async () => {
+          // Remove selected class from all
+          tableItems.forEach(i => i.classList.remove('selected'));
+          // Add selected class to clicked item
+          item.classList.add('selected');
+          
+          const tableName = item.dataset.table;
+          await loadTablePreview(tableName);
+        });
+      });
+    } else {
+      tablesListContainer.innerHTML = '<p class="placeholder">Error loading tables</p>';
+    }
+  } catch (error) {
+    console.error('Error loading database tables:', error);
+    tablesListContainer.innerHTML = '<p class="placeholder">Error loading tables</p>';
+  }
+}
+
+// Load preview of a table (first 5 records)
+async function loadTablePreview(tableName) {
+  const tablePreviewContainer = document.getElementById('tablePreviewContainer');
+  if (!tablePreviewContainer) return;
+
+  // Validate table name to prevent SQL injection
+  if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+    tablePreviewContainer.innerHTML = '<p class="placeholder">Invalid table name</p>';
+    return;
+  }
+
+  try {
+    tablePreviewContainer.innerHTML = '<p class="placeholder">Loading...</p>';
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'executeDirectQuery',
+      query: `SELECT * FROM ${tableName} LIMIT 5`
+    });
+
+    if (response.success && response.result && response.result[0]) {
+      const data = response.result[0];
+      
+      if (!data.columns || !data.values || data.values.length === 0) {
+        tablePreviewContainer.innerHTML = `<p class="placeholder">Table "${tableName}" is empty</p>`;
+        return;
+      }
+
+      let html = `<h4 style="margin: 0 0 10px 0; color: #667eea;">Preview: ${tableName} (5 records)</h4>`;
+      html += '<table><thead><tr>';
+      data.columns.forEach(col => {
+        html += `<th>${col}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      data.values.forEach(row => {
+        html += '<tr>';
+        row.forEach(cell => {
+          let displayValue = cell;
+          if (cell === null) {
+            displayValue = '<em style="color: #999;">NULL</em>';
+          } else if (typeof cell === 'string' && cell.length > 100) {
+            displayValue = cell.substring(0, 100) + '...';
+          }
+          html += `<td>${displayValue}</td>`;
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      tablePreviewContainer.innerHTML = html;
+    } else {
+      tablePreviewContainer.innerHTML = `<p class="placeholder">Error loading preview for "${tableName}"</p>`;
+    }
+  } catch (error) {
+    console.error('Error loading table preview:', error);
+    tablePreviewContainer.innerHTML = `<p class="placeholder">Error loading preview</p>`;
+  }
+}
+
+// Save query to history
+async function saveQueryToHistory(query, success, error) {
+  try {
+    const result = await chrome.storage.local.get('queryHistory');
+    const history = result.queryHistory || [];
+    
+    // Add new query at the beginning
+    history.unshift({
+      query,
+      success,
+      error,
+      timestamp: Date.now()
+    });
+    
+    // Keep only last 50 queries
+    const trimmedHistory = history.slice(0, 50);
+    
+    await chrome.storage.local.set({ queryHistory: trimmedHistory });
+    
+    // Reload history display
+    await loadQueryHistory();
+  } catch (error) {
+    console.error('Error saving query to history:', error);
+  }
+}
+
+// Load and display query history
+async function loadQueryHistory() {
+  const queryHistoryContainer = document.getElementById('queryHistoryContainer');
+  if (!queryHistoryContainer) return;
+
+  try {
+    const result = await chrome.storage.local.get('queryHistory');
+    const history = result.queryHistory || [];
+    
+    if (history.length === 0) {
+      queryHistoryContainer.innerHTML = '<p class="placeholder">No query history yet. Execute queries to see them here.</p>';
+      return;
+    }
+
+    let html = '';
+    history.forEach((item, index) => {
+      const date = new Date(item.timestamp);
+      const timeStr = date.toLocaleString();
+      const statusClass = item.success ? 'success' : 'error';
+      const statusText = item.success ? 'Success' : 'Error';
+      
+      html += `
+        <div class="query-history-item" data-index="${index}">
+          <div class="query-history-header">
+            <span class="query-history-time">${timeStr}</span>
+            <span class="query-history-status ${statusClass}">${statusText}</span>
+          </div>
+          <div class="query-history-query">${item.query}</div>
+          ${item.error ? `<div style="color: #f44336; font-size: 11px; margin-top: 4px;">${item.error}</div>` : ''}
+        </div>
+      `;
+    });
+    
+    queryHistoryContainer.innerHTML = html;
+    
+    // Add click handlers to load query
+    const items = queryHistoryContainer.querySelectorAll('.query-history-item');
+    items.forEach(item => {
+      item.addEventListener('click', () => {
+        const index = parseInt(item.dataset.index);
+        const query = history[index].query;
+        const advancedQuery = document.getElementById('advancedQuery');
+        if (advancedQuery) {
+          advancedQuery.value = query;
+          showNotification('Query loaded from history');
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error loading query history:', error);
+    queryHistoryContainer.innerHTML = '<p class="placeholder">Error loading query history</p>';
   }
 }
 

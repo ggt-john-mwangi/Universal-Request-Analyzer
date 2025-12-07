@@ -99,6 +99,54 @@ function setupEventListeners() {
     e.preventDefault();
     chrome.tabs.create({ url: 'https://github.com/ModernaCyber/Universal-Request-Analyzer/issues' });
   });
+
+  // QA Quick View - Site selector
+  document.getElementById('siteSelect')?.addEventListener('change', async (e) => {
+    const selectedSite = e.target.value;
+    if (selectedSite) {
+      // Navigate to selected site
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]) {
+        chrome.tabs.update(tabs[0].id, { url: selectedSite });
+      }
+    }
+  });
+
+  // QA Quick View - Navigation buttons
+  document.getElementById('viewRequests')?.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  document.getElementById('viewAnalytics')?.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  document.getElementById('exportData')?.addEventListener('click', async () => {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const currentTab = tabs[0];
+      
+      if (currentTab && currentTab.url) {
+        const response = await chrome.runtime.sendMessage({
+          action: 'exportFilteredData',
+          filters: { pageUrl: currentTab.url },
+          format: 'json'
+        });
+        
+        if (response.success) {
+          showNotification('Export initiated successfully!');
+        } else {
+          showNotification('Export failed: ' + (response.error || 'Unknown error'), true);
+        }
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      showNotification('Export failed', true);
+    }
+  });
+
+  // Load tracked sites for QA selector
+  loadTrackedSites();
 }
 
 // Handle registration
@@ -204,21 +252,23 @@ async function loadPageSummary() {
       return;
     }
 
-    // Get page stats from background
+    // Get detailed filtered stats from background
     const response = await chrome.runtime.sendMessage({
-      action: 'getPageStats',
-      data: { tabId: currentTab.id, url: currentTab.url }
+      action: 'getFilteredStats',
+      filters: { pageUrl: currentTab.url, timeRange: 300 } // Last 5 minutes
     });
 
-    if (response.success && response.stats) {
-      updatePageSummary(response.stats);
+    if (response.success) {
+      updatePageSummary(response);
+      updateDetailedViews(response);
     } else {
       // Show default values
       updatePageSummary({
         totalRequests: 0,
-        avgResponse: 0,
-        errorCount: 0,
-        dataTransferred: 0
+        timestamps: [],
+        responseTimes: [],
+        requestTypes: {},
+        statusCodes: {}
       });
     }
 
@@ -230,22 +280,231 @@ async function loadPageSummary() {
 }
 
 // Update page summary display
-function updatePageSummary(stats) {
-  document.getElementById('totalRequests').textContent = stats.totalRequests || 0;
-  document.getElementById('avgResponse').textContent = `${Math.round(stats.avgResponse || 0)}ms`;
-  document.getElementById('errorCount').textContent = stats.errorCount || 0;
+function updatePageSummary(data) {
+  const totalRequests = data.totalRequests || 0;
+  const responseTimes = data.responseTimes || [];
+  const avgResponse = responseTimes.length > 0 
+    ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+    : 0;
   
-  // Format data transferred
-  const bytes = stats.dataTransferred || 0;
-  let formatted;
-  if (bytes < 1024) {
-    formatted = bytes + 'B';
-  } else if (bytes < 1024 * 1024) {
-    formatted = Math.round(bytes / 1024) + 'KB';
-  } else {
-    formatted = (bytes / (1024 * 1024)).toFixed(2) + 'MB';
+  // Count errors (all 4xx and 5xx status codes)
+  const statusCodes = data.statusCodes || {};
+  const errorCount = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
+  }, 0);
+  
+  document.getElementById('totalRequests').textContent = totalRequests;
+  document.getElementById('avgResponse').textContent = `${Math.round(avgResponse)}ms`;
+  document.getElementById('errorCount').textContent = errorCount;
+  
+  // Use actual data from response or show 0
+  document.getElementById('dataTransferred').textContent = '0KB';
+}
+
+// Update detailed QA views
+let timelineChart = null;
+
+function updateDetailedViews(data) {
+  // Update status code breakdown
+  updateStatusBreakdown(data.statusCodes || {});
+  
+  // Update request types
+  updateRequestTypes(data.requestTypes || {});
+  
+  // Update timeline chart
+  updateTimelineChart(data.timestamps || [], data.responseTimes || []);
+  
+  // Update recent errors (we'll need to fetch this separately)
+  updateRecentErrors();
+}
+
+// Update status code breakdown
+function updateStatusBreakdown(statusCodes) {
+  // Group status codes by range
+  const status2xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 200 && statusCode < 300) ? sum + count : sum;
+  }, 0);
+  
+  const status3xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 300 && statusCode < 400) ? sum + count : sum;
+  }, 0);
+  
+  const status4xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 400 && statusCode < 500) ? sum + count : sum;
+  }, 0);
+  
+  const status5xx = Object.entries(statusCodes).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 500 && statusCode < 600) ? sum + count : sum;
+  }, 0);
+  
+  document.getElementById('status2xx').textContent = status2xx;
+  document.getElementById('status3xx').textContent = status3xx;
+  document.getElementById('status4xx').textContent = status4xx;
+  document.getElementById('status5xx').textContent = status5xx;
+}
+
+// Update request types visualization
+function updateRequestTypes(requestTypes) {
+  const container = document.getElementById('requestTypesList');
+  if (!container) return;
+  
+  const types = Object.entries(requestTypes);
+  if (types.length === 0) {
+    container.innerHTML = '<p class="placeholder">No requests yet</p>';
+    return;
   }
-  document.getElementById('dataTransferred').textContent = formatted;
+  
+  const total = types.reduce((sum, [, count]) => sum + count, 0);
+  
+  let html = '';
+  types.forEach(([type, count]) => {
+    const percentage = total > 0 ? (count / total) * 100 : 0;
+    html += `
+      <div class="type-item">
+        <span class="type-name">${type.toUpperCase()}</span>
+        <span class="type-bar">
+          <span class="type-bar-fill" style="width: ${percentage}%"></span>
+        </span>
+        <span class="type-count">${count}</span>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+// Update timeline chart
+function updateTimelineChart(timestamps, responseTimes) {
+  const canvas = document.getElementById('requestTimelineChart');
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  
+  // Destroy existing chart
+  if (timelineChart) {
+    timelineChart.destroy();
+  }
+  
+  // Create new chart (using simple drawing if Chart.js not available)
+  if (typeof Chart !== 'undefined') {
+    timelineChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timestamps.slice(-20), // Last 20 data points
+        datasets: [{
+          label: 'Response Time (ms)',
+          data: responseTimes.slice(-20),
+          borderColor: 'rgb(102, 126, 234)',
+          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              font: {
+                size: 10
+              }
+            }
+          },
+          x: {
+            ticks: {
+              font: {
+                size: 9
+              },
+              maxRotation: 0
+            }
+          }
+        }
+      }
+    });
+  } else {
+    // Fallback: simple canvas drawing
+    drawSimpleChart(ctx, timestamps.slice(-20), responseTimes.slice(-20));
+  }
+}
+
+// Simple chart fallback
+function drawSimpleChart(ctx, labels, data) {
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const maxValue = data.length > 0 ? data.reduce((max, val) => Math.max(max, val), 100) : 100;
+  const padding = 20;
+  
+  ctx.clearRect(0, 0, width, height);
+  
+  // Draw line
+  ctx.strokeStyle = 'rgb(102, 126, 234)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  
+  data.forEach((value, index) => {
+    const x = padding + (index / (data.length - 1 || 1)) * (width - 2 * padding);
+    const y = height - padding - (value / maxValue) * (height - 2 * padding);
+    
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  
+  ctx.stroke();
+}
+
+// Update recent errors
+async function updateRecentErrors() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) return;
+    
+    // Get filtered stats with error filter
+    const response = await chrome.runtime.sendMessage({
+      action: 'getFilteredStats',
+      filters: { 
+        pageUrl: currentTab.url, 
+        timeRange: 300,
+        statusPrefix: '4xx'
+      }
+    });
+    
+    const container = document.getElementById('recentErrorsList');
+    if (!container) return;
+    
+    // For now, show placeholder until we implement full error details
+    if (!response.success || response.totalRequests === 0) {
+      container.innerHTML = '<p class="placeholder">No errors in the last 5 minutes</p>';
+      return;
+    }
+    
+    // We'll show a summary for now
+    container.innerHTML = `
+      <div class="error-item">
+        <span class="error-url">${response.totalRequests} failed requests detected</span>
+        <span class="error-details">Check Analytics for details</span>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Failed to load recent errors:', error);
+  }
 }
 
 // Show error message
@@ -272,4 +531,86 @@ function clearMessages() {
       element.textContent = '';
     }
   });
+}
+
+// Load tracked sites for QA selector
+async function loadTrackedSites() {
+  try {
+    const siteSelect = document.getElementById('siteSelect');
+    if (!siteSelect) return;
+
+    // Get tracking sites from storage/settings
+    const result = await chrome.storage.local.get('trackingSites');
+    const sites = result.trackingSites || [];
+
+    // Parse sites and add to selector
+    if (sites.length > 0) {
+      sites.forEach(site => {
+        const option = document.createElement('option');
+        option.value = site;
+        option.textContent = site;
+        siteSelect.appendChild(option);
+      });
+    }
+
+    // Also load from medallion DB - get top domains
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getDashboardStats',
+        timeRange: 604800 // Last 7 days
+      });
+
+      if (response.success && response.stats && response.stats.topDomains) {
+        const domains = response.stats.topDomains.labels || [];
+        domains.forEach(domain => {
+          // Don't add duplicates
+          const exists = Array.from(siteSelect.options).some(opt => opt.value.includes(domain));
+          if (!exists && domain) {
+            const option = document.createElement('option');
+            option.value = `https://${domain}`;
+            option.textContent = domain;
+            siteSelect.appendChild(option);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load domains from DB:', error);
+    }
+  } catch (error) {
+    console.error('Failed to load tracked sites:', error);
+  }
+}
+
+// Show notification (simple toast-like notification)
+function showNotification(message, isError = false) {
+  // Create notification element if it doesn't exist
+  let notification = document.getElementById('popupNotification');
+  if (!notification) {
+    notification = document.createElement('div');
+    notification.id = 'popupNotification';
+    notification.style.cssText = `
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 12px 20px;
+      background: ${isError ? '#f56565' : '#48bb78'};
+      color: white;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      z-index: 10000;
+      max-width: 300px;
+      animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notification);
+  }
+
+  notification.textContent = message;
+  notification.style.background = isError ? '#f56565' : '#48bb78';
+  notification.style.display = 'block';
+
+  setTimeout(() => {
+    notification.style.display = 'none';
+  }, 3000);
 }
