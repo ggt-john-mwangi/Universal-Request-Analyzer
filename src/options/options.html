@@ -742,6 +742,22 @@ example.org/api/*"></textarea>
               </div>
             </div>
 
+            <h3><i class="fas fa-table"></i> Database Tables</h3>
+            <div class="tables-section">
+              <div class="option-row">
+                <label>Available Tables:</label>
+                <div id="tablesListContainer" class="tables-list">
+                  <p class="placeholder">Loading tables...</p>
+                </div>
+              </div>
+              <div class="option-row">
+                <label>Table Preview (5 records):</label>
+                <div id="tablePreviewContainer" class="table-preview">
+                  <p class="placeholder">Select a table above to preview records</p>
+                </div>
+              </div>
+            </div>
+
             <h3><i class="fas fa-search"></i> Direct Database Query</h3>
             <div class="query-section">
               <div class="option-row">
@@ -761,6 +777,20 @@ example.org/api/*"></textarea>
                 <div id="queryResult" class="query-result">
                   <p class="placeholder">Execute a query to see results...</p>
                 </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-history"></i> Query History</h3>
+            <div class="query-history-section">
+              <div class="option-row">
+                <div id="queryHistoryContainer" class="query-history">
+                  <p class="placeholder">No query history yet. Execute queries to see them here.</p>
+                </div>
+              </div>
+              <div class="option-row">
+                <button id="clearHistoryBtn" class="secondary-btn">
+                  <i class="fas fa-trash"></i> Clear History
+                </button>
               </div>
             </div>
 
