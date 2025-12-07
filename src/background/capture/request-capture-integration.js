@@ -20,15 +20,23 @@ export class RequestCaptureIntegration {
    * Initialize request capture listeners
    */
   initialize() {
+    console.log('🔧 Initializing RequestCaptureIntegration...');
+    console.log('  - dbManager available:', !!this.dbManager);
+    console.log('  - dbManager.medallion available:', !!this.dbManager?.medallion);
+    console.log('  - eventBus available:', !!this.eventBus);
+    
     // Listen for webRequest events
     if (typeof chrome !== 'undefined' && chrome.webRequest) {
+      console.log('  - chrome.webRequest API available');
       this.setupWebRequestListeners();
+    } else {
+      console.error('  ❌ chrome.webRequest API NOT available!');
     }
 
     // Listen for performance entries
     this.setupPerformanceListener();
 
-    console.log('Request capture integration initialized');
+    console.log('✅ Request capture integration initialized');
   }
 
   /**
@@ -39,12 +47,15 @@ export class RequestCaptureIntegration {
       urls: this.config?.filters?.includePatterns || ['<all_urls>']
     };
 
+    console.log('Setting up webRequest listeners with filters:', filters);
+
     // Capture request start
     chrome.webRequest.onBeforeRequest.addListener(
       (details) => this.handleRequestStart(details),
       filters,
       ['requestBody']
     );
+    console.log('✓ onBeforeRequest listener registered');
 
     // Capture request headers
     chrome.webRequest.onBeforeSendHeaders.addListener(
@@ -52,6 +63,7 @@ export class RequestCaptureIntegration {
       filters,
       ['requestHeaders']
     );
+    console.log('✓ onBeforeSendHeaders listener registered');
 
     // Capture response headers
     chrome.webRequest.onHeadersReceived.addListener(
@@ -59,6 +71,7 @@ export class RequestCaptureIntegration {
       filters,
       ['responseHeaders']
     );
+    console.log('✓ onHeadersReceived listener registered');
 
     // Capture request completion
     chrome.webRequest.onCompleted.addListener(
@@ -66,12 +79,14 @@ export class RequestCaptureIntegration {
       filters,
       ['responseHeaders']
     );
+    console.log('✓ onCompleted listener registered');
 
     // Capture request errors
     chrome.webRequest.onErrorOccurred.addListener(
       (details) => this.handleRequestError(details),
       filters
     );
+    console.log('✓ onErrorOccurred listener registered');
   }
 
   /**
@@ -88,6 +103,7 @@ export class RequestCaptureIntegration {
    */
   handleRequestStart(details) {
     try {
+      console.log('📥 Request captured:', details.method, details.url);
       const requestId = details.requestId.toString();
       const timestamp = Date.now();
       const urlParts = parseUrl(details.url);
@@ -266,13 +282,16 @@ export class RequestCaptureIntegration {
    */
   async saveToBronze(requestData, perfMetrics = null) {
     try {
+      console.log('💾 Saving request to Bronze:', requestData.method, requestData.url);
+      
       if (!this.dbManager?.medallion) {
-        console.warn('Medallion manager not available');
+        console.error('❌ Medallion manager not available! dbManager:', !!this.dbManager, 'medallion:', !!this.dbManager?.medallion);
         return;
       }
 
       // Insert request into Bronze
       await this.dbManager.medallion.insertBronzeRequest(requestData);
+      console.log('✅ Request saved to Bronze layer:', requestData.id);
 
       // Insert headers if available
       if (requestData.requestHeaders?.length > 0) {
@@ -320,8 +339,6 @@ export class RequestCaptureIntegration {
         requestId: requestData.id,
         timestamp: Date.now()
       });
-
-      console.log(`Request ${requestData.id} saved to Bronze layer`);
     } catch (error) {
       console.error('Failed to save to Bronze layer:', error);
       throw error;

@@ -55,11 +55,22 @@ export class LocalAuthManager {
       const passwordHash = await this.hashPassword(password);
       const now = Date.now();
 
-      // Insert user
-      this.dbManager.executeQuery(`
-        INSERT INTO local_users (email, password_hash, name, created_at)
-        VALUES (?, ?, ?, ?)
-      `, [email, passwordHash, name || '', now]);
+      // Insert user with try-catch for constraint handling
+      try {
+        this.dbManager.executeQuery(`
+          INSERT INTO local_users (email, password_hash, name, created_at)
+          VALUES (?, ?, ?, ?)
+        `, [email, passwordHash, name || '', now]);
+      } catch (insertError) {
+        // Handle UNIQUE constraint error
+        const errorMsg = insertError?.message || String(insertError);
+        if (errorMsg.includes('UNIQUE constraint')) {
+          console.warn('Duplicate email registration attempt:', email);
+          return { success: false, error: 'Email already registered' };
+        }
+        console.error('Registration insert error:', insertError);
+        throw insertError;
+      }
 
       // Get the inserted user
       const result = this.dbManager.executeQuery(

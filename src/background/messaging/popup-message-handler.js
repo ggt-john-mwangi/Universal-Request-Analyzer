@@ -47,6 +47,9 @@ async function handleMessage(message, sender) {
     case 'getDashboardStats':
       return await handleGetDashboardStats(message.timeRange);
     
+    case 'getMetrics':
+      return await handleGetMetrics(message.timeRange);
+    
     default:
       return { success: false, error: 'Unknown action' };
   }
@@ -456,6 +459,18 @@ async function handleGetDashboardStats(timeRange = 86400) {
     return { success: true, stats };
   } catch (error) {
     console.error('Get dashboard stats error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get metrics
+async function handleGetMetrics(timeRange = 86400) {
+  try {
+    // Reuse dashboard stats logic for metrics
+    const result = await handleGetDashboardStats(timeRange);
+    return result;
+  } catch (error) {
+    console.error('Get metrics error:', error);
     return { success: false, error: error.message };
   }
 }

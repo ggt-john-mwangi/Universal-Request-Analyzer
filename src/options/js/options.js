@@ -14,13 +14,13 @@ import "../../lib/shared-components/export-panel.js";
 import "../../lib/shared-components/filters.js";
 import "../../lib/shared-components/notifications.js";
 import "../../lib/shared-components/performance-monitor.js";
-import "../../lib/shared-components/settings-manager.js";
+import settingsManager from "../../lib/shared-components/settings-manager.js";
 import "../../lib/shared-components/settings-ui.js";
 import "../../lib/shared-components/tab-manager.js";
 import "../components/visualization.js";
 import "../../auth/acl-manager.js";
 import "../../config/feature-flags.js";
-import "../../config/theme-manager.js";
+import themeManager from "../../config/theme-manager.js";
 import "../../lib/chart.min.js";
 
 // DOM elements
@@ -382,9 +382,14 @@ function showNotification(message, isError = false) {
 }
 
 // Add event listeners
-saveBtn.addEventListener("click", saveOptions);
-resetBtn.addEventListener("click", resetOptions);
-exportDbBtn.addEventListener("click", () => {
+if (saveBtn) {
+  saveBtn.addEventListener("click", saveOptions);
+}
+if (resetBtn) {
+  resetBtn.addEventListener("click", resetOptions);
+}
+if (exportDbBtn) {
+  exportDbBtn.addEventListener("click", () => {
   chrome.runtime.sendMessage(
     {
       action: "exportDatabase",
@@ -402,22 +407,29 @@ exportDbBtn.addEventListener("click", () => {
       }
     }
   );
-});
+  });
+}
 
-clearDbBtn.addEventListener("click", () => {
-  if (confirm("Are you sure you want to clear all stored requests?")) {
-    chrome.runtime.sendMessage({ action: "clearDatabase" }, (response) => {
-      if (response && response.success) {
-        showNotification("Database cleared successfully!");
-        loadDatabaseInfo();
-      } else {
-        showNotification("Failed to clear database", true);
-      }
-    });
-  }
-});
+if (clearDbBtn) {
+  clearDbBtn.addEventListener("click", () => {
+    if (confirm("Are you sure you want to clear all stored requests?")) {
+      chrome.runtime.sendMessage({ action: "clearDatabase" }, (response) => {
+        if (response && response.success) {
+          showNotification("Database cleared successfully!");
+          loadDatabaseInfo();
+        } else {
+          showNotification("Failed to clear database", true);
+        }
+      });
+    }
+  });
+}
 
 // Add import/export event listeners
-exportSettingsBtn.addEventListener("click", exportSettings);
-importSettingsBtn.addEventListener("click", () => importSettingsFile.click());
-importSettingsFile.addEventListener("change", importSettings);
+if (exportSettingsBtn) {
+  exportSettingsBtn.addEventListener("click", exportSettings);
+}
+if (importSettingsBtn && importSettingsFile) {
+  importSettingsBtn.addEventListener("click", () => importSettingsFile.click());
+  importSettingsFile.addEventListener("change", importSettings);
+}

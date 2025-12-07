@@ -251,10 +251,12 @@ export class MedallionManager {
       `, [requestId]);
 
       if (!bronzeRequest || bronzeRequest.length === 0) {
+        console.warn(`No bronze request found for ID: ${requestId}`);
         return;
       }
 
       const request = this.mapResultToObject(bronzeRequest[0]);
+      console.log('Processing Bronze→Silver for request:', request.id, request.method, request.url?.substring(0, 50));
       
       // Enrich data
       const enrichedData = this.enrichRequestData(request);
@@ -269,16 +271,8 @@ export class MedallionManager {
         return val;
       };
       
-      // Insert into Silver
-      this.db.exec(`
-        INSERT OR REPLACE INTO silver_requests (
-          id, url, method, type, status, status_text,
-          domain, path, protocol, duration, size_bytes,
-          timestamp, tab_id, page_url, is_third_party,
-          is_secure, has_error, performance_score,
-          quality_score, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
+      // Prepare all values with comprehensive logging
+      const values = [
         toSqlValue(request.id),
         toSqlValue(request.url),
         toSqlValue(request.method, 'GET'),
@@ -293,14 +287,34 @@ export class MedallionManager {
         toSqlValue(request.timestamp, now),
         toSqlValue(request.tab_id),
         toSqlValue(request.page_url),
-        enrichedData.isThirdParty ? 1 : 0,
-        enrichedData.isSecure ? 1 : 0,
-        enrichedData.hasError ? 1 : 0,
+        toSqlValue(enrichedData.isThirdParty, false) ? 1 : 0,
+        toSqlValue(enrichedData.isSecure, false) ? 1 : 0,
+        toSqlValue(enrichedData.hasError, false) ? 1 : 0,
         toSqlValue(enrichedData.performanceScore, 0),
         toSqlValue(enrichedData.qualityScore, 0),
         now,
         now
-      ]);
+      ];
+      
+      // Validate all values
+      const undefinedIndices = values.map((v, i) => v === undefined ? i : null).filter(i => i !== null);
+      if (undefinedIndices.length > 0) {
+        console.error('Undefined values at indices:', undefinedIndices);
+        console.error('Request data:', JSON.stringify(request, null, 2));
+        console.error('Enriched data:', JSON.stringify(enrichedData, null, 2));
+        throw new Error(`Undefined SQL parameter(s) at index: ${undefinedIndices.join(', ')}`);
+      }
+      
+      // Insert into Silver
+      this.db.exec(`
+        INSERT OR REPLACE INTO silver_requests (
+          id, url, method, type, status, status_text,
+          domain, path, protocol, duration, size_bytes,
+          timestamp, tab_id, page_url, is_third_party,
+          is_secure, has_error, performance_score,
+          quality_score, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, values);
 
       // Insert metrics if timings available
       await this.processSilverMetrics(requestId);
@@ -369,6 +383,14 @@ export class MedallionManager {
     try {
       const now = Date.now();
       
+      // Helper to handle undefined/null values
+      const toSqlValue = (val, defaultVal = null) => {
+        if (val === undefined || val === null) {
+          return defaultVal;
+        }
+        return val;
+      };
+      
       // Get current stats
       const existing = this.db.exec(`
         SELECT * FROM silver_domain_stats WHERE domain = ?
@@ -400,15 +422,15 @@ export class MedallionManager {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           domain,
-          statData.total_requests || 0,
-          statData.total_bytes || 0,
-          statData.avg_duration || 0,
-          statData.min_duration || 0,
-          statData.max_duration || 0,
-          statData.success_count || 0,
-          statData.error_count || 0,
-          statData.last_request_at,
-          statData.first_request_at,
+          toSqlValue(statData.total_requests, 0),
+          toSqlValue(statData.total_bytes, 0),
+          toSqlValue(statData.avg_duration, 0),
+          toSqlValue(statData.min_duration, 0),
+          toSqlValue(statData.max_duration, 0),
+          toSqlValue(statData.success_count, 0),
+          toSqlValue(statData.error_count, 0),
+          toSqlValue(statData.last_request_at, now),
+          toSqlValue(statData.first_request_at, now),
           now
         ]);
       }
@@ -425,6 +447,14 @@ export class MedallionManager {
 
     try {
       const now = Date.now();
+      
+      // Helper to handle undefined/null values
+      const toSqlValue = (val, defaultVal = 0) => {
+        if (val === undefined || val === null) {
+          return defaultVal;
+        }
+        return val;
+      };
       
       const stats = this.db.exec(`
         SELECT 
@@ -445,10 +475,10 @@ export class MedallionManager {
           ) VALUES (?, ?, ?, ?, ?, ?)
         `, [
           resourceType,
-          statData.total_requests || 0,
-          statData.total_bytes || 0,
-          statData.avg_duration || 0,
-          statData.avg_size || 0,
+          toSqlValue(statData.total_requests, 0),
+          toSqlValue(statData.total_bytes, 0),
+          toSqlValue(statData.avg_duration, 0),
+          toSqlValue(statData.avg_size, 0),
           now
         ]);
       }
