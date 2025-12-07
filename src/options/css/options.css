@@ -846,16 +846,16 @@ code {
 
 .usage-bar-fill {
   height: 100%;
-  background: #4CAF50;
+  background: var(--success-color, #4CAF50);
   transition: width 0.3s ease, background-color 0.3s ease;
 }
 
-.usage-bar-fill[data-usage="medium"] {
-  background: #FF9800;
+.usage-bar-fill[data-usage='medium'] {
+  background: var(--warning-color, #FF9800);
 }
 
-.usage-bar-fill[data-usage="high"] {
-  background: #f44336;
+.usage-bar-fill[data-usage='high'] {
+  background: var(--error-color, #f44336);
 }
 
 /* Status Indicators */

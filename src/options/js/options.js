@@ -948,6 +948,12 @@ async function loadDatabaseTables() {
       // Get count for each table
       const tableData = [];
       for (const [tableName] of tables) {
+        // Validate table name to prevent SQL injection
+        if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+          console.warn(`Invalid table name: ${tableName}`);
+          continue;
+        }
+        
         try {
           const countResponse = await chrome.runtime.sendMessage({
             action: 'executeDirectQuery',
@@ -1003,6 +1009,12 @@ async function loadDatabaseTables() {
 async function loadTablePreview(tableName) {
   const tablePreviewContainer = document.getElementById('tablePreviewContainer');
   if (!tablePreviewContainer) return;
+
+  // Validate table name to prevent SQL injection
+  if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+    tablePreviewContainer.innerHTML = '<p class="placeholder">Invalid table name</p>';
+    return;
+  }
 
   try {
     tablePreviewContainer.innerHTML = '<p class="placeholder">Loading...</p>';
