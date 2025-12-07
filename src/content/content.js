@@ -2,15 +2,15 @@
 
 // Create a performance observer to monitor resource timing entries
 const observer = new PerformanceObserver((list) => {
-  const entries = list.getEntries()
+  const entries = list.getEntries();
 
   // Filter for network requests
-  const networkRequests = entries.filter((entry) => entry.entryType === "resource")
+  const networkRequests = entries.filter((entry) => entry.entryType === 'resource');
 
   if (networkRequests.length > 0) {
     // Send the performance data to the background script
     chrome.runtime.sendMessage({
-      action: "performanceData",
+      action: 'performanceData',
       entries: networkRequests.map((entry) => ({
         name: entry.name,
         duration: entry.duration,
@@ -32,33 +32,33 @@ const observer = new PerformanceObserver((list) => {
         // Include decoded body size if available
         decodedBodySize: entry.decodedBodySize || 0,
       })),
-    })
+    });
   }
-})
+});
 
 // Start observing resource timing entries
-observer.observe({ entryTypes: ["resource"] })
+observer.observe({ entryTypes: ['resource'] });
 
 // Listen for page navigation events
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
     // Page is now visible, send current URL to background
     chrome.runtime.sendMessage({
-      action: "pageNavigation",
+      action: 'pageNavigation',
       url: window.location.href,
       title: document.title,
-    })
+    });
   }
-})
+});
 
 // Send initial page load information
-window.addEventListener("load", () => {
+window.addEventListener('load', () => {
   // Use the Navigation Timing API for page load metrics
-  const navigationTiming = performance.getEntriesByType("navigation")[0]
+  const navigationTiming = performance.getEntriesByType('navigation')[0];
 
   if (navigationTiming) {
     chrome.runtime.sendMessage({
-      action: "pageLoad",
+      action: 'pageLoad',
       url: window.location.href,
       title: document.title,
       performance: {
@@ -84,11 +84,11 @@ window.addEventListener("load", () => {
         encodedBodySize: navigationTiming.encodedBodySize,
         decodedBodySize: navigationTiming.decodedBodySize,
       },
-    })
+    });
   } else {
     // Fallback for browsers that don't support Navigation Timing API v2
     chrome.runtime.sendMessage({
-      action: "pageLoad",
+      action: 'pageLoad',
       url: window.location.href,
       title: document.title,
       performance: {
@@ -97,15 +97,15 @@ window.addEventListener("load", () => {
         domContentLoaded: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart,
         domComplete: performance.timing.domComplete - performance.timing.navigationStart,
       },
-    })
+    });
   }
 
   // Collect all resources loaded on the page
-  const resources = performance.getEntriesByType("resource")
+  const resources = performance.getEntriesByType('resource');
 
   if (resources.length > 0) {
     chrome.runtime.sendMessage({
-      action: "pageResources",
+      action: 'pageResources',
       url: window.location.href,
       resources: resources.map((resource) => ({
         name: resource.name,
@@ -113,34 +113,34 @@ window.addEventListener("load", () => {
         duration: resource.duration,
         size: resource.transferSize || 0,
       })),
-    })
+    });
   }
 })
 // Listen for XHR and fetch requests to capture additional data
 ;(() => {
   // Intercept XMLHttpRequest
-  const originalXhrOpen = XMLHttpRequest.prototype.open
-  const originalXhrSend = XMLHttpRequest.prototype.send
+  const originalXhrOpen = XMLHttpRequest.prototype.open;
+  const originalXhrSend = XMLHttpRequest.prototype.send;
 
   XMLHttpRequest.prototype.open = function (method, url, ...args) {
-    this._requestMethod = method
-    this._requestUrl = url
-    this._requestStartTime = Date.now()
-    return originalXhrOpen.apply(this, [method, url, ...args])
-  }
+    this._requestMethod = method;
+    this._requestUrl = url;
+    this._requestStartTime = Date.now();
+    return originalXhrOpen.apply(this, [method, url, ...args]);
+  };
 
   XMLHttpRequest.prototype.send = function (body) {
-    this._requestBody = body
+    this._requestBody = body;
 
-    this.addEventListener("load", function () {
-      const endTime = Date.now()
-      const duration = endTime - this._requestStartTime
+    this.addEventListener('load', function () {
+      const endTime = Date.now();
+      const duration = endTime - this._requestStartTime;
 
       try {
         // Check if chrome is defined before using it
-        if (typeof chrome !== "undefined" && chrome.runtime) {
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
           chrome.runtime.sendMessage({
-            action: "xhrCompleted",
+            action: 'xhrCompleted',
             method: this._requestMethod,
             url: this._requestUrl,
             status: this.status,
@@ -150,40 +150,40 @@ window.addEventListener("load", () => {
             requestSize: this._requestBody ? this._requestBody.length : 0,
             startTime: this._requestStartTime,
             endTime: endTime,
-          })
+          });
         } else {
-          console.warn("chrome.runtime is not available.")
+          console.warn('chrome.runtime is not available.');
         }
       } catch (e) {
-        console.error("Error sending message:", e)
+        console.error('Error sending message:', e);
       }
-    })
+    });
 
-    return originalXhrSend.apply(this, arguments)
-  }
+    return originalXhrSend.apply(this, arguments);
+  };
 
   // Intercept fetch
-  const originalFetch = window.fetch
+  const originalFetch = window.fetch;
 
   window.fetch = function (input, init) {
-    const startTime = Date.now()
-    const method = init && init.method ? init.method : "GET"
-    const url = typeof input === "string" ? input : input.url
+    const startTime = Date.now();
+    const method = init && init.method ? init.method : 'GET';
+    const url = typeof input === 'string' ? input : input.url;
 
     return originalFetch
       .apply(this, arguments)
       .then((response) => {
-        const endTime = Date.now()
-        const duration = endTime - startTime
-        const clonedResponse = response.clone()
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        const clonedResponse = response.clone();
 
         // Get response size
         clonedResponse.text().then((text) => {
           try {
             // Check if chrome is defined before using it
-            if (typeof chrome !== "undefined" && chrome.runtime) {
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
               chrome.runtime.sendMessage({
-                action: "fetchCompleted",
+                action: 'fetchCompleted',
                 method: method,
                 url: url,
                 status: response.status,
@@ -193,42 +193,42 @@ window.addEventListener("load", () => {
                 requestSize: init && init.body ? init.body.length : 0,
                 startTime: startTime,
                 endTime: endTime,
-              })
+              });
             } else {
-              console.warn("chrome.runtime is not available.")
+              console.warn('chrome.runtime is not available.');
             }
           } catch (e) {
-            console.error("Error sending message:", e)
+            console.error('Error sending message:', e);
           }
-        })
+        });
 
-        return response
+        return response;
       })
       .catch((error) => {
-        const endTime = Date.now()
-        const duration = endTime - startTime
+        const endTime = Date.now();
+        const duration = endTime - startTime;
 
         try {
           // Check if chrome is defined before using it
-          if (typeof chrome !== "undefined" && chrome.runtime) {
+          if (typeof chrome !== 'undefined' && chrome.runtime) {
             chrome.runtime.sendMessage({
-              action: "fetchError",
+              action: 'fetchError',
               method: method,
               url: url,
               error: error.message,
               duration: duration,
               startTime: startTime,
               endTime: endTime,
-            })
+            });
           } else {
-            console.warn("chrome.runtime is not available.")
+            console.warn('chrome.runtime is not available.');
           }
         } catch (e) {
-          console.error("Error sending message:", e)
+          console.error('Error sending message:', e);
         }
 
-        throw error
-      })
-  }
-})()
+        throw error;
+      });
+  };
+})();
 

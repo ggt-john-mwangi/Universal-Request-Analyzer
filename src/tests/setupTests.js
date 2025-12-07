@@ -1,8 +1,8 @@
 // Setup file for Jest tests
 
 // Import jest-dom matchers
-import "@testing-library/jest-dom";
-import chromeMock from "./mocks/chromeMock";
+import '@testing-library/jest-dom';
+import chromeMock from './mocks/chromeMock';
 
 // Set up global mocks
 global.chrome = chromeMock;
@@ -56,7 +56,7 @@ global.crypto = {
     return arr;
   },
   subtle: {
-    importKey: jest.fn().mockResolvedValue("mock-key"),
+    importKey: jest.fn().mockResolvedValue('mock-key'),
     deriveBits: jest.fn().mockResolvedValue(new ArrayBuffer(32)),
   },
 };
@@ -88,8 +88,8 @@ HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
 }));
 
 // Setup MSW
-const { server } = require("./mocks/server");
-const { beforeAll, afterEach, afterAll } = require("@jest/globals");
+const { server } = require('./mocks/server');
+const { beforeAll, afterEach, afterAll } = require('@jest/globals');
 
 beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());

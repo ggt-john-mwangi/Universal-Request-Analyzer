@@ -1,183 +1,337 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer</title>
   <link rel="stylesheet" href="../assets/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="./css/popup.css">
-  <link rel="stylesheet" href="./css/settings.css">
-  <link rel="stylesheet" href="./css/data-visualization.css">
-  <link rel="stylesheet" href="./css/themes.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="./css/auth.css">
+  <style>
+    /* Auth Screen Styles */
+    .auth-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      padding: 20px;
+    }
+
+    .auth-logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+    }
+
+    .auth-title {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .auth-subtitle {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .auth-form {
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #4CAF50;
+    }
+
+    .auth-btn {
+      width: 100%;
+      padding: 12px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .auth-btn:hover {
+      background: #45a049;
+    }
+
+    .auth-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .auth-link {
+      text-align: center;
+      margin-top: 15px;
+      font-size: 13px;
+      color: #666;
+    }
+
+    .auth-link a {
+      color: #4CAF50;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .auth-link a:hover {
+      text-decoration: underline;
+    }
+
+    .error-message {
+      color: #f44336;
+      font-size: 12px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .success-message {
+      color: #4CAF50;
+      font-size: 12px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* Main App Styles */
+    .app-container {
+      display: none;
+    }
+
+    .app-container.active {
+      display: block;
+    }
+
+    .auth-container.hidden {
+      display: none;
+    }
+
+    .page-summary {
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      margin: 15px;
+    }
+
+    .summary-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .stat-item {
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #4CAF50;
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 10px;
+      padding: 15px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      background: #f5f5f5;
+      border-color: #4CAF50;
+    }
+
+    .action-btn i {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 5px;
+      color: #4CAF50;
+    }
+
+    .user-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 15px;
+      background: #4CAF50;
+      color: white;
+    }
+
+    .user-name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .logout-btn {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 5px 10px;
+    }
+
+    .logout-btn:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
+<body>
+  <!-- Auth Screen -->
+  <div id="authContainer" class="auth-container">
+    <img src="../assets/icons/icon128.png" alt="Logo" class="auth-logo">
+    <h1 class="auth-title">Universal Request Analyzer</h1>
+    <p class="auth-subtitle">Analyze and monitor your web requests</p>
 
-<body class="popup_container no-scrollbar">
-  <header class="popup_header">
-    <div class="logo">
-      <img src="assets/icons/icon48.png" alt="URA">
-    </div>
-    <div class="controls">
-      <button id="clearBtn" title="Clear all requests">
-        <i class="fas fa-trash"></i> Clear
-      </button>
-      <button id="exportBtn" title="Export data">
-        <i class="fas fa-file-export"></i> Export
-      </button>
-      <button id="filterBtn" title="Filter requests">
-        <i class="fas fa-filter"></i> Filter
-      </button>
-      <button id="openOptions" title="Open settings">
-        <i class="fas fa-sliders-h"></i> Settings
-      </button>
-    </div>
-  </header>
+    <!-- Register Form -->
+    <form id="registerForm" class="auth-form">
+      <div class="form-group">
+        <label for="registerName">Name (Optional)</label>
+        <input type="text" id="registerName" placeholder="Enter your name">
+      </div>
+      <div class="form-group">
+        <label for="registerEmail">Email</label>
+        <input type="email" id="registerEmail" placeholder="Enter your email" required>
+      </div>
+      <div class="form-group">
+        <label for="registerPassword">Password</label>
+        <input type="password" id="registerPassword" placeholder="Min 6 characters" required>
+      </div>
+      <button type="submit" class="auth-btn">Register</button>
+      <div class="auth-link">
+        Already have an account? <a id="showLogin">Login</a>
+      </div>
+      <div id="registerError" class="error-message"></div>
+      <div id="registerSuccess" class="success-message"></div>
+    </form>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="requests">
-      <i class="fas fa-exchange-alt"></i> Requests
-    </button>
-    <button class="tab-btn" data-tab="stats">
-      <i class="fas fa-chart-line"></i> Stats
-    </button>
-    <button class="tab-btn" data-tab="performance">
-      <i class="fas fa-tachometer-alt"></i> Performance
-    </button>
-    <button class="tab-btn" data-tab="settings">
-      <i class="fas fa-cog"></i> Settings
-    </button>
+    <!-- Login Form -->
+    <form id="loginForm" class="auth-form" style="display: none;">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="Enter your email" required>
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter your password" required>
+      </div>
+      <button type="submit" class="auth-btn">Login</button>
+      <div class="auth-link">
+        Don't have an account? <a id="showRegister">Register</a>
+      </div>
+      <div id="loginError" class="error-message"></div>
+    </form>
   </div>
 
-  <div class="content-area">
-    <!-- Requests Tab -->
-    <div class="tab-content active" id="requests-tab">
-      <div class="filter-panel" id="filterPanel">
-        <div class="filter-row">
-          <label for="statusFilter">
-            <i class="fas fa-info-circle"></i> Status:
-          </label>
-          <select id="statusFilter">
-            <option value="all">All</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-            <option value="error">Error</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="requests-list" id="requestsList"></div>
-    </div>
-
-    <!-- Stats Tab -->
-    <div class="tab-content" id="stats-tab">
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-title">Total Requests</div>
-          <div class="metric-value" id="totalRequests">0</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-title">Average Response Time</div>
-          <div class="metric-value" id="avgResponseTime">0 ms</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-title">Success Rate</div>
-          <div class="metric-value" id="successRate">0%</div>
-        </div>
-      </div>
-
-      <div class="chart-container">
-        <canvas id="statsChart"></canvas>
-      </div>
-    </div>
-
-    <!-- Performance Tab -->
-    <div class="tab-content" id="performance-tab">
-      <div class="performance-controls">
-        <label class="toggle-switch">
-          <input type="checkbox" id="performanceToggle">
-          <span class="slider"></span>
-          Enable Performance Metrics
-        </label>
-      </div>
-
-      <div class="metrics-panel" id="metricsPanel">
-        <h3>Page Performance</h3>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-title">DNS Lookup</div>
-            <div class="metric-value" id="dnsTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">TCP Connection</div>
-            <div class="metric-value" id="tcpTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">SSL/TLS</div>
-            <div class="metric-value" id="sslTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">Time to First Byte</div>
-            <div class="metric-value" id="ttfbTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">Download Time</div>
-            <div class="metric-value" id="downloadTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">Total Time</div>
-            <div class="metric-value" id="totalTime">0 ms</div>
-          </div>
-        </div>
-
-        <h3>Resource Timing</h3>
-        <div class="chart-container">
-          <canvas id="resourceChart"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- Settings Tab -->
-    <div class="tab-content" id="settings-tab">
-      <div class="settings-section">
-        <h3>Settings Backup & Restore</h3>
-        <div class="settings-actions">
-          <button id="ExportSettingsBtn" class="primary-btn">
-            <i class="fas fa-file-export"></i> Export Settings
-          </button>
-          <input type="file" id="ImportSettingsFile" accept=".json" style="display: none;">
-          <button id="ImportSettingsBtn" class="secondary-btn">
-            <i class="fas fa-file-import"></i> Import Settings
-          </button>
-        </div>
-        <p class="settings-description">
-          Backup your settings or restore them from a previously exported file.
-        </p>
-      </div>
-    </div>
-  </div>
-  <!-- Exports Panel -->
-  <div class="panel" id="export-container">
-    <div class="panel-header">
-      <h3>Exports Panel</h3>
-      <button id="closeExports">
-        <i class="fas fa-times"></i>
+  <!-- Main App (shown after login) -->
+  <div id="appContainer" class="app-container">
+    <!-- User Info Bar -->
+    <div class="user-info">
+      <span class="user-name">Welcome, <span id="userName">User</span>!</span>
+      <button id="logoutBtn" class="logout-btn">
+        <i class="fas fa-sign-out-alt"></i> Logout
       </button>
     </div>
-    <div class="panel-content"></div>
-  </div>
-  <!-- Request Details Panel -->
-  <div class="panel" id="requestDetails">
-    <div class="panel-header">
-      <h3>Request Details</h3>
-      <button id="closeDetails">
-        <i class="fas fa-times"></i>
+
+    <!-- Page Summary -->
+    <div class="page-summary">
+      <div class="summary-title">
+        <i class="fas fa-globe"></i> Current Page Activity
+      </div>
+      <div class="summary-stats">
+        <div class="stat-item">
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value" id="totalRequests">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Avg Response</div>
+          <div class="stat-value" id="avgResponse">0ms</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Errors</div>
+          <div class="stat-value" id="errorCount">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Data Transferred</div>
+          <div class="stat-value" id="dataTransferred">0KB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button class="action-btn" id="openDevtools">
+        <i class="fas fa-chart-line"></i>
+        <span>Open Analytics</span>
+      </button>
+      <button class="action-btn" id="openDashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </button>
+      <button class="action-btn" id="openHelp">
+        <i class="fas fa-question-circle"></i>
+        <span>Help</span>
       </button>
     </div>
-    <div class="panel-content"></div>
   </div>
 
   <script src="popup.js"></script>
 </body>
-
 </html>
