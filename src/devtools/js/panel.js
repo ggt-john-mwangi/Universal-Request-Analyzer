@@ -19,10 +19,81 @@ export class DevToolsPanel {
     const container = document.getElementById("panel-container");
     container.innerHTML = `
       <div class="metrics-panel">
-        <div class="url-info">
-          <i class="fas fa-globe"></i>
-          <span>Current URL: </span>
-          <span id="currentUrl">Loading...</span>
+        <!-- Enhanced Filters Panel -->
+        <div class="filters-header">
+          <div class="filter-group">
+            <label><i class="fas fa-globe"></i> Site/URL Filter:</label>
+            <select id="siteFilter" class="filter-select">
+              <option value="current">Current Page (Default)</option>
+              <option value="all">All Sites</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label><i class="fas fa-clock"></i> Time Range:</label>
+            <select id="timeRange" class="filter-select">
+              <option value="300" selected>Last 5 minutes</option>
+              <option value="900">Last 15 minutes</option>
+              <option value="1800">Last 30 minutes</option>
+              <option value="3600">Last hour</option>
+              <option value="86400">Last 24 hours</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label><i class="fas fa-filter"></i> Request Type:</label>
+            <select id="requestTypeFilter" class="filter-select">
+              <option value="">All Types</option>
+              <option value="xmlhttprequest">XHR/API</option>
+              <option value="fetch">Fetch</option>
+              <option value="script">Scripts</option>
+              <option value="stylesheet">Stylesheets</option>
+              <option value="image">Images</option>
+              <option value="font">Fonts</option>
+              <option value="document">Documents</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label><i class="fas fa-check-circle"></i> Status:</label>
+            <select id="statusFilter" class="filter-select">
+              <option value="">All Status</option>
+              <option value="200">2xx Success</option>
+              <option value="3xx">3xx Redirect</option>
+              <option value="4xx">4xx Client Error</option>
+              <option value="5xx">5xx Server Error</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label><i class="fas fa-tachometer-alt"></i> Performance:</label>
+            <select id="performanceFilter" class="filter-select">
+              <option value="">All Speeds</option>
+              <option value="fast">Fast (<100ms)</option>
+              <option value="normal">Normal (100-500ms)</option>
+              <option value="slow">Slow (500-1000ms)</option>
+              <option value="veryslow">Very Slow (>1000ms)</option>
+            </select>
+          </div>
+          
+          <div class="filter-actions">
+            <button id="refreshMetrics" class="btn-primary">
+              <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button id="clearFilters" class="btn-secondary">
+              <i class="fas fa-times"></i> Clear
+            </button>
+            <button id="exportMetrics" class="btn-secondary">
+              <i class="fas fa-download"></i> Export
+            </button>
+          </div>
+        </div>
+        
+        <!-- Active Filters Display -->
+        <div id="activeFiltersDisplay" class="active-filters" style="display: none;">
+          <span class="filter-label">Active Filters:</span>
+          <div id="activeFiltersList"></div>
         </div>
         
         <!-- Stats Cards -->
@@ -55,109 +126,168 @@ export class DevToolsPanel {
             </div>
             <div class="stat-card-value" id="errorsValue">0</div>
           </div>
+          <div class="stat-card primary">
+            <div class="stat-card-label">
+              <i class="fas fa-exchange-alt stat-card-icon"></i>
+              Success Rate
+            </div>
+            <div class="stat-card-value" id="successRateValue">0%</div>
+          </div>
+          <div class="stat-card secondary">
+            <div class="stat-card-label">
+              <i class="fas fa-clock stat-card-icon"></i>
+              P95 Response
+            </div>
+            <div class="stat-card-value" id="p95ResponseValue">0ms</div>
+          </div>
         </div>
         
-        <div class="controls">
-          <button id="refreshMetrics">
-            <i class="fas fa-sync-alt"></i>
-            Refresh
-          </button>
-          <select id="timeRange">
-            <option value="300">Last 5 minutes</option>
-            <option value="900">Last 15 minutes</option>
-            <option value="1800">Last 30 minutes</option>
-            <option value="3600">Last hour</option>
-            <option value="86400">Last 24 hours</option>
-          </select>
-          <button id="exportMetrics">
-            <i class="fas fa-download"></i>
-            Export
-          </button>
+        <!-- No Data State -->
+        <div id="noDataState" class="no-data-state" style="display: none;">
+          <i class="fas fa-inbox fa-3x"></i>
+          <h3>No Data Available</h3>
+          <p>No requests found for the selected filters.</p>
+          <p class="hint">Try adjusting your filters or wait for requests to be captured.</p>
+          <button id="resetFiltersBtn" class="btn-primary">Reset Filters</button>
         </div>
 
-        <div class="charts-container">
-          <div class="charts-tabs">
-            <button data-chart="performance" class="active">
-              <i class="fas fa-chart-line"></i> Performance
+        <!-- Main Content Tabs -->
+        <div class="content-tabs">
+          <div class="tabs-nav">
+            <button data-tab="overview" class="tab-btn active">
+              <i class="fas fa-chart-line"></i> Overview
             </button>
-            <button data-chart="requests">
-              <i class="fas fa-chart-bar"></i> Requests
+            <button data-tab="requests" class="tab-btn">
+              <i class="fas fa-list"></i> Requests Table
             </button>
-            <button data-chart="errors">
-              <i class="fas fa-chart-pie"></i> Status
+            <button data-tab="performance" class="tab-btn">
+              <i class="fas fa-stopwatch"></i> Performance
             </button>
-            <button data-chart="timeline">
-              <i class="fas fa-clock"></i> Timeline
+            <button data-tab="endpoints" class="tab-btn">
+              <i class="fas fa-network-wired"></i> Endpoints
+            </button>
+            <button data-tab="errors" class="tab-btn">
+              <i class="fas fa-bug"></i> Errors
             </button>
           </div>
           
-          <div class="chart-display">
-            <canvas id="performanceChart"></canvas>
-            <canvas id="requestsChart" style="display: none;"></canvas>
-            <canvas id="errorsChart" style="display: none;"></canvas>
-            <canvas id="timelineChart" style="display: none;"></canvas>
+          <!-- Overview Tab -->
+          <div id="overviewTab" class="tab-content active">
+            <div class="charts-grid">
+              <div class="chart-container">
+                <h4><i class="fas fa-chart-line"></i> Response Time Timeline</h4>
+                <canvas id="performanceChart"></canvas>
+              </div>
+              <div class="chart-container">
+                <h4><i class="fas fa-chart-pie"></i> Status Distribution</h4>
+                <canvas id="statusChart"></canvas>
+              </div>
+              <div class="chart-container">
+                <h4><i class="fas fa-chart-bar"></i> Request Types</h4>
+                <canvas id="requestsChart"></canvas>
+              </div>
+              <div class="chart-container">
+                <h4><i class="fas fa-clock"></i> Request Volume</h4>
+                <canvas id="volumeChart"></canvas>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div class="filters-panel">
-          <select id="requestTypeFilter">
-            <option value="">All Types</option>
-            <option value="xmlhttprequest">XHR</option>
-            <option value="fetch">Fetch</option>
-            <option value="script">Script</option>
-            <option value="stylesheet">Stylesheet</option>
-            <option value="image">Image</option>
-            <option value="font">Font</option>
-            <option value="document">Document</option>
-            <option value="other">Other</option>
-          </select>
           
-          <select id="statusFilter">
-            <option value="">All Status</option>
-            <option value="200">200 OK</option>
-            <option value="3xx">3xx Redirect</option>
-            <option value="4xx">4xx Client Error</option>
-            <option value="5xx">5xx Server Error</option>
-          </select>
+          <!-- Requests Table Tab -->
+          <div id="requestsTab" class="tab-content">
+            <div class="table-controls">
+              <input type="text" id="searchRequests" placeholder="Search URLs, methods, status..." class="search-input">
+              <select id="requestsPerPage" class="filter-select-sm">
+                <option value="25">25 per page</option>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+              </select>
+            </div>
+            <div class="requests-table-container">
+              <table id="requestsTable" class="data-table">
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>URL</th>
+                    <th>Status</th>
+                    <th>Type</th>
+                    <th>Time</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="requestsTableBody">
+                  <tr class="no-data-row">
+                    <td colspan="7">No requests available</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="tablePagination" class="pagination"></div>
+          </div>
           
-          <select id="performanceFilter">
-            <option value="">All Performance</option>
-            <option value="fast">Fast (<100ms)</option>
-            <option value="normal">Normal (100-500ms)</option>
-            <option value="slow">Slow (500-1000ms)</option>
-            <option value="veryslow">Very Slow (>1000ms)</option>
-          </select>
+          <!-- Performance Tab -->
+          <div id="performanceTab" class="tab-content">
+            <div class="performance-breakdown">
+              <h4><i class="fas fa-stopwatch"></i> Timing Breakdown</h4>
+              <div id="timingBreakdown" class="timing-chart"></div>
+            </div>
+            <div class="slow-requests">
+              <h4><i class="fas fa-hourglass-half"></i> Slowest Requests (Top 10)</h4>
+              <div id="slowRequestsList"></div>
+            </div>
+          </div>
+          
+          <!-- Endpoints Tab -->
+          <div id="endpointsTab" class="tab-content">
+            <div class="endpoints-analysis">
+              <h4><i class="fas fa-network-wired"></i> API Endpoints Analysis</h4>
+              <div id="endpointsTable"></div>
+            </div>
+          </div>
+          
+          <!-- Errors Tab -->
+          <div id="errorsTab" class="tab-content">
+            <div class="errors-analysis">
+              <h4><i class="fas fa-bug"></i> Failed Requests</h4>
+              <div id="errorsList"></div>
+            </div>
+            <div class="errors-chart">
+              <h4><i class="fas fa-chart-bar"></i> Error Distribution</h4>
+              <canvas id="errorsChart"></canvas>
+            </div>
+          </div>
         </div>
       </div>
     `;
   }
 
   setupEventListeners() {
-    document
-      .getElementById("refreshMetrics")
-      .addEventListener("click", () => this.refreshMetrics());
-    document
-      .getElementById("exportMetrics")
-      .addEventListener("click", () => this.exportMetrics());
-    document
-      .getElementById("timeRange")
-      .addEventListener("change", (e) => this.updateTimeRange(e.target.value));
-
-    document.querySelectorAll(".charts-tabs button").forEach((button) => {
-      button.addEventListener("click", () =>
-        this.switchChart(button.dataset.chart)
-      );
+    // Filter controls
+    document.getElementById("siteFilter").addEventListener("change", () => this.applyFilters());
+    document.getElementById("timeRange").addEventListener("change", () => this.applyFilters());
+    document.getElementById("requestTypeFilter").addEventListener("change", () => this.applyFilters());
+    document.getElementById("statusFilter").addEventListener("change", () => this.applyFilters());
+    document.getElementById("performanceFilter").addEventListener("change", () => this.applyFilters());
+    
+    // Action buttons
+    document.getElementById("refreshMetrics").addEventListener("click", () => this.refreshMetrics());
+    document.getElementById("clearFilters").addEventListener("click", () => this.clearFilters());
+    document.getElementById("exportMetrics").addEventListener("click", () => this.exportMetrics());
+    document.getElementById("resetFiltersBtn")?.addEventListener("click", () => this.clearFilters());
+    
+    // Tab navigation
+    document.querySelectorAll(".tab-btn").forEach((button) => {
+      button.addEventListener("click", () => this.switchTab(button.dataset.tab));
     });
-
-    document
-      .getElementById("requestTypeFilter")
-      .addEventListener("change", () => this.applyFilters());
-    document
-      .getElementById("statusFilter")
-      .addEventListener("change", () => this.applyFilters());
-    document
-      .getElementById("performanceFilter")
-      .addEventListener("change", () => this.applyFilters());
+    
+    // Search
+    document.getElementById("searchRequests")?.addEventListener("input", (e) => {
+      this.searchRequests(e.target.value);
+    });
+    
+    // Load sites into filter
+    this.loadSiteFilter();
   }
 
   initializeCharts() {
@@ -211,6 +341,35 @@ export class DevToolsPanel {
       },
     });
 
+    // Status Chart - Pie chart for status distribution
+    const statusCtx = document.getElementById("statusChart").getContext("2d");
+    this.charts.status = new Chart(statusCtx, {
+      type: "pie",
+      data: {
+        labels: [],
+        datasets: [
+          {
+            data: [],
+            backgroundColor: [
+              "rgba(76, 175, 80, 0.7)",   // 2xx - green
+              "rgba(33, 150, 243, 0.7)",   // 3xx - blue
+              "rgba(255, 152, 0, 0.7)",    // 4xx - orange
+              "rgba(244, 67, 54, 0.7)",    // 5xx - red
+            ],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+          },
+        },
+      },
+    });
+
     // Requests Chart - Bar chart for request types
     const reqCtx = document.getElementById("requestsChart").getContext("2d");
     this.charts.requests = new Chart(reqCtx, {
@@ -255,38 +414,9 @@ export class DevToolsPanel {
       },
     });
 
-    // Errors Chart - Doughnut chart for status codes
-    const errCtx = document.getElementById("errorsChart").getContext("2d");
-    this.charts.errors = new Chart(errCtx, {
-      type: "doughnut",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            data: [],
-            backgroundColor: [
-              "rgba(76, 175, 80, 0.6)",   // 2xx
-              "rgba(33, 150, 243, 0.6)",   // 3xx
-              "rgba(255, 152, 0, 0.6)",    // 4xx
-              "rgba(244, 67, 54, 0.6)",    // 5xx
-            ],
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'right',
-          },
-        },
-      },
-    });
-
-    // Timeline Chart - Area chart for request volume over time
-    const timeCtx = document.getElementById("timelineChart").getContext("2d");
-    this.charts.timeline = new Chart(timeCtx, {
+    // Volume Chart - Area chart for request volume over time
+    const volCtx = document.getElementById("volumeChart").getContext("2d");
+    this.charts.volume = new Chart(volCtx, {
       type: "line",
       data: {
         labels: [],
@@ -313,6 +443,9 @@ export class DevToolsPanel {
         scales: {
           y: {
             beginAtZero: true,
+            ticks: {
+              precision: 0
+            },
             title: {
               display: true,
               text: "Number of Requests",
@@ -322,6 +455,39 @@ export class DevToolsPanel {
             title: {
               display: true,
               text: "Time",
+            },
+          },
+        },
+      },
+    });
+
+    // Errors Chart for errors tab
+    const errCtx = document.getElementById("errorsChart").getContext("2d");
+    this.charts.errors = new Chart(errCtx, {
+      type: "bar",
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: "Error Count",
+            data: [],
+            backgroundColor: "rgba(244, 67, 54, 0.6)",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              precision: 0
             },
           },
         },
@@ -348,20 +514,13 @@ export class DevToolsPanel {
         return;
       }
 
-      const timeRange = document.getElementById("timeRange").value;
-      const typeFilter = document.getElementById("requestTypeFilter").value;
-      const statusFilter = document.getElementById("statusFilter").value;
+      const filters = this.getActiveFilters();
 
       // Get metrics from background page
       chrome.runtime.sendMessage(
         {
           action: "getFilteredStats",
-          filters: {
-            pageUrl: this.currentUrl,
-            timeRange: parseInt(timeRange),
-            type: typeFilter,
-            statusPrefix: statusFilter,
-          },
+          filters
         },
         (response) => {
           if (chrome.runtime.lastError) {
@@ -372,9 +531,16 @@ export class DevToolsPanel {
           }
 
           if (response && response.success) {
-            this.updateMetrics(response);
+            // Check if there's data
+            if (!response.totalRequests || response.totalRequests === 0) {
+              this.showNoDataState(true);
+            } else {
+              this.showNoDataState(false);
+              this.updateMetrics(response);
+            }
           } else {
             console.error("Failed to get metrics:", response?.error);
+            this.showNoDataState(true);
           }
         }
       );
@@ -412,12 +578,58 @@ export class DevToolsPanel {
       .filter(([status]) => parseInt(status) >= 400)
       .reduce((sum, [, count]) => sum + count, 0);
     document.getElementById("errorsValue").textContent = errors;
+    
+    // Calculate success rate
+    const total = metrics.totalRequests || 0;
+    const successCount = total - errors;
+    const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+    document.getElementById("successRateValue").textContent = `${successRate}%`;
+    
+    // Calculate P95 response time
+    if (metrics.responseTimes && metrics.responseTimes.length > 0) {
+      const p95 = this.calculatePercentile(metrics.responseTimes, 95);
+      document.getElementById("p95ResponseValue").textContent = `${p95}ms`;
+    } else {
+      document.getElementById("p95ResponseValue").textContent = '0ms';
+    }
 
     // Update performance chart
     if (this.charts.performance && metrics.timestamps && metrics.responseTimes) {
-      this.charts.performance.data.labels = metrics.timestamps;
-      this.charts.performance.data.datasets[0].data = metrics.responseTimes;
+      this.charts.performance.data.labels = metrics.timestamps.slice(-20); // Last 20 points
+      this.charts.performance.data.datasets[0].data = metrics.responseTimes.slice(-20);
       this.charts.performance.update();
+    }
+
+    // Update status chart
+    if (this.charts.status && metrics.statusCodes) {
+      const statusGroups = {
+        '2xx Success': 0,
+        '3xx Redirect': 0,
+        '4xx Client Error': 0,
+        '5xx Server Error': 0
+      };
+      
+      for (const [status, count] of Object.entries(metrics.statusCodes)) {
+        const statusCode = parseInt(status);
+        if (statusCode >= 200 && statusCode < 300) statusGroups['2xx Success'] += count;
+        else if (statusCode >= 300 && statusCode < 400) statusGroups['3xx Redirect'] += count;
+        else if (statusCode >= 400 && statusCode < 500) statusGroups['4xx Client Error'] += count;
+        else if (statusCode >= 500) statusGroups['5xx Server Error'] += count;
+      }
+      
+      // Only show groups that have values
+      const labels = [];
+      const data = [];
+      for (const [label, count] of Object.entries(statusGroups)) {
+        if (count > 0) {
+          labels.push(label);
+          data.push(count);
+        }
+      }
+      
+      this.charts.status.data.labels = labels;
+      this.charts.status.data.datasets[0].data = data;
+      this.charts.status.update();
     }
 
     // Update requests chart
@@ -429,34 +641,30 @@ export class DevToolsPanel {
       this.charts.requests.update();
     }
 
-    // Update errors chart
+    // Update volume chart (aggregate by minute)
+    if (this.charts.volume && metrics.timestamps) {
+      const timelineData = this.aggregateByMinute(metrics.timestamps);
+      this.charts.volume.data.labels = timelineData.labels;
+      this.charts.volume.data.datasets[0].data = timelineData.values;
+      this.charts.volume.update();
+    }
+
+    // Update errors chart (for errors tab)
     if (this.charts.errors && metrics.statusCodes) {
-      const statusLabels = [];
-      const statusData = [];
+      const errorCodes = [];
+      const errorCounts = [];
       
       for (const [status, count] of Object.entries(metrics.statusCodes)) {
         const statusCode = parseInt(status);
-        let label = '';
-        if (statusCode >= 200 && statusCode < 300) label = '2xx Success';
-        else if (statusCode >= 300 && statusCode < 400) label = '3xx Redirect';
-        else if (statusCode >= 400 && statusCode < 500) label = '4xx Client Error';
-        else if (statusCode >= 500) label = '5xx Server Error';
-        
-        statusLabels.push(label);
-        statusData.push(count);
+        if (statusCode >= 400) {
+          errorCodes.push(`${status}`);
+          errorCounts.push(count);
+        }
       }
       
-      this.charts.errors.data.labels = statusLabels;
-      this.charts.errors.data.datasets[0].data = statusData;
+      this.charts.errors.data.labels = errorCodes;
+      this.charts.errors.data.datasets[0].data = errorCounts;
       this.charts.errors.update();
-    }
-
-    // Update timeline chart (aggregate by minute)
-    if (this.charts.timeline && metrics.timestamps) {
-      const timelineData = this.aggregateByMinute(metrics.timestamps);
-      this.charts.timeline.data.labels = timelineData.labels;
-      this.charts.timeline.data.datasets[0].data = timelineData.values;
-      this.charts.timeline.update();
     }
   }
 
@@ -532,6 +740,292 @@ export class DevToolsPanel {
 
   applyFilters() {
     this.refreshMetrics();
+  }
+
+  // Load site filter with current site and top domains
+  async loadSiteFilter() {
+    try {
+      const siteSelect = document.getElementById("siteFilter");
+      
+      // Get current URL
+      chrome.devtools.inspectedWindow.eval(
+        'window.location.href',
+        async (url, isException) => {
+          if (!isException && url) {
+            const currentDomain = new URL(url).hostname;
+            this.currentUrl = url;
+            
+            // Update current page option
+            siteSelect.innerHTML = `
+              <option value="current">Current Page (${currentDomain})</option>
+              <option value="all">All Sites</option>
+            `;
+            
+            // Load top domains from database
+            const response = await chrome.runtime.sendMessage({
+              action: 'getDashboardStats',
+              timeRange: 604800 // Last 7 days
+            });
+            
+            if (response.success && response.stats && response.stats.topDomains) {
+              const domains = response.stats.topDomains.labels || [];
+              domains.forEach(domain => {
+                if (domain && domain !== currentDomain) {
+                  const option = document.createElement('option');
+                  option.value = domain;
+                  option.textContent = domain;
+                  siteSelect.appendChild(option);
+                }
+              });
+            }
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Failed to load site filter:', error);
+    }
+  }
+
+  // Clear all filters
+  clearFilters() {
+    document.getElementById("siteFilter").value = "current";
+    document.getElementById("timeRange").value = "300";
+    document.getElementById("requestTypeFilter").value = "";
+    document.getElementById("statusFilter").value = "";
+    document.getElementById("performanceFilter").value = "";
+    document.getElementById("searchRequests").value = "";
+    this.refreshMetrics();
+  }
+
+  // Switch between tabs
+  switchTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.classList.remove("active");
+    });
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active");
+    
+    // Update tab content
+    document.querySelectorAll(".tab-content").forEach(content => {
+      content.classList.remove("active");
+    });
+    document.getElementById(`${tabName}Tab`).classList.add("active");
+    
+    // Load tab-specific data
+    this.loadTabData(tabName);
+  }
+
+  // Load data for specific tab
+  async loadTabData(tabName) {
+    switch(tabName) {
+      case 'requests':
+        await this.loadRequestsTable();
+        break;
+      case 'performance':
+        await this.loadPerformanceData();
+        break;
+      case 'endpoints':
+        await this.loadEndpointsData();
+        break;
+      case 'errors':
+        await this.loadErrorsData();
+        break;
+    }
+  }
+
+  // Load requests table
+  async loadRequestsTable() {
+    try {
+      const filters = this.getActiveFilters();
+      const response = await chrome.runtime.sendMessage({
+        action: 'getFilteredStats',
+        filters
+      });
+      
+      const tbody = document.getElementById('requestsTableBody');
+      
+      if (!response.success || !response.totalRequests || response.totalRequests === 0) {
+        tbody.innerHTML = '<tr class="no-data-row"><td colspan="7">No requests available for selected filters</td></tr>';
+        return;
+      }
+      
+      // For now, show a placeholder since we need to enhance the backend to return full request details
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="info-message">
+            <i class="fas fa-info-circle"></i> 
+            Request table will show detailed request information. 
+            Currently showing ${response.totalRequests} requests matching filters.
+          </td>
+        </tr>
+      `;
+    } catch (error) {
+      console.error('Failed to load requests table:', error);
+    }
+  }
+
+  // Load performance data
+  async loadPerformanceData() {
+    try {
+      const filters = this.getActiveFilters();
+      const response = await chrome.runtime.sendMessage({
+        action: 'getFilteredStats',
+        filters
+      });
+      
+      if (!response.success || !response.responseTimes || response.responseTimes.length === 0) {
+        document.getElementById('timingBreakdown').innerHTML = '<p class="no-data">No performance data available</p>';
+        document.getElementById('slowRequestsList').innerHTML = '<p class="no-data">No requests available</p>';
+        return;
+      }
+      
+      // Show timing breakdown
+      const avgTime = response.responseTimes.reduce((a, b) => a + b, 0) / response.responseTimes.length;
+      const maxTime = Math.max(...response.responseTimes);
+      const minTime = Math.min(...response.responseTimes);
+      
+      document.getElementById('timingBreakdown').innerHTML = `
+        <div class="timing-stats">
+          <div class="timing-stat">
+            <span class="label">Average:</span>
+            <span class="value">${Math.round(avgTime)}ms</span>
+          </div>
+          <div class="timing-stat">
+            <span class="label">Min:</span>
+            <span class="value">${Math.round(minTime)}ms</span>
+          </div>
+          <div class="timing-stat">
+            <span class="label">Max:</span>
+            <span class="value">${Math.round(maxTime)}ms</span>
+          </div>
+          <div class="timing-stat">
+            <span class="label">P95:</span>
+            <span class="value">${this.calculatePercentile(response.responseTimes, 95)}ms</span>
+          </div>
+        </div>
+      `;
+      
+      // Show slow requests placeholder
+      document.getElementById('slowRequestsList').innerHTML = `
+        <p class="info-message">
+          <i class="fas fa-info-circle"></i> 
+          Top ${Math.min(10, response.responseTimes.length)} slowest requests will be displayed here.
+        </p>
+      `;
+    } catch (error) {
+      console.error('Failed to load performance data:', error);
+    }
+  }
+
+  // Load endpoints data
+  async loadEndpointsData() {
+    document.getElementById('endpointsTable').innerHTML = `
+      <p class="info-message">
+        <i class="fas fa-info-circle"></i> 
+        API endpoints analysis will group and analyze requests by endpoint pattern.
+      </p>
+    `;
+  }
+
+  // Load errors data
+  async loadErrorsData() {
+    try {
+      const filters = {...this.getActiveFilters(), statusPrefix: '4xx'};
+      const response = await chrome.runtime.sendMessage({
+        action: 'getFilteredStats',
+        filters
+      });
+      
+      const errorsList = document.getElementById('errorsList');
+      
+      if (!response.success || response.totalRequests === 0) {
+        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters</p>';
+        return;
+      }
+      
+      errorsList.innerHTML = `
+        <div class="errors-summary">
+          <p><i class="fas fa-exclamation-triangle"></i> Found ${response.totalRequests} failed requests</p>
+          <p class="hint">Detailed error information will be displayed here</p>
+        </div>
+      `;
+    } catch (error) {
+      console.error('Failed to load errors data:', error);
+    }
+  }
+
+  // Search requests
+  searchRequests(query) {
+    // Implement search filtering
+    console.log('Searching for:', query);
+  }
+
+  // Get active filters
+  getActiveFilters() {
+    const siteFilter = document.getElementById("siteFilter").value;
+    const timeRange = parseInt(document.getElementById("timeRange").value);
+    const requestType = document.getElementById("requestTypeFilter").value;
+    const status = document.getElementById("statusFilter").value;
+    const performance = document.getElementById("performanceFilter").value;
+    
+    const filters = { timeRange };
+    
+    // Add site/URL filter
+    if (siteFilter === "current" && this.currentUrl) {
+      filters.pageUrl = this.currentUrl;
+    } else if (siteFilter !== "all" && siteFilter !== "current") {
+      filters.pageUrl = `https://${siteFilter}`;
+    }
+    
+    if (requestType) filters.type = requestType;
+    if (status) filters.statusPrefix = status;
+    
+    // Update active filters display
+    this.updateActiveFiltersDisplay(filters);
+    
+    return filters;
+  }
+
+  // Update active filters display
+  updateActiveFiltersDisplay(filters) {
+    const container = document.getElementById("activeFiltersDisplay");
+    const list = document.getElementById("activeFiltersList");
+    
+    const activeFilters = [];
+    if (filters.pageUrl) {
+      const url = new URL(filters.pageUrl);
+      activeFilters.push(`Site: ${url.hostname}`);
+    }
+    if (filters.type) activeFilters.push(`Type: ${filters.type}`);
+    if (filters.statusPrefix) activeFilters.push(`Status: ${filters.statusPrefix}`);
+    
+    if (activeFilters.length > 0) {
+      list.innerHTML = activeFilters.map(f => `<span class="filter-tag">${f}</span>`).join('');
+      container.style.display = 'flex';
+    } else {
+      container.style.display = 'none';
+    }
+  }
+
+  // Calculate percentile
+  calculatePercentile(arr, percentile) {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+    return Math.round(sorted[index] || 0);
+  }
+
+  // Show/hide no data state
+  showNoDataState(show) {
+    const noDataEl = document.getElementById('noDataState');
+    const contentEl = document.querySelector('.content-tabs');
+    
+    if (show) {
+      noDataEl.style.display = 'flex';
+      contentEl.style.display = 'none';
+    } else {
+      noDataEl.style.display = 'none';
+      contentEl.style.display = 'block';
+    }
   }
 
   // Cleanup when panel is closed
