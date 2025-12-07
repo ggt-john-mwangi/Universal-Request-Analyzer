@@ -466,7 +466,71 @@
 
       <!-- Data Retention Tab -->
       <section id="retention" class="tab-content">
-        <div id="dataPurge"></div>
+        <div class="options-container">
+          <div class="option-section">
+            <h2>Data Retention & Cleanup</h2>
+            
+            <div class="info-box">
+              <h4><i class="fas fa-database"></i> Current Database Status</h4>
+              <div class="db-status-grid">
+                <div class="db-stat">
+                  <span class="label">Total Size:</span>
+                  <span id="currentDbSize" class="value">Calculating...</span>
+                </div>
+                <div class="db-stat">
+                  <span class="label">Total Records:</span>
+                  <span id="currentDbRecords" class="value">0</span>
+                </div>
+                <div class="db-stat">
+                  <span class="label">Oldest Record:</span>
+                  <span id="oldestRecord" class="value">N/A</span>
+                </div>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-clock"></i> Cleanup Preview</h3>
+            <div class="option-row">
+              <label for="cleanupAge">Delete records older than (days):</label>
+              <input type="number" id="cleanupAge" min="1" max="365" value="30">
+            </div>
+            
+            <div class="option-row">
+              <button id="previewCleanupBtn" class="secondary-btn">
+                <i class="fas fa-eye"></i> Preview Cleanup
+              </button>
+              <div id="cleanupPreview" class="preview-box" style="display: none;">
+                <h4>Cleanup Preview:</h4>
+                <p>Records to delete: <strong id="previewRecordsCount">0</strong></p>
+                <p>Estimated size freed: <strong id="previewSizeFreed">0 MB</strong></p>
+                <p>Records remaining: <strong id="previewRecordsRemaining">0</strong></p>
+              </div>
+            </div>
+
+            <div class="option-row">
+              <button id="createBackupBtn" class="btn-primary">
+                <i class="fas fa-save"></i> Create Backup Before Cleanup
+              </button>
+              <span id="lastBackupTime" class="help-text">Last backup: Never</span>
+            </div>
+
+            <div class="danger-zone">
+              <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+              <div class="option-row">
+                <button id="executeCleanupBtn" class="danger-btn" disabled>
+                  <i class="fas fa-broom"></i> Execute Cleanup
+                </button>
+                <p class="description">⚠️ This action cannot be undone. Create a backup first!</p>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-history"></i> Cleanup History</h3>
+            <div id="cleanupHistory" class="history-box">
+              <p class="placeholder">No cleanup history available</p>
+            </div>
+          </div>
+
+          <div id="dataPurge"></div>
+        </div>
       </section>
 
       <!-- Security Settings Tab -->
@@ -474,19 +538,75 @@
         <div class="options-container">
           <div class="option-section">
             <h2>Settings Import/Export</h2>
-            <div class="option-row">
-              <button id="exportSettingsBtn" class="primary-btn">
-                Export Settings
-              </button>
-              <p class="description">Export all settings to a file for backup or transfer</p>
+            
+            <div class="warning-box" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin-bottom: 20px;">
+              <i class="fas fa-exclamation-triangle" style="color: #ff9800;"></i>
+              <strong>Warning:</strong> Importing will overwrite your current settings. A backup will be created automatically.
             </div>
+            
+            <h3><i class="fas fa-file-export"></i> Export Settings</h3>
+            <div class="option-row">
+              <button id="exportSettingsBtn" class="btn-primary">
+                <i class="fas fa-download"></i> Export Settings
+              </button>
+              <p class="description">Export all settings to a JSON file for backup or transfer</p>
+            </div>
+            
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="encryptExport">
+                <span>Encrypt with password (coming soon)</span>
+              </label>
+            </div>
+
+            <h3><i class="fas fa-file-import"></i> Import Settings</h3>
             <div class="option-row">
               <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
-              <button id="importSettingsBtn" class="secondary-btn">
-                Import Settings
+              <button id="importSettingsBtn" class="btn-primary">
+                <i class="fas fa-upload"></i> Import Settings
               </button>
               <p class="description">Import settings from a previously exported file</p>
             </div>
+            
+            <div class="option-row">
+              <label>
+                <input type="checkbox" id="selectiveImport">
+                <span>Selective Import (choose specific sections)</span>
+              </label>
+            </div>
+
+            <div id="selectiveImportOptions" class="selective-import-box" style="display: none; margin-top: 10px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+              <h4 style="margin: 0 0 10px 0;">Select sections to import:</h4>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="general" checked> General Settings
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="filters" checked> Filters
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="monitoring" checked> Monitoring
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="export" checked> Export Settings
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="themes" checked> Themes
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="importSection" value="retention" checked> Data Retention
+                </label>
+              </div>
+            </div>
+
+            <h3><i class="fas fa-info-circle"></i> Import Safety Features</h3>
+            <ul style="font-size: 13px; line-height: 1.8; color: #666;">
+              <li>✅ Automatic backup created before import</li>
+              <li>✅ Settings validation before applying</li>
+              <li>✅ Selective import to preserve specific settings</li>
+              <li>⏳ Version compatibility check (coming soon)</li>
+              <li>⏳ Password encryption support (coming soon)</li>
+            </ul>
           </div>
         </div>
       </section>

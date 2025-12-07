@@ -325,22 +325,82 @@ async function importSettings(event) {
   const file = event.target.files[0];
   if (!file) return;
 
+  // Check selective import option
+  const selectiveImport = document.getElementById('selectiveImport');
+  const isSelective = selectiveImport && selectiveImport.checked;
+  
+  // Confirm import action
+  const confirmMsg = isSelective 
+    ? 'Import selected sections? Your current settings for these sections will be overwritten. A backup will be created automatically.'
+    : 'Import all settings? This will overwrite ALL current settings. A backup will be created automatically.';
+  
+  if (!confirm(confirmMsg)) {
+    event.target.value = "";
+    return;
+  }
+
   try {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const importData = JSON.parse(e.target.result);
-        const success = await settingsManager.importSettings(importData);
+        
+        // Validate import data
+        if (!importData || typeof importData !== 'object') {
+          throw new Error('Invalid settings file format');
+        }
+        
+        // Create automatic backup before import
+        showNotification('Creating backup before import...');
+        const backup = settingsManager.exportSettings();
+        const backupBlob = new Blob([JSON.stringify(backup, null, 2)], {
+          type: 'application/json'
+        });
+        const backupUrl = URL.createObjectURL(backupBlob);
+        const backupLink = document.createElement('a');
+        backupLink.href = backupUrl;
+        backupLink.download = `ura-backup-before-import-${Date.now()}.json`;
+        backupLink.click();
+        URL.revokeObjectURL(backupUrl);
+        
+        // Handle selective import
+        let dataToImport = importData;
+        if (isSelective) {
+          const selectedSections = Array.from(
+            document.querySelectorAll('input[name="importSection"]:checked')
+          ).map(cb => cb.value);
+          
+          if (selectedSections.length === 0) {
+            showNotification('No sections selected for import', true);
+            event.target.value = "";
+            return;
+          }
+          
+          // Get current settings
+          const currentData = settingsManager.exportSettings();
+          
+          // Merge: keep current data, override only selected sections
+          dataToImport = { ...currentData };
+          selectedSections.forEach(section => {
+            if (importData[section]) {
+              dataToImport[section] = importData[section];
+            }
+          });
+          
+          showNotification(`Importing ${selectedSections.length} section(s)...`);
+        }
+        
+        const success = await settingsManager.importSettings(dataToImport);
 
         if (success) {
           await loadOptions(); // Reload UI with new settings
-          showNotification("Settings imported successfully!");
+          showNotification("Settings imported successfully! Backup saved to downloads.");
         } else {
           showNotification("Failed to import settings", true);
         }
       } catch (error) {
         console.error("Import error:", error);
-        showNotification("Invalid settings file", true);
+        showNotification(`Invalid settings file: ${error.message}`, true);
       }
     };
     reader.readAsText(file);
@@ -351,6 +411,16 @@ async function importSettings(event) {
 
   // Clear the file input for future imports
   event.target.value = "";
+}
+
+// Selective import toggle
+const selectiveImportCheckbox = document.getElementById('selectiveImport');
+const selectiveImportOptions = document.getElementById('selectiveImportOptions');
+
+if (selectiveImportCheckbox && selectiveImportOptions) {
+  selectiveImportCheckbox.addEventListener('change', () => {
+    selectiveImportOptions.style.display = selectiveImportCheckbox.checked ? 'block' : 'none';
+  });
 }
 
 // Render theme options
