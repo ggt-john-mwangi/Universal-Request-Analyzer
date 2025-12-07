@@ -122,10 +122,10 @@ export class DevToolsPanel {
           
           <select id="performanceFilter">
             <option value="">All Performance</option>
-            <option value="fast">Fast (&lt;100ms)</option>
+            <option value="fast">Fast (<100ms)</option>
             <option value="normal">Normal (100-500ms)</option>
             <option value="slow">Slow (500-1000ms)</option>
-            <option value="veryslow">Very Slow (&gt;1000ms)</option>
+            <option value="veryslow">Very Slow (>1000ms)</option>
           </select>
         </div>
       </div>
@@ -379,13 +379,14 @@ export class DevToolsPanel {
     document.getElementById("totalRequestsValue").textContent = 
       metrics.totalRequests || 0;
     
-    const avgResponse = Math.round(
-      metrics.responseTimes?.reduce((a, b) => a + b, 0) / 
-      (metrics.responseTimes?.length || 1) || 0
-    );
+    const avgResponse = (metrics.responseTimes && metrics.responseTimes.length > 0)
+      ? Math.round(metrics.responseTimes.reduce((a, b) => a + b, 0) / metrics.responseTimes.length)
+      : 0;
     document.getElementById("avgResponseValue").textContent = `${avgResponse}ms`;
     
-    const slowRequests = metrics.responseTimes?.filter(t => t > 1000).length || 0;
+    const slowRequests = (metrics.responseTimes && metrics.responseTimes.length > 0)
+      ? metrics.responseTimes.filter(t => t > 1000).length 
+      : 0;
     document.getElementById("slowRequestsValue").textContent = slowRequests;
     
     const errors = Object.entries(metrics.statusCodes || {})

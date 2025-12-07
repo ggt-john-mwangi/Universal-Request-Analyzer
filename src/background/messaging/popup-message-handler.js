@@ -134,21 +134,8 @@ async function handleGetPageStats(data) {
     };
 
     try {
-      if (dbManager?.db) {
-        // Use db.exec directly
-        const result = dbManager.db.exec(query, [domain, fiveMinutesAgo]);
-        
-        if (result && result[0]?.values && result[0].values.length > 0) {
-          const [total, avg, errors, bytes] = result[0].values[0];
-          stats = {
-            totalRequests: total || 0,
-            avgResponse: avg || 0,
-            errorCount: errors || 0,
-            dataTransferred: bytes || 0
-          };
-        }
-      } else if (dbManager?.executeQuery) {
-        // Fallback to executeQuery method
+      if (dbManager?.executeQuery) {
+        // Use executeQuery method
         const result = dbManager.executeQuery(query, [domain, fiveMinutesAgo]);
         
         if (result && result[0]?.values && result[0].values.length > 0) {
@@ -223,12 +210,7 @@ async function handleGetFilteredStats(filters) {
     let requests = [];
     
     try {
-      if (dbManager?.db) {
-        const result = dbManager.db.exec(query, params);
-        if (result && result[0]) {
-          requests = mapResultToArray(result[0]);
-        }
-      } else if (dbManager?.executeQuery) {
+      if (dbManager?.executeQuery) {
         const result = dbManager.executeQuery(query, params);
         if (result && result[0]) {
           requests = mapResultToArray(result[0]);
@@ -350,7 +332,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
     };
 
     try {
-      if (dbManager?.db) {
+      if (dbManager?.executeQuery) {
         // Get overall stats
         const overallQuery = `
           SELECT 
@@ -361,7 +343,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
           FROM bronze_requests
           WHERE timestamp > ?
         `;
-        const overallResult = dbManager.db.exec(overallQuery, [startTime]);
+        const overallResult = dbManager.executeQuery(overallQuery, [startTime]);
         
         if (overallResult && overallResult[0]?.values && overallResult[0].values.length > 0) {
           const [total, avg, slow, errors] = overallResult[0].values[0];
@@ -385,7 +367,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
           WHERE timestamp > ? AND status IS NOT NULL
           GROUP BY statusGroup
         `;
-        const statusResult = dbManager.db.exec(statusQuery, [startTime]);
+        const statusResult = dbManager.executeQuery(statusQuery, [startTime]);
         
         if (statusResult && statusResult[0]?.values) {
           const statusMap = { '2xx': 0, '3xx': 1, '4xx': 2, '5xx': 3 };
@@ -405,7 +387,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
           ORDER BY count DESC
           LIMIT 10
         `;
-        const domainsResult = dbManager.db.exec(domainsQuery, [startTime]);
+        const domainsResult = dbManager.executeQuery(domainsQuery, [startTime]);
         
         if (domainsResult && domainsResult[0]?.values) {
           stats.topDomains.labels = domainsResult[0].values.map(r => r[0]);
@@ -424,7 +406,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
           ORDER BY timestamp DESC
           LIMIT ?
         `;
-        const volumeResult = dbManager.db.exec(hourlyQuery, [startTime, hoursToShow]);
+        const volumeResult = dbManager.executeQuery(hourlyQuery, [startTime, hoursToShow]);
         
         if (volumeResult && volumeResult[0]?.values) {
           stats.volumeTimeline.labels = volumeResult[0].values.map(r => r[0]).reverse();
@@ -442,7 +424,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
           ORDER BY timestamp DESC
           LIMIT ?
         `;
-        const perfResult = dbManager.db.exec(perfQuery, [startTime, hoursToShow]);
+        const perfResult = dbManager.executeQuery(perfQuery, [startTime, hoursToShow]);
         
         if (perfResult && perfResult[0]?.values) {
           stats.performanceTrend.labels = perfResult[0].values.map(r => r[0]).reverse();
@@ -458,7 +440,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
 
         for (const [layer, query] of Object.entries(layerQueries)) {
           try {
-            const result = dbManager.db.exec(query);
+            const result = dbManager.executeQuery(query);
             if (result && result[0]?.values && result[0].values.length > 0) {
               stats.layerCounts[layer] = result[0].values[0][0] || 0;
             }
