@@ -127,7 +127,6 @@ function setupEventListeners() {
       const currentTab = tabs[0];
       
       if (currentTab && currentTab.url) {
-        const domain = new URL(currentTab.url).hostname;
         const response = await chrome.runtime.sendMessage({
           action: 'exportFilteredData',
           filters: { pageUrl: currentTab.url },
