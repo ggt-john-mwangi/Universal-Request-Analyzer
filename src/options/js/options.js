@@ -1,4 +1,5 @@
 // Import necessary modules
+import "../components/dashboard.js";
 import "../components/auto-export.js";
 import "../components/capture-filters.js";
 import "../components/capture-settings.js";

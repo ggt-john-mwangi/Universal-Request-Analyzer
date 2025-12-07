@@ -44,6 +44,9 @@ async function handleMessage(message, sender) {
     case 'exportFilteredData':
       return await handleExportFilteredData(filters, message.format);
     
+    case 'getDashboardStats':
+      return await handleGetDashboardStats(message.timeRange);
+    
     default:
       return { success: false, error: 'Unknown action' };
   }
@@ -326,4 +329,151 @@ function mapResultToArray(result) {
     });
     return obj;
   });
+}
+
+// Handle get dashboard stats
+async function handleGetDashboardStats(timeRange = 86400) {
+  try {
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    let stats = {
+      totalRequests: 0,
+      avgResponse: 0,
+      slowRequests: 0,
+      errorCount: 0,
+      volumeTimeline: { labels: [], values: [] },
+      statusDistribution: [0, 0, 0, 0], // 2xx, 3xx, 4xx, 5xx
+      topDomains: { labels: [], values: [] },
+      performanceTrend: { labels: [], values: [] },
+      layerCounts: { bronze: 0, silver: 0, gold: 0 }
+    };
+
+    try {
+      if (dbManager?.db) {
+        // Get overall stats
+        const overallQuery = `
+          SELECT 
+            COUNT(*) as totalRequests,
+            AVG(duration) as avgResponse,
+            SUM(CASE WHEN duration > 1000 THEN 1 ELSE 0 END) as slowRequests,
+            SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errorCount
+          FROM bronze_requests
+          WHERE timestamp > ?
+        `;
+        const overallResult = dbManager.db.exec(overallQuery, [startTime]);
+        
+        if (overallResult && overallResult[0]?.values && overallResult[0].values.length > 0) {
+          const [total, avg, slow, errors] = overallResult[0].values[0];
+          stats.totalRequests = total || 0;
+          stats.avgResponse = avg || 0;
+          stats.slowRequests = slow || 0;
+          stats.errorCount = errors || 0;
+        }
+
+        // Get status distribution
+        const statusQuery = `
+          SELECT 
+            CASE 
+              WHEN status >= 200 AND status < 300 THEN '2xx'
+              WHEN status >= 300 AND status < 400 THEN '3xx'
+              WHEN status >= 400 AND status < 500 THEN '4xx'
+              WHEN status >= 500 THEN '5xx'
+            END as statusGroup,
+            COUNT(*) as count
+          FROM bronze_requests
+          WHERE timestamp > ? AND status IS NOT NULL
+          GROUP BY statusGroup
+        `;
+        const statusResult = dbManager.db.exec(statusQuery, [startTime]);
+        
+        if (statusResult && statusResult[0]?.values) {
+          const statusMap = { '2xx': 0, '3xx': 1, '4xx': 2, '5xx': 3 };
+          statusResult[0].values.forEach(([group, count]) => {
+            if (group && statusMap[group] !== undefined) {
+              stats.statusDistribution[statusMap[group]] = count;
+            }
+          });
+        }
+
+        // Get top domains
+        const domainsQuery = `
+          SELECT domain, COUNT(*) as count
+          FROM bronze_requests
+          WHERE timestamp > ? AND domain IS NOT NULL
+          GROUP BY domain
+          ORDER BY count DESC
+          LIMIT 10
+        `;
+        const domainsResult = dbManager.db.exec(domainsQuery, [startTime]);
+        
+        if (domainsResult && domainsResult[0]?.values) {
+          stats.topDomains.labels = domainsResult[0].values.map(r => r[0]);
+          stats.topDomains.values = domainsResult[0].values.map(r => r[1]);
+        }
+
+        // Get volume timeline (hourly aggregation)
+        const hoursToShow = Math.min(Math.ceil(timeRangeMs / (3600 * 1000)), 24);
+        const hourlyQuery = `
+          SELECT 
+            strftime('%H:00', datetime(timestamp/1000, 'unixepoch')) as hour,
+            COUNT(*) as count
+          FROM bronze_requests
+          WHERE timestamp > ?
+          GROUP BY hour
+          ORDER BY timestamp DESC
+          LIMIT ?
+        `;
+        const volumeResult = dbManager.db.exec(hourlyQuery, [startTime, hoursToShow]);
+        
+        if (volumeResult && volumeResult[0]?.values) {
+          stats.volumeTimeline.labels = volumeResult[0].values.map(r => r[0]).reverse();
+          stats.volumeTimeline.values = volumeResult[0].values.map(r => r[1]).reverse();
+        }
+
+        // Get performance trend (hourly average)
+        const perfQuery = `
+          SELECT 
+            strftime('%H:00', datetime(timestamp/1000, 'unixepoch')) as hour,
+            AVG(duration) as avgDuration
+          FROM bronze_requests
+          WHERE timestamp > ? AND duration IS NOT NULL
+          GROUP BY hour
+          ORDER BY timestamp DESC
+          LIMIT ?
+        `;
+        const perfResult = dbManager.db.exec(perfQuery, [startTime, hoursToShow]);
+        
+        if (perfResult && perfResult[0]?.values) {
+          stats.performanceTrend.labels = perfResult[0].values.map(r => r[0]).reverse();
+          stats.performanceTrend.values = perfResult[0].values.map(r => Math.round(r[1])).reverse();
+        }
+
+        // Get layer counts
+        const layerQueries = {
+          bronze: 'SELECT COUNT(*) FROM bronze_requests',
+          silver: 'SELECT COUNT(*) FROM silver_requests',
+          gold: 'SELECT COUNT(*) FROM gold_daily_analytics'
+        };
+
+        for (const [layer, query] of Object.entries(layerQueries)) {
+          try {
+            const result = dbManager.db.exec(query);
+            if (result && result[0]?.values && result[0].values.length > 0) {
+              stats.layerCounts[layer] = result[0].values[0][0] || 0;
+            }
+          } catch (layerError) {
+            console.warn(`Failed to get ${layer} count:`, layerError);
+          }
+        }
+      }
+    } catch (queryError) {
+      console.error('Dashboard stats query error:', queryError);
+    }
+
+    return { success: true, stats };
+  } catch (error) {
+    console.error('Get dashboard stats error:', error);
+    return { success: false, error: error.message };
+  }
 }
