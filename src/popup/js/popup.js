@@ -1,16 +1,16 @@
-// Import required modules and components
-import "../components/chart-components.js";
-import "../components/chart-renderer.js";
-import "../components/data-filter-panel.js";
-import "../components/data-loader.js";
-import "../components/data-visualization.js";
-import "../components/export-panel.js";
-import "../components/filters.js";
-import "../components/notifications.js";
-import "../components/performance-monitor.js";
-import "../components/settings-manager.js";
-import "../components/settings-ui.js";
-import "../components/tab-manager.js";
+// Import required modules and components (from shared library)
+import "../../lib/shared-components/chart-components.js";
+import "../../lib/shared-components/chart-renderer.js";
+import "../../lib/shared-components/data-filter-panel.js";
+import "../../lib/shared-components/data-loader.js";
+import "../../lib/shared-components/data-visualization.js";
+import "../../lib/shared-components/export-panel.js";
+import "../../lib/shared-components/filters.js";
+import "../../lib/shared-components/notifications.js";
+import "../../lib/shared-components/performance-monitor.js";
+import "../../lib/shared-components/settings-manager.js";
+import "../../lib/shared-components/settings-ui.js";
+import "../../lib/shared-components/tab-manager.js";
 import "../../auth/acl-manager.js";
 import "../../config/feature-flags.js";
 import "../../config/theme-manager.js";
