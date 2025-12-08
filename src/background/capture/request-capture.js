@@ -368,6 +368,9 @@ function setupContentScriptListener() {
       } else if (message.action === "pageNavigation") {
         handlePageNavigation(message, sender.tab);
         sendResponse({ success: true });
+      } else if (message.action === "webVital") {
+        handleWebVital(message, sender.tab);
+        sendResponse({ success: true });
       } else if (
         message.action === "xhrCompleted" ||
         message.action === "fetchCompleted"
@@ -516,6 +519,54 @@ function handlePageNavigation(data, tab) {
     title: data.title,
     tabId: tab ? tab.id : 0,
   });
+}
+
+// Handle Core Web Vitals metrics
+function handleWebVital(data, tab) {
+  if (!config.enabled || !dbManager) return;
+
+  try {
+    const { metric, value, rating, url, timestamp } = data;
+    
+    // Store the web vital metric in the database
+    const entry = {
+      request_id: null, // Not associated with a specific request
+      entry_type: 'web-vital',
+      name: metric,
+      start_time: timestamp,
+      duration: value,
+      metrics: JSON.stringify({
+        metric: metric,
+        value: value,
+        rating: rating,
+        url: url,
+      }),
+      created_at: Date.now(),
+    };
+
+    // Insert into bronze_performance_entries table
+    if (dbManager.executeQuery) {
+      dbManager.executeQuery(
+        `INSERT INTO bronze_performance_entries (request_id, entry_type, name, start_time, duration, metrics, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [entry.request_id, entry.entry_type, entry.name, entry.start_time, entry.duration, entry.metrics, entry.created_at]
+      );
+    }
+
+    // Publish event for real-time updates
+    eventBus.publish("webvital:captured", {
+      metric: metric,
+      value: value,
+      rating: rating,
+      url: url,
+      tabId: tab ? tab.id : 0,
+      timestamp: timestamp,
+    });
+
+    console.log(`Core Web Vital captured: ${metric} = ${value}ms (${rating})`);
+  } catch (error) {
+    console.error('Error handling web vital:', error);
+  }
 }
 
 // Handle XHR/Fetch completed event

@@ -1,5 +1,112 @@
 // Content script to capture performance metrics from the page
 
+// Store Core Web Vitals metrics
+const webVitals = {
+  lcp: null,
+  fid: null,
+  cls: null,
+  fcp: null,
+  ttfb: null,
+};
+
+// Core Web Vitals - Largest Contentful Paint (LCP)
+try {
+  const lcpObserver = new PerformanceObserver((list) => {
+    const entries = list.getEntries();
+    const lastEntry = entries[entries.length - 1];
+    
+    webVitals.lcp = lastEntry.renderTime || lastEntry.loadTime;
+    
+    chrome.runtime.sendMessage({
+      action: 'webVital',
+      metric: 'LCP',
+      value: webVitals.lcp,
+      rating: webVitals.lcp < 2500 ? 'good' : webVitals.lcp < 4000 ? 'needs-improvement' : 'poor',
+      url: window.location.href,
+      timestamp: Date.now(),
+    });
+  });
+  
+  lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+} catch (e) {
+  console.warn('LCP not supported:', e);
+}
+
+// Core Web Vitals - First Input Delay (FID)
+try {
+  const fidObserver = new PerformanceObserver((list) => {
+    const entries = list.getEntries();
+    entries.forEach((entry) => {
+      webVitals.fid = entry.processingStart - entry.startTime;
+      
+      chrome.runtime.sendMessage({
+        action: 'webVital',
+        metric: 'FID',
+        value: webVitals.fid,
+        rating: webVitals.fid < 100 ? 'good' : webVitals.fid < 300 ? 'needs-improvement' : 'poor',
+        url: window.location.href,
+        timestamp: Date.now(),
+      });
+    });
+  });
+  
+  fidObserver.observe({ type: 'first-input', buffered: true });
+} catch (e) {
+  console.warn('FID not supported:', e);
+}
+
+// Core Web Vitals - Cumulative Layout Shift (CLS)
+try {
+  let clsValue = 0;
+  
+  const clsObserver = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (!entry.hadRecentInput) {
+        clsValue += entry.value;
+      }
+    }
+    
+    webVitals.cls = clsValue;
+    
+    chrome.runtime.sendMessage({
+      action: 'webVital',
+      metric: 'CLS',
+      value: webVitals.cls,
+      rating: webVitals.cls < 0.1 ? 'good' : webVitals.cls < 0.25 ? 'needs-improvement' : 'poor',
+      url: window.location.href,
+      timestamp: Date.now(),
+    });
+  });
+  
+  clsObserver.observe({ type: 'layout-shift', buffered: true });
+} catch (e) {
+  console.warn('CLS not supported:', e);
+}
+
+// First Contentful Paint (FCP)
+try {
+  const paintObserver = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (entry.name === 'first-contentful-paint') {
+        webVitals.fcp = entry.startTime;
+        
+        chrome.runtime.sendMessage({
+          action: 'webVital',
+          metric: 'FCP',
+          value: webVitals.fcp,
+          rating: webVitals.fcp < 1800 ? 'good' : webVitals.fcp < 3000 ? 'needs-improvement' : 'poor',
+          url: window.location.href,
+          timestamp: Date.now(),
+        });
+      }
+    }
+  });
+  
+  paintObserver.observe({ type: 'paint', buffered: true });
+} catch (e) {
+  console.warn('FCP not supported:', e);
+}
+
 // Create a performance observer to monitor resource timing entries
 const observer = new PerformanceObserver((list) => {
   const entries = list.getEntries();
@@ -57,6 +164,18 @@ window.addEventListener('load', () => {
   const navigationTiming = performance.getEntriesByType('navigation')[0];
 
   if (navigationTiming) {
+    // Calculate TTFB
+    webVitals.ttfb = navigationTiming.responseStart - navigationTiming.requestStart;
+    
+    chrome.runtime.sendMessage({
+      action: 'webVital',
+      metric: 'TTFB',
+      value: webVitals.ttfb,
+      rating: webVitals.ttfb < 800 ? 'good' : webVitals.ttfb < 1800 ? 'needs-improvement' : 'poor',
+      url: window.location.href,
+      timestamp: Date.now(),
+    });
+    
     chrome.runtime.sendMessage({
       action: 'pageLoad',
       url: window.location.href,
@@ -69,7 +188,7 @@ window.addEventListener('load', () => {
           navigationTiming.secureConnectionStart > 0
             ? navigationTiming.connectEnd - navigationTiming.secureConnectionStart
             : 0,
-        ttfbTime: navigationTiming.responseStart - navigationTiming.requestStart,
+        ttfbTime: webVitals.ttfb,
         downloadTime: navigationTiming.responseEnd - navigationTiming.responseStart,
         processingTime: navigationTiming.domComplete - navigationTiming.responseEnd,
         loadTime: navigationTiming.loadEventEnd - navigationTiming.startTime,

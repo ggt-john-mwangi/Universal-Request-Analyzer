@@ -238,6 +238,9 @@ class Dashboard {
       // Update medallion layer status
       this.updateLayerStatus(stats);
       
+      // Update Core Web Vitals
+      await this.updateWebVitals();
+      
       console.log('✓ Dashboard refreshed');
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);
@@ -545,6 +548,74 @@ class Dashboard {
     }
     
     return filters;
+  }
+
+  async updateWebVitals() {
+    try {
+      const filters = this.getActiveFilters();
+      
+      // Get Web Vitals from background
+      const response = await chrome.runtime.sendMessage({
+        action: 'getWebVitals',
+        filters: {
+          ...filters,
+          timeRange: this.timeRange
+        }
+      });
+      
+      if (response && response.success && response.vitals) {
+        const vitals = response.vitals;
+        
+        // Update LCP
+        this.updateVitalCard('lcp', vitals.LCP);
+        
+        // Update FID
+        this.updateVitalCard('fid', vitals.FID);
+        
+        // Update CLS
+        this.updateVitalCard('cls', vitals.CLS);
+        
+        // Update FCP
+        this.updateVitalCard('fcp', vitals.FCP);
+        
+        // Update TTFB
+        this.updateVitalCard('ttfb', vitals.TTFB);
+      }
+    } catch (error) {
+      console.error('Failed to update web vitals:', error);
+    }
+  }
+  
+  updateVitalCard(metric, data) {
+    if (!data) return;
+    
+    const valueEl = document.getElementById(`${metric}Value`);
+    const ratingEl = document.getElementById(`${metric}Rating`);
+    const cardEl = document.getElementById(`${metric}Card`);
+    
+    if (!valueEl || !ratingEl || !cardEl) return;
+    
+    // Format value based on metric type
+    let displayValue = '-';
+    if (data.value !== null && data.value !== undefined) {
+      if (metric === 'cls') {
+        displayValue = data.value.toFixed(3);
+      } else {
+        displayValue = `${Math.round(data.value)}ms`;
+      }
+    }
+    
+    valueEl.textContent = displayValue;
+    
+    // Update rating
+    if (data.rating) {
+      ratingEl.textContent = data.rating.replace('-', ' ');
+      ratingEl.className = `vital-rating ${data.rating}`;
+      
+      // Update card border
+      cardEl.classList.remove('good', 'needs-improvement', 'poor');
+      cardEl.classList.add(data.rating);
+    }
   }
 
   destroy() {

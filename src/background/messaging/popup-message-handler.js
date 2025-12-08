@@ -53,6 +53,9 @@ async function handleMessage(message, sender) {
       case 'getPagesByDomain':
         return await handleGetPagesByDomain(message.domain, message.timeRange);
       
+      case 'getWebVitals':
+        return await handleGetWebVitals(message.filters);
+      
       case 'getRequestTypes':
         return await handleGetRequestTypes();
       
@@ -699,6 +702,98 @@ async function handleGetPagesByDomain(domain, timeRange = 604800) {
     return { success: true, pages };
   } catch (error) {
     console.error('Get pages by domain error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get Web Vitals - returns Core Web Vitals metrics
+async function handleGetWebVitals(filters = {}) {
+  try {
+    const timeRange = filters.timeRange || 86400;
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    const vitals = {
+      LCP: null,
+      FID: null,
+      CLS: null,
+      FCP: null,
+      TTFB: null,
+    };
+    
+    // Build WHERE clause based on filters
+    let whereConditions = ['created_at > ?'];
+    let params = [startTime];
+    
+    if (filters.domain) {
+      whereConditions.push('metrics LIKE ?');
+      params.push(`%"url":"${filters.domain}%`);
+    }
+    
+    if (filters.pageUrl) {
+      whereConditions.push('metrics LIKE ?');
+      params.push(`%"url":"${filters.pageUrl}%`);
+    }
+    
+    const whereClause = whereConditions.length > 0 
+      ? `WHERE ${whereConditions.join(' AND ')}` 
+      : '';
+    
+    // Query each Web Vital metric
+    for (const metric of ['LCP', 'FID', 'CLS', 'FCP', 'TTFB']) {
+      const query = `
+        SELECT 
+          AVG(duration) as avg_value,
+          metrics
+        FROM bronze_performance_entries
+        ${whereClause} AND entry_type = 'web-vital' AND name = '${metric}'
+        LIMIT 1
+      `;
+      
+      try {
+        if (dbManager?.executeQuery) {
+          const result = dbManager.executeQuery(query, params);
+          if (result && result[0]?.values && result[0].values.length > 0) {
+            const row = result[0].values[0];
+            const avgValue = row[0];
+            const metricsJson = row[1];
+            
+            if (avgValue !== null) {
+              // Parse metrics to get rating
+              let rating = 'good';
+              try {
+                const metricsData = JSON.parse(metricsJson);
+                rating = metricsData.rating || 'good';
+              } catch (e) {
+                // Calculate rating based on thresholds
+                if (metric === 'LCP') {
+                  rating = avgValue < 2500 ? 'good' : avgValue < 4000 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'FID') {
+                  rating = avgValue < 100 ? 'good' : avgValue < 300 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'CLS') {
+                  rating = avgValue < 0.1 ? 'good' : avgValue < 0.25 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'FCP') {
+                  rating = avgValue < 1800 ? 'good' : avgValue < 3000 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'TTFB') {
+                  rating = avgValue < 800 ? 'good' : avgValue < 1800 ? 'needs-improvement' : 'poor';
+                }
+              }
+              
+              vitals[metric] = {
+                value: avgValue,
+                rating: rating
+              };
+            }
+          }
+        }
+      } catch (queryError) {
+        console.error(`Error querying ${metric}:`, queryError);
+      }
+    }
+    
+    return { success: true, vitals };
+  } catch (error) {
+    console.error('Get Web Vitals error:', error);
     return { success: false, error: error.message };
   }
 }
