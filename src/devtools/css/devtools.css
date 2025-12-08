@@ -632,11 +632,23 @@ body {
   color: #4CAF50;
 }
 
+.budget-status.success i {
+  color: #4CAF50;
+}
+
 .budget-status.error {
   color: #f44336;
 }
 
+.budget-status.error i {
+  color: #f44336;
+}
+
 .budget-status.info {
+  color: #2196F3;
+}
+
+.budget-status.info i {
   color: #2196F3;
 }
 

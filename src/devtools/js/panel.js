@@ -1191,7 +1191,11 @@ export class DevToolsPanel {
     if (base.length > maxLength) {
       return base.substring(0, maxLength - 3) + '...';
     }
-    return base + '?' + parts[1].substring(0, maxLength - base.length - 4) + '...';
+    if (parts.length > 1 && parts[1]) {
+      const remaining = maxLength - base.length - 4;
+      return base + '?' + parts[1].substring(0, remaining) + '...';
+    }
+    return url;
   }
   
   // Helper to format bytes
@@ -2031,10 +2035,10 @@ export class DevToolsPanel {
     const responseStatus = document.getElementById('budgetResponseStatus');
     if (responseStatus) {
       if (avgResponse <= budgetResponseTime) {
-        responseStatus.innerHTML = '<i class="fas fa-check-circle" style="color: green;"></i> Within budget';
+        responseStatus.innerHTML = '<i class="fas fa-check-circle"></i> Within budget';
         responseStatus.className = 'budget-status success';
       } else {
-        responseStatus.innerHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Over budget';
+        responseStatus.innerHTML = '<i class="fas fa-times-circle"></i> Over budget';
         responseStatus.className = 'budget-status error';
       }
     }
@@ -2043,19 +2047,32 @@ export class DevToolsPanel {
     const countStatus = document.getElementById('budgetCountStatus');
     if (countStatus) {
       if (response.totalRequests <= budgetRequestCount) {
-        countStatus.innerHTML = '<i class="fas fa-check-circle" style="color: green;"></i> Within budget';
+        countStatus.innerHTML = '<i class="fas fa-check-circle"></i> Within budget';
         countStatus.className = 'budget-status success';
       } else {
-        countStatus.innerHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Over budget';
+        countStatus.innerHTML = '<i class="fas fa-times-circle"></i> Over budget';
         countStatus.className = 'budget-status error';
       }
     }
     
-    // Note: Total size checking would require fetching actual request sizes
+    // Check size budget (fetch actual resource size data)
+    const sizeResponse = await chrome.runtime.sendMessage({
+      action: 'getResourceSizeBreakdown',
+      filters
+    });
+    
     const sizeStatus = document.getElementById('budgetSizeStatus');
-    if (sizeStatus) {
-      sizeStatus.innerHTML = '<i class="fas fa-info-circle"></i> Size tracking coming soon';
-      sizeStatus.className = 'budget-status info';
+    if (sizeStatus && sizeResponse.success) {
+      const totalSizeMB = (sizeResponse.totalSize || 0) / (1024 * 1024);
+      const budgetSizeMB = parseFloat(document.getElementById('budgetTotalSize')?.value || 5);
+      
+      if (totalSizeMB <= budgetSizeMB) {
+        sizeStatus.innerHTML = '<i class="fas fa-check-circle"></i> Within budget';
+        sizeStatus.className = 'budget-status success';
+      } else {
+        sizeStatus.innerHTML = '<i class="fas fa-times-circle"></i> Over budget';
+        sizeStatus.className = 'budget-status error';
+      }
     }
   }
   
