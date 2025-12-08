@@ -242,6 +242,51 @@
         <div class="analytics-container">
           <h2><i class="fas fa-chart-pie"></i> Advanced Analytics</h2>
           
+          <!-- Analytics Filters - At Top -->
+          <div class="analytics-filters">
+            <div class="filter-row">
+              <label>
+                <span style="margin-right: 5px;"><i class="fas fa-globe"></i> Domain:</span>
+                <select id="analyticsDomainFilter" style="min-width: 200px;">
+                  <option value="all">All Domains</option>
+                </select>
+              </label>
+              <label>
+                <span style="margin-right: 5px;"><i class="fas fa-file"></i> Page:</span>
+                <select id="analyticsPageFilter" style="min-width: 200px;">
+                  <option value="">All Pages (Aggregated)</option>
+                </select>
+              </label>
+              <label>
+                <span style="margin-right: 5px;"><i class="fas fa-filter"></i> Type:</span>
+                <select id="analyticsRequestTypeFilter" style="min-width: 120px;">
+                  <option value="">All Types</option>
+                  <option value="xmlhttprequest">XHR/API</option>
+                  <option value="fetch">Fetch</option>
+                  <option value="script">Scripts</option>
+                  <option value="stylesheet">Stylesheets</option>
+                  <option value="image">Images</option>
+                  <option value="font">Fonts</option>
+                  <option value="document">Documents</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>
+                <span style="margin-right: 5px;"><i class="fas fa-clock"></i> Time Range:</span>
+                <select id="analyticsTimeRange">
+                  <option value="3600">Last Hour</option>
+                  <option value="21600">Last 6 Hours</option>
+                  <option value="86400" selected>Last 24 Hours</option>
+                  <option value="604800">Last 7 Days</option>
+                  <option value="2592000">Last 30 Days</option>
+                </select>
+              </label>
+              <button id="analyticsRefresh" class="btn-primary">
+                <i class="fas fa-sync-alt"></i> Refresh Analytics
+              </button>
+            </div>
+          </div>
+          
           <!-- Percentiles Analysis -->
           <div class="analytics-section">
             <h3><i class="fas fa-percentage"></i> Response Time Percentiles</h3>

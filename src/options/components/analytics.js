@@ -17,6 +17,9 @@ class Analytics {
   async initialize() {
     console.log('Initializing Analytics...');
     
+    // Load domain filter first
+    await this.loadDomainFilter();
+    
     this.setupEventListeners();
     await this.loadInitialData();
     
@@ -24,6 +27,32 @@ class Analytics {
   }
 
   setupEventListeners() {
+    // Analytics filters
+    const domainFilter = document.getElementById('analyticsDomainFilter');
+    if (domainFilter) {
+      domainFilter.addEventListener('change', () => this.onDomainFilterChange());
+    }
+    
+    const pageFilter = document.getElementById('analyticsPageFilter');
+    if (pageFilter) {
+      pageFilter.addEventListener('change', () => this.onFilterChange());
+    }
+    
+    const typeFilter = document.getElementById('analyticsRequestTypeFilter');
+    if (typeFilter) {
+      typeFilter.addEventListener('change', () => this.onFilterChange());
+    }
+    
+    const timeRange = document.getElementById('analyticsTimeRange');
+    if (timeRange) {
+      timeRange.addEventListener('change', () => this.onFilterChange());
+    }
+    
+    const refreshBtn = document.getElementById('analyticsRefresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => this.loadInitialData());
+    }
+    
     // Trend analysis controls
     const refreshTrendsBtn = document.getElementById('refreshTrendsBtn');
     if (refreshTrendsBtn) {
@@ -43,6 +72,120 @@ class Analytics {
 
     // Load domains for comparison
     this.loadDomainsForComparison();
+  }
+  
+  async loadDomainFilter() {
+    try {
+      const domainSelect = document.getElementById('analyticsDomainFilter');
+      if (!domainSelect) return;
+      
+      // Reset dropdown
+      domainSelect.innerHTML = '<option value="all">All Domains</option>';
+      
+      // Get all domains
+      const response = await chrome.runtime.sendMessage({
+        action: 'getDomains',
+        timeRange: 604800  // Last 7 days
+      });
+      
+      if (response && response.success && response.domains && response.domains.length > 0) {
+        response.domains.forEach(domainObj => {
+          const domain = domainObj.domain;
+          if (domain) {
+            const option = document.createElement('option');
+            option.value = domain;
+            option.textContent = `${domain} (${domainObj.requestCount} requests)`;
+            domainSelect.appendChild(option);
+          }
+        });
+        console.log(`Loaded ${response.domains.length} domains for analytics filter`);
+      }
+    } catch (error) {
+      console.error('Failed to load domain filter:', error);
+    }
+  }
+  
+  async onDomainFilterChange() {
+    const domainSelect = document.getElementById('analyticsDomainFilter');
+    const selectedDomain = domainSelect?.value;
+    
+    // Load pages for selected domain
+    if (selectedDomain && selectedDomain !== 'all') {
+      await this.loadPageFilter(selectedDomain);
+    } else {
+      // Clear page filter for "all domains"
+      const pageSelect = document.getElementById('analyticsPageFilter');
+      if (pageSelect) {
+        pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+        pageSelect.disabled = true;
+      }
+    }
+    
+    // Update filters and reload data
+    this.onFilterChange();
+  }
+  
+  async loadPageFilter(domain) {
+    try {
+      const pageSelect = document.getElementById('analyticsPageFilter');
+      if (!pageSelect) return;
+      
+      // Reset page filter
+      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+      pageSelect.disabled = false;
+      
+      if (!domain || domain === 'all') {
+        pageSelect.disabled = true;
+        return;
+      }
+      
+      // Get pages for this domain
+      const response = await chrome.runtime.sendMessage({
+        action: 'getPagesByDomain',
+        domain: domain,
+        timeRange: 604800  // Last 7 days
+      });
+      
+      if (response && response.success && response.pages && response.pages.length > 0) {
+        response.pages.forEach(pageObj => {
+          const pageUrl = pageObj.pageUrl;
+          if (pageUrl) {
+            const option = document.createElement('option');
+            option.value = pageUrl;
+            // Extract path from full URL for display
+            try {
+              const url = new URL(pageUrl);
+              const displayPath = url.pathname + url.search || '/';
+              option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
+            } catch (e) {
+              option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
+            }
+            pageSelect.appendChild(option);
+          }
+        });
+        console.log(`Loaded ${response.pages.length} pages for domain ${domain}`);
+      }
+    } catch (error) {
+      console.error('Failed to load page filter:', error);
+    }
+  }
+  
+  onFilterChange() {
+    // Update current filters
+    const domainFilter = document.getElementById('analyticsDomainFilter')?.value;
+    const pageFilter = document.getElementById('analyticsPageFilter')?.value;
+    const typeFilter = document.getElementById('analyticsRequestTypeFilter')?.value;
+    const timeRange = document.getElementById('analyticsTimeRange')?.value;
+    
+    this.currentFilters = {
+      domain: domainFilter && domainFilter !== 'all' ? domainFilter : null,
+      pageUrl: pageFilter || null,
+      type: typeFilter || null,
+      timeRange: timeRange ? parseInt(timeRange) : 86400
+    };
+    
+    // Reload all analytics data
+    this.loadInitialData();
   }
 
   async loadInitialData() {
