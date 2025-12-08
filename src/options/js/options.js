@@ -1,5 +1,7 @@
 // Import necessary modules
 import '../components/dashboard.js';
+import '../components/analytics.js';
+import '../components/alerts.js';
 import '../components/auto-export.js';
 import '../components/capture-filters.js';
 import '../components/capture-settings.js';
@@ -102,6 +104,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize advanced tab
     console.log('Options page: Initializing advanced tab...');
     initializeAdvancedTab();
+    
+    // Initialize Analytics component
+    console.log('Options page: Initializing analytics...');
+    await initializeAnalytics();
+    
+    // Initialize Alerts component
+    console.log('Options page: Initializing alerts...');
+    await initializeAlerts();
     
     console.log('Options page: Initialization complete!');
   } catch (error) {
@@ -2107,5 +2117,33 @@ async function filterDashboardBySite(site) {
     showNotification('Failed to filter dashboard', true);
   } finally {
     if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+// Initialize Analytics component
+let analyticsInstance = null;
+
+async function initializeAnalytics() {
+  try {
+    const { default: Analytics } = await import('../components/analytics.js');
+    analyticsInstance = new Analytics();
+    await analyticsInstance.initialize();
+    console.log('✓ Analytics component initialized');
+  } catch (error) {
+    console.error('Failed to initialize Analytics:', error);
+  }
+}
+
+// Initialize Alerts component
+let alertsInstance = null;
+
+async function initializeAlerts() {
+  try {
+    const { default: Alerts } = await import('../components/alerts.js');
+    alertsInstance = new Alerts();
+    await alertsInstance.initialize();
+    console.log('✓ Alerts component initialized');
+  } catch (error) {
+    console.error('Failed to initialize Alerts:', error);
   }
 }

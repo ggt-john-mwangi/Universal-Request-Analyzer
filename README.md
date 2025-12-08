@@ -1,19 +1,59 @@
 # Universal Request Analyzer
 
-A powerful browser extension for analyzing and monitoring network requests with detailed performance metrics.
+A powerful browser extension for analyzing and monitoring network requests with detailed performance metrics and advanced filtering capabilities.
 
 ## Features
 
-- Capture and analyze network requests in real-time
-- Track detailed performance metrics (disabled by default)
-- Cross-browser compatibility (Chrome, Firefox, Edge)
-- Rich visualization of request data
-- Export capabilities
-- Configurable filters and monitoring options
+- **Unified Filtering System**: Hierarchical filtering by domain → page → request type across all interfaces
+- **Time Travel**: View historical performance data and trends over time
+- **Real-time Analytics**: Capture and analyze network requests in real-time
+- **Detailed Performance Metrics**: Track DNS, TCP, SSL, TTFB, and download times
+- **Rich Visualizations**: Interactive charts and graphs for request data
+- **Cross-browser Compatibility**: Works on Chrome, Firefox, and Edge
+- **Export Capabilities**: Export filtered data for further analysis
+- **Configurable Monitoring**: Flexible filter options and retention settings
+
+## Unified Filtering
+
+The extension provides consistent filtering across three interfaces:
+
+### Popup
+- **Auto-filtered by current domain**: Automatically shows metrics for the current tab's domain
+- **Request type filter**: Filter by XHR/API, Fetch, Scripts, Stylesheets, Images, Fonts, Documents
+- **Aggregated metrics**: Shows combined statistics across all pages within the domain
+- **Quick insights**: View total requests, average response time, errors, and data transferred
+
+### DevTools Panel
+- **Domain filter**: Select current domain, all domains, or specific tracked domains
+- **Page filter**: Choose specific pages or view aggregated data for the domain
+- **Request type filter**: Filter by resource type
+- **Time range selection**: View data from last 5 minutes to last 30 days
+- **Time Travel**: Access historical data with hourly, daily, or minute-by-minute grouping
+- **Multiple tabs**: Overview, Requests Table, Performance, Endpoints, and Errors
+- **Real-time updates**: Auto-refresh every 5 seconds with instant filter application
+
+### Dashboard
+- **All domains**: View metrics across all tracked domains
+- **Domain → Page hierarchy**: Select domain first, then choose specific pages
+- **Request type filtering**: Filter by resource type
+- **Time range selection**: Analyze data over different time periods
+- **Comprehensive charts**: Volume timeline, status distribution, performance trends
+
+## Time Travel Feature
+
+Navigate through historical performance data:
+
+1. Click the "History" button in the DevTools Panel
+2. Select grouping: Hourly, Daily, or By Minute
+3. View historical trends for:
+   - Request volume over time
+   - Average response times
+   - Error rates and patterns
+   - Performance regressions
 
 ## Performance Metrics
 
-The extension now includes detailed performance monitoring capabilities:
+The extension captures detailed performance monitoring:
 
 - DNS lookup time
 - TCP connection time
@@ -21,8 +61,9 @@ The extension now includes detailed performance monitoring capabilities:
 - Time to First Byte (TTFB)
 - Download time
 - Total request duration
+- P95, P99 percentiles
 
-These metrics are disabled by default to minimize performance impact. Enable them in the extension settings when needed.
+*Note: Performance metrics are disabled by default to minimize performance impact. Enable them in extension settings when needed.*
 
 ### Performance Monitoring Configuration
 
@@ -43,19 +84,47 @@ These metrics are disabled by default to minimize performance impact. Enable the
 
 ## Usage
 
-1. Click the extension icon to open the popup interface
-2. Navigate through tabs:
-   - Requests: View captured network requests
-   - Stats: See request statistics
-   - Performance: Monitor performance metrics
+### Popup Interface
+1. Click the extension icon to open the popup
+2. View current domain's aggregated metrics
+3. Use the request type filter to focus on specific resource types
+4. Click "Analytics" to open the DevTools Panel or "Dashboard" for full view
 
-### Performance Monitoring
+### DevTools Panel
+1. Open Chrome DevTools (F12)
+2. Navigate to the "Request Analyzer" tab
+3. Use filters to narrow down requests:
+   - **Domain**: Select which domain to analyze
+   - **Page**: Choose specific page or view all pages aggregated
+   - **Time Range**: Select how far back to look (5 min to 30 days)
+   - **Request Type**: Filter by resource type
+   - **Status**: Filter by HTTP status codes
+4. Switch between tabs for different views:
+   - **Overview**: Real-time charts and key metrics
+   - **Requests Table**: Detailed request information with sorting
+   - **Performance**: Timing breakdowns and slow request analysis
+   - **Endpoints**: API endpoint performance analysis
+   - **Errors**: Failed requests categorization
+5. Click "History" to access time-travel feature
 
-1. Go to the Performance tab
-2. Toggle the "Enable Performance Metrics" switch
-3. View real-time performance data
-4. Use filters to analyze specific requests
-5. Export performance data for further analysis
+### Dashboard
+1. Open the extension options/settings page
+2. Navigate to the Dashboard tab
+3. Select domain and optionally a specific page
+4. Choose time range and request type filters
+5. View comprehensive performance analytics
+
+## Filter Hierarchy
+
+```
+Popup:     [Auto: Current Domain] → [All Pages Aggregated] → [Request Type]
+Panel:     [Domain] → [Page] → [Request Type] → [Status] → [Time Range]
+Dashboard: [Domain] → [Page] → [Request Type] → [Time Range]
+```
+
+**Aggregation behavior:**
+- When no specific page is selected: Shows aggregated metrics across all pages in the domain
+- When a page is selected: Shows metrics only for that specific page
 
 ## Configuration
 
@@ -63,19 +132,20 @@ These metrics are disabled by default to minimize performance impact. Enable the
 
 - Request capture (enabled by default)
 - Performance metrics (disabled by default)
-- Data retention settings
+- Data retention settings (default: 7 days)
 - Export options
+- Auto-refresh intervals
 
 ### Advanced Settings
 
 - Sampling rate adjustment
 - Custom metric configuration
-- Filter settings
+- Filter presets
 - Database management
 
 ## Browser Compatibility
 
-The extension is fully compatible with:
+Fully compatible with:
 
 - Google Chrome (v88+)
 - Mozilla Firefox (v109+)
@@ -114,6 +184,16 @@ npm run build
 - `npm run build` - Build for production
 - `npm test` - Run tests
 - `npm run lint` - Check code style
+
+## Architecture
+
+The extension uses a medallion architecture with three data layers:
+
+- **Bronze Layer**: Raw request data capture
+- **Silver Layer**: Cleaned and validated data
+- **Gold Layer**: Aggregated analytics-ready data
+
+All filtering and aggregation happens at query time, ensuring fresh data and flexible analysis.
 
 ## Contributing
 
