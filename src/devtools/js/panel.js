@@ -49,8 +49,18 @@ export class DevToolsPanel {
               <option value="900">Last 15 minutes</option>
               <option value="1800">Last 30 minutes</option>
               <option value="3600">Last hour</option>
+              <option value="21600">Last 6 hours</option>
               <option value="86400">Last 24 hours</option>
+              <option value="604800">Last 7 days</option>
+              <option value="2592000">Last 30 days</option>
             </select>
+          </div>
+          
+          <div class="filter-group">
+            <label><i class="fas fa-history"></i> Time Travel:</label>
+            <button id="timeTravelBtn" class="btn-secondary btn-sm" title="View historical data">
+              <i class="fas fa-calendar-alt"></i> History
+            </button>
           </div>
           
           <div class="filter-group">
@@ -89,6 +99,34 @@ export class DevToolsPanel {
             <button id="exportMetrics" class="btn-secondary">
               <i class="fas fa-download"></i> Export
             </button>
+          </div>
+        </div>
+        
+        <!-- Time Travel Modal -->
+        <div id="timeTravelModal" class="modal" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3><i class="fas fa-history"></i> Time Travel - Historical Data</h3>
+              <button id="closeTimeTravelModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="time-travel-controls">
+                <div class="control-group">
+                  <label>Group By:</label>
+                  <select id="timeTravelGroupBy" class="filter-select">
+                    <option value="hour">Hourly</option>
+                    <option value="day">Daily</option>
+                    <option value="minute">By Minute</option>
+                  </select>
+                </div>
+                <button id="loadHistoricalData" class="btn-primary">
+                  <i class="fas fa-chart-line"></i> Load Historical Data
+                </button>
+              </div>
+              <div id="historicalChartContainer" style="margin-top: 20px;">
+                <canvas id="historicalChart"></canvas>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -279,6 +317,11 @@ export class DevToolsPanel {
     document.getElementById("clearFilters").addEventListener("click", () => this.clearFilters());
     document.getElementById("exportMetrics").addEventListener("click", () => this.exportMetrics());
     document.getElementById("resetFiltersBtn")?.addEventListener("click", () => this.clearFilters());
+    
+    // Time Travel feature
+    document.getElementById("timeTravelBtn")?.addEventListener("click", () => this.openTimeTravelModal());
+    document.getElementById("closeTimeTravelModal")?.addEventListener("click", () => this.closeTimeTravelModal());
+    document.getElementById("loadHistoricalData")?.addEventListener("click", () => this.loadHistoricalData());
     
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((button) => {
@@ -926,33 +969,83 @@ export class DevToolsPanel {
     try {
       const filters = this.getActiveFilters();
       const response = await chrome.runtime.sendMessage({
-        action: 'getFilteredStats',
-        filters
+        action: 'getDetailedRequests',
+        filters,
+        limit: 100,
+        offset: 0
       });
       
       const tbody = document.getElementById('requestsTableBody');
       
-      if (!response.success || !response.totalRequests || response.totalRequests === 0) {
+      if (!response.success || !response.requests || response.requests.length === 0) {
         tbody.innerHTML = '<tr class="no-data-row"><td colspan="7">No requests available for selected filters</td></tr>';
         return;
       }
       
-      // TODO: Implement full request table with detailed request information
-      // This requires enhancing the backend to return individual request details
-      // including method, full URL, headers, response size, and timing information
-      // GitHub Issue: TBD
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7" class="info-message">
-            <i class="fas fa-info-circle"></i> 
-            Request table will show detailed request information. 
-            Currently showing ${response.totalRequests} requests matching filters.
-          </td>
-        </tr>
-      `;
+      // Build table rows with actual request data
+      let rows = '';
+      response.requests.forEach(req => {
+        const statusClass = req.status >= 400 ? 'status-error' : req.status >= 300 ? 'status-warning' : 'status-success';
+        const size = req.size_bytes ? this.formatBytes(req.size_bytes) : 'N/A';
+        const duration = req.duration ? `${Math.round(req.duration)}ms` : 'N/A';
+        const cacheIcon = req.from_cache ? '<i class="fas fa-hdd" title="From cache"></i>' : '';
+        const errorIcon = req.error ? '<i class="fas fa-exclamation-circle" title="Error"></i>' : '';
+        
+        rows += `
+          <tr>
+            <td><span class="method-badge">${req.method}</span></td>
+            <td class="url-cell" title="${req.url}">${this.truncateUrl(req.url, 50)}</td>
+            <td><span class="status-badge ${statusClass}">${req.status || 'N/A'}</span></td>
+            <td>${req.type || 'N/A'}</td>
+            <td>${duration} ${cacheIcon}</td>
+            <td>${size}</td>
+            <td>
+              <button class="btn-icon" onclick="window.panelInstance.viewRequestDetails('${req.id}')" title="View details">
+                <i class="fas fa-info-circle"></i>
+              </button>
+              ${errorIcon}
+            </td>
+          </tr>
+        `;
+      });
+      
+      tbody.innerHTML = rows;
+      
+      // Store panel instance for onclick handlers
+      window.panelInstance = this;
+      
     } catch (error) {
       console.error('Failed to load requests table:', error);
+      document.getElementById('requestsTableBody').innerHTML = 
+        '<tr class="no-data-row"><td colspan="7">Error loading requests</td></tr>';
     }
+  }
+  
+  // View request details
+  viewRequestDetails(requestId) {
+    console.log('View details for request:', requestId);
+    // TODO: Show modal with full request details including headers, body, timing breakdown
+    alert(`Request details for ${requestId} - Full implementation coming soon`);
+  }
+  
+  // Helper to truncate URLs
+  truncateUrl(url, maxLength) {
+    if (url.length <= maxLength) return url;
+    const parts = url.split('?');
+    const base = parts[0];
+    if (base.length > maxLength) {
+      return base.substring(0, maxLength - 3) + '...';
+    }
+    return base + '?' + parts[1].substring(0, maxLength - base.length - 4) + '...';
+  }
+  
+  // Helper to format bytes
+  formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
 
   // Load performance data
@@ -1142,6 +1235,133 @@ export class DevToolsPanel {
       noDataEl.style.display = 'none';
       contentEl.style.display = 'block';
     }
+  }
+  
+  // Time Travel Modal methods
+  openTimeTravelModal() {
+    const modal = document.getElementById('timeTravelModal');
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  }
+  
+  closeTimeTravelModal() {
+    const modal = document.getElementById('timeTravelModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+  
+  async loadHistoricalData() {
+    try {
+      const filters = this.getActiveFilters();
+      const groupBy = document.getElementById('timeTravelGroupBy').value;
+      
+      const response = await chrome.runtime.sendMessage({
+        action: 'getHistoricalData',
+        filters,
+        groupBy
+      });
+      
+      if (!response.success || !response.data || response.data.length === 0) {
+        alert('No historical data available for the selected filters and time range');
+        return;
+      }
+      
+      // Create historical chart
+      this.renderHistoricalChart(response.data);
+      
+    } catch (error) {
+      console.error('Failed to load historical data:', error);
+      alert('Error loading historical data');
+    }
+  }
+  
+  renderHistoricalChart(data) {
+    const ctx = document.getElementById('historicalChart').getContext('2d');
+    
+    // Destroy existing chart if any
+    if (this.historicalChart) {
+      this.historicalChart.destroy();
+    }
+    
+    const labels = data.map(d => d.timeBucket);
+    const requestCounts = data.map(d => d.requestCount);
+    const avgDurations = data.map(d => d.avgDuration);
+    const errorCounts = data.map(d => d.errorCount);
+    
+    this.historicalChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Request Count',
+            data: requestCounts,
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            yAxisID: 'y',
+            tension: 0.4
+          },
+          {
+            label: 'Avg Duration (ms)',
+            data: avgDurations,
+            borderColor: 'rgb(54, 162, 235)',
+            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+            yAxisID: 'y1',
+            tension: 0.4
+          },
+          {
+            label: 'Errors',
+            data: errorCounts,
+            borderColor: 'rgb(255, 99, 132)',
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            yAxisID: 'y',
+            tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: 'Historical Performance Data'
+          },
+          legend: {
+            display: true,
+            position: 'top'
+          }
+        },
+        scales: {
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Request Count / Errors'
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'Avg Duration (ms)'
+            },
+            grid: {
+              drawOnChartArea: false,
+            },
+          },
+        }
+      }
+    });
   }
 
   // Cleanup when panel is closed

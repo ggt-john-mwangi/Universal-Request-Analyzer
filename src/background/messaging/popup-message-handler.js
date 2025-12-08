@@ -56,6 +56,12 @@ async function handleMessage(message, sender) {
       case 'getRequestTypes':
         return await handleGetRequestTypes();
       
+      case 'getDetailedRequests':
+        return await handleGetDetailedRequests(message.filters, message.limit, message.offset);
+      
+      case 'getHistoricalData':
+        return await handleGetHistoricalData(message.filters, message.groupBy);
+      
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -688,6 +694,195 @@ async function handleGetRequestTypes() {
     return { success: true, requestTypes };
   } catch (error) {
     console.error('Get request types error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get detailed requests - returns full request details for table display
+async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
+  try {
+    const { domain, pageUrl, timeRange, type, statusPrefix } = filters || {};
+    
+    const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 5 * 60 * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    let query = `
+      SELECT 
+        id, url, method, type, status, status_text,
+        duration, size_bytes, timestamp, domain, page_url,
+        from_cache, error
+      FROM bronze_requests
+      WHERE timestamp > ?
+    `;
+    
+    let params = [startTime];
+    
+    // Apply filters (same as handleGetFilteredStats)
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
+      params.push(domain);
+    }
+    
+    if (pageUrl && pageUrl !== '') {
+      try {
+        const url = new URL(pageUrl);
+        query += ' AND page_url = ?';
+        params.push(pageUrl);
+        if (!domain || domain === 'all') {
+          query += ' AND domain = ?';
+          params.push(url.hostname);
+        }
+      } catch (urlError) {
+        query += ' AND domain = ?';
+        params.push(pageUrl.replace(/^https?:\/\//, '').split('/')[0]);
+      }
+    }
+    
+    if (type && type !== '') {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    
+    if (statusPrefix) {
+      if (statusPrefix === '3xx') {
+        query += ' AND status >= 300 AND status < 400';
+      } else if (statusPrefix === '4xx') {
+        query += ' AND status >= 400 AND status < 500';
+      } else if (statusPrefix === '5xx') {
+        query += ' AND status >= 500 AND status < 600';
+      } else if (statusPrefix === '200') {
+        query += ' AND status >= 200 AND status < 300';
+      } else {
+        query += ' AND status = ?';
+        params.push(parseInt(statusPrefix));
+      }
+    }
+    
+    query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+    
+    let requests = [];
+    let totalCount = 0;
+    
+    try {
+      if (dbManager?.executeQuery) {
+        // Get total count
+        const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM')
+          .replace(/ORDER BY.*$/, '');
+        const countResult = dbManager.executeQuery(countQuery, params.slice(0, -2));
+        if (countResult && countResult[0]?.values) {
+          totalCount = countResult[0].values[0][0];
+        }
+        
+        // Get requests
+        const result = dbManager.executeQuery(query, params);
+        if (result && result[0]) {
+          requests = mapResultToArray(result[0]);
+        }
+      }
+    } catch (queryError) {
+      console.error('Get detailed requests query error:', queryError);
+    }
+    
+    return { 
+      success: true, 
+      requests,
+      totalCount,
+      limit,
+      offset
+    };
+  } catch (error) {
+    console.error('Get detailed requests error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get historical data - returns aggregated data grouped by time period
+async function handleGetHistoricalData(filters, groupBy = 'hour') {
+  try {
+    const { domain, pageUrl, type, timeRange } = filters || {};
+    
+    const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 24 * 60 * 60 * 1000; // Default 24 hours
+    const startTime = Date.now() - timeRangeMs;
+    
+    // Determine grouping format based on groupBy parameter
+    let timeFormat;
+    switch (groupBy) {
+      case 'minute':
+        timeFormat = '%Y-%m-%d %H:%M';
+        break;
+      case 'hour':
+        timeFormat = '%Y-%m-%d %H:00';
+        break;
+      case 'day':
+        timeFormat = '%Y-%m-%d';
+        break;
+      default:
+        timeFormat = '%Y-%m-%d %H:00';
+    }
+    
+    let query = `
+      SELECT 
+        strftime('${timeFormat}', datetime(timestamp/1000, 'unixepoch')) as time_bucket,
+        COUNT(*) as request_count,
+        AVG(duration) as avg_duration,
+        MIN(duration) as min_duration,
+        MAX(duration) as max_duration,
+        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+        SUM(size_bytes) as total_bytes
+      FROM bronze_requests
+      WHERE timestamp > ?
+    `;
+    
+    let params = [startTime];
+    
+    // Apply filters
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
+      params.push(domain);
+    }
+    
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
+      params.push(pageUrl);
+    }
+    
+    if (type && type !== '') {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    
+    query += ' GROUP BY time_bucket ORDER BY time_bucket ASC';
+    
+    let historicalData = [];
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, params);
+        if (result && result[0]?.values) {
+          historicalData = result[0].values.map(row => ({
+            timeBucket: row[0],
+            requestCount: row[1],
+            avgDuration: Math.round(row[2] || 0),
+            minDuration: row[3] || 0,
+            maxDuration: row[4] || 0,
+            errorCount: row[5] || 0,
+            totalBytes: row[6] || 0
+          }));
+        }
+      }
+    } catch (queryError) {
+      console.error('Get historical data query error:', queryError);
+    }
+    
+    return { 
+      success: true, 
+      data: historicalData,
+      groupBy,
+      timeRange
+    };
+  } catch (error) {
+    console.error('Get historical data error:', error);
     return { success: false, error: error.message };
   }
 }
