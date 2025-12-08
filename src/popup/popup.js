@@ -74,6 +74,11 @@ function setupEventListeners() {
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     await handleLogout();
   });
+  
+  // Request Type Filter - reload stats when changed
+  document.getElementById('requestTypeFilter')?.addEventListener('change', async () => {
+    await loadPageSummary();
+  });
 
   // Quick actions
   document.getElementById('openDevtools')?.addEventListener('click', () => {
@@ -265,13 +270,19 @@ async function loadPageSummary() {
     }
 
     console.log('Loading page summary for:', currentTab.url);
+    
+    // Get selected request type filter
+    const requestTypeFilter = document.getElementById('requestTypeFilter');
+    const requestType = requestTypeFilter ? requestTypeFilter.value : '';
 
     // Get detailed filtered stats from background
+    // This now aggregates across all pages for the current domain
     const response = await chrome.runtime.sendMessage({
       action: 'getPageStats',
       data: { 
         url: currentTab.url,
-        tabId: currentTab.id
+        tabId: currentTab.id,
+        requestType: requestType  // Pass request type filter
       }
     });
 

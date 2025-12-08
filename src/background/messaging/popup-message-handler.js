@@ -47,6 +47,15 @@ async function handleMessage(message, sender) {
       case 'query':
         return await handleQuery(message.query, message.params);
       
+      case 'getDomains':
+        return await handleGetDomains(message.timeRange);
+      
+      case 'getPagesByDomain':
+        return await handleGetPagesByDomain(message.domain, message.timeRange);
+      
+      case 'getRequestTypes':
+        return await handleGetRequestTypes();
+      
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -106,10 +115,10 @@ async function handleLogout() {
   }
 }
 
-// Handle get page stats
+// Handle get page stats - now supports domain-level aggregation
 async function handleGetPageStats(data) {
   try {
-    const { tabId, url } = data;
+    const { tabId, url, requestType } = data;
     
     if (!url) {
       return { success: false, error: 'URL required' };
@@ -119,6 +128,7 @@ async function handleGetPageStats(data) {
     const domain = new URL(url).hostname;
 
     // Query requests for this domain in the last 5 minutes
+    // This aggregates across ALL pages for the domain (as per popup requirements)
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
     
     let stats = {
@@ -134,7 +144,16 @@ async function handleGetPageStats(data) {
 
     try {
       if (dbManager && dbManager.db) {
-        // Query aggregate stats
+        // Build query with optional request type filter
+        let whereClause = 'WHERE domain = ? AND created_at > ?';
+        let params = [domain, fiveMinutesAgo];
+        
+        if (requestType && requestType !== '') {
+          whereClause += ' AND type = ?';
+          params.push(requestType);
+        }
+        
+        // Query aggregate stats across all pages in the domain
         const aggregateQuery = `
           SELECT 
             COUNT(*) as totalRequests,
@@ -142,10 +161,10 @@ async function handleGetPageStats(data) {
             SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errorCount,
             SUM(size_bytes) as dataTransferred
           FROM bronze_requests
-          WHERE domain = ? AND created_at > ?
+          ${whereClause}
         `;
         
-        const aggregateResult = dbManager.db.exec(aggregateQuery, [domain, fiveMinutesAgo]);
+        const aggregateResult = dbManager.db.exec(aggregateQuery, params);
         
         if (aggregateResult && aggregateResult[0]?.values && aggregateResult[0].values.length > 0) {
           const [total, avg, errors, bytes] = aggregateResult[0].values[0];
@@ -155,16 +174,16 @@ async function handleGetPageStats(data) {
           stats.dataTransferred = bytes || 0;
         }
 
-        // Query detailed request data for charts
+        // Query detailed request data for charts (aggregated across all pages)
         const detailQuery = `
           SELECT type, status, duration, created_at
           FROM bronze_requests
-          WHERE domain = ? AND created_at > ?
+          ${whereClause}
           ORDER BY created_at DESC
           LIMIT 100
         `;
         
-        const detailResult = dbManager.db.exec(detailQuery, [domain, fiveMinutesAgo]);
+        const detailResult = dbManager.db.exec(detailQuery, params);
         
         if (detailResult && detailResult[0]?.values) {
           detailResult[0].values.forEach(row => {
@@ -186,7 +205,7 @@ async function handleGetPageStats(data) {
           });
         }
 
-        console.log(`Page stats for ${domain}: ${stats.totalRequests} requests`);
+        console.log(`Page stats for ${domain} (all pages): ${stats.totalRequests} requests`);
       } else {
         console.warn('Database manager not available');
       }
@@ -202,10 +221,11 @@ async function handleGetPageStats(data) {
   }
 }
 
-// Handle get filtered stats for DevTools panel
+// Handle get filtered stats for DevTools panel and Dashboard
+// Supports domain → page → request type filtering hierarchy
 async function handleGetFilteredStats(filters) {
   try {
-    const { pageUrl, timeRange, type, statusPrefix } = filters || {};
+    const { domain, pageUrl, timeRange, type, statusPrefix } = filters || {};
     
     // Default to last 5 minutes if not specified
     const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 5 * 60 * 1000;
@@ -213,22 +233,43 @@ async function handleGetFilteredStats(filters) {
     
     let query = `
       SELECT 
-        id, url, method, type, status, duration, size_bytes, timestamp, domain
+        id, url, method, type, status, duration, size_bytes, timestamp, domain, page_url
       FROM bronze_requests
       WHERE timestamp > ?
     `;
     
     const params = [startTime];
     
-    // Add page URL filter
-    if (pageUrl) {
-      const domain = new URL(pageUrl).hostname;
+    // Filter by domain (if specified)
+    if (domain && domain !== 'all') {
       query += ' AND domain = ?';
       params.push(domain);
     }
     
-    // Add type filter
-    if (type) {
+    // Filter by page URL (if specified) - takes precedence if both domain and pageUrl provided
+    // If pageUrl is specified, filter to that specific page
+    // If only domain is specified, aggregate across all pages for that domain
+    if (pageUrl && pageUrl !== '') {
+      // Extract domain from pageUrl to ensure consistency
+      try {
+        const url = new URL(pageUrl);
+        query += ' AND page_url = ?';
+        params.push(pageUrl);
+        
+        // Also ensure domain matches for safety
+        if (!domain || domain === 'all') {
+          query += ' AND domain = ?';
+          params.push(url.hostname);
+        }
+      } catch (urlError) {
+        // If pageUrl is just a domain, treat it as domain filter
+        query += ' AND domain = ?';
+        params.push(pageUrl.replace(/^https?:\/\//, '').split('/')[0]);
+      }
+    }
+    
+    // Add request type filter
+    if (type && type !== '') {
       query += ' AND type = ?';
       params.push(type);
     }
@@ -241,6 +282,8 @@ async function handleGetFilteredStats(filters) {
         query += ' AND status >= 400 AND status < 500';
       } else if (statusPrefix === '5xx') {
         query += ' AND status >= 500 AND status < 600';
+      } else if (statusPrefix === '200') {
+        query += ' AND status >= 200 AND status < 300';
       } else {
         query += ' AND status = ?';
         params.push(parseInt(statusPrefix));
@@ -293,7 +336,13 @@ async function handleGetFilteredStats(filters) {
       responseTimes: responseTimes.slice(-50),
       requestTypes,
       statusCodes,
-      totalRequests: requests.length
+      totalRequests: requests.length,
+      // Include metadata about what was filtered
+      filterApplied: {
+        domain: domain || 'all',
+        page: pageUrl || 'all',
+        requestType: type || 'all'
+      }
     };
   } catch (error) {
     console.error('Get filtered stats error:', error);
@@ -527,6 +576,118 @@ async function handleQuery(query, params = []) {
     return { success: true, data };
   } catch (error) {
     console.error('Query handler error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get domains - returns list of all tracked domains
+async function handleGetDomains(timeRange = 604800) {
+  try {
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    const query = `
+      SELECT DISTINCT domain, COUNT(*) as request_count
+      FROM bronze_requests
+      WHERE domain IS NOT NULL AND domain != '' AND timestamp > ?
+      GROUP BY domain
+      ORDER BY request_count DESC
+    `;
+    
+    let domains = [];
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, [startTime]);
+        if (result && result[0]?.values) {
+          domains = result[0].values.map(row => ({
+            domain: row[0],
+            requestCount: row[1]
+          }));
+        }
+      }
+    } catch (queryError) {
+      console.error('Get domains query error:', queryError);
+    }
+    
+    return { success: true, domains };
+  } catch (error) {
+    console.error('Get domains error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get pages by domain - returns list of pages under a specific domain
+async function handleGetPagesByDomain(domain, timeRange = 604800) {
+  try {
+    if (!domain) {
+      return { success: false, error: 'Domain is required' };
+    }
+    
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    const query = `
+      SELECT DISTINCT page_url, COUNT(*) as request_count
+      FROM bronze_requests
+      WHERE domain = ? AND page_url IS NOT NULL AND page_url != '' AND timestamp > ?
+      GROUP BY page_url
+      ORDER BY request_count DESC
+    `;
+    
+    let pages = [];
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, [domain, startTime]);
+        if (result && result[0]?.values) {
+          pages = result[0].values.map(row => ({
+            pageUrl: row[0],
+            requestCount: row[1]
+          }));
+        }
+      }
+    } catch (queryError) {
+      console.error('Get pages query error:', queryError);
+    }
+    
+    return { success: true, pages };
+  } catch (error) {
+    console.error('Get pages by domain error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get request types - returns list of available request types
+async function handleGetRequestTypes() {
+  try {
+    const query = `
+      SELECT DISTINCT type, COUNT(*) as count
+      FROM bronze_requests
+      WHERE type IS NOT NULL AND type != ''
+      GROUP BY type
+      ORDER BY count DESC
+    `;
+    
+    let requestTypes = [];
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query);
+        if (result && result[0]?.values) {
+          requestTypes = result[0].values.map(row => ({
+            type: row[0],
+            count: row[1]
+          }));
+        }
+      }
+    } catch (queryError) {
+      console.error('Get request types query error:', queryError);
+    }
+    
+    return { success: true, requestTypes };
+  } catch (error) {
+    console.error('Get request types error:', error);
     return { success: false, error: error.message };
   }
 }

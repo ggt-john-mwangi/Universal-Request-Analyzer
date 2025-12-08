@@ -70,8 +70,27 @@
     <!-- Page Summary -->
     <div class="page-summary">
       <div class="summary-title">
-        <i class="fas fa-globe"></i> Current Page Activity
+        <i class="fas fa-globe"></i> Current Domain Activity (All Pages)
       </div>
+      
+      <!-- Request Type Filter -->
+      <div class="filter-section">
+        <label for="requestTypeFilter" style="font-size: 12px; color: #666; margin-right: 8px;">
+          <i class="fas fa-filter"></i> Request Type:
+        </label>
+        <select id="requestTypeFilter" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 12px;">
+          <option value="">All Types</option>
+          <option value="xmlhttprequest">XHR/API</option>
+          <option value="fetch">Fetch</option>
+          <option value="script">Scripts</option>
+          <option value="stylesheet">Stylesheets</option>
+          <option value="image">Images</option>
+          <option value="font">Fonts</option>
+          <option value="document">Documents</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      
       <div class="summary-stats">
         <div class="stat-item">
           <div class="stat-label">Total Requests</div>

@@ -28,10 +28,17 @@ export class DevToolsPanel {
         <!-- Enhanced Filters Panel -->
         <div class="filters-header">
           <div class="filter-group">
-            <label><i class="fas fa-globe"></i> Site/URL Filter:</label>
-            <select id="siteFilter" class="filter-select">
-              <option value="current">Current Page (Default)</option>
-              <option value="all">All Sites</option>
+            <label><i class="fas fa-globe"></i> Domain:</label>
+            <select id="domainFilter" class="filter-select">
+              <option value="current">Current Page Domain</option>
+              <option value="all">All Domains</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label><i class="fas fa-file"></i> Page:</label>
+            <select id="pageFilter" class="filter-select">
+              <option value="">All Pages (Aggregated)</option>
             </select>
           </div>
           
@@ -69,17 +76,6 @@ export class DevToolsPanel {
               <option value="3xx">3xx Redirect</option>
               <option value="4xx">4xx Client Error</option>
               <option value="5xx">5xx Server Error</option>
-            </select>
-          </div>
-          
-          <div class="filter-group">
-            <label><i class="fas fa-tachometer-alt"></i> Performance:</label>
-            <select id="performanceFilter" class="filter-select">
-              <option value="">All Speeds</option>
-              <option value="fast">Fast (<100ms)</option>
-              <option value="normal">Normal (100-500ms)</option>
-              <option value="slow">Slow (500-1000ms)</option>
-              <option value="veryslow">Very Slow (>1000ms)</option>
             </select>
           </div>
           
@@ -270,11 +266,13 @@ export class DevToolsPanel {
 
   setupEventListeners() {
     // Filter controls
-    document.getElementById("siteFilter").addEventListener("change", () => this.applyFilters());
+    document.getElementById("domainFilter").addEventListener("change", () => {
+      this.onDomainFilterChange();
+    });
+    document.getElementById("pageFilter").addEventListener("change", () => this.applyFilters());
     document.getElementById("timeRange").addEventListener("change", () => this.applyFilters());
     document.getElementById("requestTypeFilter").addEventListener("change", () => this.applyFilters());
     document.getElementById("statusFilter").addEventListener("change", () => this.applyFilters());
-    document.getElementById("performanceFilter").addEventListener("change", () => this.applyFilters());
     
     // Action buttons
     document.getElementById("refreshMetrics").addEventListener("click", () => this.refreshMetrics());
@@ -292,8 +290,8 @@ export class DevToolsPanel {
       this.searchRequests(e.target.value);
     });
     
-    // Load sites into filter
-    this.loadSiteFilter();
+    // Load domains and current page
+    this.loadDomainFilter();
   }
 
   initializeCharts() {
@@ -748,10 +746,10 @@ export class DevToolsPanel {
     this.refreshMetrics();
   }
 
-  // Load site filter with current site and top domains
-  async loadSiteFilter() {
+  // Load domain filter with current domain and all tracked domains
+  async loadDomainFilter() {
     try {
-      const siteSelect = document.getElementById("siteFilter");
+      const domainSelect = document.getElementById("domainFilter");
       
       // Get current URL
       chrome.devtools.inspectedWindow.eval(
@@ -760,59 +758,131 @@ export class DevToolsPanel {
           if (!isException && url) {
             const currentDomain = new URL(url).hostname;
             this.currentUrl = url;
+            this.currentDomain = currentDomain;
             
-            // Update current page option
-            siteSelect.innerHTML = `
-              <option value="current">Current Page (${currentDomain})</option>
-              <option value="all">All Sites</option>
+            // Update current domain option
+            domainSelect.innerHTML = `
+              <option value="current">Current Domain (${currentDomain})</option>
+              <option value="all">All Domains</option>
             `;
             
-            // Load domains directly from database
+            // Load all domains from database
             const response = await chrome.runtime.sendMessage({
-              action: 'executeDirectQuery',
-              query: `
-                SELECT DISTINCT domain, COUNT(*) as request_count
-                FROM bronze_requests 
-                WHERE domain IS NOT NULL AND domain != ''
-                GROUP BY domain
-                ORDER BY request_count DESC
-                LIMIT 20
-              `
+              action: 'getDomains',
+              timeRange: 604800  // Last 7 days
             });
             
-            console.log('Panel site filter response:', response);
+            console.log('Panel domain filter response:', response);
             
-            if (response && response.success && response.data && response.data.length > 0) {
-              response.data.forEach(row => {
-                const domain = row.domain;
+            if (response && response.success && response.domains && response.domains.length > 0) {
+              response.domains.forEach(domainObj => {
+                const domain = domainObj.domain;
                 if (domain && domain !== currentDomain) {
                   const option = document.createElement('option');
                   option.value = domain;
-                  option.textContent = `${domain} (${row.request_count} requests)`;
-                  siteSelect.appendChild(option);
+                  option.textContent = `${domain} (${domainObj.requestCount} requests)`;
+                  domainSelect.appendChild(option);
                 }
               });
-              console.log(`Loaded ${response.data.length} domains for panel filter`);
+              console.log(`Loaded ${response.domains.length} domains for panel filter`);
             } else {
               console.warn('No domains found in database for panel');
             }
+            
+            // Load pages for current domain initially
+            await this.loadPageFilter(currentDomain);
           }
         }
       );
     } catch (error) {
-      console.error('Failed to load site filter:', error);
+      console.error('Failed to load domain filter:', error);
+    }
+  }
+
+  // Handle domain filter change - reload pages
+  async onDomainFilterChange() {
+    const domainSelect = document.getElementById("domainFilter");
+    const selectedValue = domainSelect.value;
+    
+    let domain = null;
+    if (selectedValue === "current") {
+      domain = this.currentDomain;
+    } else if (selectedValue !== "all") {
+      domain = selectedValue;
+    }
+    
+    // Load pages for selected domain
+    if (domain && domain !== "all") {
+      await this.loadPageFilter(domain);
+    } else {
+      // Clear page filter for "all domains"
+      const pageSelect = document.getElementById("pageFilter");
+      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+      pageSelect.disabled = true;
+    }
+    
+    // Apply filters after domain change
+    this.applyFilters();
+  }
+
+  // Load pages for a specific domain
+  async loadPageFilter(domain) {
+    try {
+      const pageSelect = document.getElementById("pageFilter");
+      
+      // Reset page filter
+      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+      pageSelect.disabled = false;
+      
+      if (!domain || domain === 'all') {
+        pageSelect.disabled = true;
+        return;
+      }
+      
+      // Get pages for this domain
+      const response = await chrome.runtime.sendMessage({
+        action: 'getPagesByDomain',
+        domain: domain,
+        timeRange: 604800  // Last 7 days
+      });
+      
+      console.log('Pages for domain response:', response);
+      
+      if (response && response.success && response.pages && response.pages.length > 0) {
+        response.pages.forEach(pageObj => {
+          const pageUrl = pageObj.pageUrl;
+          if (pageUrl) {
+            const option = document.createElement('option');
+            option.value = pageUrl;
+            // Extract path from full URL for display
+            try {
+              const url = new URL(pageUrl);
+              const displayPath = url.pathname + url.search || '/';
+              option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
+            } catch (e) {
+              option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
+            }
+            pageSelect.appendChild(option);
+          }
+        });
+        console.log(`Loaded ${response.pages.length} pages for domain ${domain}`);
+      } else {
+        console.warn(`No pages found for domain ${domain}`);
+      }
+    } catch (error) {
+      console.error('Failed to load page filter:', error);
     }
   }
 
   // Clear all filters
   clearFilters() {
-    document.getElementById("siteFilter").value = "current";
+    document.getElementById("domainFilter").value = "current";
+    document.getElementById("pageFilter").value = "";
     document.getElementById("timeRange").value = "300";
     document.getElementById("requestTypeFilter").value = "";
     document.getElementById("statusFilter").value = "";
-    document.getElementById("performanceFilter").value = "";
     document.getElementById("searchRequests").value = "";
-    this.refreshMetrics();
+    this.onDomainFilterChange(); // Reload pages for current domain
   }
 
   // Switch between tabs
@@ -987,19 +1057,30 @@ export class DevToolsPanel {
 
   // Get active filters
   getActiveFilters() {
-    const siteFilter = document.getElementById("siteFilter").value;
+    const domainFilter = document.getElementById("domainFilter").value;
+    const pageFilter = document.getElementById("pageFilter").value;
     const timeRange = parseInt(document.getElementById("timeRange").value);
     const requestType = document.getElementById("requestTypeFilter").value;
     const status = document.getElementById("statusFilter").value;
-    const performance = document.getElementById("performanceFilter").value;
     
     const filters = { timeRange };
     
-    // Add site/URL filter
-    if (siteFilter === "current" && this.currentUrl) {
-      filters.pageUrl = this.currentUrl;
-    } else if (siteFilter !== "all" && siteFilter !== "current") {
-      filters.pageUrl = `https://${siteFilter}`;
+    // Determine domain to filter by
+    let domain = null;
+    if (domainFilter === "current") {
+      domain = this.currentDomain;
+    } else if (domainFilter !== "all") {
+      domain = domainFilter;
+    }
+    
+    // Add domain filter
+    if (domain && domain !== "all") {
+      filters.domain = domain;
+    }
+    
+    // Add page filter (if specific page selected)
+    if (pageFilter && pageFilter !== "") {
+      filters.pageUrl = pageFilter;
     }
     
     if (requestType) filters.type = requestType;
@@ -1017,9 +1098,19 @@ export class DevToolsPanel {
     const list = document.getElementById("activeFiltersList");
     
     const activeFilters = [];
+    if (filters.domain) {
+      activeFilters.push(`Domain: ${filters.domain}`);
+    }
     if (filters.pageUrl) {
-      const url = new URL(filters.pageUrl);
-      activeFilters.push(`Site: ${url.hostname}`);
+      try {
+        const url = new URL(filters.pageUrl);
+        const path = url.pathname + url.search || '/';
+        activeFilters.push(`Page: ${path}`);
+      } catch (e) {
+        activeFilters.push(`Page: ${filters.pageUrl}`);
+      }
+    } else if (filters.domain) {
+      activeFilters.push(`Page: All (Aggregated)`);
     }
     if (filters.type) activeFilters.push(`Type: ${filters.type}`);
     if (filters.statusPrefix) activeFilters.push(`Status: ${filters.statusPrefix}`);
