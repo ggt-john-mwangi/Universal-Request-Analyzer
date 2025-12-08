@@ -767,22 +767,34 @@ export class DevToolsPanel {
               <option value="all">All Sites</option>
             `;
             
-            // Load top domains from database
+            // Load domains directly from database
             const response = await chrome.runtime.sendMessage({
-              action: 'getDashboardStats',
-              timeRange: this.SEVEN_DAYS_SECONDS
+              action: 'executeDirectQuery',
+              query: `
+                SELECT DISTINCT domain, COUNT(*) as request_count
+                FROM bronze_requests 
+                WHERE domain IS NOT NULL AND domain != ''
+                GROUP BY domain
+                ORDER BY request_count DESC
+                LIMIT 20
+              `
             });
             
-            if (response.success && response.stats && response.stats.topDomains) {
-              const domains = response.stats.topDomains.labels || [];
-              domains.forEach(domain => {
+            console.log('Panel site filter response:', response);
+            
+            if (response && response.success && response.data && response.data.length > 0) {
+              response.data.forEach(row => {
+                const domain = row.domain;
                 if (domain && domain !== currentDomain) {
                   const option = document.createElement('option');
                   option.value = domain;
-                  option.textContent = domain;
+                  option.textContent = `${domain} (${row.request_count} requests)`;
                   siteSelect.appendChild(option);
                 }
               });
+              console.log(`Loaded ${response.data.length} domains for panel filter`);
+            } else {
+              console.warn('No domains found in database for panel');
             }
           }
         }

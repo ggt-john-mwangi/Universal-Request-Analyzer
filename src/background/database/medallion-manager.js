@@ -50,8 +50,16 @@ export class MedallionManager {
     try {
       const now = Date.now();
       
-      // Helper function to convert undefined to null
-      const toSqlValue = (val) => val === undefined ? null : val;
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
+      const escapeNum = (val, defaultVal = 0) => {
+        if (val === undefined || val === null) return defaultVal;
+        return Number(val);
+      };
       
       this.db.exec(`
         INSERT OR REPLACE INTO bronze_requests (
@@ -59,31 +67,31 @@ export class MedallionManager {
           query_string, protocol, start_time, end_time, duration,
           size_bytes, timestamp, tab_id, frame_id, page_url,
           initiator, error, from_cache, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        toSqlValue(requestData.id),
-        toSqlValue(requestData.url),
-        toSqlValue(requestData.method) || 'GET',
-        toSqlValue(requestData.type) || 'other',
-        toSqlValue(requestData.status),
-        toSqlValue(requestData.statusText),
-        toSqlValue(requestData.domain),
-        toSqlValue(requestData.path),
-        toSqlValue(requestData.queryString),
-        toSqlValue(requestData.protocol),
-        toSqlValue(requestData.startTime),
-        toSqlValue(requestData.endTime),
-        toSqlValue(requestData.duration) || 0,
-        toSqlValue(requestData.sizeBytes) || 0,
-        toSqlValue(requestData.timestamp) || now,
-        toSqlValue(requestData.tabId),
-        toSqlValue(requestData.frameId),
-        toSqlValue(requestData.pageUrl),
-        toSqlValue(requestData.initiator),
-        toSqlValue(requestData.error),
-        requestData.fromCache ? 1 : 0,
-        now
-      ]);
+        ) VALUES (
+          ${escapeStr(requestData.id)},
+          ${escapeStr(requestData.url)},
+          ${escapeStr(requestData.method || 'GET')},
+          ${escapeStr(requestData.type || 'other')},
+          ${escapeNum(requestData.status, 'NULL')},
+          ${escapeStr(requestData.statusText)},
+          ${escapeStr(requestData.domain)},
+          ${escapeStr(requestData.path)},
+          ${escapeStr(requestData.queryString)},
+          ${escapeStr(requestData.protocol)},
+          ${escapeNum(requestData.startTime, 'NULL')},
+          ${escapeNum(requestData.endTime, 'NULL')},
+          ${escapeNum(requestData.duration, 0)},
+          ${escapeNum(requestData.sizeBytes, 0)},
+          ${escapeNum(requestData.timestamp, now)},
+          ${escapeNum(requestData.tabId, 'NULL')},
+          ${escapeNum(requestData.frameId, 'NULL')},
+          ${escapeStr(requestData.pageUrl)},
+          ${escapeStr(requestData.initiator)},
+          ${escapeStr(requestData.error)},
+          ${requestData.fromCache ? 1 : 0},
+          ${now}
+        )
+      `);
 
       // Queue for silver processing
       this.queueForSilverProcessing(requestData.id);
@@ -103,11 +111,17 @@ export class MedallionManager {
     try {
       const now = Date.now();
       
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
       for (const [name, value] of Object.entries(headers)) {
         this.db.exec(`
           INSERT INTO bronze_request_headers (request_id, header_type, name, value, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `, [requestId, type, name, value, now]);
+          VALUES (${escapeStr(requestId)}, ${escapeStr(type)}, ${escapeStr(name)}, ${escapeStr(value)}, ${now})
+        `);
       }
     } catch (error) {
       console.error('Failed to insert bronze headers:', error);
@@ -122,8 +136,14 @@ export class MedallionManager {
     try {
       const now = Date.now();
       
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
       // Helper function to convert undefined to null or 0 for numeric values
-      const toNumeric = (val) => (val === undefined || val === null) ? 0 : val;
+      const toNumeric = (val) => (val === undefined || val === null) ? 0 : Number(val);
       
       this.db.exec(`
         INSERT INTO bronze_request_timings (
@@ -133,16 +153,16 @@ export class MedallionManager {
           request_start, request_end, request_duration,
           response_start, response_end, response_duration,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        requestId,
-        toNumeric(timings.dnsStart), toNumeric(timings.dnsEnd), toNumeric(timings.dnsDuration),
-        toNumeric(timings.tcpStart), toNumeric(timings.tcpEnd), toNumeric(timings.tcpDuration),
-        toNumeric(timings.sslStart), toNumeric(timings.sslEnd), toNumeric(timings.sslDuration),
-        toNumeric(timings.requestStart), toNumeric(timings.requestEnd), toNumeric(timings.requestDuration),
-        toNumeric(timings.responseStart), toNumeric(timings.responseEnd), toNumeric(timings.responseDuration),
-        now
-      ]);
+        ) VALUES (
+          ${escapeStr(requestId)},
+          ${toNumeric(timings.dnsStart)}, ${toNumeric(timings.dnsEnd)}, ${toNumeric(timings.dnsDuration)},
+          ${toNumeric(timings.tcpStart)}, ${toNumeric(timings.tcpEnd)}, ${toNumeric(timings.tcpDuration)},
+          ${toNumeric(timings.sslStart)}, ${toNumeric(timings.sslEnd)}, ${toNumeric(timings.sslDuration)},
+          ${toNumeric(timings.requestStart)}, ${toNumeric(timings.requestEnd)}, ${toNumeric(timings.requestDuration)},
+          ${toNumeric(timings.responseStart)}, ${toNumeric(timings.responseEnd)}, ${toNumeric(timings.responseDuration)},
+          ${now}
+        )
+      `);
     } catch (error) {
       console.error('Failed to insert bronze timings:', error);
       throw new DatabaseError('Failed to insert bronze timings', error);
@@ -154,24 +174,34 @@ export class MedallionManager {
    */
   async insertBronzeEvent(eventData) {
     try {
-      // Helper function to convert undefined to null
-      const toSqlValue = (val) => val === undefined ? null : val;
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
+      const escapeNum = (val, defaultVal = 0) => {
+        if (val === undefined || val === null) return defaultVal;
+        return Number(val);
+      };
+      
+      const dataStr = eventData.data ? escapeStr(JSON.stringify(eventData.data)) : 'NULL';
       
       this.db.exec(`
         INSERT INTO bronze_events (
           event_type, event_name, source, data,
           request_id, user_id, session_id, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        toSqlValue(eventData.eventType),
-        toSqlValue(eventData.eventName),
-        toSqlValue(eventData.source),
-        eventData.data ? JSON.stringify(eventData.data) : null,
-        toSqlValue(eventData.requestId),
-        toSqlValue(eventData.userId),
-        toSqlValue(eventData.sessionId),
-        toSqlValue(eventData.timestamp) || Date.now()
-      ]);
+        ) VALUES (
+          ${escapeStr(eventData.eventType)},
+          ${escapeStr(eventData.eventName)},
+          ${escapeStr(eventData.source)},
+          ${dataStr},
+          ${escapeStr(eventData.requestId)},
+          ${escapeStr(eventData.userId)},
+          ${escapeStr(eventData.sessionId)},
+          ${escapeNum(eventData.timestamp, Date.now())}
+        )
+      `);
     } catch (error) {
       console.error('Failed to insert bronze event:', error);
       throw new DatabaseError('Failed to insert bronze event', error);
@@ -183,24 +213,32 @@ export class MedallionManager {
    */
   async insertBronzeError(errorData) {
     try {
-      // Helper function to convert undefined to null
-      const toSqlValue = (val) => val === undefined ? null : val;
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
+      const escapeNum = (val, defaultVal = 0) => {
+        if (val === undefined || val === null) return defaultVal;
+        return Number(val);
+      };
       
       this.db.exec(`
         INSERT INTO bronze_errors (
           error_type, message, stack, source,
           request_id, user_id, severity, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        toSqlValue(errorData.errorType),
-        toSqlValue(errorData.message),
-        toSqlValue(errorData.stack),
-        toSqlValue(errorData.source),
-        toSqlValue(errorData.requestId),
-        toSqlValue(errorData.userId),
-        toSqlValue(errorData.severity) || 'medium',
-        toSqlValue(errorData.timestamp) || Date.now()
-      ]);
+        ) VALUES (
+          ${escapeStr(errorData.errorType)},
+          ${escapeStr(errorData.message)},
+          ${escapeStr(errorData.stack)},
+          ${escapeStr(errorData.source)},
+          ${escapeStr(errorData.requestId)},
+          ${escapeStr(errorData.userId)},
+          ${escapeStr(errorData.severity || 'medium')},
+          ${escapeNum(errorData.timestamp, Date.now())}
+        )
+      `);
     } catch (error) {
       console.error('Failed to insert bronze error:', error);
       throw new DatabaseError('Failed to insert bronze error', error);
@@ -245,10 +283,16 @@ export class MedallionManager {
    */
   async processBronzeToSilver(requestId) {
     try {
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
       // Fetch bronze request
       const bronzeRequest = this.db.exec(`
-        SELECT * FROM bronze_requests WHERE id = ?
-      `, [requestId]);
+        SELECT * FROM bronze_requests WHERE id = ${escapeStr(requestId)}
+      `);
 
       if (!bronzeRequest || bronzeRequest.length === 0) {
         console.warn(`No bronze request found for ID: ${requestId}`);
@@ -305,6 +349,14 @@ export class MedallionManager {
         throw new Error(`Undefined SQL parameter(s) at index: ${undefinedIndices.join(', ')}`);
       }
       
+      // Helper to escape SQL values for INSERT
+      const escapeNum = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return Number(val);
+      };
+      
+      const escapeBool = (val) => val ? 1 : 0;
+      
       // Insert into Silver
       this.db.exec(`
         INSERT OR REPLACE INTO silver_requests (
@@ -313,8 +365,30 @@ export class MedallionManager {
           timestamp, tab_id, page_url, is_third_party,
           is_secure, has_error, performance_score,
           quality_score, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, values);
+        ) VALUES (
+          ${escapeStr(values[0])},
+          ${escapeStr(values[1])},
+          ${escapeStr(values[2])},
+          ${escapeStr(values[3])},
+          ${escapeNum(values[4])},
+          ${escapeStr(values[5])},
+          ${escapeStr(values[6])},
+          ${escapeStr(values[7])},
+          ${escapeStr(values[8])},
+          ${escapeNum(values[9])},
+          ${escapeNum(values[10])},
+          ${escapeNum(values[11])},
+          ${escapeNum(values[12])},
+          ${escapeStr(values[13])},
+          ${escapeBool(values[14])},
+          ${escapeBool(values[15])},
+          ${escapeBool(values[16])},
+          ${escapeNum(values[17])},
+          ${escapeNum(values[18])},
+          ${escapeNum(values[19])},
+          ${escapeNum(values[20])}
+        )
+      `);
 
       // Insert metrics if timings available
       await this.processSilverMetrics(requestId);
@@ -340,9 +414,15 @@ export class MedallionManager {
    */
   async processSilverMetrics(requestId) {
     try {
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
       const timings = this.db.exec(`
-        SELECT * FROM bronze_request_timings WHERE request_id = ?
-      `, [requestId]);
+        SELECT * FROM bronze_request_timings WHERE request_id = ${escapeStr(requestId)}
+      `);
 
       if (!timings || timings.length === 0) {
         return;
@@ -358,17 +438,17 @@ export class MedallionManager {
         INSERT OR REPLACE INTO silver_request_metrics (
           request_id, total_time, dns_time, tcp_time,
           ssl_time, wait_time, download_time, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        requestId,
-        toNumeric(timing.request_duration) + toNumeric(timing.response_duration),
-        toNumeric(timing.dns_duration),
-        toNumeric(timing.tcp_duration),
-        toNumeric(timing.ssl_duration),
-        toNumeric(timing.request_duration),
-        toNumeric(timing.response_duration),
-        now
-      ]);
+        ) VALUES (
+          ${escapeStr(requestId)},
+          ${toNumeric(timing.request_duration) + toNumeric(timing.response_duration)},
+          ${toNumeric(timing.dns_duration)},
+          ${toNumeric(timing.tcp_duration)},
+          ${toNumeric(timing.ssl_duration)},
+          ${toNumeric(timing.request_duration)},
+          ${toNumeric(timing.response_duration)},
+          ${now}
+        )
+      `);
     } catch (error) {
       console.error('Failed to process silver metrics:', error);
     }
@@ -391,10 +471,16 @@ export class MedallionManager {
         return val;
       };
       
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
       // Get current stats
       const existing = this.db.exec(`
-        SELECT * FROM silver_domain_stats WHERE domain = ?
-      `, [domain]);
+        SELECT * FROM silver_domain_stats WHERE domain = ${escapeStr(domain)}
+      `);
 
       // Get aggregate data from bronze
       const stats = this.db.exec(`
@@ -408,8 +494,8 @@ export class MedallionManager {
           SUM(CASE WHEN status >= 400 OR error IS NOT NULL THEN 1 ELSE 0 END) as error_count,
           MAX(timestamp) as last_request_at,
           MIN(timestamp) as first_request_at
-        FROM bronze_requests WHERE domain = ?
-      `, [domain]);
+        FROM bronze_requests WHERE domain = ${escapeStr(domain)}
+      `);
 
       if (stats && stats.length > 0) {
         const statData = this.mapResultToObject(stats[0]);
@@ -419,20 +505,20 @@ export class MedallionManager {
             domain, total_requests, total_bytes, avg_duration,
             min_duration, max_duration, success_count, error_count,
             last_request_at, first_request_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          domain,
-          toSqlValue(statData.total_requests, 0),
-          toSqlValue(statData.total_bytes, 0),
-          toSqlValue(statData.avg_duration, 0),
-          toSqlValue(statData.min_duration, 0),
-          toSqlValue(statData.max_duration, 0),
-          toSqlValue(statData.success_count, 0),
-          toSqlValue(statData.error_count, 0),
-          toSqlValue(statData.last_request_at, now),
-          toSqlValue(statData.first_request_at, now),
-          now
-        ]);
+          ) VALUES (
+            ${escapeStr(domain)},
+            ${toSqlValue(statData.total_requests, 0)},
+            ${toSqlValue(statData.total_bytes, 0)},
+            ${toSqlValue(statData.avg_duration, 0)},
+            ${toSqlValue(statData.min_duration, 0)},
+            ${toSqlValue(statData.max_duration, 0)},
+            ${toSqlValue(statData.success_count, 0)},
+            ${toSqlValue(statData.error_count, 0)},
+            ${toSqlValue(statData.last_request_at, now)},
+            ${toSqlValue(statData.first_request_at, now)},
+            ${now}
+          )
+        `);
       }
     } catch (error) {
       console.error('Failed to update domain stats:', error);
@@ -456,14 +542,20 @@ export class MedallionManager {
         return val;
       };
       
+      // Helper function to escape SQL strings
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return 'NULL';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+      
       const stats = this.db.exec(`
         SELECT 
           COUNT(*) as total_requests,
           SUM(size_bytes) as total_bytes,
           AVG(duration) as avg_duration,
           AVG(size_bytes) as avg_size
-        FROM bronze_requests WHERE type = ?
-      `, [resourceType]);
+        FROM bronze_requests WHERE type = ${escapeStr(resourceType)}
+      `);
 
       if (stats && stats.length > 0) {
         const statData = this.mapResultToObject(stats[0]);
@@ -472,15 +564,15 @@ export class MedallionManager {
           INSERT OR REPLACE INTO silver_resource_stats (
             resource_type, total_requests, total_bytes,
             avg_duration, avg_size, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `, [
-          resourceType,
-          toSqlValue(statData.total_requests, 0),
-          toSqlValue(statData.total_bytes, 0),
-          toSqlValue(statData.avg_duration, 0),
-          toSqlValue(statData.avg_size, 0),
-          now
-        ]);
+          ) VALUES (
+            ${escapeStr(resourceType)},
+            ${toSqlValue(statData.total_requests, 0)},
+            ${toSqlValue(statData.total_bytes, 0)},
+            ${toSqlValue(statData.avg_duration, 0)},
+            ${toSqlValue(statData.avg_size, 0)},
+            ${now}
+          )
+        `);
       }
     } catch (error) {
       console.error('Failed to update resource stats:', error);
@@ -513,8 +605,8 @@ export class MedallionManager {
           AVG(duration) as avg_response_time,
           COUNT(DISTINCT domain) as unique_domains
         FROM bronze_requests 
-        WHERE timestamp >= ? AND timestamp <= ?
-      `, [startOfDay, endOfDay]);
+        WHERE timestamp >= ${startOfDay} AND timestamp <= ${endOfDay}
+      `);
 
       if (stats && stats.length > 0) {
         const statData = this.mapResultToObject(stats[0]);
@@ -527,33 +619,39 @@ export class MedallionManager {
         // Calculate error rate
         const errorCount = this.db.exec(`
           SELECT COUNT(*) as errors FROM bronze_requests 
-          WHERE (status >= 400 OR error IS NOT NULL) AND timestamp >= ? AND timestamp <= ?
-        `, [startOfDay, endOfDay]);
+          WHERE (status >= 400 OR error IS NOT NULL) AND timestamp >= ${startOfDay} AND timestamp <= ${endOfDay}
+        `);
         
         const errorRate = statData.total_requests > 0 
           ? (this.mapResultToObject(errorCount[0]).errors / statData.total_requests) * 100 
           : 0;
 
+        // Helper function to escape SQL strings
+        const escapeStr = (val) => {
+          if (val === undefined || val === null) return 'NULL';
+          return `'${String(val).replace(/'/g, "''")}'`;
+        };
+        
         // Insert into gold layer
         this.db.exec(`
           INSERT OR REPLACE INTO gold_daily_analytics (
             date, total_requests, total_bytes, avg_response_time,
             median_response_time, p95_response_time, p99_response_time,
             error_rate, unique_domains, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          dateStr,
-          statData.total_requests || 0,
-          statData.total_bytes || 0,
-          statData.avg_response_time || 0,
-          median,
-          p95,
-          p99,
-          errorRate,
-          statData.unique_domains || 0,
-          now,
-          now
-        ]);
+          ) VALUES (
+            ${escapeStr(dateStr)},
+            ${statData.total_requests || 0},
+            ${statData.total_bytes || 0},
+            ${statData.avg_response_time || 0},
+            ${median},
+            ${p95},
+            ${p99},
+            ${errorRate},
+            ${statData.unique_domains || 0},
+            ${now},
+            ${now}
+          )
+        `);
 
         this.eventBus?.publish('medallion:gold:daily-processed', { date: dateStr });
       }
@@ -631,9 +729,9 @@ export class MedallionManager {
     try {
       const result = this.db.exec(`
         SELECT ${column} FROM ${table}
-        WHERE timestamp >= ? AND timestamp <= ? AND ${column} IS NOT NULL
+        WHERE timestamp >= ${startTime} AND timestamp <= ${endTime} AND ${column} IS NOT NULL
         ORDER BY ${column}
-      `, [startTime, endTime]);
+      `);
 
       if (!result || result.length === 0 || !result[0].values.length) {
         return 0;

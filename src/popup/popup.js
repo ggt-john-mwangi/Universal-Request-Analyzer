@@ -133,8 +133,19 @@ function setupEventListeners() {
           format: 'json'
         });
         
-        if (response.success) {
-          showNotification('Export initiated successfully!');
+        if (response.success && response.data) {
+          // Create download in popup context where URL.createObjectURL works
+          const exportData = JSON.stringify(response.data, null, 2);
+          const blob = new Blob([exportData], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = response.filename || `export-${Date.now()}.json`;
+          a.click();
+          
+          URL.revokeObjectURL(url);
+          showNotification('Export successful!');
         } else {
           showNotification('Export failed: ' + (response.error || 'Unknown error'), true);
         }
@@ -281,9 +292,18 @@ async function loadPageSummary() {
       });
     }
 
-    // Refresh every 5 seconds
-    setTimeout(() => loadPageSummary(), 5000);
+    // Refresh every 5 seconds (but stop if extension context invalidated)
+    setTimeout(() => {
+      if (chrome.runtime?.id) {
+        loadPageSummary();
+      }
+    }, 5000);
   } catch (error) {
+    // Stop refresh loop on extension context invalidation
+    if (error.message?.includes('Extension context invalidated')) {
+      console.log('Extension context invalidated, stopping refresh');
+      return;
+    }
     console.error('Failed to load page summary:', error);
   }
 }
@@ -392,16 +412,26 @@ function updateTimelineChart(timestamps, responseTimes) {
   const canvas = document.getElementById('requestTimelineChart');
   if (!canvas) return;
   
+  // Get chart instance from Chart.js registry
+  const existingChart = Chart.getChart(canvas);
+  if (existingChart) {
+    existingChart.destroy();
+  }
+  timelineChart = null;
+  
   const ctx = canvas.getContext('2d');
   
-  // Destroy existing chart
-  if (timelineChart) {
-    timelineChart.destroy();
-  }
+  // Clear canvas completely
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Reset canvas dimensions
+  canvas.width = canvas.offsetWidth || 400;
+  canvas.height = 200;
   
   // Create new chart (using simple drawing if Chart.js not available)
   if (typeof Chart !== 'undefined') {
-    timelineChart = new Chart(ctx, {
+    try {
+      timelineChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: timestamps.slice(-20), // Last 20 data points
@@ -443,6 +473,11 @@ function updateTimelineChart(timestamps, responseTimes) {
         }
       }
     });
+    } catch (chartError) {
+      console.error('Chart creation error:', chartError);
+      // Fallback to simple chart
+      drawSimpleChart(ctx, timestamps.slice(-20), responseTimes.slice(-20));
+    }
   } else {
     // Fallback: simple canvas drawing
     drawSimpleChart(ctx, timestamps.slice(-20), responseTimes.slice(-20));
@@ -548,40 +583,56 @@ async function loadTrackedSites() {
     const siteSelect = document.getElementById('siteSelect');
     if (!siteSelect) return;
 
-    // Clear existing options except "Current Page"
+    // Reset dropdown
     siteSelect.innerHTML = '<option value="">Current Page</option>';
+    
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+    // First check if there's any data at all
+    const checkResponse = await chrome.runtime.sendMessage({
+      action: 'executeDirectQuery',
+      query: `SELECT COUNT(*) as total FROM bronze_requests`
+    });
+    
+    console.log('Total requests in database:', checkResponse);
 
     // Fetch unique domains from database
     const response = await chrome.runtime.sendMessage({
-      action: 'query',
+      action: 'executeDirectQuery',
       query: `
-        SELECT DISTINCT domain, COUNT(*) as request_count
+        SELECT domain, COUNT(*) as request_count
         FROM bronze_requests 
-        WHERE domain IS NOT NULL AND domain != '' 
-          AND created_at > ?
+        WHERE domain IS NOT NULL 
+          AND domain != '' 
+          AND created_at > ${sevenDaysAgo}
         GROUP BY domain
         ORDER BY request_count DESC
         LIMIT 20
-      `,
-      params: [Date.now() - (7 * 24 * 60 * 60 * 1000)] // Last 7 days
+      `
     });
 
-    if (response && response.success && response.data) {
-      const domains = response.data;
-      console.log(`Loaded ${domains.length} domains for site selector`);
+    console.log('Site filter response:', response);
 
-      domains.forEach(row => {
-        const domain = row.domain;
-        const count = row.request_count;
-        if (domain) {
-          const option = document.createElement('option');
-          option.value = `https://${domain}`;
-          option.textContent = `${domain} (${count} requests)`;
-          siteSelect.appendChild(option);
-        }
-      });
+    if (response && response.success) {
+      if (response.data && response.data.length > 0) {
+        const domains = response.data;
+        console.log(`Loaded ${domains.length} domains for site selector`);
+
+        domains.forEach(row => {
+          const domain = row.domain;
+          const count = row.request_count;
+          if (domain) {
+            const option = document.createElement('option');
+            option.value = `https://${domain}`;
+            option.textContent = `${domain} (${count} requests)`;
+            siteSelect.appendChild(option);
+          }
+        });
+      } else {
+        console.warn('Query successful but no domains found - database may be empty or domains are NULL');
+      }
     } else {
-      console.warn('No domains found or query failed');
+      console.error('Query failed:', response?.error);
     }
   } catch (error) {
     console.error('Failed to load tracked sites:', error);

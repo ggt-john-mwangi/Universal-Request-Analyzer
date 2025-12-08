@@ -672,7 +672,7 @@ function initializeAdvancedTab() {
         });
 
         if (response.success && queryResult) {
-          displayQueryResult(response.result, queryResult);
+          displayQueryResult(response.data, queryResult);
           showNotification('Query executed successfully');
           // Save to query history
           await saveQueryToHistory(query, true, null);
@@ -717,7 +717,7 @@ function initializeAdvancedTab() {
         });
 
         if (response.success && queryResult) {
-          displayQueryResult(response.result, queryResult);
+          displayQueryResult(response.data, queryResult);
           showNotification('Schema loaded successfully');
         }
       } catch (error) {
@@ -865,25 +865,57 @@ function initializeAdvancedTab() {
 }
 
 // Display query result in table format
-function displayQueryResult(result, container) {
-  if (!result || !result[0]) {
+function displayQueryResult(data, container) {
+  // Handle new data format (array of objects)
+  if (Array.isArray(data)) {
+    if (data.length === 0) {
+      container.innerHTML = '<p class="placeholder">No results (0 rows)</p>';
+      return;
+    }
+
+    // Get columns from first object
+    const columns = Object.keys(data[0]);
+    
+    let html = '<table><thead><tr>';
+    columns.forEach(col => {
+      html += `<th>${col}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    data.forEach(row => {
+      html += '<tr>';
+      columns.forEach(col => {
+        const displayValue = row[col] === null || row[col] === undefined ? 'NULL' : row[col];
+        html += `<td>${displayValue}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.length} row(s)</p>`;
+    container.innerHTML = html;
+    return;
+  }
+
+  // Fallback: Handle old result format (for backward compatibility)
+  if (!data || !data[0]) {
     container.innerHTML = '<p class="placeholder">No results</p>';
     return;
   }
 
-  const data = result[0];
-  if (!data.columns || !data.values || data.values.length === 0) {
+  const resultData = data[0];
+  if (!resultData.columns || !resultData.values || resultData.values.length === 0) {
     container.innerHTML = '<p class="placeholder">No results</p>';
     return;
   }
 
   let html = '<table><thead><tr>';
-  data.columns.forEach(col => {
+  resultData.columns.forEach(col => {
     html += `<th>${col}</th>`;
   });
   html += '</tr></thead><tbody>';
 
-  data.values.forEach(row => {
+  resultData.values.forEach(row => {
     html += '<tr>';
     row.forEach(cell => {
       const displayValue = cell === null ? 'NULL' : cell;
@@ -893,7 +925,7 @@ function displayQueryResult(result, container) {
   });
 
   html += '</tbody></table>';
-  html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.values.length} row(s)</p>`;
+  html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${resultData.values.length} row(s)</p>`;
   container.innerHTML = html;
 }
 
@@ -946,8 +978,9 @@ async function loadDatabaseTables() {
       query: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
     });
 
-    if (response.success && response.result && response.result[0]) {
-      const tables = response.result[0].values || [];
+    if (response.success && response.data && response.data.length > 0) {
+      // Extract table names from data array
+      const tables = response.data.map(row => row.name);
       
       if (tables.length === 0) {
         tablesListContainer.innerHTML = '<p class="placeholder">No tables found</p>';
@@ -956,7 +989,7 @@ async function loadDatabaseTables() {
 
       // Get count for each table
       const tableData = [];
-      for (const [tableName] of tables) {
+      for (const tableName of tables) {
         // Validate table name to prevent SQL injection
         if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
           console.warn(`Invalid table name: ${tableName}`);
@@ -969,7 +1002,7 @@ async function loadDatabaseTables() {
             query: `SELECT COUNT(*) as count FROM ${tableName}`
           });
           
-          const count = countResponse.success && countResponse.result[0]?.values[0]?.[0] || 0;
+          const count = countResponse.success && countResponse.data[0]?.count || 0;
           tableData.push({ name: tableName, count });
         } catch (error) {
           console.error(`Error getting count for ${tableName}:`, error);
@@ -1033,29 +1066,30 @@ async function loadTablePreview(tableName) {
       query: `SELECT * FROM ${tableName} LIMIT 5`
     });
 
-    if (response.success && response.result && response.result[0]) {
-      const data = response.result[0];
+    if (response.success && response.data && response.data.length > 0) {
+      // Data is already in array of objects format
+      const columns = Object.keys(response.data[0]);
       
-      if (!data.columns || !data.values || data.values.length === 0) {
+      if (columns.length === 0) {
         tablePreviewContainer.innerHTML = `<p class="placeholder">Table "${tableName}" is empty</p>`;
         return;
       }
 
-      let html = `<h4 style="margin: 0 0 10px 0; color: #667eea;">Preview: ${tableName} (5 records)</h4>`;
+      let html = `<h4 style="margin: 0 0 10px 0; color: #667eea;">Preview: ${tableName} (${response.data.length} records)</h4>`;
       html += '<table><thead><tr>';
-      data.columns.forEach(col => {
+      columns.forEach(col => {
         html += `<th>${col}</th>`;
       });
       html += '</tr></thead><tbody>';
 
-      data.values.forEach(row => {
+      response.data.forEach(row => {
         html += '<tr>';
-        row.forEach(cell => {
-          let displayValue = cell;
-          if (cell === null) {
+        columns.forEach(col => {
+          let displayValue = row[col];
+          if (displayValue === null || displayValue === undefined) {
             displayValue = '<em style="color: #999;">NULL</em>';
-          } else if (typeof cell === 'string' && cell.length > 100) {
-            displayValue = cell.substring(0, 100) + '...';
+          } else if (typeof displayValue === 'string' && displayValue.length > 100) {
+            displayValue = displayValue.substring(0, 100) + '...';
           }
           html += `<td>${displayValue}</td>`;
         });
@@ -2001,30 +2035,40 @@ async function populateSiteFilterDropdown() {
   try {
     // Fetch unique domains from database
     const response = await chrome.runtime.sendMessage({
-      action: 'query',
+      action: 'executeDirectQuery',
       query: `
-        SELECT DISTINCT domain 
+        SELECT DISTINCT domain, COUNT(*) as request_count
         FROM bronze_requests 
         WHERE domain IS NOT NULL AND domain != '' 
-        ORDER BY domain
+        GROUP BY domain
+        ORDER BY request_count DESC
+        LIMIT 50
       `
     });
+    
+    console.log('Dashboard site filter response:', response);
     
     // Clear existing options except "All Sites"
     dropdown.innerHTML = '<option value="all">All Sites</option>';
     
-    if (response && response.success && response.data) {
-      const domains = response.data.map(row => row.domain).filter(Boolean);
+    if (response && response.success && response.data && response.data.length > 0) {
+      const domains = response.data;
       
       // Add each domain as an option
-      domains.forEach(domain => {
-        const option = document.createElement('option');
-        option.value = domain;
-        option.textContent = domain;
-        dropdown.appendChild(option);
+      domains.forEach(row => {
+        const domain = row.domain;
+        const count = row.request_count || 0;
+        if (domain) {
+          const option = document.createElement('option');
+          option.value = domain;
+          option.textContent = `${domain} (${count} requests)`;
+          dropdown.appendChild(option);
+        }
       });
       
       console.log(`Populated site filter with ${domains.length} domains`);
+    } else {
+      console.warn('No domains found in database');
     }
     
     // Add change listener to filter dashboard

@@ -134,15 +134,16 @@ async function migrateLegacyRequests(db) {
  */
 async function migrateLegacyHeaders(db) {
   try {
+    const now = Date.now();
     db.exec(`
       INSERT OR IGNORE INTO bronze_request_headers (
         request_id, header_type, name, value, created_at
       )
       SELECT 
-        requestId, 'request', name, value, ?
+        requestId, 'request', name, value, ${now}
       FROM request_headers
       WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='request_headers')
-    `, [Date.now()]);
+    `);
     
     const result = db.exec(`SELECT COUNT(*) as count FROM bronze_request_headers`);
     const count = result[0]?.values[0]?.[0] || 0;
@@ -158,16 +159,17 @@ async function migrateLegacyHeaders(db) {
  */
 async function migrateLegacyTimings(db) {
   try {
+    const now = Date.now();
     db.exec(`
       INSERT OR IGNORE INTO bronze_request_timings (
         request_id, dns_duration, tcp_duration, ssl_duration,
         request_duration, response_duration, created_at
       )
       SELECT 
-        requestId, dns, tcp, ssl, ttfb, download, ?
+        requestId, dns, tcp, ssl, ttfb, download, ${now}
       FROM request_timings
       WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='request_timings')
-    `, [Date.now()]);
+    `);
     
     const result = db.exec(`SELECT COUNT(*) as count FROM bronze_request_timings`);
     const count = result[0]?.values[0]?.[0] || 0;
@@ -243,9 +245,9 @@ async function processBronzeToSilver(db) {
           WHEN status >= 400 THEN 70
           ELSE 100
         END as quality_score,
-        ?, ?
+        ${now}, ${now}
       FROM bronze_requests
-    `, [now, now]);
+    `);
     
     // Process metrics
     db.exec(`
@@ -261,9 +263,9 @@ async function processBronzeToSilver(db) {
         COALESCE(ssl_duration, 0) as ssl_time,
         COALESCE(request_duration, 0) as wait_time,
         COALESCE(response_duration, 0) as download_time,
-        ?
+        ${now}
       FROM bronze_request_timings
-    `, [now]);
+    `);
     
     // Calculate domain stats
     db.exec(`
@@ -283,11 +285,11 @@ async function processBronzeToSilver(db) {
         SUM(CASE WHEN status >= 400 OR error IS NOT NULL THEN 1 ELSE 0 END) as error_count,
         MAX(timestamp) as last_request_at,
         MIN(timestamp) as first_request_at,
-        ?
+        ${now}
       FROM bronze_requests
       WHERE domain IS NOT NULL
       GROUP BY domain
-    `, [now]);
+    `);
     
     // Calculate resource stats
     db.exec(`
@@ -300,11 +302,11 @@ async function processBronzeToSilver(db) {
         SUM(COALESCE(size_bytes, 0)) as total_bytes,
         AVG(COALESCE(duration, 0)) as avg_duration,
         AVG(COALESCE(size_bytes, 0)) as avg_size,
-        ?
+        ${now}
       FROM bronze_requests
       WHERE type IS NOT NULL
       GROUP BY type
-    `, [now]);
+    `);
     
     const result = db.exec(`SELECT COUNT(*) as count FROM silver_requests`);
     const count = result[0]?.values[0]?.[0] || 0;
@@ -321,6 +323,7 @@ async function processBronzeToSilver(db) {
 async function generateGoldAnalytics(db) {
   try {
     const now = Date.now();
+    const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
     
     // Generate daily analytics for the last 30 days
     db.exec(`
@@ -335,11 +338,11 @@ async function generateGoldAnalytics(db) {
         AVG(COALESCE(duration, 0)) as avg_response_time,
         CAST(SUM(CASE WHEN status >= 400 OR error IS NOT NULL THEN 1 ELSE 0 END) AS REAL) * 100.0 / COUNT(*) as error_rate,
         COUNT(DISTINCT domain) as unique_domains,
-        ?, ?
+        ${now}, ${now}
       FROM bronze_requests
-      WHERE timestamp > ? 
+      WHERE timestamp > ${thirtyDaysAgo}
       GROUP BY DATE(timestamp / 1000, 'unixepoch')
-    `, [now, now, now - (30 * 24 * 60 * 60 * 1000)]);
+    `);
     
     // Generate domain performance reports
     db.exec(`
@@ -396,8 +399,8 @@ async function markMigrationComplete(db) {
     // Record migration
     db.exec(`
       INSERT INTO medallion_migrations (migration_name, completed_at, details)
-      VALUES ('initial_medallion_migration', ?, 'Migrated legacy schema to medallion architecture')
-    `, [now]);
+      VALUES ('initial_medallion_migration', ${now}, 'Migrated legacy schema to medallion architecture')
+    `);
     
     console.log("  Migration recorded in tracking table");
   } catch (error) {
@@ -563,6 +566,77 @@ async function migrateLegacyRequestsFromManager(legacyDbManager, medallionManage
     console.log(`✓ Migrated ${requests.length} requests to Bronze layer`);
   } catch (error) {
     console.error('Error migrating legacy requests:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fix existing bronze_requests with missing domain values
+ * Extracts domain from url column where domain is NULL
+ */
+export async function fixMissingDomains(db) {
+  console.log("Fixing missing domains in bronze_requests...");
+  
+  try {
+    // Get all requests with NULL or empty domain
+    const result = db.exec(`
+      SELECT id, url FROM bronze_requests 
+      WHERE domain IS NULL OR domain = ''
+    `);
+    
+    if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
+      console.log("No rows with missing domains found");
+      return 0;
+    }
+    
+    const rows = result[0].values;
+    let updated = 0;
+    let failed = 0;
+    
+    console.log(`Found ${rows.length} rows with missing domains`);
+    
+    for (const row of rows) {
+      const [id, url] = row;
+      
+      try {
+        // Extract domain from URL
+        const urlObj = new URL(url);
+        const domain = urlObj.hostname;
+        const path = urlObj.pathname;
+        const protocol = urlObj.protocol.replace(':', '');
+        const queryString = urlObj.search;
+        
+        // Escape SQL strings
+        const escapeStr = (val) => {
+          if (val === undefined || val === null || val === '') return 'NULL';
+          return `'${String(val).replace(/'/g, "''")}'`;
+        };
+        
+        // Update the row
+        db.exec(`
+          UPDATE bronze_requests 
+          SET domain = ${escapeStr(domain)},
+              path = ${escapeStr(path)},
+              protocol = ${escapeStr(protocol)},
+              query_string = ${escapeStr(queryString)}
+          WHERE id = ${escapeStr(id)}
+        `);
+        
+        updated++;
+        
+        if (updated % 100 === 0) {
+          console.log(`Updated ${updated}/${rows.length} rows...`);
+        }
+      } catch (error) {
+        failed++;
+        console.warn(`Failed to extract domain from URL for request ${id}:`, error.message);
+      }
+    }
+    
+    console.log(`✓ Updated ${updated} rows with extracted domains (${failed} failed)`);
+    return updated;
+  } catch (error) {
+    console.error('Error fixing missing domains:', error);
     throw error;
   }
 }

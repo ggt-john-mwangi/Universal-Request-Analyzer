@@ -5,7 +5,7 @@ import { DatabaseError } from "../errors/error-types.js";
 import { createMedallionSchema, initializeDefaultConfig } from "./medallion-schema.js";
 import { createMedallionManager } from "./medallion-manager.js";
 import { createConfigSchemaManager } from "./config-schema-manager.js";
-import { migrateToMedallionArchitecture, isMedallionMigrationComplete } from "./medallion-migration.js";
+import { migrateToMedallionArchitecture, isMedallionMigrationComplete, fixMissingDomains } from "./medallion-migration.js";
 
 let db = null;
 let medallionManager = null;
@@ -78,6 +78,14 @@ async function initializeDatabase() {
       await migrateToMedallionArchitecture(dbInstance, eventBus);
     } else {
       console.log("Medallion architecture already initialized");
+    }
+    
+    // Fix any existing rows with missing domains (from before the fix)
+    try {
+      await fixMissingDomains(dbInstance);
+    } catch (error) {
+      console.warn("Failed to fix missing domains:", error);
+      // Don't fail initialization if this fails
     }
 
     return dbInstance;

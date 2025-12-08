@@ -272,6 +272,12 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+.timeline-chart canvas {
+  max-width: 100%;
+  max-height: 200px;
+  height: 200px !important;
+}
+
 .chart-title {
   font-size: 13px;
   font-weight: 600;

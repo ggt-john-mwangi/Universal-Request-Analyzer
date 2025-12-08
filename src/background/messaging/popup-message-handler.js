@@ -18,36 +18,42 @@ export function initializePopupMessageHandler(auth, database) {
 async function handleMessage(message, sender) {
   const { action, data, filters } = message;
 
-  switch (action) {
-    case 'register':
-      return await handleRegister(data);
-    
-    case 'login':
-      return await handleLogin(data);
-    
-    case 'logout':
-      return await handleLogout();
-    
-    case 'getPageStats':
-      return await handleGetPageStats(data);
-    
-    case 'getFilteredStats':
-      return await handleGetFilteredStats(filters);
-    
-    case 'exportFilteredData':
-      return await handleExportFilteredData(filters, message.format);
-    
-    case 'getDashboardStats':
-      return await handleGetDashboardStats(message.timeRange);
-    
-    case 'getMetrics':
-      return await handleGetMetrics(message.timeRange);
-    
-    case 'query':
-      return await handleQuery(message.query, message.params);
-    
-    default:
-      return { success: false, error: 'Unknown action' };
+  try {
+    switch (action) {
+      case 'register':
+        return await handleRegister(data);
+      
+      case 'login':
+        return await handleLogin(data);
+      
+      case 'logout':
+        return await handleLogout();
+      
+      case 'getPageStats':
+        return await handleGetPageStats(data);
+      
+      case 'getFilteredStats':
+        return await handleGetFilteredStats(filters);
+      
+      case 'exportFilteredData':
+        return await handleExportFilteredData(filters, message.format);
+      
+      case 'getDashboardStats':
+        return await handleGetDashboardStats(message.timeRange);
+      
+      case 'getMetrics':
+        return await handleGetMetrics(message.timeRange);
+      
+      case 'query':
+        return await handleQuery(message.query, message.params);
+      
+      default:
+        // Return null for unhandled actions so medallion handler can try
+        return null;
+    }
+  } catch (error) {
+    console.error('Message handler error:', error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -305,29 +311,13 @@ async function handleExportFilteredData(filters, format) {
       return statsResult;
     }
     
-    // Format based on requested format
-    let exportData;
-    if (format === 'json') {
-      exportData = JSON.stringify(statsResult, null, 2);
-    } else if (format === 'csv') {
-      // Simple CSV export
-      exportData = 'Timestamp,Response Time,Type,Status\n';
-      // Add CSV data from statsResult
-    } else {
-      exportData = JSON.stringify(statsResult);
-    }
-    
-    // Create download
-    const blob = new Blob([exportData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    await chrome.downloads.download({
-      url: url,
-      filename: `request-analyzer-export-${Date.now()}.${format || 'json'}`,
-      saveAs: true
-    });
-    
-    return { success: true, message: 'Export initiated' };
+    // Return data to popup - popup will handle download
+    return { 
+      success: true, 
+      data: statsResult,
+      format: format || 'json',
+      filename: `request-analyzer-export-${Date.now()}.${format || 'json'}`
+    };
   } catch (error) {
     console.error('Export error:', error);
     return { success: false, error: error.message };

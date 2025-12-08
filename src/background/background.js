@@ -215,7 +215,8 @@ class IntegratedExtensionInitializer {
       // First try popup/options handlers (register, login, getPageStats, query, etc.)
       if (this.popupMessageHandler) {
         const popupResponse = await this.popupMessageHandler(message, sender);
-        if (popupResponse) {
+        // If popup handler returned a response (not null), send it
+        if (popupResponse !== null && popupResponse !== undefined) {
           sendResponse(popupResponse);
           return;
         }
@@ -244,9 +245,29 @@ class IntegratedExtensionInitializer {
 
         case 'executeDirectQuery':
           try {
-            const result = this.medallionDb.executeQuery(message.query);
-            sendResponse({ success: true, result });
+            // SQL.js doesn't support parameterized queries with ?
+            // The query should already have values embedded or we execute as-is
+            const rawResult = this.medallionDb.executeQuery(message.query);
+            
+            // Format result like handleQuery does for consistency
+            if (!rawResult || rawResult.length === 0) {
+              sendResponse({ success: true, data: [] });
+            } else {
+              const columns = rawResult[0].columns;
+              const values = rawResult[0].values;
+              
+              const data = values.map(row => {
+                const obj = {};
+                columns.forEach((col, index) => {
+                  obj[col] = row[index];
+                });
+                return obj;
+              });
+              
+              sendResponse({ success: true, data });
+            }
           } catch (queryError) {
+            console.error('Query execution error:', queryError);
             sendResponse({ success: false, error: queryError.message });
           }
           break;
