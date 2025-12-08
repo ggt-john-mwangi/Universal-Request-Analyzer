@@ -3,6 +3,9 @@
 
 import Chart from '../../lib/chart.min.js';
 
+// Constants
+const DEFAULT_TIME_RANGE = 604800; // 7 days in seconds
+
 class Analytics {
   constructor() {
     this.charts = {};
@@ -85,7 +88,7 @@ class Analytics {
       // Get all domains
       const response = await chrome.runtime.sendMessage({
         action: 'getDomains',
-        timeRange: 604800  // Last 7 days
+        timeRange: DEFAULT_TIME_RANGE
       });
       
       if (response && response.success && response.domains && response.domains.length > 0) {
@@ -143,7 +146,7 @@ class Analytics {
       const response = await chrome.runtime.sendMessage({
         action: 'getPagesByDomain',
         domain: domain,
-        timeRange: 604800  // Last 7 days
+        timeRange: DEFAULT_TIME_RANGE
       });
       
       if (response && response.success && response.pages && response.pages.length > 0) {

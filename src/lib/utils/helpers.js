@@ -200,6 +200,8 @@ export function extractDomain(url) {
 /**
  * Extract top-level domain from URL
  * Gets the main domain without subdomains (e.g., github.com instead of api.github.com)
+ * Note: This is a simplified implementation that works for most common domains.
+ * For complete ccTLD support (e.g., .co.uk), consider using a public suffix list library.
  */
 export function extractTopLevelDomain(url) {
   const hostname = extractDomain(url);
@@ -218,9 +220,9 @@ export function extractTopLevelDomain(url) {
     return hostname;
   }
   
-  // For domains like example.co.uk, we want to keep the last 3 parts
-  // For now, we'll keep last 2 parts (domain.tld)
-  // This handles most common cases: github.com, api.github.com -> github.com
+  // For most domains, keep last 2 parts (domain.tld)
+  // This handles: github.com, api.github.com -> github.com
+  // Limitation: Won't properly handle .co.uk, .gov.au, etc.
   return parts.slice(-2).join('.');
 }
 

@@ -1833,6 +1833,7 @@ input[type="number"] {
 .analytics-filters select:focus {
   outline: none;
   border-color: var(--primary-color);
+  /* Note: Using semi-transparent shadow for focus ring - could be improved with --primary-color-rgb CSS variable */
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
