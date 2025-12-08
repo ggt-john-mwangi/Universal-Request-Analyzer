@@ -30,6 +30,14 @@
           <i class="fas fa-cog"></i>
           <span>General</span>
         </button>
+        <button class="nav-item" data-tab="analytics">
+          <i class="fas fa-chart-pie"></i>
+          <span>Analytics</span>
+        </button>
+        <button class="nav-item" data-tab="alerts">
+          <i class="fas fa-bell"></i>
+          <span>Alerts</span>
+        </button>
         <button class="nav-item" data-tab="monitoring">
           <i class="fas fa-chart-bar"></i>
           <span>Monitoring</span>
@@ -223,6 +231,250 @@
                 <div class="layer-name">Gold Layer</div>
                 <div class="layer-count" id="goldCount">0</div>
                 <div class="layer-desc">Analytics</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Analytics Tab -->
+      <section id="analytics" class="tab-content">
+        <div class="analytics-container">
+          <h2><i class="fas fa-chart-pie"></i> Advanced Analytics</h2>
+          
+          <!-- Percentiles Analysis -->
+          <div class="analytics-section">
+            <h3><i class="fas fa-percentage"></i> Response Time Percentiles</h3>
+            <div id="percentilesLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Loading percentiles...
+            </div>
+            <div class="percentiles-grid" id="percentilesGrid">
+              <div class="percentile-card">
+                <div class="percentile-label">P50 (Median)</div>
+                <div class="percentile-value" id="p50Value">-</div>
+                <div class="percentile-desc">50% of requests</div>
+              </div>
+              <div class="percentile-card">
+                <div class="percentile-label">P75</div>
+                <div class="percentile-value" id="p75Value">-</div>
+                <div class="percentile-desc">75% of requests</div>
+              </div>
+              <div class="percentile-card">
+                <div class="percentile-label">P90</div>
+                <div class="percentile-value" id="p90Value">-</div>
+                <div class="percentile-desc">90% of requests</div>
+              </div>
+              <div class="percentile-card">
+                <div class="percentile-label">P95</div>
+                <div class="percentile-value" id="p95Value">-</div>
+                <div class="percentile-desc">95% of requests</div>
+              </div>
+              <div class="percentile-card">
+                <div class="percentile-label">P99</div>
+                <div class="percentile-value" id="p99Value">-</div>
+                <div class="percentile-desc">99% of requests</div>
+              </div>
+              <div class="percentile-card">
+                <div class="percentile-label">Max</div>
+                <div class="percentile-value" id="maxValue">-</div>
+                <div class="percentile-desc">Slowest request</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anomaly Detection -->
+          <div class="analytics-section">
+            <h3><i class="fas fa-exclamation-circle"></i> Anomaly Detection</h3>
+            <div id="anomaliesLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Detecting anomalies...
+            </div>
+            <div id="anomaliesList" class="anomalies-list">
+              <p class="placeholder">No anomalies detected</p>
+            </div>
+          </div>
+
+          <!-- Trend Analysis -->
+          <div class="analytics-section">
+            <h3><i class="fas fa-chart-line"></i> Trend Analysis</h3>
+            <div class="trend-controls">
+              <label>
+                <span>Compare:</span>
+                <select id="trendCompareType">
+                  <option value="week">Week-over-Week</option>
+                  <option value="month">Month-over-Month</option>
+                </select>
+              </label>
+              <button id="refreshTrendsBtn" class="btn-primary">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+            </div>
+            <div id="trendsLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Analyzing trends...
+            </div>
+            <div class="trends-grid" id="trendsGrid">
+              <div class="trend-card">
+                <div class="trend-label">Request Volume</div>
+                <div class="trend-value" id="trendRequests">-</div>
+                <div class="trend-change" id="trendRequestsChange">-</div>
+              </div>
+              <div class="trend-card">
+                <div class="trend-label">Avg Response Time</div>
+                <div class="trend-value" id="trendDuration">-</div>
+                <div class="trend-change" id="trendDurationChange">-</div>
+              </div>
+              <div class="trend-card">
+                <div class="trend-label">Error Count</div>
+                <div class="trend-value" id="trendErrors">-</div>
+                <div class="trend-change" id="trendErrorsChange">-</div>
+              </div>
+              <div class="trend-card">
+                <div class="trend-label">Data Transferred</div>
+                <div class="trend-value" id="trendBytes">-</div>
+                <div class="trend-change" id="trendBytesChange">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Heatmap -->
+          <div class="analytics-section">
+            <h3><i class="fas fa-th"></i> Activity Heatmap</h3>
+            <p class="description">Request activity by time of day and day of week</p>
+            <div id="heatmapLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Generating heatmap...
+            </div>
+            <div id="heatmapContainer" class="heatmap-container">
+              <canvas id="heatmapCanvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Multi-Domain Comparison -->
+          <div class="analytics-section">
+            <h3><i class="fas fa-balance-scale"></i> Multi-Domain Comparison</h3>
+            <div class="comparison-controls">
+              <div id="domainSelectors" class="domain-selectors">
+                <select id="compareDomain1">
+                  <option value="">Select Domain 1</option>
+                </select>
+                <select id="compareDomain2">
+                  <option value="">Select Domain 2</option>
+                </select>
+                <select id="compareDomain3">
+                  <option value="">Select Domain 3</option>
+                </select>
+              </div>
+              <button id="compareDomainsBtn" class="btn-primary">
+                <i class="fas fa-chart-bar"></i> Compare
+              </button>
+            </div>
+            <div id="comparisonLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Comparing domains...
+            </div>
+            <div id="comparisonResults" class="comparison-results">
+              <canvas id="comparisonChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Performance Insights -->
+          <div class="analytics-section">
+            <h3><i class="fas fa-lightbulb"></i> Performance Insights & Recommendations</h3>
+            <div id="insightsLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Generating insights...
+            </div>
+            <div id="insightsList" class="insights-list">
+              <p class="placeholder">No insights available. Apply filters and refresh to generate recommendations.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alerts Tab -->
+      <section id="alerts" class="tab-content">
+        <div class="alerts-container">
+          <h2><i class="fas fa-bell"></i> Alerts & Notifications</h2>
+          
+          <!-- Alert Rules -->
+          <div class="alerts-section">
+            <div class="section-header">
+              <h3><i class="fas fa-cog"></i> Alert Rules</h3>
+              <button id="addAlertRuleBtn" class="btn-primary">
+                <i class="fas fa-plus"></i> Add Rule
+              </button>
+            </div>
+            <div id="alertRulesLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Loading alert rules...
+            </div>
+            <div id="alertRulesList" class="alert-rules-list">
+              <p class="placeholder">No alert rules configured. Click "Add Rule" to create your first alert.</p>
+            </div>
+          </div>
+
+          <!-- Alert History -->
+          <div class="alerts-section">
+            <div class="section-header">
+              <h3><i class="fas fa-history"></i> Alert History</h3>
+              <button id="refreshAlertHistoryBtn" class="btn-secondary">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+            </div>
+            <div id="alertHistoryLoading" class="loading-indicator" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Loading alert history...
+            </div>
+            <div id="alertHistoryList" class="alert-history-list">
+              <p class="placeholder">No alerts have been triggered</p>
+            </div>
+          </div>
+
+          <!-- Alert Configuration Modal -->
+          <div id="alertRuleModal" class="modal" style="display: none;">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3><i class="fas fa-bell"></i> Configure Alert Rule</h3>
+                <button class="modal-close">&times;</button>
+              </div>
+              <div class="modal-body">
+                <div class="form-group">
+                  <label for="alertName">Alert Name:</label>
+                  <input type="text" id="alertName" placeholder="e.g., High Response Time Alert" required>
+                </div>
+                <div class="form-group">
+                  <label for="alertMetric">Metric:</label>
+                  <select id="alertMetric">
+                    <option value="avgDuration">Average Response Time</option>
+                    <option value="errorRate">Error Rate (%)</option>
+                    <option value="requestCount">Request Count</option>
+                    <option value="maxDuration">Max Response Time</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="alertCondition">Condition:</label>
+                  <select id="alertCondition">
+                    <option value="gt">Greater Than</option>
+                    <option value="lt">Less Than</option>
+                    <option value="eq">Equal To</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="alertThreshold">Threshold:</label>
+                  <input type="number" id="alertThreshold" placeholder="e.g., 1000" required>
+                </div>
+                <div class="form-group">
+                  <label for="alertDomain">Domain (Optional):</label>
+                  <select id="alertDomain">
+                    <option value="">All Domains</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="alertEnabled" checked>
+                    Enable this alert
+                  </label>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button id="saveAlertRuleBtn" class="btn-primary">
+                  <i class="fas fa-save"></i> Save Rule
+                </button>
+                <button id="cancelAlertRuleBtn" class="btn-secondary">Cancel</button>
               </div>
             </div>
           </div>
