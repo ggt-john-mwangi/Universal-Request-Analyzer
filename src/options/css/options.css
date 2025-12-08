@@ -1050,7 +1050,10 @@ input[type="number"] {
   font-size: 13px;
 }
 
-#dashboardSiteFilter {
+/* Dashboard filter styling */
+#dashboardDomainFilter,
+#dashboardPageFilter,
+#dashboardRequestTypeFilter {
   min-width: 200px;
 }
 
