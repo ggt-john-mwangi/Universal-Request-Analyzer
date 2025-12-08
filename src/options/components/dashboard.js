@@ -13,6 +13,9 @@ class Dashboard {
   async initialize() {
     console.log('Initializing Dashboard...');
     
+    // Load domain filter first
+    await this.loadDomainFilter();
+    
     // Setup event listeners
     this.setupEventListeners();
     
@@ -29,6 +32,21 @@ class Dashboard {
   }
 
   setupEventListeners() {
+    const domainFilter = document.getElementById('dashboardDomainFilter');
+    if (domainFilter) {
+      domainFilter.addEventListener('change', () => this.onDomainFilterChange());
+    }
+    
+    const pageFilter = document.getElementById('dashboardPageFilter');
+    if (pageFilter) {
+      pageFilter.addEventListener('change', () => this.refreshDashboard());
+    }
+    
+    const requestTypeFilter = document.getElementById('dashboardRequestTypeFilter');
+    if (requestTypeFilter) {
+      requestTypeFilter.addEventListener('change', () => this.refreshDashboard());
+    }
+    
     const timeRangeSelect = document.getElementById('dashboardTimeRange');
     if (timeRangeSelect) {
       timeRangeSelect.addEventListener('change', (e) => {
@@ -208,11 +226,16 @@ class Dashboard {
   }
 
   async getAggregatedStats() {
+    const filters = this.getActiveFilters();
+    
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
-          action: 'getDashboardStats',
-          timeRange: this.timeRange
+          action: 'getFilteredStats',
+          filters: {
+            ...filters,
+            timeRange: this.timeRange
+          }
         },
         (response) => {
           if (chrome.runtime.lastError) {
@@ -222,7 +245,43 @@ class Dashboard {
           }
           
           if (response && response.success) {
-            resolve(response.stats);
+            // Convert filtered stats to dashboard stats format
+            const stats = {
+              totalRequests: response.totalRequests || 0,
+              avgResponse: 0,
+              slowRequests: 0,
+              errorCount: 0,
+              volumeTimeline: { labels: response.timestamps || [], values: [] },
+              statusDistribution: [0, 0, 0, 0],
+              topDomains: { labels: [], values: [] },
+              performanceTrend: { labels: response.timestamps || [], values: response.responseTimes || [] },
+              layerCounts: { bronze: 0, silver: 0, gold: 0 }
+            };
+            
+            // Calculate avgResponse
+            if (response.responseTimes && response.responseTimes.length > 0) {
+              stats.avgResponse = response.responseTimes.reduce((a, b) => a + b, 0) / response.responseTimes.length;
+              stats.slowRequests = response.responseTimes.filter(t => t > 1000).length;
+            }
+            
+            // Map status codes to distribution
+            if (response.statusCodes) {
+              Object.entries(response.statusCodes).forEach(([code, count]) => {
+                const statusCode = parseInt(code);
+                if (statusCode >= 200 && statusCode < 300) stats.statusDistribution[0] += count;
+                else if (statusCode >= 300 && statusCode < 400) stats.statusDistribution[1] += count;
+                else if (statusCode >= 400 && statusCode < 500) {
+                  stats.statusDistribution[2] += count;
+                  stats.errorCount += count;
+                }
+                else if (statusCode >= 500) {
+                  stats.statusDistribution[3] += count;
+                  stats.errorCount += count;
+                }
+              });
+            }
+            
+            resolve(stats);
           } else {
             resolve(this.getDefaultStats());
           }
@@ -340,6 +399,133 @@ class Dashboard {
     this.refreshInterval = setInterval(() => {
       this.refreshDashboard();
     }, 30000);
+  }
+
+  async loadDomainFilter() {
+    try {
+      const domainSelect = document.getElementById('dashboardDomainFilter');
+      if (!domainSelect) return;
+      
+      // Reset dropdown
+      domainSelect.innerHTML = '<option value="all">All Domains</option>';
+      
+      // Get all domains
+      const response = await chrome.runtime.sendMessage({
+        action: 'getDomains',
+        timeRange: 604800  // Last 7 days
+      });
+      
+      console.log('Dashboard domain filter response:', response);
+      
+      if (response && response.success && response.domains && response.domains.length > 0) {
+        response.domains.forEach(domainObj => {
+          const domain = domainObj.domain;
+          if (domain) {
+            const option = document.createElement('option');
+            option.value = domain;
+            option.textContent = `${domain} (${domainObj.requestCount} requests)`;
+            domainSelect.appendChild(option);
+          }
+        });
+        console.log(`Loaded ${response.domains.length} domains for dashboard`);
+      } else {
+        console.warn('No domains found for dashboard');
+      }
+    } catch (error) {
+      console.error('Failed to load domain filter:', error);
+    }
+  }
+
+  async onDomainFilterChange() {
+    const domainSelect = document.getElementById('dashboardDomainFilter');
+    const selectedDomain = domainSelect.value;
+    
+    // Load pages for selected domain
+    if (selectedDomain && selectedDomain !== 'all') {
+      await this.loadPageFilter(selectedDomain);
+    } else {
+      // Clear page filter for "all domains"
+      const pageSelect = document.getElementById('dashboardPageFilter');
+      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+      pageSelect.disabled = true;
+    }
+    
+    // Refresh dashboard with new filters
+    await this.refreshDashboard();
+  }
+
+  async loadPageFilter(domain) {
+    try {
+      const pageSelect = document.getElementById('dashboardPageFilter');
+      if (!pageSelect) return;
+      
+      // Reset page filter
+      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+      pageSelect.disabled = false;
+      
+      if (!domain || domain === 'all') {
+        pageSelect.disabled = true;
+        return;
+      }
+      
+      // Get pages for this domain
+      const response = await chrome.runtime.sendMessage({
+        action: 'getPagesByDomain',
+        domain: domain,
+        timeRange: 604800  // Last 7 days
+      });
+      
+      console.log('Pages for domain response:', response);
+      
+      if (response && response.success && response.pages && response.pages.length > 0) {
+        response.pages.forEach(pageObj => {
+          const pageUrl = pageObj.pageUrl;
+          if (pageUrl) {
+            const option = document.createElement('option');
+            option.value = pageUrl;
+            // Extract path from full URL for display
+            try {
+              const url = new URL(pageUrl);
+              const displayPath = url.pathname + url.search || '/';
+              option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
+            } catch (e) {
+              option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
+            }
+            pageSelect.appendChild(option);
+          }
+        });
+        console.log(`Loaded ${response.pages.length} pages for domain ${domain}`);
+      } else {
+        console.warn(`No pages found for domain ${domain}`);
+      }
+    } catch (error) {
+      console.error('Failed to load page filter:', error);
+    }
+  }
+
+  getActiveFilters() {
+    const domainFilter = document.getElementById('dashboardDomainFilter')?.value;
+    const pageFilter = document.getElementById('dashboardPageFilter')?.value;
+    const requestTypeFilter = document.getElementById('dashboardRequestTypeFilter')?.value;
+    
+    const filters = {};
+    
+    // Add domain filter
+    if (domainFilter && domainFilter !== 'all') {
+      filters.domain = domainFilter;
+    }
+    
+    // Add page filter (if specific page selected)
+    if (pageFilter && pageFilter !== '') {
+      filters.pageUrl = pageFilter;
+    }
+    
+    // Add request type filter
+    if (requestTypeFilter && requestTypeFilter !== '') {
+      filters.type = requestTypeFilter;
+    }
+    
+    return filters;
   }
 
   destroy() {
