@@ -371,6 +371,12 @@ function setupContentScriptListener() {
       } else if (message.action === "webVital") {
         handleWebVital(message, sender.tab);
         sendResponse({ success: true });
+      } else if (message.action === "securityIssue") {
+        handleSecurityIssue(message, sender.tab);
+        sendResponse({ success: true });
+      } else if (message.action === "thirdPartyDomains") {
+        handleThirdPartyDomains(message, sender.tab);
+        sendResponse({ success: true });
       } else if (
         message.action === "xhrCompleted" ||
         message.action === "fetchCompleted"
@@ -566,6 +572,103 @@ function handleWebVital(data, tab) {
     console.log(`Core Web Vital captured: ${metric} = ${value}ms (${rating})`);
   } catch (error) {
     console.error('Error handling web vital:', error);
+  }
+}
+
+// Handle Security Issues (Mixed Content)
+function handleSecurityIssue(data, tab) {
+  if (!config.enabled || !dbManager) return;
+
+  try {
+    const { issues, pageUrl, timestamp } = data;
+    
+    issues.forEach(issue => {
+      // Store security issue in events table
+      const event = {
+        event_type: 'security',
+        event_name: issue.issue,
+        source: pageUrl,
+        data: JSON.stringify({
+          url: issue.url,
+          type: issue.type,
+          severity: issue.severity,
+          issue: issue.issue,
+        }),
+        request_id: null,
+        user_id: null,
+        session_id: null,
+        timestamp: timestamp,
+      };
+
+      if (dbManager.executeQuery) {
+        dbManager.executeQuery(
+          `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [event.event_type, event.event_name, event.source, event.data, event.request_id, event.user_id, event.session_id, event.timestamp]
+        );
+      }
+    });
+
+    // Publish event for real-time alerts
+    eventBus.publish("security:issue", {
+      issues: issues,
+      pageUrl: pageUrl,
+      tabId: tab ? tab.id : 0,
+      timestamp: timestamp,
+    });
+
+    console.log(`Security issues detected: ${issues.length} mixed content warnings`);
+  } catch (error) {
+    console.error('Error handling security issue:', error);
+  }
+}
+
+// Handle Third-Party Domain Classification
+function handleThirdPartyDomains(data, tab) {
+  if (!config.enabled || !dbManager) return;
+
+  try {
+    const { domains, pageUrl, timestamp } = data;
+    
+    domains.forEach(domainInfo => {
+      // Store third-party domain info in events table
+      const event = {
+        event_type: 'third-party',
+        event_name: 'domain-detected',
+        source: pageUrl,
+        data: JSON.stringify({
+          domain: domainInfo.domain,
+          category: domainInfo.category,
+          requestCount: domainInfo.requestCount,
+          totalSize: domainInfo.resources.reduce((sum, r) => sum + r.size, 0),
+          resourceTypes: [...new Set(domainInfo.resources.map(r => r.type))],
+        }),
+        request_id: null,
+        user_id: null,
+        session_id: null,
+        timestamp: timestamp,
+      };
+
+      if (dbManager.executeQuery) {
+        dbManager.executeQuery(
+          `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [event.event_type, event.event_name, event.source, event.data, event.request_id, event.user_id, event.session_id, event.timestamp]
+        );
+      }
+    });
+
+    // Publish event for real-time updates
+    eventBus.publish("thirdparty:detected", {
+      domains: domains,
+      pageUrl: pageUrl,
+      tabId: tab ? tab.id : 0,
+      timestamp: timestamp,
+    });
+
+    console.log(`Third-party domains detected: ${domains.length} domains`);
+  } catch (error) {
+    console.error('Error handling third-party domains:', error);
   }
 }
 

@@ -146,6 +146,122 @@ const observer = new PerformanceObserver((list) => {
 // Start observing resource timing entries
 observer.observe({ entryTypes: ['resource'] });
 
+// Security Detection - Mixed Content
+function detectMixedContent() {
+  const pageProtocol = window.location.protocol;
+  
+  if (pageProtocol !== 'https:') {
+    return; // Only check for mixed content on HTTPS pages
+  }
+  
+  // Check all resources loaded on the page
+  const resources = performance.getEntriesByType('resource');
+  const mixedContentIssues = [];
+  
+  resources.forEach((resource) => {
+    try {
+      const resourceUrl = new URL(resource.name);
+      
+      if (resourceUrl.protocol === 'http:') {
+        mixedContentIssues.push({
+          url: resource.name,
+          type: resource.initiatorType,
+          severity: ['script', 'stylesheet', 'fetch', 'xmlhttprequest'].includes(resource.initiatorType) ? 'high' : 'medium',
+          issue: 'mixed-content',
+        });
+      }
+    } catch (e) {
+      // Invalid URL, skip
+    }
+  });
+  
+  if (mixedContentIssues.length > 0) {
+    chrome.runtime.sendMessage({
+      action: 'securityIssue',
+      issues: mixedContentIssues,
+      pageUrl: window.location.href,
+      timestamp: Date.now(),
+    });
+  }
+}
+
+// Third-Party Domain Classification
+function classifyDomains() {
+  const pageUrl = new URL(window.location.href);
+  const pageDomain = pageUrl.hostname;
+  
+  // Get base domain (remove www, etc.)
+  const getBaseDomain = (hostname) => {
+    const parts = hostname.split('.');
+    if (parts.length >= 2) {
+      return parts.slice(-2).join('.');
+    }
+    return hostname;
+  };
+  
+  const basePageDomain = getBaseDomain(pageDomain);
+  
+  const resources = performance.getEntriesByType('resource');
+  const thirdPartyDomains = new Map();
+  
+  // Common third-party domain classifications
+  const knownCategories = {
+    analytics: ['google-analytics.com', 'googletagmanager.com', 'analytics.google.com', 'segment.com', 'mixpanel.com', 'amplitude.com'],
+    advertising: ['doubleclick.net', 'googlesyndication.com', 'adsystem.com', 'adnxs.com', 'advertising.com'],
+    cdn: ['cloudflare.com', 'fastly.net', 'akamai.net', 'cloudfront.net', 'jsdelivr.net', 'unpkg.com', 'cdnjs.com'],
+    social: ['facebook.com', 'twitter.com', 'linkedin.com', 'instagram.com', 'youtube.com', 'tiktok.com'],
+    fonts: ['fonts.googleapis.com', 'fonts.gstatic.com', 'typekit.net'],
+  };
+  
+  resources.forEach((resource) => {
+    try {
+      const resourceUrl = new URL(resource.name);
+      const resourceDomain = resourceUrl.hostname;
+      const baseResourceDomain = getBaseDomain(resourceDomain);
+      
+      // Check if third-party
+      if (baseResourceDomain !== basePageDomain) {
+        // Classify the domain
+        let category = 'other';
+        for (const [cat, domains] of Object.entries(knownCategories)) {
+          if (domains.some(d => resourceDomain.includes(d))) {
+            category = cat;
+            break;
+          }
+        }
+        
+        if (!thirdPartyDomains.has(baseResourceDomain)) {
+          thirdPartyDomains.set(baseResourceDomain, {
+            domain: baseResourceDomain,
+            category: category,
+            requestCount: 0,
+            resources: [],
+          });
+        }
+        
+        const domainInfo = thirdPartyDomains.get(baseResourceDomain);
+        domainInfo.requestCount++;
+        domainInfo.resources.push({
+          url: resource.name,
+          type: resource.initiatorType,
+          size: resource.transferSize || 0,
+        });
+      }
+    } catch (e) {
+      // Invalid URL, skip
+    }
+  });
+  
+  if (thirdPartyDomains.size > 0) {
+    chrome.runtime.sendMessage({
+      action: 'thirdPartyDomains',
+      domains: Array.from(thirdPartyDomains.values()),
+      pageUrl: window.location.href,
+      timestamp: Date.now(),
+    });
+  }
+}
+
 // Listen for page navigation events
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
@@ -234,6 +350,12 @@ window.addEventListener('load', () => {
       })),
     });
   }
+  
+  // Run security detections after page load
+  setTimeout(() => {
+    detectMixedContent();
+    classifyDomains();
+  }, 1000); // Give resources time to load
 })
 // Listen for XHR and fetch requests to capture additional data
 ;(() => {
