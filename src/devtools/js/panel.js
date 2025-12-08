@@ -5,6 +5,10 @@ export class DevToolsPanel {
     this.charts = {};
     this.currentUrl = "";
     this.refreshInterval = null;
+    this.capturePaused = false;
+    this.streamPaused = false;
+    this.streamData = [];
+    this.selectedRequests = new Set();
     
     // Constants
     this.SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
@@ -99,6 +103,58 @@ export class DevToolsPanel {
             <button id="exportMetrics" class="btn-secondary">
               <i class="fas fa-download"></i> Export
             </button>
+            <button id="compareRequests" class="btn-secondary" title="Compare selected requests">
+              <i class="fas fa-exchange-alt"></i> Compare
+            </button>
+            <button id="pauseCapture" class="btn-secondary" title="Pause request capture">
+              <i class="fas fa-pause"></i> Pause
+            </button>
+          </div>
+        </div>
+        
+        <!-- Request Comparison Modal -->
+        <div id="comparisonModal" class="modal" style="display: none;">
+          <div class="modal-content modal-large">
+            <div class="modal-header">
+              <h3><i class="fas fa-exchange-alt"></i> Request Comparison</h3>
+              <button id="closeComparisonModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div id="comparisonContent" class="comparison-grid"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Live Stream Modal -->
+        <div id="liveStreamModal" class="modal" style="display: none;">
+          <div class="modal-content modal-large">
+            <div class="modal-header">
+              <h3><i class="fas fa-stream"></i> Live Request Stream</h3>
+              <button id="closeLiveStreamModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="stream-controls">
+                <button id="pauseStream" class="btn-secondary">
+                  <i class="fas fa-pause"></i> Pause
+                </button>
+                <button id="clearStream" class="btn-secondary">
+                  <i class="fas fa-trash"></i> Clear
+                </button>
+                <label>
+                  <input type="checkbox" id="autoScroll" checked> Auto-scroll
+                </label>
+                <label>
+                  Highlight:
+                  <select id="highlightCriteria">
+                    <option value="">None</option>
+                    <option value="errors">Errors (4xx, 5xx)</option>
+                    <option value="slow">Slow (>1s)</option>
+                    <option value="large">Large (>1MB)</option>
+                  </select>
+                </label>
+              </div>
+              <div id="liveStreamContent" class="live-stream"></div>
+            </div>
           </div>
         </div>
         
@@ -391,6 +447,16 @@ export class DevToolsPanel {
     document.getElementById("budgetResponseTime")?.addEventListener("change", () => this.checkPerformanceBudgets());
     document.getElementById("budgetTotalSize")?.addEventListener("change", () => this.checkPerformanceBudgets());
     document.getElementById("budgetRequestCount")?.addEventListener("change", () => this.checkPerformanceBudgets());
+    
+    // Request comparison
+    document.getElementById("compareRequests")?.addEventListener("click", () => this.openComparisonModal());
+    document.getElementById("closeComparisonModal")?.addEventListener("click", () => this.closeComparisonModal());
+    
+    // Live streaming
+    document.getElementById("pauseCapture")?.addEventListener("click", () => this.toggleCapture());
+    document.getElementById("closeLiveStreamModal")?.addEventListener("click", () => this.closeLiveStreamModal());
+    document.getElementById("pauseStream")?.addEventListener("click", () => this.toggleStreamPause());
+    document.getElementById("clearStream")?.addEventListener("click", () => this.clearStream());
     
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((button) => {
@@ -2004,6 +2070,191 @@ export class DevToolsPanel {
       '; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+  
+  // Request Comparison features
+  openComparisonModal() {
+    const modal = document.getElementById('comparisonModal');
+    if (modal) {
+      modal.style.display = 'flex';
+      this.loadComparisonData();
+    }
+  }
+  
+  closeComparisonModal() {
+    const modal = document.getElementById('comparisonModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+  
+  async loadComparisonData() {
+    const filters = this.getActiveFilters();
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDetailedRequests',
+      filters,
+      limit: 10
+    });
+    
+    if (!response.success || !response.requests || response.requests.length < 2) {
+      document.getElementById('comparisonContent').innerHTML = 
+        '<p class="info-message">Select at least 2 requests to compare. Showing first 10 requests for demonstration.</p>';
+      return;
+    }
+    
+    // Take first 2 requests for comparison
+    const req1 = response.requests[0];
+    const req2 = response.requests[1];
+    
+    const html = `
+      <div class="comparison-columns">
+        <div class="comparison-column">
+          <h4>Request 1</h4>
+          ${this.renderComparisonDetails(req1)}
+        </div>
+        <div class="comparison-divider"></div>
+        <div class="comparison-column">
+          <h4>Request 2</h4>
+          ${this.renderComparisonDetails(req2)}
+        </div>
+      </div>
+      <div class="comparison-diff">
+        <h4>Differences</h4>
+        <ul>
+          <li><strong>Duration:</strong> ${this.formatDiff(req1.duration, req2.duration, 'ms')}</li>
+          <li><strong>Size:</strong> ${this.formatDiff(req1.size_bytes, req2.size_bytes, 'bytes')}</li>
+          <li><strong>Status:</strong> ${req1.status} vs ${req2.status}</li>
+        </ul>
+      </div>
+    `;
+    
+    document.getElementById('comparisonContent').innerHTML = html;
+  }
+  
+  renderComparisonDetails(req) {
+    return `
+      <div class="comparison-details">
+        <div class="detail-row">
+          <label>URL:</label>
+          <span title="${req.url}">${this.truncateUrl(req.url, 50)}</span>
+        </div>
+        <div class="detail-row">
+          <label>Method:</label>
+          <span class="method-badge">${req.method || 'GET'}</span>
+        </div>
+        <div class="detail-row">
+          <label>Status:</label>
+          <span class="status-badge ${req.status >= 400 ? 'status-error' : 'status-success'}">${req.status}</span>
+        </div>
+        <div class="detail-row">
+          <label>Type:</label>
+          <span>${req.type || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <label>Duration:</label>
+          <span>${req.duration || 0}ms</span>
+        </div>
+        <div class="detail-row">
+          <label>Size:</label>
+          <span>${this.formatBytes(req.size_bytes || 0)}</span>
+        </div>
+        <div class="detail-row">
+          <label>Time:</label>
+          <span>${new Date(req.timestamp).toLocaleString()}</span>
+        </div>
+        <div class="detail-row">
+          <label>Cache:</label>
+          <span>${req.from_cache ? 'Yes' : 'No'}</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  formatDiff(val1, val2, unit) {
+    const diff = (val1 || 0) - (val2 || 0);
+    const sign = diff > 0 ? '+' : '';
+    const color = diff > 0 ? 'red' : diff < 0 ? 'green' : 'gray';
+    return `<span style="color: ${color}">${sign}${diff} ${unit}</span>`;
+  }
+  
+  // Live Stream features
+  toggleCapture() {
+    this.capturePaused = !this.capturePaused;
+    const btn = document.getElementById('pauseCapture');
+    if (btn) {
+      if (this.capturePaused) {
+        btn.innerHTML = '<i class="fas fa-play"></i> Resume';
+        this.showToast('Request capture paused', 'info');
+      } else {
+        btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+        this.showToast('Request capture resumed', 'success');
+      }
+    }
+  }
+  
+  closeLiveStreamModal() {
+    const modal = document.getElementById('liveStreamModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+  
+  toggleStreamPause() {
+    this.streamPaused = !this.streamPaused;
+    const btn = document.getElementById('pauseStream');
+    if (btn) {
+      btn.innerHTML = this.streamPaused ? 
+        '<i class="fas fa-play"></i> Resume' : 
+        '<i class="fas fa-pause"></i> Pause';
+    }
+  }
+  
+  clearStream() {
+    this.streamData = [];
+    const content = document.getElementById('liveStreamContent');
+    if (content) {
+      content.innerHTML = '<p class="info-message">Stream cleared. New requests will appear here.</p>';
+    }
+  }
+  
+  addToStream(request) {
+    if (this.streamPaused) return;
+    
+    this.streamData.push(request);
+    if (this.streamData.length > 100) {
+      this.streamData.shift(); // Keep last 100
+    }
+    
+    const content = document.getElementById('liveStreamContent');
+    if (!content) return;
+    
+    const highlightCriteria = document.getElementById('highlightCriteria')?.value;
+    let shouldHighlight = false;
+    
+    if (highlightCriteria === 'errors' && request.status >= 400) {
+      shouldHighlight = true;
+    } else if (highlightCriteria === 'slow' && request.duration > 1000) {
+      shouldHighlight = true;
+    } else if (highlightCriteria === 'large' && request.size_bytes > 1024 * 1024) {
+      shouldHighlight = true;
+    }
+    
+    const item = document.createElement('div');
+    item.className = `stream-item ${shouldHighlight ? 'highlight' : ''}`;
+    item.innerHTML = `
+      <span class="stream-time">${new Date(request.timestamp).toLocaleTimeString()}</span>
+      <span class="method-badge">${request.method || 'GET'}</span>
+      <span class="status-badge ${request.status >= 400 ? 'status-error' : 'status-success'}">${request.status}</span>
+      <span class="stream-url" title="${request.url}">${this.truncateUrl(request.url, 60)}</span>
+      <span class="stream-duration">${request.duration || 0}ms</span>
+    `;
+    
+    content.appendChild(item);
+    
+    const autoScroll = document.getElementById('autoScroll')?.checked;
+    if (autoScroll) {
+      content.scrollTop = content.scrollHeight;
+    }
   }
 
   // Cleanup when panel is closed
