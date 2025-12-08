@@ -62,6 +62,15 @@ async function handleMessage(message, sender) {
       case 'getHistoricalData':
         return await handleGetHistoricalData(message.filters, message.groupBy);
       
+      case 'getEndpointAnalysis':
+        return await handleGetEndpointAnalysis(message.filters);
+      
+      case 'getResourceSizeBreakdown':
+        return await handleGetResourceSizeBreakdown(message.filters);
+      
+      case 'getWaterfallData':
+        return await handleGetWaterfallData(message.filters, message.limit);
+      
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -929,6 +938,230 @@ async function handleGetHistoricalData(filters, groupBy = 'hour') {
     };
   } catch (error) {
     console.error('Get historical data error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get endpoint analysis - groups requests by API endpoint pattern
+async function handleGetEndpointAnalysis(filters) {
+  try {
+    const { domain, pageUrl, timeRange, type } = filters || {};
+    const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 24 * 60 * 60 * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    let query = `
+      SELECT 
+        url,
+        COUNT(*) as call_count,
+        AVG(duration) as avg_duration,
+        MIN(duration) as min_duration,
+        MAX(duration) as max_duration,
+        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+        AVG(size_bytes) as avg_size
+      FROM bronze_requests
+      WHERE timestamp > ? AND url IS NOT NULL
+    `;
+    
+    let params = [startTime];
+    
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
+      params.push(domain);
+    }
+    
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
+      params.push(pageUrl);
+    }
+    
+    if (type && type !== '') {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    
+    query += ' GROUP BY url ORDER BY call_count DESC LIMIT 50';
+    
+    let endpoints = [];
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, params);
+        if (result && result[0]?.values) {
+          endpoints = result[0].values.map(row => {
+            const url = row[0];
+            // Extract endpoint pattern
+            let endpoint = url;
+            try {
+              const urlObj = new URL(url);
+              endpoint = urlObj.pathname;
+              // Simple pattern matching: replace IDs with placeholders
+              endpoint = endpoint.replace(/\/\d+/g, '/:id');
+              endpoint = endpoint.replace(/\/[0-9a-f]{8,}/gi, '/:hash');
+            } catch (e) {
+              // Keep original if URL parsing fails
+            }
+            
+            return {
+              endpoint,
+              url,
+              callCount: row[1],
+              avgDuration: Math.round(row[2] || 0),
+              minDuration: row[3] || 0,
+              maxDuration: row[4] || 0,
+              errorCount: row[5] || 0,
+              avgSize: Math.round(row[6] || 0),
+              errorRate: row[1] > 0 ? ((row[5] || 0) / row[1] * 100).toFixed(2) : 0
+            };
+          });
+        }
+      }
+    } catch (queryError) {
+      console.error('Get endpoint analysis query error:', queryError);
+    }
+    
+    return { success: true, endpoints };
+  } catch (error) {
+    console.error('Get endpoint analysis error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get resource size breakdown - analyzes resource sizes by type
+async function handleGetResourceSizeBreakdown(filters) {
+  try {
+    const { domain, pageUrl, timeRange } = filters || {};
+    const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 24 * 60 * 60 * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    let query = `
+      SELECT 
+        type,
+        COUNT(*) as count,
+        SUM(size_bytes) as total_bytes,
+        AVG(size_bytes) as avg_bytes,
+        MAX(size_bytes) as max_bytes
+      FROM bronze_requests
+      WHERE timestamp > ? AND type IS NOT NULL AND size_bytes > 0
+    `;
+    
+    let params = [startTime];
+    
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
+      params.push(domain);
+    }
+    
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
+      params.push(pageUrl);
+    }
+    
+    query += ' GROUP BY type ORDER BY total_bytes DESC';
+    
+    let breakdown = [];
+    let totalSize = 0;
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, params);
+        if (result && result[0]?.values) {
+          breakdown = result[0].values.map(row => ({
+            type: row[0],
+            count: row[1],
+            totalBytes: row[2] || 0,
+            avgBytes: Math.round(row[3] || 0),
+            maxBytes: row[4] || 0
+          }));
+          
+          totalSize = breakdown.reduce((sum, item) => sum + item.totalBytes, 0);
+          
+          // Add percentage
+          breakdown = breakdown.map(item => ({
+            ...item,
+            percentage: totalSize > 0 ? ((item.totalBytes / totalSize) * 100).toFixed(2) : 0
+          }));
+        }
+      }
+    } catch (queryError) {
+      console.error('Get resource size breakdown query error:', queryError);
+    }
+    
+    return { success: true, breakdown, totalSize };
+  } catch (error) {
+    console.error('Get resource size breakdown error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get waterfall data - returns timing data for waterfall visualization
+async function handleGetWaterfallData(filters, limit = 50) {
+  try {
+    const { domain, pageUrl, timeRange, type } = filters || {};
+    const timeRangeMs = timeRange ? parseInt(timeRange) * 1000 : 5 * 60 * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    let query = `
+      SELECT 
+        id, url, method, type, status, duration, 
+        size_bytes, timestamp, from_cache
+      FROM bronze_requests
+      WHERE timestamp > ?
+    `;
+    
+    let params = [startTime];
+    
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
+      params.push(domain);
+    }
+    
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
+      params.push(pageUrl);
+    }
+    
+    if (type && type !== '') {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    
+    query += ' ORDER BY timestamp ASC LIMIT ?';
+    params.push(limit);
+    
+    let requests = [];
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, params);
+        if (result && result[0]) {
+          requests = mapResultToArray(result[0]);
+          
+          // Enhance with timing phases (simplified for now)
+          requests = requests.map((req, index) => {
+            const duration = req.duration || 0;
+            // Simulate timing phases (in real implementation, use Resource Timing API data)
+            return {
+              ...req,
+              startTime: req.timestamp,
+              phases: {
+                queued: Math.round(duration * 0.05),
+                dns: Math.round(duration * 0.1),
+                tcp: Math.round(duration * 0.15),
+                ssl: Math.round(duration * 0.1),
+                ttfb: Math.round(duration * 0.3),
+                download: Math.round(duration * 0.3)
+              }
+            };
+          });
+        }
+      }
+    } catch (queryError) {
+      console.error('Get waterfall data query error:', queryError);
+    }
+    
+    return { success: true, requests };
+  } catch (error) {
+    console.error('Get waterfall data error:', error);
     return { success: false, error: error.message };
   }
 }

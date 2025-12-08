@@ -200,11 +200,17 @@ export class DevToolsPanel {
             <button data-tab="requests" class="tab-btn">
               <i class="fas fa-list"></i> Requests Table
             </button>
+            <button data-tab="waterfall" class="tab-btn">
+              <i class="fas fa-stream"></i> Waterfall
+            </button>
             <button data-tab="performance" class="tab-btn">
               <i class="fas fa-stopwatch"></i> Performance
             </button>
             <button data-tab="endpoints" class="tab-btn">
               <i class="fas fa-network-wired"></i> Endpoints
+            </button>
+            <button data-tab="resources" class="tab-btn">
+              <i class="fas fa-database"></i> Resources
             </button>
             <button data-tab="errors" class="tab-btn">
               <i class="fas fa-bug"></i> Errors
@@ -266,11 +272,46 @@ export class DevToolsPanel {
             <div id="tablePagination" class="pagination"></div>
           </div>
           
+          <!-- Waterfall Tab -->
+          <div id="waterfallTab" class="tab-content">
+            <div class="waterfall-controls">
+              <button id="copyHAR" class="btn-secondary btn-sm">
+                <i class="fas fa-copy"></i> Copy as HAR
+              </button>
+              <button id="exportHAR" class="btn-secondary btn-sm">
+                <i class="fas fa-download"></i> Export HAR
+              </button>
+            </div>
+            <div class="waterfall-container">
+              <div id="waterfallChart" class="waterfall-chart"></div>
+            </div>
+          </div>
+          
           <!-- Performance Tab -->
           <div id="performanceTab" class="tab-content">
             <div class="performance-breakdown">
               <h4><i class="fas fa-stopwatch"></i> Timing Breakdown</h4>
               <div id="timingBreakdown" class="timing-chart"></div>
+            </div>
+            <div class="performance-budgets">
+              <h4><i class="fas fa-chart-line"></i> Performance Budgets</h4>
+              <div id="budgetsConfig" class="budgets-config">
+                <div class="budget-item">
+                  <label>Max Response Time (ms):</label>
+                  <input type="number" id="budgetResponseTime" value="1000" min="0">
+                  <span id="budgetResponseStatus" class="budget-status"></span>
+                </div>
+                <div class="budget-item">
+                  <label>Max Total Size (MB):</label>
+                  <input type="number" id="budgetTotalSize" value="5" min="0" step="0.1">
+                  <span id="budgetSizeStatus" class="budget-status"></span>
+                </div>
+                <div class="budget-item">
+                  <label>Max Request Count:</label>
+                  <input type="number" id="budgetRequestCount" value="100" min="0">
+                  <span id="budgetCountStatus" class="budget-status"></span>
+                </div>
+              </div>
             </div>
             <div class="slow-requests">
               <h4><i class="fas fa-hourglass-half"></i> Slowest Requests (Top 10)</h4>
@@ -286,6 +327,21 @@ export class DevToolsPanel {
             </div>
           </div>
           
+          <!-- Resources Tab -->
+          <div id="resourcesTab" class="tab-content">
+            <div class="resources-analysis">
+              <h4><i class="fas fa-database"></i> Resource Size Breakdown</h4>
+              <div id="resourceSizeChart" class="chart-container">
+                <canvas id="resourcePieChart"></canvas>
+              </div>
+              <div id="resourcesTable" class="resources-table"></div>
+            </div>
+            <div class="compression-analysis">
+              <h4><i class="fas fa-compress"></i> Compression Analysis</h4>
+              <div id="compressionStats"></div>
+            </div>
+          </div>
+          
           <!-- Errors Tab -->
           <div id="errorsTab" class="tab-content">
             <div class="errors-analysis">
@@ -295,6 +351,10 @@ export class DevToolsPanel {
             <div class="errors-chart">
               <h4><i class="fas fa-chart-bar"></i> Error Distribution</h4>
               <canvas id="errorsChart"></canvas>
+            </div>
+            <div class="error-categories">
+              <h4><i class="fas fa-tags"></i> Error Categories</h4>
+              <div id="errorCategories"></div>
             </div>
           </div>
         </div>
@@ -322,6 +382,15 @@ export class DevToolsPanel {
     document.getElementById("timeTravelBtn")?.addEventListener("click", () => this.openTimeTravelModal());
     document.getElementById("closeTimeTravelModal")?.addEventListener("click", () => this.closeTimeTravelModal());
     document.getElementById("loadHistoricalData")?.addEventListener("click", () => this.loadHistoricalData());
+    
+    // HAR export features
+    document.getElementById("copyHAR")?.addEventListener("click", () => this.copyAsHAR());
+    document.getElementById("exportHAR")?.addEventListener("click", () => this.exportAsHAR());
+    
+    // Performance budgets
+    document.getElementById("budgetResponseTime")?.addEventListener("change", () => this.checkPerformanceBudgets());
+    document.getElementById("budgetTotalSize")?.addEventListener("change", () => this.checkPerformanceBudgets());
+    document.getElementById("budgetRequestCount")?.addEventListener("change", () => this.checkPerformanceBudgets());
     
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((button) => {
@@ -952,11 +1021,17 @@ export class DevToolsPanel {
       case 'requests':
         await this.loadRequestsTable();
         break;
+      case 'waterfall':
+        await this.loadWaterfallData();
+        break;
       case 'performance':
         await this.loadPerformanceData();
         break;
       case 'endpoints':
         await this.loadEndpointsData();
+        break;
+      case 'resources':
+        await this.loadResourcesData();
         break;
       case 'errors':
         await this.loadErrorsData();
@@ -1117,43 +1192,434 @@ export class DevToolsPanel {
 
   // Load endpoints data
   async loadEndpointsData() {
-    // TODO: Implement API endpoint analysis feature
-    // This will group requests by endpoint pattern (e.g., /api/users/:id)
-    // and show call frequency, average response time, and error rates per endpoint
-    // GitHub Issue: TBD
-    document.getElementById('endpointsTable').innerHTML = `
-      <p class="info-message">
-        <i class="fas fa-info-circle"></i> 
-        API endpoints analysis will group and analyze requests by endpoint pattern.
-      </p>
-    `;
-  }
-
-  // Load errors data
-  async loadErrorsData() {
     try {
-      const filters = {...this.getActiveFilters(), statusPrefix: this.ERROR_STATUS_PREFIX};
+      const filters = this.getActiveFilters();
       const response = await chrome.runtime.sendMessage({
-        action: 'getFilteredStats',
+        action: 'getEndpointAnalysis',
         filters
       });
       
-      const errorsList = document.getElementById('errorsList');
+      const table = document.getElementById('endpointsTable');
       
-      if (!response.success || response.totalRequests === 0) {
-        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters</p>';
+      if (!response.success || !response.endpoints || response.endpoints.length === 0) {
+        table.innerHTML = '<p class="no-data">No API endpoints found for selected filters</p>';
         return;
       }
       
-      errorsList.innerHTML = `
-        <div class="errors-summary">
-          <p><i class="fas fa-exclamation-triangle"></i> Found ${response.totalRequests} failed requests</p>
-          <p class="hint">Detailed error information will be displayed here</p>
+      // Build table with endpoint analysis
+      let html = `
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Endpoint Pattern</th>
+              <th>Calls</th>
+              <th>Avg Time</th>
+              <th>Min/Max</th>
+              <th>Errors</th>
+              <th>Error Rate</th>
+              <th>Avg Size</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      response.endpoints.forEach(ep => {
+        const errorClass = ep.errorRate > 10 ? 'status-error' : ep.errorRate > 5 ? 'status-warning' : '';
+        const perfClass = ep.avgDuration > 1000 ? 'status-error' : ep.avgDuration > 500 ? 'status-warning' : 'status-success';
+        
+        html += `
+          <tr>
+            <td title="${ep.url}"><code>${ep.endpoint}</code></td>
+            <td>${ep.callCount}</td>
+            <td class="${perfClass}">${ep.avgDuration}ms</td>
+            <td><small>${ep.minDuration}ms / ${ep.maxDuration}ms</small></td>
+            <td>${ep.errorCount}</td>
+            <td class="${errorClass}">${ep.errorRate}%</td>
+            <td>${this.formatBytes(ep.avgSize)}</td>
+          </tr>
+        `;
+      });
+      
+      html += '</tbody></table>';
+      table.innerHTML = html;
+      
+    } catch (error) {
+      console.error('Failed to load endpoints data:', error);
+      document.getElementById('endpointsTable').innerHTML = 
+        '<p class="error-message">Error loading endpoint analysis</p>';
+    }
+  }
+  
+  // Load waterfall chart data
+  async loadWaterfallData() {
+    try {
+      const filters = this.getActiveFilters();
+      const response = await chrome.runtime.sendMessage({
+        action: 'getWaterfallData',
+        filters,
+        limit: 50
+      });
+      
+      const container = document.getElementById('waterfallChart');
+      
+      if (!response.success || !response.requests || response.requests.length === 0) {
+        container.innerHTML = '<p class="no-data">No requests available for waterfall visualization</p>';
+        return;
+      }
+      
+      // Render waterfall chart
+      this.renderWaterfallChart(response.requests);
+      
+    } catch (error) {
+      console.error('Failed to load waterfall data:', error);
+      document.getElementById('waterfallChart').innerHTML = 
+        '<p class="error-message">Error loading waterfall chart</p>';
+    }
+  }
+  
+  // Render waterfall chart visualization
+  renderWaterfallChart(requests) {
+    const container = document.getElementById('waterfallChart');
+    
+    if (requests.length === 0) {
+      container.innerHTML = '<p class="no-data">No requests to display</p>';
+      return;
+    }
+    
+    // Find timeline bounds
+    const minTime = Math.min(...requests.map(r => r.timestamp));
+    const maxTime = Math.max(...requests.map(r => r.timestamp + (r.duration || 0)));
+    const timeRange = maxTime - minTime;
+    
+    let html = '<div class="waterfall-rows">';
+    
+    requests.forEach(req => {
+      const startOffset = ((req.timestamp - minTime) / timeRange) * 100;
+      const duration = req.duration || 0;
+      const width = (duration / timeRange) * 100;
+      
+      const phases = req.phases || {};
+      const totalPhases = Object.values(phases).reduce((a, b) => a + b, 0);
+      
+      html += `
+        <div class="waterfall-row">
+          <div class="waterfall-label" title="${req.url}">
+            <span class="method-badge">${req.method || 'GET'}</span>
+            ${this.truncateUrl(req.url, 40)}
+          </div>
+          <div class="waterfall-timeline">
+            <div class="waterfall-bar" style="left: ${startOffset}%; width: ${Math.max(width, 0.5)}%;">
+              ${totalPhases > 0 ? this.renderWaterfallPhases(phases, totalPhases) : ''}
+            </div>
+            <div class="waterfall-time">${Math.round(duration)}ms</div>
+          </div>
         </div>
       `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }
+  
+  // Render waterfall timing phases
+  renderWaterfallPhases(phases, total) {
+    const colors = {
+      queued: '#ccc',
+      dns: '#4CAF50',
+      tcp: '#2196F3',
+      ssl: '#9C27B0',
+      ttfb: '#FF9800',
+      download: '#F44336'
+    };
+    
+    let html = '';
+    let cumulative = 0;
+    
+    Object.entries(phases).forEach(([phase, time]) => {
+      const percent = (time / total) * 100;
+      html += `
+        <div class="phase-segment ${phase}" 
+             style="left: ${cumulative}%; width: ${percent}%; background: ${colors[phase] || '#888'};"
+             title="${phase}: ${time}ms">
+        </div>
+      `;
+      cumulative += percent;
+    });
+    
+    return html;
+  }
+  
+  // Load resources data
+  async loadResourcesData() {
+    try {
+      const filters = this.getActiveFilters();
+      const response = await chrome.runtime.sendMessage({
+        action: 'getResourceSizeBreakdown',
+        filters
+      });
+      
+      if (!response.success || !response.breakdown || response.breakdown.length === 0) {
+        document.getElementById('resourcesTable').innerHTML = '<p class="no-data">No resource data available</p>';
+        return;
+      }
+      
+      // Render pie chart
+      this.renderResourcePieChart(response.breakdown);
+      
+      // Render table
+      let html = `
+        <h5>Total Size: ${this.formatBytes(response.totalSize)}</h5>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Resource Type</th>
+              <th>Count</th>
+              <th>Total Size</th>
+              <th>Avg Size</th>
+              <th>Max Size</th>
+              <th>% of Total</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      response.breakdown.forEach(item => {
+        html += `
+          <tr>
+            <td><strong>${item.type}</strong></td>
+            <td>${item.count}</td>
+            <td>${this.formatBytes(item.totalBytes)}</td>
+            <td>${this.formatBytes(item.avgBytes)}</td>
+            <td>${this.formatBytes(item.maxBytes)}</td>
+            <td>${item.percentage}%</td>
+          </tr>
+        `;
+      });
+      
+      html += '</tbody></table>';
+      document.getElementById('resourcesTable').innerHTML = html;
+      
+      // Add compression analysis
+      this.renderCompressionAnalysis(response.breakdown, response.totalSize);
+      
+    } catch (error) {
+      console.error('Failed to load resources data:', error);
+    }
+  }
+  
+  // Render resource pie chart
+  renderResourcePieChart(breakdown) {
+    const ctx = document.getElementById('resourcePieChart').getContext('2d');
+    
+    if (this.resourceChart) {
+      this.resourceChart.destroy();
+    }
+    
+    const labels = breakdown.map(b => b.type);
+    const data = breakdown.map(b => b.totalBytes);
+    
+    this.resourceChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: [
+            '#4CAF50', '#2196F3', '#FF9800', '#F44336',
+            '#9C27B0', '#00BCD4', '#FFEB3B', '#795548'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'right'
+          },
+          title: {
+            display: true,
+            text: 'Resource Size Distribution'
+          }
+        }
+      }
+    });
+  }
+  
+  // Render compression analysis
+  renderCompressionAnalysis(breakdown, totalSize) {
+    const compressibleTypes = ['script', 'stylesheet', 'xmlhttprequest', 'fetch', 'document'];
+    const compressibleSize = breakdown
+      .filter(b => compressibleTypes.includes(b.type))
+      .reduce((sum, b) => sum + b.totalBytes, 0);
+    
+    const potentialSavings = compressibleSize * 0.7; // Assume 70% compression ratio
+    
+    const html = `
+      <div class="compression-stats-content">
+        <div class="stat-item">
+          <label>Compressible Resources:</label>
+          <span>${this.formatBytes(compressibleSize)}</span>
+        </div>
+        <div class="stat-item">
+          <label>Potential Savings (70% compression):</label>
+          <span class="highlight">${this.formatBytes(potentialSavings)}</span>
+        </div>
+        <div class="stat-item">
+          <label>Compression Ratio:</label>
+          <span>${((potentialSavings / totalSize) * 100).toFixed(1)}% of total</span>
+        </div>
+        <p class="hint"><i class="fas fa-info-circle"></i> Enable gzip/brotli compression on your server to reduce transfer size</p>
+      </div>
+    `;
+    
+    document.getElementById('compressionStats').innerHTML = html;
+  }
+
+  // Load errors data with enhanced categorization
+  async loadErrorsData() {
+    try {
+      const filters = {...this.getActiveFilters()};
+      
+      // Get 4xx errors
+      const filters4xx = {...filters, statusPrefix: '4xx'};
+      const response4xx = await chrome.runtime.sendMessage({
+        action: 'getDetailedRequests',
+        filters: filters4xx,
+        limit: 50
+      });
+      
+      // Get 5xx errors
+      const filters5xx = {...filters, statusPrefix: '5xx'};
+      const response5xx = await chrome.runtime.sendMessage({
+        action: 'getDetailedRequests',
+        filters: filters5xx,
+        limit: 50
+      });
+      
+      const errorsList = document.getElementById('errorsList');
+      const errorCategories = document.getElementById('errorCategories');
+      
+      const errors4xx = response4xx.success ? response4xx.requests : [];
+      const errors5xx = response5xx.success ? response5xx.requests : [];
+      const totalErrors = errors4xx.length + errors5xx.length;
+      
+      if (totalErrors === 0) {
+        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters</p>';
+        errorCategories.innerHTML = '';
+        return;
+      }
+      
+      // Render error categories
+      let categoriesHtml = `
+        <div class="error-category-stats">
+          <div class="category-card client-error">
+            <h5>4xx Client Errors</h5>
+            <div class="category-count">${errors4xx.length}</div>
+            <p>Issues with the request</p>
+          </div>
+          <div class="category-card server-error">
+            <h5>5xx Server Errors</h5>
+            <div class="category-count">${errors5xx.length}</div>
+            <p>Server-side failures</p>
+          </div>
+        </div>
+      `;
+      errorCategories.innerHTML = categoriesHtml;
+      
+      // Render detailed error list
+      let listHtml = `<div class="errors-list-content">`;
+      
+      if (errors4xx.length > 0) {
+        listHtml += '<h5><i class="fas fa-exclamation-triangle"></i> Client Errors (4xx)</h5>';
+        errors4xx.forEach(err => {
+          listHtml += this.renderErrorItem(err, 'client');
+        });
+      }
+      
+      if (errors5xx.length > 0) {
+        listHtml += '<h5><i class="fas fa-times-circle"></i> Server Errors (5xx)</h5>';
+        errors5xx.forEach(err => {
+          listHtml += this.renderErrorItem(err, 'server');
+        });
+      }
+      
+      listHtml += '</div>';
+      errorsList.innerHTML = listHtml;
+      
+      // Render error distribution chart
+      this.renderErrorChart(errors4xx, errors5xx);
+      
     } catch (error) {
       console.error('Failed to load errors data:', error);
     }
+  }
+  
+  renderErrorItem(err, type) {
+    const typeClass = type === 'client' ? 'error-client' : 'error-server';
+    return `
+      <div class="error-item ${typeClass}">
+        <div class="error-header">
+          <span class="status-badge status-error">${err.status}</span>
+          <span class="error-url" title="${err.url}">${this.truncateUrl(err.url, 60)}</span>
+          <span class="error-time">${new Date(err.timestamp).toLocaleTimeString()}</span>
+        </div>
+        <div class="error-details">
+          <span><i class="fas fa-code"></i> ${err.method || 'GET'}</span>
+          <span><i class="fas fa-tag"></i> ${err.type || 'unknown'}</span>
+          ${err.error ? `<span class="error-message"><i class="fas fa-info-circle"></i> ${err.error}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  renderErrorChart(errors4xx, errors5xx) {
+    const ctx = document.getElementById('errorsChart').getContext('2d');
+    
+    if (this.errorChart) {
+      this.errorChart.destroy();
+    }
+    
+    // Group by status code
+    const statusCounts = {};
+    [...errors4xx, ...errors5xx].forEach(err => {
+      statusCounts[err.status] = (statusCounts[err.status] || 0) + 1;
+    });
+    
+    const labels = Object.keys(statusCounts).sort();
+    const data = labels.map(status => statusCounts[status]);
+    
+    this.errorChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Error Count',
+          data,
+          backgroundColor: labels.map(s => parseInt(s) >= 500 ? '#F44336' : '#FF9800')
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: 'Errors by Status Code'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Count'
+            }
+          }
+        }
+      }
+    });
   }
 
   // Search requests
@@ -1379,6 +1845,165 @@ export class DevToolsPanel {
         }
       }
     });
+  }
+  
+  // HAR Export functions
+  async copyAsHAR() {
+    try {
+      const har = await this.generateHAR();
+      await navigator.clipboard.writeText(JSON.stringify(har, null, 2));
+      
+      this.showToast('HAR data copied to clipboard', 'success');
+    } catch (error) {
+      console.error('Failed to copy HAR:', error);
+      this.showToast('Failed to copy HAR data', 'error');
+    }
+  }
+  
+  async exportAsHAR() {
+    try {
+      const har = await this.generateHAR();
+      const blob = new Blob([JSON.stringify(har, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `network-export-${Date.now()}.har`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      this.showToast('HAR file exported', 'success');
+    } catch (error) {
+      console.error('Failed to export HAR:', error);
+      this.showToast('Failed to export HAR file', 'error');
+    }
+  }
+  
+  async generateHAR() {
+    const filters = this.getActiveFilters();
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDetailedRequests',
+      filters,
+      limit: 1000
+    });
+    
+    if (!response.success || !response.requests) {
+      throw new Error('No requests available');
+    }
+    
+    // Generate HAR format
+    const har = {
+      log: {
+        version: '1.2',
+        creator: {
+          name: 'Universal Request Analyzer',
+          version: '1.0.0'
+        },
+        entries: response.requests.map(req => ({
+          startedDateTime: new Date(req.timestamp).toISOString(),
+          time: req.duration || 0,
+          request: {
+            method: req.method || 'GET',
+            url: req.url,
+            httpVersion: 'HTTP/1.1',
+            headers: [],
+            queryString: [],
+            cookies: [],
+            headersSize: -1,
+            bodySize: -1
+          },
+          response: {
+            status: req.status || 0,
+            statusText: req.status_text || '',
+            httpVersion: 'HTTP/1.1',
+            headers: [],
+            cookies: [],
+            content: {
+              size: req.size_bytes || 0,
+              mimeType: req.type || 'application/octet-stream'
+            },
+            redirectURL: '',
+            headersSize: -1,
+            bodySize: req.size_bytes || 0
+          },
+          cache: {
+            beforeRequest: req.from_cache ? { lastAccess: '', eTag: '', hitCount: 1 } : null
+          },
+          timings: {
+            blocked: -1,
+            dns: -1,
+            connect: -1,
+            send: 0,
+            wait: req.duration || 0,
+            receive: 0,
+            ssl: -1
+          }
+        }))
+      }
+    };
+    
+    return har;
+  }
+  
+  // Performance budgets checking
+  async checkPerformanceBudgets() {
+    const budgetResponseTime = parseInt(document.getElementById('budgetResponseTime')?.value || 1000);
+    const budgetTotalSize = parseFloat(document.getElementById('budgetTotalSize')?.value || 5) * 1024 * 1024; // Convert to bytes
+    const budgetRequestCount = parseInt(document.getElementById('budgetRequestCount')?.value || 100);
+    
+    const filters = this.getActiveFilters();
+    const response = await chrome.runtime.sendMessage({
+      action: 'getFilteredStats',
+      filters
+    });
+    
+    if (!response.success) return;
+    
+    // Check response time budget
+    const avgResponse = response.responseTimes && response.responseTimes.length > 0
+      ? response.responseTimes.reduce((a, b) => a + b, 0) / response.responseTimes.length
+      : 0;
+    const responseStatus = document.getElementById('budgetResponseStatus');
+    if (responseStatus) {
+      if (avgResponse <= budgetResponseTime) {
+        responseStatus.innerHTML = '<i class="fas fa-check-circle" style="color: green;"></i> Within budget';
+        responseStatus.className = 'budget-status success';
+      } else {
+        responseStatus.innerHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Over budget';
+        responseStatus.className = 'budget-status error';
+      }
+    }
+    
+    // Check request count budget
+    const countStatus = document.getElementById('budgetCountStatus');
+    if (countStatus) {
+      if (response.totalRequests <= budgetRequestCount) {
+        countStatus.innerHTML = '<i class="fas fa-check-circle" style="color: green;"></i> Within budget';
+        countStatus.className = 'budget-status success';
+      } else {
+        countStatus.innerHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Over budget';
+        countStatus.className = 'budget-status error';
+      }
+    }
+    
+    // Note: Total size checking would require fetching actual request sizes
+    const sizeStatus = document.getElementById('budgetSizeStatus');
+    if (sizeStatus) {
+      sizeStatus.innerHTML = '<i class="fas fa-info-circle"></i> Size tracking coming soon';
+      sizeStatus.className = 'budget-status info';
+    }
+  }
+  
+  // Show toast notification
+  showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
+    toast.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
+    toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: ' + 
+      (type === 'success' ? '#4CAF50' : type === 'error' ? '#F44336' : '#2196F3') + 
+      '; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
   }
 
   // Cleanup when panel is closed
