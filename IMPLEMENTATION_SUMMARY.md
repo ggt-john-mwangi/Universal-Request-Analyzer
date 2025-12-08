@@ -126,6 +126,10 @@ getChartColors() {
 
 ## User Questions Addressed
 
+> **📚 For a comprehensive guide on user types and browsing metrics, see [USER_PERSONAS_AND_METRICS.md](USER_PERSONAS_AND_METRICS.md)**
+>
+> This document covers 6 user personas (Web Developer, QA Engineer, Performance Engineer, Security Analyst, Product Manager, Frontend Developer) and the specific metrics each cares about.
+
 ### ✅ Implemented
 1. **"Why is my website slow?"**
    - Domain → Page → Request Type drill-down
@@ -161,6 +165,13 @@ getChartColors() {
 8. **"Which third-party domains are being called?"**
    - **TODO:** Classify domains as first-party vs third-party
    - **TODO:** Add domain classification in UI
+
+### 📊 Additional Browsing Metrics to Consider
+See [USER_PERSONAS_AND_METRICS.md](USER_PERSONAS_AND_METRICS.md) for details on:
+- **Core Web Vitals:** LCP, FID, CLS (not yet captured)
+- **Page Load Metrics:** FCP, TTI, DOMContentLoaded (not yet captured)
+- **Session Metrics:** Already captured in database, needs UI display
+- **Security Metrics:** Mixed content, third-party tracking (planned)
 
 ## Filter Hierarchy Explained
 
