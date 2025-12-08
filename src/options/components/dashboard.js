@@ -61,7 +61,26 @@ class Dashboard {
     }
   }
 
+  // Helper to get theme colors from CSS variables
+  getThemeColor(colorName) {
+    const root = document.documentElement;
+    return getComputedStyle(root).getPropertyValue(colorName).trim();
+  }
+
+  // Get chart colors from theme
+  getChartColors() {
+    return {
+      success: this.getThemeColor('--success-color'),
+      info: this.getThemeColor('--info-color'),
+      warning: this.getThemeColor('--warning-color'),
+      error: this.getThemeColor('--error-color'),
+      primary: this.getThemeColor('--primary-color'),
+    };
+  }
+
   initializeCharts() {
+    const colors = this.getChartColors();
+    
     // Volume Chart - Line chart for request volume over time
     const volumeCanvas = document.getElementById('dashboardVolumeChart');
     if (volumeCanvas) {
@@ -73,10 +92,10 @@ class Dashboard {
           datasets: [{
             label: 'Requests',
             data: [],
-            borderColor: 'rgb(76, 175, 80)',
-            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+            borderColor: colors.success,
+            backgroundColor: 'transparent',
             tension: 0.4,
-            fill: true,
+            fill: false,
           }]
         },
         options: {
@@ -112,10 +131,10 @@ class Dashboard {
           datasets: [{
             data: [],
             backgroundColor: [
-              'rgba(76, 175, 80, 0.8)',
-              'rgba(33, 150, 243, 0.8)',
-              'rgba(255, 152, 0, 0.8)',
-              'rgba(244, 67, 54, 0.8)',
+              colors.success,
+              colors.info,
+              colors.warning,
+              colors.error,
             ]
           }]
         },
@@ -142,7 +161,7 @@ class Dashboard {
           datasets: [{
             label: 'Requests',
             data: [],
-            backgroundColor: 'rgba(33, 150, 243, 0.8)',
+            backgroundColor: colors.primary,
           }]
         },
         options: {
@@ -174,10 +193,10 @@ class Dashboard {
           datasets: [{
             label: 'Avg Response Time (ms)',
             data: [],
-            borderColor: 'rgb(33, 150, 243)',
-            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            borderColor: colors.info,
+            backgroundColor: 'transparent',
             tension: 0.4,
-            fill: true,
+            fill: false,
           }]
         },
         options: {
