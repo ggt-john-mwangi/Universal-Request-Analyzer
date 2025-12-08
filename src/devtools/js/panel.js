@@ -29,14 +29,11 @@ export class DevToolsPanel {
     const container = document.getElementById("panel-container");
     container.innerHTML = `
       <div class="metrics-panel">
-        <!-- Enhanced Filters Panel -->
+        <!-- Enhanced Filters Panel - At Top -->
         <div class="filters-header">
           <div class="filter-group">
-            <label><i class="fas fa-globe"></i> Domain:</label>
-            <select id="domainFilter" class="filter-select">
-              <option value="current">Current Page Domain</option>
-              <option value="all">All Domains</option>
-            </select>
+            <label><i class="fas fa-globe"></i> Current Domain:</label>
+            <span id="currentDomainDisplay" class="domain-display">Loading...</span>
           </div>
           
           <div class="filter-group">
@@ -44,27 +41,6 @@ export class DevToolsPanel {
             <select id="pageFilter" class="filter-select">
               <option value="">All Pages (Aggregated)</option>
             </select>
-          </div>
-          
-          <div class="filter-group">
-            <label><i class="fas fa-clock"></i> Time Range:</label>
-            <select id="timeRange" class="filter-select">
-              <option value="300" selected>Last 5 minutes</option>
-              <option value="900">Last 15 minutes</option>
-              <option value="1800">Last 30 minutes</option>
-              <option value="3600">Last hour</option>
-              <option value="21600">Last 6 hours</option>
-              <option value="86400">Last 24 hours</option>
-              <option value="604800">Last 7 days</option>
-              <option value="2592000">Last 30 days</option>
-            </select>
-          </div>
-          
-          <div class="filter-group">
-            <label><i class="fas fa-history"></i> Time Travel:</label>
-            <button id="timeTravelBtn" class="btn-secondary btn-sm" title="View historical data">
-              <i class="fas fa-calendar-alt"></i> History
-            </button>
           </div>
           
           <div class="filter-group">
@@ -93,6 +69,19 @@ export class DevToolsPanel {
             </select>
           </div>
           
+          <div class="filter-group">
+            <label><i class="fas fa-clock"></i> Time Range:</label>
+            <select id="timeRange" class="filter-select">
+              <option value="300" selected>Last 5 minutes</option>
+              <option value="900">Last 15 minutes</option>
+              <option value="1800">Last 30 minutes</option>
+              <option value="3600">Last hour</option>
+              <option value="21600">Last 6 hours</option>
+              <option value="86400">Last 24 hours</option>
+              <option value="604800">Last 7 days</option>
+            </select>
+          </div>
+          
           <div class="filter-actions">
             <button id="refreshMetrics" class="btn-primary">
               <i class="fas fa-sync-alt"></i> Refresh
@@ -103,86 +92,9 @@ export class DevToolsPanel {
             <button id="exportMetrics" class="btn-secondary">
               <i class="fas fa-download"></i> Export
             </button>
-            <button id="compareRequests" class="btn-secondary" title="Compare selected requests">
-              <i class="fas fa-exchange-alt"></i> Compare
-            </button>
             <button id="pauseCapture" class="btn-secondary" title="Pause request capture">
               <i class="fas fa-pause"></i> Pause
             </button>
-          </div>
-        </div>
-        
-        <!-- Request Comparison Modal -->
-        <div id="comparisonModal" class="modal" style="display: none;">
-          <div class="modal-content modal-large">
-            <div class="modal-header">
-              <h3><i class="fas fa-exchange-alt"></i> Request Comparison</h3>
-              <button id="closeComparisonModal" class="close-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-              <div id="comparisonContent" class="comparison-grid"></div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Live Stream Modal -->
-        <div id="liveStreamModal" class="modal" style="display: none;">
-          <div class="modal-content modal-large">
-            <div class="modal-header">
-              <h3><i class="fas fa-stream"></i> Live Request Stream</h3>
-              <button id="closeLiveStreamModal" class="close-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-              <div class="stream-controls">
-                <button id="pauseStream" class="btn-secondary">
-                  <i class="fas fa-pause"></i> Pause
-                </button>
-                <button id="clearStream" class="btn-secondary">
-                  <i class="fas fa-trash"></i> Clear
-                </button>
-                <label>
-                  <input type="checkbox" id="autoScroll" checked> Auto-scroll
-                </label>
-                <label>
-                  Highlight:
-                  <select id="highlightCriteria">
-                    <option value="">None</option>
-                    <option value="errors">Errors (4xx, 5xx)</option>
-                    <option value="slow">Slow (>1s)</option>
-                    <option value="large">Large (>1MB)</option>
-                  </select>
-                </label>
-              </div>
-              <div id="liveStreamContent" class="live-stream"></div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Time Travel Modal -->
-        <div id="timeTravelModal" class="modal" style="display: none;">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3><i class="fas fa-history"></i> Time Travel - Historical Data</h3>
-              <button id="closeTimeTravelModal" class="close-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-              <div class="time-travel-controls">
-                <div class="control-group">
-                  <label>Group By:</label>
-                  <select id="timeTravelGroupBy" class="filter-select">
-                    <option value="hour">Hourly</option>
-                    <option value="day">Daily</option>
-                    <option value="minute">By Minute</option>
-                  </select>
-                </div>
-                <button id="loadHistoricalData" class="btn-primary">
-                  <i class="fas fa-chart-line"></i> Load Historical Data
-                </button>
-              </div>
-              <div id="historicalChartContainer" style="margin-top: 20px;">
-                <canvas id="historicalChart"></canvas>
-              </div>
-            </div>
           </div>
         </div>
         
@@ -448,15 +360,10 @@ export class DevToolsPanel {
     document.getElementById("budgetTotalSize")?.addEventListener("change", () => this.checkPerformanceBudgets());
     document.getElementById("budgetRequestCount")?.addEventListener("change", () => this.checkPerformanceBudgets());
     
-    // Request comparison
-    document.getElementById("compareRequests")?.addEventListener("click", () => this.openComparisonModal());
-    document.getElementById("closeComparisonModal")?.addEventListener("click", () => this.closeComparisonModal());
-    
     // Live streaming
     document.getElementById("pauseCapture")?.addEventListener("click", () => this.toggleCapture());
-    document.getElementById("closeLiveStreamModal")?.addEventListener("click", () => this.closeLiveStreamModal());
-    document.getElementById("pauseStream")?.addEventListener("click", () => this.toggleStreamPause());
-    document.getElementById("clearStream")?.addEventListener("click", () => this.clearStream());
+    document.getElementById("clearFilters")?.addEventListener("click", () => this.clearFilters());
+    document.getElementById("exportMetrics")?.addEventListener("click", () => this.exportMetrics());
     
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((button) => {
@@ -468,11 +375,67 @@ export class DevToolsPanel {
       this.searchRequests(e.target.value);
     });
     
-    // Load domains and current page
-    this.loadDomainFilter();
+    // Filter changes
+    document.getElementById("pageFilter")?.addEventListener("change", () => this.applyFilters());
+    document.getElementById("requestTypeFilter")?.addEventListener("change", () => this.applyFilters());
+    document.getElementById("statusFilter")?.addEventListener("change", () => this.applyFilters());
+    document.getElementById("timeRange")?.addEventListener("change", () => this.applyFilters());
+  }
+
+  // Helper to get theme colors from CSS variables
+  getThemeColor(colorName) {
+    const root = document.documentElement;
+    return getComputedStyle(root).getPropertyValue(colorName).trim();
+  }
+
+  // Get chart colors from theme
+  getChartColors() {
+    return {
+      success: this.getThemeColor('--success-color'),
+      info: this.getThemeColor('--info-color'),
+      warning: this.getThemeColor('--warning-color'),
+      error: this.getThemeColor('--error-color'),
+      primary: this.getThemeColor('--primary-color'),
+    };
+  }
+
+  // Get current tab's domain
+  async getCurrentDomain() {
+    return new Promise((resolve) => {
+      chrome.devtools.inspectedWindow.eval(
+        'window.location.hostname',
+        (result, error) => {
+          if (error) {
+            console.error('Error getting current domain:', error);
+            resolve('');
+          } else {
+            resolve(result || '');
+          }
+        }
+      );
+    });
+  }
+
+  // Get current tab's full URL
+  async getCurrentPageUrl() {
+    return new Promise((resolve) => {
+      chrome.devtools.inspectedWindow.eval(
+        'window.location.origin + window.location.pathname',
+        (result, error) => {
+          if (error) {
+            console.error('Error getting current page URL:', error);
+            resolve('');
+          } else {
+            resolve(result || '');
+          }
+        }
+      );
+    });
   }
 
   initializeCharts() {
+    const colors = this.getChartColors();
+    
     // Performance Chart - Line chart for response times over time
     const perfCtx = document
       .getElementById("performanceChart")
@@ -485,10 +448,10 @@ export class DevToolsPanel {
           {
             label: "Response Time (ms)",
             data: [],
-            borderColor: "rgb(33, 150, 243)",
-            backgroundColor: "rgba(33, 150, 243, 0.1)",
+            borderColor: colors.info,
+            backgroundColor: "transparent",
             tension: 0.4,
-            fill: true,
+            fill: false,
           },
         ],
       },
@@ -533,10 +496,10 @@ export class DevToolsPanel {
           {
             data: [],
             backgroundColor: [
-              "rgba(76, 175, 80, 0.7)",   // 2xx - green
-              "rgba(33, 150, 243, 0.7)",   // 3xx - blue
-              "rgba(255, 152, 0, 0.7)",    // 4xx - orange
-              "rgba(244, 67, 54, 0.7)",    // 5xx - red
+              colors.success,    // 2xx
+              colors.info,       // 3xx
+              colors.warning,    // 4xx
+              colors.error,      // 5xx
             ],
           },
         ],
@@ -562,16 +525,7 @@ export class DevToolsPanel {
           {
             label: "Requests by Type",
             data: [],
-            backgroundColor: [
-              "rgba(76, 175, 80, 0.6)",
-              "rgba(33, 150, 243, 0.6)",
-              "rgba(255, 152, 0, 0.6)",
-              "rgba(156, 39, 176, 0.6)",
-              "rgba(244, 67, 54, 0.6)",
-              "rgba(0, 188, 212, 0.6)",
-              "rgba(255, 235, 59, 0.6)",
-              "rgba(96, 125, 139, 0.6)",
-            ],
+            backgroundColor: colors.primary,
             borderWidth: 1,
           },
         ],
@@ -606,10 +560,10 @@ export class DevToolsPanel {
           {
             label: "Request Volume",
             data: [],
-            borderColor: "rgb(76, 175, 80)",
-            backgroundColor: "rgba(76, 175, 80, 0.2)",
+            borderColor: colors.success,
+            backgroundColor: "transparent",
             tension: 0.4,
-            fill: true,
+            fill: false,
           },
         ],
       },
@@ -653,7 +607,7 @@ export class DevToolsPanel {
           {
             label: "Error Count",
             data: [],
-            backgroundColor: "rgba(244, 67, 54, 0.6)",
+            backgroundColor: colors.error,
           },
         ],
       },
@@ -678,6 +632,19 @@ export class DevToolsPanel {
   }
 
   async startMetricsCollection() {
+    // Get and display current domain
+    const currentDomain = await this.getCurrentDomain();
+    const domainDisplay = document.getElementById('currentDomainDisplay');
+    if (domainDisplay && currentDomain) {
+      domainDisplay.textContent = currentDomain;
+      domainDisplay.title = `Showing data for ${currentDomain} only`;
+    }
+    
+    // Load pages for current domain
+    if (currentDomain) {
+      await this.loadPageFilter(currentDomain);
+    }
+    
     // Initial collection
     await this.collectMetrics();
 
@@ -925,85 +892,7 @@ export class DevToolsPanel {
   }
 
   // Load domain filter with current domain and all tracked domains
-  async loadDomainFilter() {
-    try {
-      const domainSelect = document.getElementById("domainFilter");
-      
-      // Get current URL
-      chrome.devtools.inspectedWindow.eval(
-        'window.location.href',
-        async (url, isException) => {
-          if (!isException && url) {
-            const currentDomain = new URL(url).hostname;
-            this.currentUrl = url;
-            this.currentDomain = currentDomain;
-            
-            // Update current domain option
-            domainSelect.innerHTML = `
-              <option value="current">Current Domain (${currentDomain})</option>
-              <option value="all">All Domains</option>
-            `;
-            
-            // Load all domains from database
-            const response = await chrome.runtime.sendMessage({
-              action: 'getDomains',
-              timeRange: 604800  // Last 7 days
-            });
-            
-            console.log('Panel domain filter response:', response);
-            
-            if (response && response.success && response.domains && response.domains.length > 0) {
-              response.domains.forEach(domainObj => {
-                const domain = domainObj.domain;
-                if (domain && domain !== currentDomain) {
-                  const option = document.createElement('option');
-                  option.value = domain;
-                  option.textContent = `${domain} (${domainObj.requestCount} requests)`;
-                  domainSelect.appendChild(option);
-                }
-              });
-              console.log(`Loaded ${response.domains.length} domains for panel filter`);
-            } else {
-              console.warn('No domains found in database for panel');
-            }
-            
-            // Load pages for current domain initially
-            await this.loadPageFilter(currentDomain);
-          }
-        }
-      );
-    } catch (error) {
-      console.error('Failed to load domain filter:', error);
-    }
-  }
-
-  // Handle domain filter change - reload pages
-  async onDomainFilterChange() {
-    const domainSelect = document.getElementById("domainFilter");
-    const selectedValue = domainSelect.value;
-    
-    let domain = null;
-    if (selectedValue === "current") {
-      domain = this.currentDomain;
-    } else if (selectedValue !== "all") {
-      domain = selectedValue;
-    }
-    
-    // Load pages for selected domain
-    if (domain && domain !== "all") {
-      await this.loadPageFilter(domain);
-    } else {
-      // Clear page filter for "all domains"
-      const pageSelect = document.getElementById("pageFilter");
-      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
-      pageSelect.disabled = true;
-    }
-    
-    // Apply filters after domain change
-    this.applyFilters();
-  }
-
-  // Load pages for a specific domain
+  // Load pages for a specific domain (called from startMetricsCollection)
   async loadPageFilter(domain) {
     try {
       const pageSelect = document.getElementById("pageFilter");
