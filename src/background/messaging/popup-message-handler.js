@@ -766,15 +766,61 @@ async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
     
     try {
       if (dbManager?.executeQuery) {
-        // Get total count
-        const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM')
-          .replace(/ORDER BY.*$/, '');
-        const countResult = dbManager.executeQuery(countQuery, params.slice(0, -2));
+        // Build and execute count query
+        let countQuery = `
+          SELECT COUNT(*) as total
+          FROM bronze_requests
+          WHERE timestamp > ?
+        `;
+        const countParams = [startTime];
+        
+        // Apply same filters to count query
+        if (domain && domain !== 'all') {
+          countQuery += ' AND domain = ?';
+          countParams.push(domain);
+        }
+        
+        if (pageUrl && pageUrl !== '') {
+          try {
+            const url = new URL(pageUrl);
+            countQuery += ' AND page_url = ?';
+            countParams.push(pageUrl);
+            if (!domain || domain === 'all') {
+              countQuery += ' AND domain = ?';
+              countParams.push(url.hostname);
+            }
+          } catch (urlError) {
+            countQuery += ' AND domain = ?';
+            countParams.push(pageUrl.replace(/^https?:\/\//, '').split('/')[0]);
+          }
+        }
+        
+        if (type && type !== '') {
+          countQuery += ' AND type = ?';
+          countParams.push(type);
+        }
+        
+        if (statusPrefix) {
+          if (statusPrefix === '3xx') {
+            countQuery += ' AND status >= 300 AND status < 400';
+          } else if (statusPrefix === '4xx') {
+            countQuery += ' AND status >= 400 AND status < 500';
+          } else if (statusPrefix === '5xx') {
+            countQuery += ' AND status >= 500 AND status < 600';
+          } else if (statusPrefix === '200') {
+            countQuery += ' AND status >= 200 AND status < 300';
+          } else {
+            countQuery += ' AND status = ?';
+            countParams.push(parseInt(statusPrefix));
+          }
+        }
+        
+        const countResult = dbManager.executeQuery(countQuery, countParams);
         if (countResult && countResult[0]?.values) {
           totalCount = countResult[0].values[0][0];
         }
         
-        // Get requests
+        // Get requests with pagination
         const result = dbManager.executeQuery(query, params);
         if (result && result[0]) {
           requests = mapResultToArray(result[0]);

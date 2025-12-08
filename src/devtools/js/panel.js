@@ -1000,7 +1000,7 @@ export class DevToolsPanel {
             <td>${duration} ${cacheIcon}</td>
             <td>${size}</td>
             <td>
-              <button class="btn-icon" onclick="window.panelInstance.viewRequestDetails('${req.id}')" title="View details">
+              <button class="btn-icon btn-view-details" data-request-id="${req.id}" title="View details">
                 <i class="fas fa-info-circle"></i>
               </button>
               ${errorIcon}
@@ -1011,8 +1011,14 @@ export class DevToolsPanel {
       
       tbody.innerHTML = rows;
       
-      // Store panel instance for onclick handlers
-      window.panelInstance = this;
+      // Use event delegation instead of inline onclick
+      tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-view-details');
+        if (btn) {
+          const requestId = btn.dataset.requestId;
+          this.viewRequestDetails(requestId);
+        }
+      });
       
     } catch (error) {
       console.error('Failed to load requests table:', error);
@@ -1024,8 +1030,16 @@ export class DevToolsPanel {
   // View request details
   viewRequestDetails(requestId) {
     console.log('View details for request:', requestId);
-    // TODO: Show modal with full request details including headers, body, timing breakdown
-    alert(`Request details for ${requestId} - Full implementation coming soon`);
+    // Show inline notification instead of alert
+    const message = document.createElement('div');
+    message.className = 'toast-notification';
+    message.innerHTML = `
+      <i class="fas fa-info-circle"></i> 
+      Detailed view for request ${requestId} - Full implementation coming soon
+    `;
+    message.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2196F3; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
+    document.body.appendChild(message);
+    setTimeout(() => message.remove(), 3000);
   }
   
   // Helper to truncate URLs
@@ -1264,7 +1278,9 @@ export class DevToolsPanel {
       });
       
       if (!response.success || !response.data || response.data.length === 0) {
-        alert('No historical data available for the selected filters and time range');
+        // Show inline message instead of alert
+        const container = document.getElementById('historicalChartContainer');
+        container.innerHTML = '<p class="info-message"><i class="fas fa-info-circle"></i> No historical data available for the selected filters and time range</p>';
         return;
       }
       
@@ -1273,7 +1289,8 @@ export class DevToolsPanel {
       
     } catch (error) {
       console.error('Failed to load historical data:', error);
-      alert('Error loading historical data');
+      const container = document.getElementById('historicalChartContainer');
+      container.innerHTML = '<p class="error-message"><i class="fas fa-exclamation-circle"></i> Error loading historical data. Please try again.</p>';
     }
   }
   
