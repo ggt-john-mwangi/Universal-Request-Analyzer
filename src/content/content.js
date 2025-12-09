@@ -1,5 +1,100 @@
 // Content script to capture performance metrics from the page
 
+// Check if current domain should be monitored
+let shouldMonitor = false;
+let configLoaded = false;
+
+// Load configuration from storage
+chrome.storage.sync.get(['trackOnlyConfiguredSites', 'trackingSites'], function(config) {
+  configLoaded = true;
+  
+  const trackOnlyConfigured = config.trackOnlyConfiguredSites !== false; // Default true
+  const trackingSites = config.trackingSites || '';
+  
+  if (!trackOnlyConfigured) {
+    // Monitor all sites
+    shouldMonitor = true;
+    console.log('[URA] Monitoring all sites (trackOnlyConfiguredSites = false)');
+    initializeMonitoring();
+    return;
+  }
+  
+  // Check if current domain matches any configured pattern
+  const currentUrl = window.location.href;
+  const currentDomain = window.location.hostname;
+  
+  if (!trackingSites.trim()) {
+    // No sites configured, don't monitor
+    shouldMonitor = false;
+    console.log('[URA] No domains configured. Monitoring disabled.');
+    return;
+  }
+  
+  // Parse tracking patterns
+  const patterns = trackingSites.split('\n')
+    .map(p => p.trim())
+    .filter(p => p && !p.startsWith('#')); // Remove empty lines and comments
+  
+  // Check if current domain/URL matches any pattern
+  for (const pattern of patterns) {
+    if (matchesPattern(currentUrl, currentDomain, pattern)) {
+      shouldMonitor = true;
+      console.log(`[URA] Domain ${currentDomain} matches pattern "${pattern}". Monitoring enabled.`);
+      initializeMonitoring();
+      return;
+    }
+  }
+  
+  console.log(`[URA] Domain ${currentDomain} not in monitored list. Skipping data capture.`);
+});
+
+// Pattern matching function
+function matchesPattern(url, domain, pattern) {
+  // Remove whitespace
+  pattern = pattern.trim();
+  
+  // Handle regex patterns (between slashes)
+  if (pattern.startsWith('/') && pattern.endsWith('/')) {
+    try {
+      const regex = new RegExp(pattern.slice(1, -1));
+      return regex.test(url) || regex.test(domain);
+    } catch (e) {
+      console.error('[URA] Invalid regex pattern:', pattern, e);
+      return false;
+    }
+  }
+  
+  // Handle wildcard patterns
+  if (pattern.includes('*')) {
+    const regexPattern = pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*/g, '.*');
+    try {
+      const regex = new RegExp('^' + regexPattern + '$');
+      return regex.test(url) || regex.test(domain);
+    } catch (e) {
+      console.error('[URA] Invalid wildcard pattern:', pattern, e);
+      return false;
+    }
+  }
+  
+  // Exact match or contains match
+  return url.includes(pattern) || domain.includes(pattern) || url.startsWith(pattern);
+}
+
+// Initialize all monitoring features
+function initializeMonitoring() {
+  if (!shouldMonitor) return;
+  
+  console.log('[URA] Initializing performance monitoring for', window.location.hostname);
+  
+  // Initialize Core Web Vitals and other observers
+  initializeCoreWebVitals();
+  initializePerformanceObserver();
+  initializePageLoadMonitoring();
+  initializeSecurityDetection();
+}
+
 // Store Core Web Vitals metrics
 const webVitals = {
   lcp: null,
@@ -9,6 +104,8 @@ const webVitals = {
   ttfb: null,
 };
 
+// Core Web Vitals initialization
+function initializeCoreWebVitals() {
 // Core Web Vitals - Largest Contentful Paint (LCP)
 try {
   const lcpObserver = new PerformanceObserver((list) => {
@@ -106,7 +203,10 @@ try {
 } catch (e) {
   console.warn('FCP not supported:', e);
 }
+} // End initializeCoreWebVitals
 
+// Initialize Performance Observer
+function initializePerformanceObserver() {
 // Create a performance observer to monitor resource timing entries
 const observer = new PerformanceObserver((list) => {
   const entries = list.getEntries();
@@ -145,6 +245,10 @@ const observer = new PerformanceObserver((list) => {
 
 // Start observing resource timing entries
 observer.observe({ entryTypes: ['resource'] });
+} // End initializePerformanceObserver
+
+// Initialize Page Load Monitoring
+function initializePageLoadMonitoring() {
 
 // Security Detection - Mixed Content
 function detectMixedContent() {
@@ -390,9 +494,13 @@ window.addEventListener('load', () => {
     detectMixedContent();
     classifyDomains();
   }, 1000); // Give resources time to load
-})
+});
+} // End initializePageLoadMonitoring
+
+// Initialize Security Detection
+function initializeSecurityDetection() {
 // Listen for XHR and fetch requests to capture additional data
-;(() => {
+(() => {
   // Intercept XMLHttpRequest
   const originalXhrOpen = XMLHttpRequest.prototype.open;
   const originalXhrSend = XMLHttpRequest.prototype.send;
@@ -506,4 +614,7 @@ window.addEventListener('load', () => {
       });
   };
 })();
+} // End initializeSecurityDetection
+
+// Note: Actual initialization happens after config is loaded (see top of file)
 
