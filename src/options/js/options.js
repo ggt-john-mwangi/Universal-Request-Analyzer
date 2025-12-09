@@ -1919,7 +1919,7 @@ function validateSitePatterns(patterns) {
 // Validate Sites Button
 const validateSitesBtn = document.getElementById('validateSitesBtn');
 if (validateSitesBtn) {
-  validateSitesBtn.addEventListener('click', () => {
+  validateSitesBtn.addEventListener('click', async () => {
     const trackingSites = document.getElementById('trackingSites');
     const resultEl = document.getElementById('sitesValidationResult');
     
@@ -1946,8 +1946,16 @@ if (validateSitesBtn) {
       resultEl.style.color = '#4CAF50';
     }
     
-    // Save valid patterns
+    // Save valid patterns to database first
     if (validation.valid.length > 0) {
+      // Save to database
+      await chrome.runtime.sendMessage({
+        action: 'saveSettingToDb',
+        key: 'trackingSites',
+        value: validation.valid
+      });
+      
+      // Also save to local storage for immediate use
       chrome.storage.local.set({ trackingSites: validation.valid });
       updateTrackedSitesList(validation.valid);
       
@@ -1995,11 +2003,24 @@ if (trackOnlyConfigured) {
     trackOnlyConfigured.checked = result.trackOnlyConfiguredSites !== false; // Default true
   });
   
-  trackOnlyConfigured.addEventListener('change', () => {
-    chrome.storage.local.set({ trackOnlyConfiguredSites: trackOnlyConfigured.checked });
+  // Save to database when changed
+  trackOnlyConfigured.addEventListener('change', async () => {
+    const value = trackOnlyConfigured.checked;
+    
+    // Save to database first
+    await chrome.runtime.sendMessage({
+      action: 'saveSettingToDb',
+      key: 'trackOnlyConfiguredSites',
+      value: value
+    });
+    
+    // Also save to local storage
+    chrome.storage.local.set({ trackOnlyConfiguredSites: value });
+    
+    // Notify content scripts
     chrome.runtime.sendMessage({
       action: 'updateTrackingMode',
-      trackOnlyConfigured: trackOnlyConfigured.checked
+      trackOnlyConfigured: value
     });
   });
 }
@@ -2147,3 +2168,30 @@ async function initializeAlerts() {
     console.error('Failed to initialize Alerts:', error);
   }
 }
+
+// Filter Toggle Functionality
+document.getElementById('dashboardFilterToggle')?.addEventListener('click', function() {
+  const panel = document.getElementById('dashboardFilterPanel');
+  const btn = this;
+  
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    btn.classList.remove('active');
+  } else {
+    panel.classList.add('open');
+    btn.classList.add('active');
+  }
+});
+
+document.getElementById('analyticsFilterToggle')?.addEventListener('click', function() {
+  const panel = document.getElementById('analyticsFilterPanel');
+  const btn = this;
+  
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    btn.classList.remove('active');
+  } else {
+    panel.classList.add('open');
+    btn.classList.add('active');
+  }
+});

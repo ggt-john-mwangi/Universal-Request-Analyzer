@@ -53,6 +53,21 @@ async function handleMessage(message, sender) {
       case 'getPagesByDomain':
         return await handleGetPagesByDomain(message.domain, message.timeRange);
       
+      case 'getWebVitals':
+        return await handleGetWebVitals(message.filters);
+      
+      case 'getSessionMetrics':
+        return await handleGetSessionMetrics(message.filters);
+      
+      case 'saveSettingToDb':
+        return await handleSaveSettingToDb(message.key, message.value);
+      
+      case 'loadSettingsFromDb':
+        return await handleLoadSettingsFromDb();
+      
+      case 'syncSettingsToStorage':
+        return await handleSyncSettingsToStorage();
+      
       case 'getRequestTypes':
         return await handleGetRequestTypes();
       
@@ -699,6 +714,154 @@ async function handleGetPagesByDomain(domain, timeRange = 604800) {
     return { success: true, pages };
   } catch (error) {
     console.error('Get pages by domain error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get Web Vitals - returns Core Web Vitals metrics
+async function handleGetWebVitals(filters = {}) {
+  try {
+    const timeRange = filters.timeRange || 86400;
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    const vitals = {
+      LCP: null,
+      FID: null,
+      CLS: null,
+      FCP: null,
+      TTFB: null,
+      TTI: null,
+      DCL: null,
+      Load: null,
+    };
+    
+    // Build WHERE clause based on filters
+    let whereConditions = ['created_at > ?'];
+    let params = [startTime];
+    
+    if (filters.domain) {
+      whereConditions.push('metrics LIKE ?');
+      params.push(`%"url":"${filters.domain}%`);
+    }
+    
+    if (filters.pageUrl) {
+      whereConditions.push('metrics LIKE ?');
+      params.push(`%"url":"${filters.pageUrl}%`);
+    }
+    
+    const whereClause = whereConditions.length > 0 
+      ? `WHERE ${whereConditions.join(' AND ')}` 
+      : '';
+    
+    // Query each Web Vital metric
+    for (const metric of ['LCP', 'FID', 'CLS', 'FCP', 'TTFB', 'TTI', 'DCL', 'Load']) {
+      const query = `
+        SELECT 
+          AVG(duration) as avg_value,
+          metrics
+        FROM bronze_performance_entries
+        ${whereClause} AND entry_type = 'web-vital' AND name = '${metric}'
+        LIMIT 1
+      `;
+      
+      try {
+        if (dbManager?.executeQuery) {
+          const result = dbManager.executeQuery(query, params);
+          if (result && result[0]?.values && result[0].values.length > 0) {
+            const row = result[0].values[0];
+            const avgValue = row[0];
+            const metricsJson = row[1];
+            
+            if (avgValue !== null) {
+              // Parse metrics to get rating
+              let rating = 'good';
+              try {
+                const metricsData = JSON.parse(metricsJson);
+                rating = metricsData.rating || 'good';
+              } catch (e) {
+                // Calculate rating based on thresholds
+                if (metric === 'LCP') {
+                  rating = avgValue < 2500 ? 'good' : avgValue < 4000 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'FID') {
+                  rating = avgValue < 100 ? 'good' : avgValue < 300 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'CLS') {
+                  rating = avgValue < 0.1 ? 'good' : avgValue < 0.25 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'FCP') {
+                  rating = avgValue < 1800 ? 'good' : avgValue < 3000 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'TTFB') {
+                  rating = avgValue < 800 ? 'good' : avgValue < 1800 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'TTI') {
+                  rating = avgValue < 3800 ? 'good' : avgValue < 7300 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'DCL') {
+                  rating = avgValue < 1500 ? 'good' : avgValue < 2500 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'Load') {
+                  rating = avgValue < 2500 ? 'good' : avgValue < 4000 ? 'needs-improvement' : 'poor';
+                }
+              }
+              
+              vitals[metric] = {
+                value: avgValue,
+                rating: rating
+              };
+            }
+          }
+        }
+      } catch (queryError) {
+        console.error(`Error querying ${metric}:`, queryError);
+      }
+    }
+    
+    return { success: true, vitals };
+  } catch (error) {
+    console.error('Get Web Vitals error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get Session Metrics - returns session statistics
+async function handleGetSessionMetrics(filters = {}) {
+  try {
+    const timeRange = filters.timeRange || 86400;
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    const metrics = {
+      totalSessions: 0,
+      avgDuration: null,
+      avgRequests: null,
+      avgEvents: null,
+    };
+    
+    // Query session statistics
+    const query = `
+      SELECT 
+        COUNT(*) as total_sessions,
+        AVG(duration) as avg_duration,
+        AVG(requests_count) as avg_requests,
+        AVG(events_count) as avg_events
+      FROM bronze_sessions
+      WHERE started_at > ?
+    `;
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, [startTime]);
+        if (result && result[0]?.values && result[0].values.length > 0) {
+          const row = result[0].values[0];
+          metrics.totalSessions = row[0] || 0;
+          metrics.avgDuration = row[1] || null;
+          metrics.avgRequests = row[2] || null;
+          metrics.avgEvents = row[3] || null;
+        }
+      }
+    } catch (queryError) {
+      console.error('Session metrics query error:', queryError);
+    }
+    
+    return { success: true, metrics };
+  } catch (error) {
+    console.error('Get session metrics error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1787,6 +1950,100 @@ async function handleGetPerformanceInsights(filters) {
     return { success: true, insights };
   } catch (error) {
     console.error('Get performance insights error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle save setting to database
+async function handleSaveSettingToDb(key, value) {
+  try {
+    if (!dbManager?.executeQuery) {
+      return { success: false, error: 'Database not available' };
+    }
+    
+    const valueJson = JSON.stringify(value);
+    const timestamp = Date.now();
+    
+    // Insert or update setting in config_app_settings table
+    const query = `
+      INSERT OR REPLACE INTO config_app_settings (key, value, category, updated_at)
+      VALUES (?, ?, 'user_preferences', ?)
+    `;
+    
+    dbManager.executeQuery(query, [key, valueJson, timestamp]);
+    
+    console.log(`[Settings] Saved ${key} to database`);
+    return { success: true };
+  } catch (error) {
+    console.error('Save setting to DB error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle load settings from database
+async function handleLoadSettingsFromDb() {
+  try {
+    if (!dbManager?.executeQuery) {
+      return { success: false, error: 'Database not available' };
+    }
+    
+    const query = `
+      SELECT key, value FROM config_app_settings
+      WHERE category = 'user_preferences'
+    `;
+    
+    const result = dbManager.executeQuery(query);
+    const settings = {};
+    
+    if (result && result[0]?.values) {
+      for (const row of result[0].values) {
+        const key = row[0];
+        const value = row[1];
+        try {
+          settings[key] = JSON.parse(value);
+        } catch (e) {
+          settings[key] = value;
+        }
+      }
+    }
+    
+    console.log('[Settings] Loaded from database:', Object.keys(settings));
+    return { success: true, settings };
+  } catch (error) {
+    console.error('Load settings from DB error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle sync settings from DB to chrome.storage
+async function handleSyncSettingsToStorage() {
+  try {
+    // Load settings from database
+    const dbResult = await handleLoadSettingsFromDb();
+    
+    if (!dbResult.success) {
+      return dbResult;
+    }
+    
+    const settings = dbResult.settings;
+    
+    // Sync to chrome.storage.sync for content scripts
+    if (Object.keys(settings).length > 0) {
+      await chrome.storage.sync.set(settings);
+      console.log('[Settings] Synced to chrome.storage.sync:', Object.keys(settings));
+    }
+    
+    // Also sync to local storage
+    await chrome.storage.local.set(settings);
+    console.log('[Settings] Synced to chrome.storage.local:', Object.keys(settings));
+    
+    return { 
+      success: true, 
+      message: `Synced ${Object.keys(settings).length} settings from database to storage`,
+      settings: settings
+    };
+  } catch (error) {
+    console.error('Sync settings to storage error:', error);
     return { success: false, error: error.message };
   }
 }

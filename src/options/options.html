@@ -94,32 +94,10 @@
           <div class="dashboard-header">
             <h2><i class="fas fa-tachometer-alt"></i> Performance Dashboard</h2>
             <div class="dashboard-controls">
-              <label>
-                <span style="margin-right: 5px;"><i class="fas fa-globe"></i> Domain:</span>
-                <select id="dashboardDomainFilter" style="min-width: 200px;">
-                  <option value="all">All Domains</option>
-                </select>
-              </label>
-              <label>
-                <span style="margin-right: 5px;"><i class="fas fa-file"></i> Page:</span>
-                <select id="dashboardPageFilter" style="min-width: 200px;">
-                  <option value="">All Pages (Aggregated)</option>
-                </select>
-              </label>
-              <label>
-                <span style="margin-right: 5px;"><i class="fas fa-filter"></i> Type:</span>
-                <select id="dashboardRequestTypeFilter" style="min-width: 120px;">
-                  <option value="">All Types</option>
-                  <option value="xmlhttprequest">XHR/API</option>
-                  <option value="fetch">Fetch</option>
-                  <option value="script">Scripts</option>
-                  <option value="stylesheet">Stylesheets</option>
-                  <option value="image">Images</option>
-                  <option value="font">Fonts</option>
-                  <option value="document">Documents</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
+              <button id="dashboardFilterToggle" class="filter-toggle-btn" title="Toggle Filters">
+                <i class="fas fa-filter"></i> Filters
+                <i class="fas fa-chevron-down toggle-icon"></i>
+              </button>
               <label>
                 <input type="checkbox" id="dashboardAutoRefresh" checked>
                 <span>Auto-refresh</span>
@@ -133,6 +111,44 @@
               <button id="dashboardRefresh" class="btn-primary">
                 <i class="fas fa-sync-alt"></i> Refresh
               </button>
+            </div>
+          </div>
+
+          <!-- Collapsible Filter Panel -->
+          <div id="dashboardFilterPanel" class="filter-panel">
+            <div class="filter-panel-content">
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-globe"></i> Domain:</span>
+                  <select id="dashboardDomainFilter" style="min-width: 200px;">
+                    <option value="all">All Domains</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-file"></i> Page:</span>
+                  <select id="dashboardPageFilter" style="min-width: 200px;">
+                    <option value="">All Pages (Aggregated)</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-filter"></i> Type:</span>
+                  <select id="dashboardRequestTypeFilter" style="min-width: 120px;">
+                    <option value="">All Types</option>
+                    <option value="xmlhttprequest">XHR/API</option>
+                    <option value="fetch">Fetch</option>
+                    <option value="script">Scripts</option>
+                    <option value="stylesheet">Stylesheets</option>
+                    <option value="image">Images</option>
+                    <option value="font">Fonts</option>
+                    <option value="document">Documents</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -184,6 +200,166 @@
                 <div class="metric-label">Error Rate</div>
                 <div class="metric-value" id="dashErrorRate">0%</div>
                 <div class="metric-change" id="dashErrorChange">+0%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Core Web Vitals Section -->
+          <div class="web-vitals-section">
+            <h3><i class="fas fa-tachometer-alt"></i> Core Web Vitals</h3>
+            <div class="web-vitals-grid">
+              <div class="vital-card" id="lcpCard">
+                <div class="vital-icon">
+                  <i class="fas fa-image"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">LCP</div>
+                  <div class="vital-subtitle">Largest Contentful Paint</div>
+                  <div class="vital-value" id="lcpValue">-</div>
+                  <div class="vital-rating" id="lcpRating"></div>
+                  <div class="vital-target">Target: &lt; 2.5s</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="fidCard">
+                <div class="vital-icon">
+                  <i class="fas fa-mouse-pointer"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">FID</div>
+                  <div class="vital-subtitle">First Input Delay</div>
+                  <div class="vital-value" id="fidValue">-</div>
+                  <div class="vital-rating" id="fidRating"></div>
+                  <div class="vital-target">Target: &lt; 100ms</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="clsCard">
+                <div class="vital-icon">
+                  <i class="fas fa-arrows-alt"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">CLS</div>
+                  <div class="vital-subtitle">Cumulative Layout Shift</div>
+                  <div class="vital-value" id="clsValue">-</div>
+                  <div class="vital-rating" id="clsRating"></div>
+                  <div class="vital-target">Target: &lt; 0.1</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="fcpCard">
+                <div class="vital-icon">
+                  <i class="fas fa-paint-brush"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">FCP</div>
+                  <div class="vital-subtitle">First Contentful Paint</div>
+                  <div class="vital-value" id="fcpValue">-</div>
+                  <div class="vital-rating" id="fcpRating"></div>
+                  <div class="vital-target">Target: &lt; 1.8s</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="ttfbCard">
+                <div class="vital-icon">
+                  <i class="fas fa-server"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">TTFB</div>
+                  <div class="vital-subtitle">Time to First Byte</div>
+                  <div class="vital-value" id="ttfbValue">-</div>
+                  <div class="vital-rating" id="ttfbRating"></div>
+                  <div class="vital-target">Target: &lt; 800ms</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="ttiCard">
+                <div class="vital-icon">
+                  <i class="fas fa-hand-pointer"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">TTI</div>
+                  <div class="vital-subtitle">Time to Interactive</div>
+                  <div class="vital-value" id="ttiValue">-</div>
+                  <div class="vital-rating" id="ttiRating"></div>
+                  <div class="vital-target">Target: &lt; 3.8s</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="dclCard">
+                <div class="vital-icon">
+                  <i class="fas fa-file-code"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">DCL</div>
+                  <div class="vital-subtitle">DOMContentLoaded</div>
+                  <div class="vital-value" id="dclValue">-</div>
+                  <div class="vital-rating" id="dclRating"></div>
+                  <div class="vital-target">Target: &lt; 1.5s</div>
+                </div>
+              </div>
+
+              <div class="vital-card" id="loadCard">
+                <div class="vital-icon">
+                  <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="vital-content">
+                  <div class="vital-label">Load</div>
+                  <div class="vital-subtitle">Page Load Complete</div>
+                  <div class="vital-value" id="loadValue">-</div>
+                  <div class="vital-rating" id="loadRating"></div>
+                  <div class="vital-target">Target: &lt; 2.5s</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Session Metrics Section -->
+          <div class="session-metrics-section">
+            <h3><i class="fas fa-user-clock"></i> Session Metrics</h3>
+            <div class="session-metrics-grid">
+              <div class="session-metric-card">
+                <div class="session-metric-icon">
+                  <i class="fas fa-hourglass-half"></i>
+                </div>
+                <div class="session-metric-content">
+                  <div class="session-metric-label">Avg Session Duration</div>
+                  <div class="session-metric-value" id="avgSessionDuration">-</div>
+                  <div class="session-metric-detail">Across all sessions</div>
+                </div>
+              </div>
+
+              <div class="session-metric-card">
+                <div class="session-metric-icon">
+                  <i class="fas fa-users"></i>
+                </div>
+                <div class="session-metric-content">
+                  <div class="session-metric-label">Total Sessions</div>
+                  <div class="session-metric-value" id="totalSessions">-</div>
+                  <div class="session-metric-detail">In selected time range</div>
+                </div>
+              </div>
+
+              <div class="session-metric-card">
+                <div class="session-metric-icon">
+                  <i class="fas fa-exchange-alt"></i>
+                </div>
+                <div class="session-metric-content">
+                  <div class="session-metric-label">Requests per Session</div>
+                  <div class="session-metric-value" id="avgRequestsPerSession">-</div>
+                  <div class="session-metric-detail">Average</div>
+                </div>
+              </div>
+
+              <div class="session-metric-card">
+                <div class="session-metric-icon">
+                  <i class="fas fa-bolt"></i>
+                </div>
+                <div class="session-metric-content">
+                  <div class="session-metric-label">Events per Session</div>
+                  <div class="session-metric-value" id="avgEventsPerSession">-</div>
+                  <div class="session-metric-detail">Average</div>
+                </div>
               </div>
             </div>
           </div>
@@ -241,6 +417,70 @@
       <section id="analytics" class="tab-content">
         <div class="analytics-container">
           <h2><i class="fas fa-chart-pie"></i> Advanced Analytics</h2>
+          
+          <!-- Analytics Header with Filter Toggle -->
+          <div class="analytics-header">
+            <h2><i class="fas fa-chart-line"></i> Advanced Analytics</h2>
+            <div class="analytics-controls">
+              <button id="analyticsFilterToggle" class="filter-toggle-btn" title="Toggle Filters">
+                <i class="fas fa-filter"></i> Filters
+                <i class="fas fa-chevron-down toggle-icon"></i>
+              </button>
+              <button id="analyticsRefresh" class="btn-primary">
+                <i class="fas fa-sync-alt"></i> Refresh Analytics
+              </button>
+            </div>
+          </div>
+
+          <!-- Collapsible Analytics Filters -->
+          <div id="analyticsFilterPanel" class="filter-panel">
+            <div class="filter-panel-content">
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-globe"></i> Domain:</span>
+                  <select id="analyticsDomainFilter" style="min-width: 200px;">
+                    <option value="all">All Domains</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-file"></i> Page:</span>
+                  <select id="analyticsPageFilter" style="min-width: 200px;">
+                    <option value="">All Pages (Aggregated)</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-filter"></i> Type:</span>
+                  <select id="analyticsRequestTypeFilter" style="min-width: 120px;">
+                    <option value="">All Types</option>
+                    <option value="xmlhttprequest">XHR/API</option>
+                    <option value="fetch">Fetch</option>
+                    <option value="script">Scripts</option>
+                    <option value="stylesheet">Stylesheets</option>
+                    <option value="image">Images</option>
+                    <option value="font">Fonts</option>
+                    <option value="document">Documents</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-group">
+                <label>
+                  <span><i class="fas fa-clock"></i> Time Range:</span>
+                  <select id="analyticsTimeRange">
+                    <option value="3600">Last Hour</option>
+                    <option value="21600">Last 6 Hours</option>
+                    <option value="86400" selected>Last 24 Hours</option>
+                    <option value="604800">Last 7 Days</option>
+                    <option value="2592000">Last 30 Days</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
           
           <!-- Percentiles Analysis -->
           <div class="analytics-section">

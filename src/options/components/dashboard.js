@@ -61,7 +61,26 @@ class Dashboard {
     }
   }
 
+  // Helper to get theme colors from CSS variables
+  getThemeColor(colorName) {
+    const root = document.documentElement;
+    return getComputedStyle(root).getPropertyValue(colorName).trim();
+  }
+
+  // Get chart colors from theme
+  getChartColors() {
+    return {
+      success: this.getThemeColor('--success-color'),
+      info: this.getThemeColor('--info-color'),
+      warning: this.getThemeColor('--warning-color'),
+      error: this.getThemeColor('--error-color'),
+      primary: this.getThemeColor('--primary-color'),
+    };
+  }
+
   initializeCharts() {
+    const colors = this.getChartColors();
+    
     // Volume Chart - Line chart for request volume over time
     const volumeCanvas = document.getElementById('dashboardVolumeChart');
     if (volumeCanvas) {
@@ -73,10 +92,10 @@ class Dashboard {
           datasets: [{
             label: 'Requests',
             data: [],
-            borderColor: 'rgb(76, 175, 80)',
-            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+            borderColor: colors.success,
+            backgroundColor: 'transparent',
             tension: 0.4,
-            fill: true,
+            fill: false,
           }]
         },
         options: {
@@ -112,10 +131,10 @@ class Dashboard {
           datasets: [{
             data: [],
             backgroundColor: [
-              'rgba(76, 175, 80, 0.8)',
-              'rgba(33, 150, 243, 0.8)',
-              'rgba(255, 152, 0, 0.8)',
-              'rgba(244, 67, 54, 0.8)',
+              colors.success,
+              colors.info,
+              colors.warning,
+              colors.error,
             ]
           }]
         },
@@ -142,7 +161,7 @@ class Dashboard {
           datasets: [{
             label: 'Requests',
             data: [],
-            backgroundColor: 'rgba(33, 150, 243, 0.8)',
+            backgroundColor: colors.primary,
           }]
         },
         options: {
@@ -174,10 +193,10 @@ class Dashboard {
           datasets: [{
             label: 'Avg Response Time (ms)',
             data: [],
-            borderColor: 'rgb(33, 150, 243)',
-            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            borderColor: colors.info,
+            backgroundColor: 'transparent',
             tension: 0.4,
-            fill: true,
+            fill: false,
           }]
         },
         options: {
@@ -218,6 +237,12 @@ class Dashboard {
       
       // Update medallion layer status
       this.updateLayerStatus(stats);
+      
+      // Update Core Web Vitals
+      await this.updateWebVitals();
+      
+      // Update Session Metrics
+      await this.updateSessionMetrics();
       
       console.log('✓ Dashboard refreshed');
     } catch (error) {
@@ -526,6 +551,148 @@ class Dashboard {
     }
     
     return filters;
+  }
+
+  async updateWebVitals() {
+    try {
+      const filters = this.getActiveFilters();
+      
+      // Get Web Vitals from background
+      const response = await chrome.runtime.sendMessage({
+        action: 'getWebVitals',
+        filters: {
+          ...filters,
+          timeRange: this.timeRange
+        }
+      });
+      
+      if (response && response.success && response.vitals) {
+        const vitals = response.vitals;
+        
+        // Update LCP
+        this.updateVitalCard('lcp', vitals.LCP);
+        
+        // Update FID
+        this.updateVitalCard('fid', vitals.FID);
+        
+        // Update CLS
+        this.updateVitalCard('cls', vitals.CLS);
+        
+        // Update FCP
+        this.updateVitalCard('fcp', vitals.FCP);
+        
+        // Update TTFB
+        this.updateVitalCard('ttfb', vitals.TTFB);
+        
+        // Update TTI
+        this.updateVitalCard('tti', vitals.TTI);
+        
+        // Update DCL
+        this.updateVitalCard('dcl', vitals.DCL);
+        
+        // Update Load
+        this.updateVitalCard('load', vitals.Load);
+      }
+    } catch (error) {
+      console.error('Failed to update web vitals:', error);
+    }
+  }
+  
+  updateVitalCard(metric, data) {
+    if (!data) return;
+    
+    const valueEl = document.getElementById(`${metric}Value`);
+    const ratingEl = document.getElementById(`${metric}Rating`);
+    const cardEl = document.getElementById(`${metric}Card`);
+    
+    if (!valueEl || !ratingEl || !cardEl) return;
+    
+    // Format value based on metric type
+    let displayValue = '-';
+    if (data.value !== null && data.value !== undefined) {
+      if (metric === 'cls') {
+        displayValue = data.value.toFixed(3);
+      } else {
+        displayValue = `${Math.round(data.value)}ms`;
+      }
+    }
+    
+    valueEl.textContent = displayValue;
+    
+    // Update rating
+    if (data.rating) {
+      ratingEl.textContent = data.rating.replace('-', ' ');
+      ratingEl.className = `vital-rating ${data.rating}`;
+      
+      // Update card border
+      cardEl.classList.remove('good', 'needs-improvement', 'poor');
+      cardEl.classList.add(data.rating);
+    }
+  }
+
+  async updateSessionMetrics() {
+    try {
+      const filters = this.getActiveFilters();
+      
+      // Get Session Metrics from background
+      const response = await chrome.runtime.sendMessage({
+        action: 'getSessionMetrics',
+        filters: {
+          ...filters,
+          timeRange: this.timeRange
+        }
+      });
+      
+      if (response && response.success && response.metrics) {
+        const metrics = response.metrics;
+        
+        // Update Avg Session Duration
+        const avgDurationEl = document.getElementById('avgSessionDuration');
+        if (avgDurationEl && metrics.avgDuration !== null) {
+          avgDurationEl.textContent = this.formatDuration(metrics.avgDuration);
+        }
+        
+        // Update Total Sessions
+        const totalSessionsEl = document.getElementById('totalSessions');
+        if (totalSessionsEl) {
+          totalSessionsEl.textContent = metrics.totalSessions || 0;
+        }
+        
+        // Update Avg Requests per Session
+        const avgRequestsEl = document.getElementById('avgRequestsPerSession');
+        if (avgRequestsEl && metrics.avgRequests !== null) {
+          avgRequestsEl.textContent = Math.round(metrics.avgRequests);
+        }
+        
+        // Update Avg Events per Session
+        const avgEventsEl = document.getElementById('avgEventsPerSession');
+        if (avgEventsEl && metrics.avgEvents !== null) {
+          avgEventsEl.textContent = Math.round(metrics.avgEvents);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update session metrics:', error);
+    }
+  }
+  
+  formatDuration(ms) {
+    if (!ms) return '-';
+    
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes < 60) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
   }
 
   destroy() {

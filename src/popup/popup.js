@@ -75,6 +75,45 @@ function setupEventListeners() {
     await handleLogout();
   });
   
+  // Refresh Settings Button - sync settings from DB to storage
+  document.getElementById('refreshSettingsBtn')?.addEventListener('click', async function() {
+    const btn = this;
+    const icon = btn.querySelector('i');
+    
+    try {
+      // Add syncing animation
+      btn.classList.add('syncing');
+      btn.disabled = true;
+      
+      // Call background to sync settings
+      const response = await chrome.runtime.sendMessage({
+        action: 'syncSettingsToStorage'
+      });
+      
+      if (response && response.success) {
+        // Show success feedback
+        icon.className = 'fas fa-check';
+        setTimeout(() => {
+          icon.className = 'fas fa-sync-alt';
+          btn.classList.remove('syncing');
+          btn.disabled = false;
+        }, 1500);
+        
+        console.log('Settings refreshed:', response.message);
+      } else {
+        throw new Error(response?.error || 'Failed to refresh settings');
+      }
+    } catch (error) {
+      console.error('Failed to refresh settings:', error);
+      icon.className = 'fas fa-times';
+      setTimeout(() => {
+        icon.className = 'fas fa-sync-alt';
+        btn.classList.remove('syncing');
+        btn.disabled = false;
+      }, 1500);
+    }
+  });
+  
   // Request Type Filter - reload stats when changed
   document.getElementById('requestTypeFilter')?.addEventListener('change', async () => {
     await loadPageSummary();
@@ -439,6 +478,9 @@ function updateTimelineChart(timestamps, responseTimes) {
   canvas.width = canvas.offsetWidth || 400;
   canvas.height = 200;
   
+  // Get theme color
+  const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#667eea';
+  
   // Create new chart (using simple drawing if Chart.js not available)
   if (typeof Chart !== 'undefined') {
     try {
@@ -449,10 +491,10 @@ function updateTimelineChart(timestamps, responseTimes) {
         datasets: [{
           label: 'Response Time (ms)',
           data: responseTimes.slice(-20),
-          borderColor: 'rgb(102, 126, 234)',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          borderColor: primaryColor,
+          backgroundColor: 'transparent',
           tension: 0.3,
-          fill: true,
+          fill: false,
           pointRadius: 2
         }]
       },
@@ -502,10 +544,12 @@ function drawSimpleChart(ctx, labels, data) {
   const maxValue = data.length > 0 ? data.reduce((max, val) => Math.max(max, val), 100) : 100;
   const padding = 20;
   
+  const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#667eea';
+  
   ctx.clearRect(0, 0, width, height);
   
   // Draw line
-  ctx.strokeStyle = 'rgb(102, 126, 234)';
+  ctx.strokeStyle = primaryColor;
   ctx.lineWidth = 2;
   ctx.beginPath();
   

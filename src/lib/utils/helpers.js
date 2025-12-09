@@ -198,6 +198,47 @@ export function extractDomain(url) {
 }
 
 /**
+ * Extract top-level domain from URL
+ * Gets the main domain without subdomains (e.g., github.com instead of api.github.com)
+ * Note: This is a simplified implementation that works for most common domains.
+ * For complete ccTLD support (e.g., .co.uk), consider using a public suffix list library.
+ */
+export function extractTopLevelDomain(url) {
+  const hostname = extractDomain(url);
+  if (!hostname) return '';
+  
+  // Split by dots
+  const parts = hostname.split('.');
+  
+  // If it's an IP address, return as-is
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    return hostname;
+  }
+  
+  // Handle special cases like localhost
+  if (parts.length === 1) {
+    return hostname;
+  }
+  
+  // For most domains, keep last 2 parts (domain.tld)
+  // This handles: github.com, api.github.com -> github.com
+  // Limitation: Won't properly handle .co.uk, .gov.au, etc.
+  return parts.slice(-2).join('.');
+}
+
+/**
+ * Extract page URL from URL (domain + path without query string)
+ * This represents a specific page on the domain
+ */
+export function extractPageUrl(url) {
+  const parsed = parseUrl(url);
+  if (!parsed) return '';
+  
+  // Return origin + pathname (domain + path without query)
+  return `${parsed.origin}${parsed.pathname}`;
+}
+
+/**
  * Extract path from URL
  */
 export function extractPath(url) {
