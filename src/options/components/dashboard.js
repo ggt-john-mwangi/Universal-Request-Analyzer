@@ -580,6 +580,15 @@ class Dashboard {
         
         // Update TTFB
         this.updateVitalCard('ttfb', vitals.TTFB);
+        
+        // Update TTI
+        this.updateVitalCard('tti', vitals.TTI);
+        
+        // Update DCL
+        this.updateVitalCard('dcl', vitals.DCL);
+        
+        // Update Load
+        this.updateVitalCard('load', vitals.Load);
       }
     } catch (error) {
       console.error('Failed to update web vitals:', error);

@@ -292,6 +292,40 @@ window.addEventListener('load', () => {
       timestamp: Date.now(),
     });
     
+    // Send DOMContentLoaded as a web vital
+    const domContentLoaded = navigationTiming.domContentLoadedEventEnd - navigationTiming.startTime;
+    chrome.runtime.sendMessage({
+      action: 'webVital',
+      metric: 'DCL',
+      value: domContentLoaded,
+      rating: domContentLoaded < 1500 ? 'good' : domContentLoaded < 2500 ? 'needs-improvement' : 'poor',
+      url: window.location.href,
+      timestamp: Date.now(),
+    });
+    
+    // Send Load Event as a web vital
+    const loadTime = navigationTiming.loadEventEnd - navigationTiming.startTime;
+    chrome.runtime.sendMessage({
+      action: 'webVital',
+      metric: 'Load',
+      value: loadTime,
+      rating: loadTime < 2500 ? 'good' : loadTime < 4000 ? 'needs-improvement' : 'poor',
+      url: window.location.href,
+      timestamp: Date.now(),
+    });
+    
+    // Calculate TTI (Time to Interactive) - simplified heuristic
+    // TTI is when the page is fully loaded and can respond to user input
+    const tti = navigationTiming.domInteractive - navigationTiming.startTime;
+    chrome.runtime.sendMessage({
+      action: 'webVital',
+      metric: 'TTI',
+      value: tti,
+      rating: tti < 3800 ? 'good' : tti < 7300 ? 'needs-improvement' : 'poor',
+      url: window.location.href,
+      timestamp: Date.now(),
+    });
+    
     chrome.runtime.sendMessage({
       action: 'pageLoad',
       url: window.location.href,

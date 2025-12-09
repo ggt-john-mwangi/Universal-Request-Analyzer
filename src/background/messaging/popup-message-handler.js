@@ -719,6 +719,9 @@ async function handleGetWebVitals(filters = {}) {
       CLS: null,
       FCP: null,
       TTFB: null,
+      TTI: null,
+      DCL: null,
+      Load: null,
     };
     
     // Build WHERE clause based on filters
@@ -740,7 +743,7 @@ async function handleGetWebVitals(filters = {}) {
       : '';
     
     // Query each Web Vital metric
-    for (const metric of ['LCP', 'FID', 'CLS', 'FCP', 'TTFB']) {
+    for (const metric of ['LCP', 'FID', 'CLS', 'FCP', 'TTFB', 'TTI', 'DCL', 'Load']) {
       const query = `
         SELECT 
           AVG(duration) as avg_value,
@@ -776,6 +779,12 @@ async function handleGetWebVitals(filters = {}) {
                   rating = avgValue < 1800 ? 'good' : avgValue < 3000 ? 'needs-improvement' : 'poor';
                 } else if (metric === 'TTFB') {
                   rating = avgValue < 800 ? 'good' : avgValue < 1800 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'TTI') {
+                  rating = avgValue < 3800 ? 'good' : avgValue < 7300 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'DCL') {
+                  rating = avgValue < 1500 ? 'good' : avgValue < 2500 ? 'needs-improvement' : 'poor';
+                } else if (metric === 'Load') {
+                  rating = avgValue < 2500 ? 'good' : avgValue < 4000 ? 'needs-improvement' : 'poor';
                 }
               }
               
