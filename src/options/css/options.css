@@ -1963,3 +1963,82 @@ input[type="number"] {
   color: var(--text-secondary-color);
   font-style: italic;
 }
+
+/* Session Metrics Section */
+.session-metrics-section {
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--surface-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.session-metrics-section h3 {
+  margin: 0 0 20px 0;
+  color: var(--text-primary-color);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-metrics-section h3 i {
+  color: var(--primary-color);
+}
+
+.session-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.session-metric-card {
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.session-metric-card:hover {
+  box-shadow: 0 4px 8px var(--shadow-color);
+  transform: translateY(-2px);
+}
+
+.session-metric-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--surface-color);
+  border-radius: 50%;
+  color: var(--primary-color);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.session-metric-content {
+  flex: 1;
+}
+
+.session-metric-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary-color);
+  margin-bottom: 4px;
+}
+
+.session-metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary-color);
+  margin-bottom: 4px;
+}
+
+.session-metric-detail {
+  font-size: 11px;
+  color: var(--text-secondary-color);
+}

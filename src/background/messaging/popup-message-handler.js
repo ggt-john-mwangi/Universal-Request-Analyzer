@@ -56,6 +56,9 @@ async function handleMessage(message, sender) {
       case 'getWebVitals':
         return await handleGetWebVitals(message.filters);
       
+      case 'getSessionMetrics':
+        return await handleGetSessionMetrics(message.filters);
+      
       case 'getRequestTypes':
         return await handleGetRequestTypes();
       
@@ -803,6 +806,53 @@ async function handleGetWebVitals(filters = {}) {
     return { success: true, vitals };
   } catch (error) {
     console.error('Get Web Vitals error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get Session Metrics - returns session statistics
+async function handleGetSessionMetrics(filters = {}) {
+  try {
+    const timeRange = filters.timeRange || 86400;
+    const timeRangeMs = parseInt(timeRange) * 1000;
+    const startTime = Date.now() - timeRangeMs;
+    
+    const metrics = {
+      totalSessions: 0,
+      avgDuration: null,
+      avgRequests: null,
+      avgEvents: null,
+    };
+    
+    // Query session statistics
+    const query = `
+      SELECT 
+        COUNT(*) as total_sessions,
+        AVG(duration) as avg_duration,
+        AVG(requests_count) as avg_requests,
+        AVG(events_count) as avg_events
+      FROM bronze_sessions
+      WHERE started_at > ?
+    `;
+    
+    try {
+      if (dbManager?.executeQuery) {
+        const result = dbManager.executeQuery(query, [startTime]);
+        if (result && result[0]?.values && result[0].values.length > 0) {
+          const row = result[0].values[0];
+          metrics.totalSessions = row[0] || 0;
+          metrics.avgDuration = row[1] || null;
+          metrics.avgRequests = row[2] || null;
+          metrics.avgEvents = row[3] || null;
+        }
+      }
+    } catch (queryError) {
+      console.error('Session metrics query error:', queryError);
+    }
+    
+    return { success: true, metrics };
+  } catch (error) {
+    console.error('Get session metrics error:', error);
     return { success: false, error: error.message };
   }
 }

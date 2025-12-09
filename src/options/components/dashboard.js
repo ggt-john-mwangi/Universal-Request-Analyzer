@@ -241,6 +241,9 @@ class Dashboard {
       // Update Core Web Vitals
       await this.updateWebVitals();
       
+      // Update Session Metrics
+      await this.updateSessionMetrics();
+      
       console.log('✓ Dashboard refreshed');
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);
@@ -625,6 +628,71 @@ class Dashboard {
       cardEl.classList.remove('good', 'needs-improvement', 'poor');
       cardEl.classList.add(data.rating);
     }
+  }
+
+  async updateSessionMetrics() {
+    try {
+      const filters = this.getActiveFilters();
+      
+      // Get Session Metrics from background
+      const response = await chrome.runtime.sendMessage({
+        action: 'getSessionMetrics',
+        filters: {
+          ...filters,
+          timeRange: this.timeRange
+        }
+      });
+      
+      if (response && response.success && response.metrics) {
+        const metrics = response.metrics;
+        
+        // Update Avg Session Duration
+        const avgDurationEl = document.getElementById('avgSessionDuration');
+        if (avgDurationEl && metrics.avgDuration !== null) {
+          avgDurationEl.textContent = this.formatDuration(metrics.avgDuration);
+        }
+        
+        // Update Total Sessions
+        const totalSessionsEl = document.getElementById('totalSessions');
+        if (totalSessionsEl) {
+          totalSessionsEl.textContent = metrics.totalSessions || 0;
+        }
+        
+        // Update Avg Requests per Session
+        const avgRequestsEl = document.getElementById('avgRequestsPerSession');
+        if (avgRequestsEl && metrics.avgRequests !== null) {
+          avgRequestsEl.textContent = Math.round(metrics.avgRequests);
+        }
+        
+        // Update Avg Events per Session
+        const avgEventsEl = document.getElementById('avgEventsPerSession');
+        if (avgEventsEl && metrics.avgEvents !== null) {
+          avgEventsEl.textContent = Math.round(metrics.avgEvents);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update session metrics:', error);
+    }
+  }
+  
+  formatDuration(ms) {
+    if (!ms) return '-';
+    
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes < 60) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
   }
 
   destroy() {
