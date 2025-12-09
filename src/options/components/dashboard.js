@@ -274,6 +274,12 @@ class Dashboard {
   }
 
   showError(message) {
+    // Clear any existing timeout for previous error
+    if (this.errorTimeout) {
+      clearTimeout(this.errorTimeout);
+      this.errorTimeout = null;
+    }
+    
     const errorContainer = document.createElement('div');
     errorContainer.className = 'dashboard-error';
     errorContainer.innerHTML = `
@@ -291,7 +297,10 @@ class Dashboard {
       container.insertBefore(errorContainer, container.firstChild);
       
       // Auto-hide after 5 seconds
-      setTimeout(() => errorContainer.remove(), 5000);
+      this.errorTimeout = setTimeout(() => {
+        errorContainer.remove();
+        this.errorTimeout = null;
+      }, 5000);
     }
   }
 

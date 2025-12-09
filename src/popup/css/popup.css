@@ -207,6 +207,7 @@ body {
 }
 
 .page-summary {
+  position: relative; /* For loading spinner positioning */
   padding: 20px;
   background: var(--surface-color, #f6f8fb);
   margin: 0;

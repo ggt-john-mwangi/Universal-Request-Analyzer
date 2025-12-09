@@ -414,7 +414,10 @@ async function loadPageSummary() {
       return;
     }
     console.error('Failed to load page summary:', error);
-    showNotification('Failed to load statistics. Please try refreshing.', true);
+    // Only show notification if function is available
+    if (typeof showNotification === 'function') {
+      showNotification('Failed to load statistics. Please try refreshing.', true);
+    }
   } finally {
     // Hide loading state
     if (summarySection) {
@@ -583,17 +586,22 @@ function updateTimelineChart(timestamps, responseTimes) {
     // Limit data points for performance (last 50 points max)
     const maxPoints = 50;
     const limitedTimestamps = timestamps.slice(-maxPoints);
-    const limitedResponseTimes = responseTimes.slice(-maxPoints);
+    const limitedResponseTimes = (responseTimes || []).slice(-maxPoints);
+    
+    // Ensure both arrays have the same length
+    const minLength = Math.min(limitedTimestamps.length, limitedResponseTimes.length);
+    const syncedTimestamps = limitedTimestamps.slice(0, minLength);
+    const syncedResponseTimes = limitedResponseTimes.slice(0, minLength);
     
     // Create new chart (using simple drawing if Chart.js not available)
     if (typeof Chart !== 'undefined') {
       timelineChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: limitedTimestamps,
+          labels: syncedTimestamps,
           datasets: [{
             label: 'Response Time (ms)',
-            data: limitedResponseTimes,
+            data: syncedResponseTimes,
             borderColor: primaryColor,
             backgroundColor: 'transparent',
             tension: 0.3,
