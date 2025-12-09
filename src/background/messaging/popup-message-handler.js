@@ -59,6 +59,15 @@ async function handleMessage(message, sender) {
       case 'getSessionMetrics':
         return await handleGetSessionMetrics(message.filters);
       
+      case 'saveSettingToDb':
+        return await handleSaveSettingToDb(message.key, message.value);
+      
+      case 'loadSettingsFromDb':
+        return await handleLoadSettingsFromDb();
+      
+      case 'syncSettingsToStorage':
+        return await handleSyncSettingsToStorage();
+      
       case 'getRequestTypes':
         return await handleGetRequestTypes();
       
@@ -1941,6 +1950,100 @@ async function handleGetPerformanceInsights(filters) {
     return { success: true, insights };
   } catch (error) {
     console.error('Get performance insights error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle save setting to database
+async function handleSaveSettingToDb(key, value) {
+  try {
+    if (!dbManager?.executeQuery) {
+      return { success: false, error: 'Database not available' };
+    }
+    
+    const valueJson = JSON.stringify(value);
+    const timestamp = Date.now();
+    
+    // Insert or update setting in config_app_settings table
+    const query = `
+      INSERT OR REPLACE INTO config_app_settings (key, value, category, updated_at)
+      VALUES (?, ?, 'user_preferences', ?)
+    `;
+    
+    dbManager.executeQuery(query, [key, valueJson, timestamp]);
+    
+    console.log(`[Settings] Saved ${key} to database`);
+    return { success: true };
+  } catch (error) {
+    console.error('Save setting to DB error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle load settings from database
+async function handleLoadSettingsFromDb() {
+  try {
+    if (!dbManager?.executeQuery) {
+      return { success: false, error: 'Database not available' };
+    }
+    
+    const query = `
+      SELECT key, value FROM config_app_settings
+      WHERE category = 'user_preferences'
+    `;
+    
+    const result = dbManager.executeQuery(query);
+    const settings = {};
+    
+    if (result && result[0]?.values) {
+      for (const row of result[0].values) {
+        const key = row[0];
+        const value = row[1];
+        try {
+          settings[key] = JSON.parse(value);
+        } catch (e) {
+          settings[key] = value;
+        }
+      }
+    }
+    
+    console.log('[Settings] Loaded from database:', Object.keys(settings));
+    return { success: true, settings };
+  } catch (error) {
+    console.error('Load settings from DB error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle sync settings from DB to chrome.storage
+async function handleSyncSettingsToStorage() {
+  try {
+    // Load settings from database
+    const dbResult = await handleLoadSettingsFromDb();
+    
+    if (!dbResult.success) {
+      return dbResult;
+    }
+    
+    const settings = dbResult.settings;
+    
+    // Sync to chrome.storage.sync for content scripts
+    if (Object.keys(settings).length > 0) {
+      await chrome.storage.sync.set(settings);
+      console.log('[Settings] Synced to chrome.storage.sync:', Object.keys(settings));
+    }
+    
+    // Also sync to local storage
+    await chrome.storage.local.set(settings);
+    console.log('[Settings] Synced to chrome.storage.local:', Object.keys(settings));
+    
+    return { 
+      success: true, 
+      message: `Synced ${Object.keys(settings).length} settings from database to storage`,
+      settings: settings
+    };
+  } catch (error) {
+    console.error('Sync settings to storage error:', error);
     return { success: false, error: error.message };
   }
 }
