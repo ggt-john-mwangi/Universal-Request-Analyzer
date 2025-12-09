@@ -225,6 +225,9 @@ class Dashboard {
   async refreshDashboard() {
     console.log('Refreshing dashboard...');
     
+    // Show loading state
+    this.showLoadingState(true);
+    
     try {
       // Get aggregated stats from background
       const stats = await this.getAggregatedStats();
@@ -247,6 +250,48 @@ class Dashboard {
       console.log('✓ Dashboard refreshed');
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);
+      this.showError('Failed to load dashboard data. Please try refreshing.');
+    } finally {
+      // Hide loading state
+      this.showLoadingState(false);
+    }
+  }
+
+  showLoadingState(isLoading) {
+    const container = document.querySelector('.dashboard-container');
+    const metricsSection = document.querySelector('.metrics-grid');
+    const chartsSection = document.querySelector('.dashboard-charts');
+    
+    if (isLoading) {
+      container?.classList.add('loading');
+      if (metricsSection) metricsSection.style.opacity = '0.5';
+      if (chartsSection) chartsSection.style.opacity = '0.5';
+    } else {
+      container?.classList.remove('loading');
+      if (metricsSection) metricsSection.style.opacity = '1';
+      if (chartsSection) chartsSection.style.opacity = '1';
+    }
+  }
+
+  showError(message) {
+    const errorContainer = document.createElement('div');
+    errorContainer.className = 'dashboard-error';
+    errorContainer.innerHTML = `
+      <div class="error-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>${message}</span>
+      </div>
+    `;
+    
+    const container = document.querySelector('.dashboard-container');
+    if (container) {
+      const existing = container.querySelector('.dashboard-error');
+      if (existing) existing.remove();
+      
+      container.insertBefore(errorContainer, container.firstChild);
+      
+      // Auto-hide after 5 seconds
+      setTimeout(() => errorContainer.remove(), 5000);
     }
   }
 
@@ -420,10 +465,39 @@ class Dashboard {
   }
 
   startAutoRefresh() {
+    // Stop any existing interval
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+    
     // Refresh every 30 seconds
     this.refreshInterval = setInterval(() => {
       this.refreshDashboard();
     }, 30000);
+    
+    console.log('✓ Dashboard auto-refresh started (30s interval)');
+  }
+
+  stopAutoRefresh() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+      console.log('✓ Dashboard auto-refresh stopped');
+    }
+  }
+
+  destroy() {
+    // Clean up when dashboard is closed
+    this.stopAutoRefresh();
+    
+    // Destroy all charts
+    Object.values(this.charts).forEach(chart => {
+      if (chart && typeof chart.destroy === 'function') {
+        chart.destroy();
+      }
+    });
+    
+    this.charts = {};
   }
 
   async loadDomainFilter() {
