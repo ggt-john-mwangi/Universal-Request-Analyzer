@@ -122,12 +122,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Add settings change listener
     settingsManager.addSettingsListener(handleSettingsChange);
 
-    // Initialize data purge component
-    const dataPurgeContainer = document.getElementById('dataPurge');
-    if (dataPurgeContainer) {
-      console.log('Options page: Rendering data purge component...');
-      dataPurgeContainer.appendChild(renderDataPurge());
-    }
+    // Initialize data purge component - REMOVED to prevent duplicate section
+    // The Data Retention section is already in options.html
 
     // Set up tab navigation
     console.log('Options page: Setting up tab navigation...');
@@ -787,35 +783,139 @@ function setupEventListeners() {
     maxStoredRequests.addEventListener('change', updateStorageUsageDisplay);
   }
   
-  // Filter toggle buttons
+  // Filter modal buttons
   const dashboardFilterToggle = document.getElementById('dashboardFilterToggle');
-  if (dashboardFilterToggle) {
+  const dashboardFilterModal = document.getElementById('dashboardFilterModal');
+  if (dashboardFilterToggle && dashboardFilterModal) {
     dashboardFilterToggle.addEventListener('click', function() {
-      const panel = document.getElementById('dashboardFilterPanel');
-      const btn = this;
+      // Sync current filter values to modal
+      const currentDomain = document.getElementById('dashboardDomainFilter')?.value || 'all';
+      const currentPage = document.getElementById('dashboardPageFilter')?.value || '';
+      const currentType = document.getElementById('dashboardRequestTypeFilter')?.value || '';
       
-      if (panel && panel.classList.contains('open')) {
-        panel.classList.remove('open');
-        btn.classList.remove('active');
-      } else if (panel) {
-        panel.classList.add('open');
-        btn.classList.add('active');
+      const modalDomain = document.getElementById('dashboardModalDomainFilter');
+      const modalPage = document.getElementById('dashboardModalPageFilter');
+      const modalType = document.getElementById('dashboardModalRequestTypeFilter');
+      
+      if (modalDomain) modalDomain.value = currentDomain;
+      if (modalPage) modalPage.value = currentPage;
+      if (modalType) modalType.value = currentType;
+      
+      dashboardFilterModal.style.display = 'flex';
+    });
+    
+    // Close modal button
+    const dashboardModalClose = dashboardFilterModal.querySelector('.modal-close');
+    if (dashboardModalClose) {
+      dashboardModalClose.addEventListener('click', () => {
+        dashboardFilterModal.style.display = 'none';
+      });
+    }
+    
+    // Cancel button
+    const cancelDashboardFiltersBtn = document.getElementById('cancelDashboardFiltersBtn');
+    if (cancelDashboardFiltersBtn) {
+      cancelDashboardFiltersBtn.addEventListener('click', () => {
+        dashboardFilterModal.style.display = 'none';
+      });
+    }
+    
+    // Apply filters button
+    const applyDashboardFiltersBtn = document.getElementById('applyDashboardFiltersBtn');
+    if (applyDashboardFiltersBtn) {
+      applyDashboardFiltersBtn.addEventListener('click', () => {
+        // Copy modal values back to actual filters
+        const modalDomain = document.getElementById('dashboardModalDomainFilter');
+        const modalPage = document.getElementById('dashboardModalPageFilter');
+        const modalType = document.getElementById('dashboardModalRequestTypeFilter');
+        
+        const actualDomain = document.getElementById('dashboardDomainFilter');
+        const actualPage = document.getElementById('dashboardPageFilter');
+        const actualType = document.getElementById('dashboardRequestTypeFilter');
+        
+        if (modalDomain && actualDomain) actualDomain.value = modalDomain.value;
+        if (modalPage && actualPage) actualPage.value = modalPage.value;
+        if (modalType && actualType) actualType.value = modalType.value;
+        
+        // Trigger change events to refresh dashboard
+        if (actualDomain) actualDomain.dispatchEvent(new Event('change'));
+        
+        dashboardFilterModal.style.display = 'none';
+      });
+    }
+    
+    // Close on background click
+    dashboardFilterModal.addEventListener('click', (e) => {
+      if (e.target === dashboardFilterModal) {
+        dashboardFilterModal.style.display = 'none';
       }
     });
   }
   
   const analyticsFilterToggle = document.getElementById('analyticsFilterToggle');
-  if (analyticsFilterToggle) {
+  const analyticsFilterModal = document.getElementById('analyticsFilterModal');
+  if (analyticsFilterToggle && analyticsFilterModal) {
     analyticsFilterToggle.addEventListener('click', function() {
-      const panel = document.getElementById('analyticsFilterPanel');
-      const btn = this;
+      // Sync current filter values to modal
+      const currentDomain = document.getElementById('analyticsDomainFilter')?.value || 'all';
+      const currentPage = document.getElementById('analyticsPageFilter')?.value || '';
+      const currentType = document.getElementById('analyticsRequestTypeFilter')?.value || '';
       
-      if (panel && panel.classList.contains('open')) {
-        panel.classList.remove('open');
-        btn.classList.remove('active');
-      } else if (panel) {
-        panel.classList.add('open');
-        btn.classList.add('active');
+      const modalDomain = document.getElementById('analyticsModalDomainFilter');
+      const modalPage = document.getElementById('analyticsModalPageFilter');
+      const modalType = document.getElementById('analyticsModalRequestTypeFilter');
+      
+      if (modalDomain) modalDomain.value = currentDomain;
+      if (modalPage) modalPage.value = currentPage;
+      if (modalType) modalType.value = currentType;
+      
+      analyticsFilterModal.style.display = 'flex';
+    });
+    
+    // Close modal button
+    const analyticsModalClose = analyticsFilterModal.querySelector('.modal-close');
+    if (analyticsModalClose) {
+      analyticsModalClose.addEventListener('click', () => {
+        analyticsFilterModal.style.display = 'none';
+      });
+    }
+    
+    // Cancel button
+    const cancelAnalyticsFiltersBtn = document.getElementById('cancelAnalyticsFiltersBtn');
+    if (cancelAnalyticsFiltersBtn) {
+      cancelAnalyticsFiltersBtn.addEventListener('click', () => {
+        analyticsFilterModal.style.display = 'none';
+      });
+    }
+    
+    // Apply filters button
+    const applyAnalyticsFiltersBtn = document.getElementById('applyAnalyticsFiltersBtn');
+    if (applyAnalyticsFiltersBtn) {
+      applyAnalyticsFiltersBtn.addEventListener('click', () => {
+        // Copy modal values back to actual filters
+        const modalDomain = document.getElementById('analyticsModalDomainFilter');
+        const modalPage = document.getElementById('analyticsModalPageFilter');
+        const modalType = document.getElementById('analyticsModalRequestTypeFilter');
+        
+        const actualDomain = document.getElementById('analyticsDomainFilter');
+        const actualPage = document.getElementById('analyticsPageFilter');
+        const actualType = document.getElementById('analyticsRequestTypeFilter');
+        
+        if (modalDomain && actualDomain) actualDomain.value = modalDomain.value;
+        if (modalPage && actualPage) actualPage.value = modalPage.value;
+        if (modalType && actualType) actualType.value = modalType.value;
+        
+        // Trigger change events to refresh analytics
+        if (actualDomain) actualDomain.dispatchEvent(new Event('change'));
+        
+        analyticsFilterModal.style.display = 'none';
+      });
+    }
+    
+    // Close on background click
+    analyticsFilterModal.addEventListener('click', (e) => {
+      if (e.target === analyticsFilterModal) {
+        analyticsFilterModal.style.display = 'none';
       }
     });
   }

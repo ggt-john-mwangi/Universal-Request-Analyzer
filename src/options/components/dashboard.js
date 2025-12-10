@@ -512,10 +512,14 @@ class Dashboard {
   async loadDomainFilter() {
     try {
       const domainSelect = document.getElementById('dashboardDomainFilter');
+      const modalDomainSelect = document.getElementById('dashboardModalDomainFilter');
       if (!domainSelect) return;
       
       // Reset dropdown
       domainSelect.innerHTML = '<option value="all">All Domains</option>';
+      if (modalDomainSelect) {
+        modalDomainSelect.innerHTML = '<option value="all">All Domains</option>';
+      }
       
       // Get all domains
       const response = await chrome.runtime.sendMessage({
@@ -533,6 +537,14 @@ class Dashboard {
             option.value = domain;
             option.textContent = `${domain} (${domainObj.requestCount} requests)`;
             domainSelect.appendChild(option);
+            
+            // Also add to modal dropdown
+            if (modalDomainSelect) {
+              const modalOption = document.createElement('option');
+              modalOption.value = domain;
+              modalOption.textContent = `${domain} (${domainObj.requestCount} requests)`;
+              modalDomainSelect.appendChild(modalOption);
+            }
           }
         });
         console.log(`Loaded ${response.domains.length} domains for dashboard`);
