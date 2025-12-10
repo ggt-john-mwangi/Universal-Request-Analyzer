@@ -760,6 +760,39 @@ function setupEventListeners() {
   if (maxStoredRequests) {
     maxStoredRequests.addEventListener('change', updateStorageUsageDisplay);
   }
+  
+  // Filter toggle buttons
+  const dashboardFilterToggle = document.getElementById('dashboardFilterToggle');
+  if (dashboardFilterToggle) {
+    dashboardFilterToggle.addEventListener('click', function() {
+      const panel = document.getElementById('dashboardFilterPanel');
+      const btn = this;
+      
+      if (panel && panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        btn.classList.remove('active');
+      } else if (panel) {
+        panel.classList.add('open');
+        btn.classList.add('active');
+      }
+    });
+  }
+  
+  const analyticsFilterToggle = document.getElementById('analyticsFilterToggle');
+  if (analyticsFilterToggle) {
+    analyticsFilterToggle.addEventListener('click', function() {
+      const panel = document.getElementById('analyticsFilterPanel');
+      const btn = this;
+      
+      if (panel && panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        btn.classList.remove('active');
+      } else if (panel) {
+        panel.classList.add('open');
+        btn.classList.add('active');
+      }
+    });
+  }
 }
 
 // Helper function to update storage usage display
@@ -2388,30 +2421,3 @@ async function initializeAlerts() {
     console.error('Failed to initialize Alerts:', error);
   }
 }
-
-// Filter Toggle Functionality
-document.getElementById('dashboardFilterToggle')?.addEventListener('click', function() {
-  const panel = document.getElementById('dashboardFilterPanel');
-  const btn = this;
-  
-  if (panel.classList.contains('open')) {
-    panel.classList.remove('open');
-    btn.classList.remove('active');
-  } else {
-    panel.classList.add('open');
-    btn.classList.add('active');
-  }
-});
-
-document.getElementById('analyticsFilterToggle')?.addEventListener('click', function() {
-  const panel = document.getElementById('analyticsFilterPanel');
-  const btn = this;
-  
-  if (panel.classList.contains('open')) {
-    panel.classList.remove('open');
-    btn.classList.remove('active');
-  } else {
-    panel.classList.add('open');
-    btn.classList.add('active');
-  }
-});
