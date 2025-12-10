@@ -9,7 +9,7 @@ import '../../lib/shared-components/chart-components.js';
 import '../../lib/shared-components/chart-renderer.js';
 import '../../lib/shared-components/data-filter-panel.js';
 import '../../lib/shared-components/data-loader.js';
-import renderDataPurge from '../components/data-purge.js';
+// Removed unused import: renderDataPurge - Data Retention section is now in HTML
 import '../../lib/shared-components/data-visualization.js';
 import '../components/export-db.js';
 import '../../lib/shared-components/export-panel.js';

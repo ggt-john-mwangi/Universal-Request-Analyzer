@@ -789,19 +789,6 @@ class Dashboard {
     const remainingMinutes = minutes % 60;
     return `${hours}h ${remainingMinutes}m`;
   }
-
-  destroy() {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
-
-    // Destroy all charts
-    Object.values(this.charts).forEach(chart => {
-      if (chart) {
-        chart.destroy();
-      }
-    });
-  }
 }
 
 // Export singleton instance
