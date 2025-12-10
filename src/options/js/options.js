@@ -674,17 +674,43 @@ function setupEventListeners() {
   }
 
   if (clearDbBtn) {
-    clearDbBtn.addEventListener('click', () => {
-      if (confirm('Are you sure you want to clear all stored requests?')) {
-        chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
-          if (response && response.success) {
-            showNotification('Database cleared successfully!');
-            loadDatabaseInfo();
-          } else {
-            showNotification('Failed to clear database', true);
-          }
-        });
+    clearDbBtn.addEventListener('click', async () => {
+      // Enhanced confirmation with database info
+      const response = await chrome.runtime.sendMessage({ action: 'getDatabaseSize' });
+      const records = response?.records || 0;
+      const sizeMB = response?.size ? (response.size / (1024 * 1024)).toFixed(2) : '0';
+      
+      const confirmed = confirm(
+        `⚠️ WARNING: Clear All Database Records?\n\n` +
+        `This will permanently delete:\n` +
+        `- ${records.toLocaleString()} records\n` +
+        `- ${sizeMB} MB of data\n\n` +
+        `This action cannot be undone!\n\n` +
+        `Are you sure?`
+      );
+      
+      if (!confirmed) return;
+      
+      // Second confirmation for large databases
+      if (records > 10000) {
+        const doubleConfirm = confirm(
+          `⚠️ FINAL CONFIRMATION\n\n` +
+          `You are about to delete ${records.toLocaleString()} records.\n\n` +
+          `This is your last chance to cancel.`
+        );
+        
+        if (!doubleConfirm) return;
       }
+      
+      chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
+        if (response && response.success) {
+          showNotification('Database cleared successfully!');
+          loadDatabaseInfo();
+          updateDatabaseSizeDisplay();
+        } else {
+          showNotification('Failed to clear database', true);
+        }
+      });
     });
   }
 
@@ -694,7 +720,7 @@ function setupEventListeners() {
   }
   if (importSettingsBtn && importSettingsFile) {
     importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
-    importSettingsFile.addEventListener('change', importSettings);
+    importSettingsFile.addEventListener('change', importSettingsWithValidation);
   }
 
   // Save All button
@@ -792,6 +818,36 @@ function setupEventListeners() {
         btn.classList.add('active');
       }
     });
+  }
+  
+  // Data Safety Features
+  const previewCleanupBtn = document.getElementById('previewCleanupBtn');
+  if (previewCleanupBtn) {
+    previewCleanupBtn.addEventListener('click', previewCleanup);
+  }
+  
+  const createBackupBtn = document.getElementById('createBackupBtn');
+  if (createBackupBtn) {
+    createBackupBtn.addEventListener('click', createBackupBeforeCleanup);
+  }
+  
+  const executeCleanupBtn = document.getElementById('executeCleanupBtn');
+  if (executeCleanupBtn) {
+    executeCleanupBtn.addEventListener('click', performCleanupWithConfirmation);
+  }
+  
+  // Initialize database size display
+  updateDatabaseSizeDisplay();
+  
+  // Add validation to domain inputs
+  const includeDomains = document.getElementById('includeDomains');
+  if (includeDomains) {
+    includeDomains.addEventListener('blur', () => validateDomainList(includeDomains));
+  }
+  
+  const excludeDomains = document.getElementById('excludeDomains');
+  if (excludeDomains) {
+    excludeDomains.addEventListener('blur', () => validateDomainList(excludeDomains));
   }
 }
 
@@ -2419,5 +2475,429 @@ async function initializeAlerts() {
     console.log('✓ Alerts component initialized');
   } catch (error) {
     console.error('Failed to initialize Alerts:', error);
+  }
+}
+
+// ===== DATA SAFETY FEATURES =====
+
+// Update database size display
+async function updateDatabaseSizeDisplay() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDatabaseSize'
+    });
+    
+    if (response && response.success) {
+      const sizeElement = document.getElementById('currentDbSize');
+      const recordsElement = document.getElementById('currentDbRecords');
+      const oldestElement = document.getElementById('oldestRecord');
+      
+      if (sizeElement) {
+        const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
+        sizeElement.textContent = `${sizeMB} MB`;
+        
+        // Color code based on size
+        if (sizeMB > 100) {
+          sizeElement.style.color = '#e53e3e';
+        } else if (sizeMB > 50) {
+          sizeElement.style.color = '#ed8936';
+        } else {
+          sizeElement.style.color = '#48bb78';
+        }
+      }
+      
+      if (recordsElement) {
+        recordsElement.textContent = (response.records || 0).toLocaleString();
+      }
+      
+      if (oldestElement && response.oldestDate) {
+        const date = new Date(response.oldestDate);
+        oldestElement.textContent = date.toLocaleDateString();
+      }
+      
+      // Check storage limits and show warning
+      await checkStorageWarning(response.records || 0);
+    }
+  } catch (error) {
+    console.error('Failed to get database size:', error);
+  }
+}
+
+// Check and display storage warning
+async function checkStorageWarning(currentRecords) {
+  const maxStoredRequests = document.getElementById('maxStoredRequests');
+  const currentStorageCount = document.getElementById('currentStorageCount');
+  
+  if (!maxStoredRequests) return;
+  
+  const maxRecords = parseInt(maxStoredRequests.value) || 10000;
+  const percentage = (currentRecords / maxRecords) * 100;
+  
+  // Update current count display
+  if (currentStorageCount) {
+    currentStorageCount.textContent = currentRecords.toLocaleString();
+  }
+  
+  // Update usage bar
+  updateStorageUsageDisplay();
+  
+  // Show warning if approaching limit
+  if (percentage >= 90) {
+    showStorageWarning(
+      `⚠️ Storage Nearly Full: ${percentage.toFixed(0)}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
+      'error'
+    );
+  } else if (percentage >= 75) {
+    showStorageWarning(
+      `⚠️ Storage Warning: ${percentage.toFixed(0)}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
+      'warning'
+    );
+  }
+}
+
+// Show storage warning banner
+function showStorageWarning(message, type = 'warning') {
+  let warningBanner = document.getElementById('storageWarningBanner');
+  
+  if (!warningBanner) {
+    warningBanner = document.createElement('div');
+    warningBanner.id = 'storageWarningBanner';
+    warningBanner.className = 'warning-banner';
+    
+    // Insert at top of general settings tab
+    const generalTab = document.getElementById('general');
+    if (generalTab) {
+      generalTab.insertBefore(warningBanner, generalTab.firstChild);
+    }
+  }
+  
+  warningBanner.className = `warning-banner ${type}`;
+  warningBanner.innerHTML = `
+    <i class="fas fa-exclamation-triangle"></i>
+    <span>${message}</span>
+    <button onclick="this.parentElement.style.display='none'" class="close-btn">
+      <i class="fas fa-times"></i>
+    </button>
+  `;
+  warningBanner.style.display = 'flex';
+  
+  // Add styles if not already present
+  if (!document.getElementById('warningBannerStyles')) {
+    const style = document.createElement('style');
+    style.id = 'warningBannerStyles';
+    style.textContent = `
+      .warning-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        font-weight: 500;
+      }
+      .warning-banner.warning {
+        background: #fef5e7;
+        border-left: 4px solid #ed8936;
+        color: #744210;
+      }
+      .warning-banner.error {
+        background: #fee;
+        border-left: 4px solid #e53e3e;
+        color: #742a2a;
+      }
+      .warning-banner .close-btn {
+        margin-left: auto;
+        background: none;
+        border: none;
+        cursor: pointer;
+        opacity: 0.6;
+        padding: 4px;
+      }
+      .warning-banner .close-btn:hover {
+        opacity: 1;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
+// Preview cleanup (dry-run)
+async function previewCleanup() {
+  const cleanupAge = document.getElementById('cleanupAge');
+  const previewBox = document.getElementById('cleanupPreview');
+  const recordsCount = document.getElementById('previewRecordsCount');
+  const sizeFreed = document.getElementById('previewSizeFreed');
+  const recordsRemaining = document.getElementById('previewRecordsRemaining');
+  
+  if (!cleanupAge || !previewBox) return;
+  
+  const days = parseInt(cleanupAge.value);
+  if (isNaN(days) || days < 1) {
+    showNotification('Please enter a valid number of days', true);
+    return;
+  }
+  
+  try {
+    showNotification('Calculating cleanup preview...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'previewCleanup',
+      days: days
+    });
+    
+    if (response && response.success) {
+      if (recordsCount) recordsCount.textContent = response.recordsToDelete.toLocaleString();
+      if (sizeFreed) sizeFreed.textContent = (response.sizeFreed / (1024 * 1024)).toFixed(2) + ' MB';
+      if (recordsRemaining) recordsRemaining.textContent = response.recordsRemaining.toLocaleString();
+      
+      previewBox.style.display = 'block';
+      
+      if (response.recordsToDelete > 0) {
+        showNotification(`Preview complete: ${response.recordsToDelete} records can be deleted`);
+      } else {
+        showNotification('No records found matching cleanup criteria');
+      }
+    } else {
+      showNotification('Failed to preview cleanup: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('Cleanup preview error:', error);
+    showNotification('Failed to preview cleanup', true);
+  }
+}
+
+// Create backup before cleanup
+async function createBackupBeforeCleanup() {
+  const btn = document.getElementById('createBackupBtn');
+  const lastBackup = document.getElementById('lastBackupTime');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Backup...';
+  }
+  
+  try {
+    showNotification('Creating backup...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'createBackup',
+      includeMetadata: true
+    });
+    
+    if (response && response.success) {
+      if (lastBackup) {
+        lastBackup.textContent = `Last backup: ${new Date().toLocaleString()}`;
+      }
+      
+      showNotification(`Backup created successfully: ${response.filename}`);
+      
+      // Enable cleanup button if preview was done
+      const executeBtn = document.getElementById('executeCleanupBtn');
+      if (executeBtn) {
+        executeBtn.disabled = false;
+      }
+    } else {
+      showNotification('Failed to create backup: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('Backup error:', error);
+    showNotification('Failed to create backup', true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save"></i> Create Backup Before Cleanup';
+    }
+  }
+}
+
+// Perform cleanup with confirmation
+async function performCleanupWithConfirmation() {
+  const cleanupAge = document.getElementById('cleanupAge');
+  const previewBox = document.getElementById('cleanupPreview');
+  const recordsCount = document.getElementById('previewRecordsCount');
+  
+  if (!cleanupAge || !previewBox) return;
+  
+  // Check if preview was done
+  if (previewBox.style.display === 'none') {
+    showNotification('Please preview cleanup first', true);
+    return;
+  }
+  
+  const days = parseInt(cleanupAge.value);
+  const recordsToDelete = parseInt(recordsCount?.textContent?.replace(/,/g, '') || '0');
+  
+  // Confirmation dialog
+  const confirmed = confirm(
+    `⚠️ WARNING: This will permanently delete ${recordsToDelete.toLocaleString()} records older than ${days} days.\n\n` +
+    `Make sure you have created a backup first!\n\n` +
+    `This action cannot be undone. Continue?`
+  );
+  
+  if (!confirmed) return;
+  
+  // Second confirmation for large deletions
+  if (recordsToDelete > 10000) {
+    const doubleConfirm = confirm(
+      `⚠️ FINAL CONFIRMATION\n\n` +
+      `You are about to delete ${recordsToDelete.toLocaleString()} records.\n\n` +
+      `Are you absolutely sure?`
+    );
+    
+    if (!doubleConfirm) return;
+  }
+  
+  const executeBtn = document.getElementById('executeCleanupBtn');
+  if (executeBtn) {
+    executeBtn.disabled = true;
+    executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cleaning Up...';
+  }
+  
+  try {
+    showNotification('Performing cleanup...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'performCleanup',
+      days: days
+    });
+    
+    if (response && response.success) {
+      showNotification(`Cleanup complete: ${response.recordsDeleted.toLocaleString()} records deleted`);
+      
+      // Hide preview and refresh database info
+      previewBox.style.display = 'none';
+      await updateDatabaseSizeDisplay();
+    } else {
+      showNotification('Failed to perform cleanup: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    showNotification('Failed to perform cleanup', true);
+  } finally {
+    if (executeBtn) {
+      executeBtn.disabled = false;
+      executeBtn.innerHTML = '<i class="fas fa-broom"></i> Execute Cleanup';
+    }
+  }
+}
+
+// Validate domain list
+function validateDomainList(inputElement) {
+  if (!inputElement) return true;
+  
+  const domains = inputElement.value.split('\n').map(d => d.trim()).filter(d => d);
+  const invalidDomains = [];
+  
+  // Domain regex: basic validation for domain patterns
+  const domainRegex = /^(\*\.)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
+  const wildcardRegex = /^https?:\/\/(\*\.)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+/;
+  
+  domains.forEach(domain => {
+    // Allow wildcards, URLs, and plain domains
+    if (!domainRegex.test(domain) && !wildcardRegex.test(domain) && !domain.includes('*')) {
+      invalidDomains.push(domain);
+    }
+  });
+  
+  // Show validation feedback
+  const feedbackId = inputElement.id + 'Feedback';
+  let feedbackEl = document.getElementById(feedbackId);
+  
+  if (!feedbackEl) {
+    feedbackEl = document.createElement('div');
+    feedbackEl.id = feedbackId;
+    feedbackEl.className = 'validation-feedback';
+    inputElement.parentNode.insertBefore(feedbackEl, inputElement.nextSibling);
+  }
+  
+  if (invalidDomains.length > 0) {
+    feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Invalid domains: ${invalidDomains.join(', ')}`;
+    feedbackEl.style.color = '#e53e3e';
+    feedbackEl.style.fontSize = '12px';
+    feedbackEl.style.marginTop = '4px';
+    return false;
+  } else if (domains.length > 0) {
+    feedbackEl.innerHTML = `<i class="fas fa-check-circle"></i> ${domains.length} valid domain(s)`;
+    feedbackEl.style.color = '#48bb78';
+    feedbackEl.style.fontSize = '12px';
+    feedbackEl.style.marginTop = '4px';
+    return true;
+  } else {
+    feedbackEl.innerHTML = '';
+    return true;
+  }
+}
+
+// Enhanced import settings with validation
+async function importSettingsWithValidation() {
+  const fileInput = document.getElementById('importSettingsFile');
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    showNotification('Please select a file', true);
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  
+  // Validate file type
+  if (!file.name.endsWith('.json')) {
+    showNotification('Invalid file type. Please select a JSON file', true);
+    return;
+  }
+  
+  // Validate file size (max 50MB)
+  if (file.size > 50 * 1024 * 1024) {
+    showNotification('File too large. Maximum size is 50MB', true);
+    return;
+  }
+  
+  try {
+    const text = await file.text();
+    const settings = JSON.parse(text);
+    
+    // Validate settings structure
+    if (!settings || typeof settings !== 'object') {
+      showNotification('Invalid settings file: not a valid JSON object', true);
+      return;
+    }
+    
+    // Check for required fields or valid structure
+    const validKeys = ['general', 'monitoring', 'filters', 'export', 'retention', 'security', 'theme'];
+    const hasValidKeys = Object.keys(settings).some(key => validKeys.includes(key));
+    
+    if (!hasValidKeys) {
+      showNotification('Invalid settings file: no recognized settings found', true);
+      return;
+    }
+    
+    // Confirmation dialog
+    const settingsCount = Object.keys(settings).length;
+    const confirmed = confirm(
+      `Import ${settingsCount} setting(s)?\n\n` +
+      `This will overwrite your current settings.\n\n` +
+      `Categories: ${Object.keys(settings).join(', ')}`
+    );
+    
+    if (!confirmed) return;
+    
+    showNotification('Importing settings...');
+    
+    // Import settings
+    await chrome.storage.local.set(settings);
+    
+    // Reload options
+    await loadOptions();
+    
+    showNotification('Settings imported successfully!');
+    
+    // Clear file input
+    fileInput.value = '';
+    
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      showNotification('Invalid JSON file: ' + error.message, true);
+    } else {
+      console.error('Import error:', error);
+      showNotification('Failed to import settings', true);
+    }
   }
 }
