@@ -25,44 +25,68 @@ import '../../config/feature-flags.js';
 import themeManager from '../../config/theme-manager.js';
 import '../../lib/chart.min.js';
 
-// DOM elements
-const captureEnabled = document.getElementById('captureEnabled');
-const maxStoredRequests = document.getElementById('maxStoredRequests');
-const captureTypeCheckboxes = document.querySelectorAll(
-  'input[name="captureType"]'
-);
-const includeDomains = document.getElementById('includeDomains');
-const excludeDomains = document.getElementById('excludeDomains');
-const autoExport = document.getElementById('autoExport');
-const exportFormat = document.getElementById('exportFormat');
-const exportInterval = document.getElementById('exportInterval');
-const exportPath = document.getElementById('exportPath');
-const plotEnabled = document.getElementById('plotEnabled');
-const plotTypeCheckboxes = document.querySelectorAll('input[name="plotType"]');
-const saveBtn = document.getElementById('saveBtn');
-const resetBtn = document.getElementById('resetBtn');
-const exportDbBtn = document.getElementById('exportDbBtn');
-const clearDbBtn = document.getElementById('clearDbBtn');
-const notification = document.getElementById('notification');
-const dbTotalRequests = document.getElementById('dbTotalRequests');
-const dbSize = document.getElementById('dbSize');
-const lastExport = document.getElementById('lastExport');
-
-// Add import/export elements
-const exportSettingsBtn = document.getElementById('exportSettingsBtn');
-const importSettingsBtn = document.getElementById('importSettingsBtn');
-const importSettingsFile = document.getElementById('importSettingsFile');
-
-// Theme elements
-const currentThemeSelect = document.getElementById('currentTheme');
-const themesContainer = document.querySelector('.themes-container');
-const saveThemeBtn = document.getElementById('saveThemeBtn');
-const resetThemeBtn = document.getElementById('resetThemeBtn');
+// DOM elements - will be initialized in DOMContentLoaded
+let captureEnabled;
+let maxStoredRequests;
+let captureTypeCheckboxes;
+let includeDomains;
+let excludeDomains;
+let autoExport;
+let exportFormat;
+let exportInterval;
+let exportPath;
+let plotEnabled;
+let plotTypeCheckboxes;
+let saveBtn;
+let resetBtn;
+let exportDbBtn;
+let clearDbBtn;
+let notification;
+let dbTotalRequests;
+let dbSize;
+let lastExport;
+let exportSettingsBtn;
+let importSettingsBtn;
+let importSettingsFile;
+let currentThemeSelect;
+let themesContainer;
+let saveThemeBtn;
+let resetThemeBtn;
 
 // Load when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     console.log('Options page: DOM loaded, initializing...');
+    
+    // Initialize DOM elements first
+    captureEnabled = document.getElementById('captureEnabled');
+    maxStoredRequests = document.getElementById('maxStoredRequests');
+    captureTypeCheckboxes = document.querySelectorAll('input[name="captureType"]');
+    includeDomains = document.getElementById('includeDomains');
+    excludeDomains = document.getElementById('excludeDomains');
+    autoExport = document.getElementById('autoExport');
+    exportFormat = document.getElementById('exportFormat');
+    exportInterval = document.getElementById('exportInterval');
+    exportPath = document.getElementById('exportPath');
+    plotEnabled = document.getElementById('plotEnabled');
+    plotTypeCheckboxes = document.querySelectorAll('input[name="plotType"]');
+    saveBtn = document.getElementById('saveBtn');
+    resetBtn = document.getElementById('resetBtn');
+    exportDbBtn = document.getElementById('exportDbBtn');
+    clearDbBtn = document.getElementById('clearDbBtn');
+    notification = document.getElementById('notification');
+    dbTotalRequests = document.getElementById('dbTotalRequests');
+    dbSize = document.getElementById('dbSize');
+    lastExport = document.getElementById('lastExport');
+    exportSettingsBtn = document.getElementById('exportSettingsBtn');
+    importSettingsBtn = document.getElementById('importSettingsBtn');
+    importSettingsFile = document.getElementById('importSettingsFile');
+    currentThemeSelect = document.getElementById('currentTheme');
+    themesContainer = document.querySelector('.themes-container');
+    saveThemeBtn = document.getElementById('saveThemeBtn');
+    resetThemeBtn = document.getElementById('resetThemeBtn');
+    
+    console.log('Options page: DOM elements initialized');
     
     // Initialize settings manager
     console.log('Options page: Initializing settings manager...');
@@ -100,6 +124,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Render theme options
     console.log('Options page: Rendering theme options...');
     renderThemeOptions();
+    
+    // Setup event listeners for buttons
+    console.log('Options page: Setting up event listeners...');
+    setupEventListeners();
     
     // Initialize advanced tab
     console.log('Options page: Initializing advanced tab...');
@@ -600,63 +628,248 @@ function showNotification(message, isError = false) {
   }, 5000);
 }
 
-// Add event listeners
-if (saveBtn) {
-  saveBtn.addEventListener('click', saveOptions);
-}
-if (resetBtn) {
-  resetBtn.addEventListener('click', resetOptions);
-}
-if (exportDbBtn) {
-  exportDbBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage(
-      {
-        action: 'exportDatabase',
-        format: exportFormat.value,
-        filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
-          exportFormat.value
-        }`,
-      },
-      (response) => {
-        if (response && response.success) {
-          showNotification('Database exported successfully!');
-          lastExport.textContent = new Date().toLocaleString();
-        } else {
-          showNotification('Failed to export database', true);
+// Setup event listeners for all buttons and controls
+function setupEventListeners() {
+  // Save and Reset buttons
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveOptions);
+  }
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetOptions);
+  }
+  
+  // Database buttons
+  if (exportDbBtn) {
+    exportDbBtn.addEventListener('click', () => {
+      chrome.runtime.sendMessage(
+        {
+          action: 'exportDatabase',
+          format: exportFormat?.value || 'json',
+          filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
+            exportFormat?.value || 'json'
+          }`,
+        },
+        (response) => {
+          if (response && response.success) {
+            showNotification('Database exported successfully!');
+            if (lastExport) lastExport.textContent = new Date().toLocaleString();
+          } else {
+            showNotification('Failed to export database', true);
+          }
         }
+      );
+    });
+  }
+
+  if (clearDbBtn) {
+    clearDbBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all stored requests?')) {
+        chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
+          if (response && response.success) {
+            showNotification('Database cleared successfully!');
+            loadDatabaseInfo();
+          } else {
+            showNotification('Failed to clear database', true);
+          }
+        });
       }
-    );
+    });
+  }
+
+  // Import/export settings
+  if (exportSettingsBtn) {
+    exportSettingsBtn.addEventListener('click', exportSettings);
+  }
+  if (importSettingsBtn && importSettingsFile) {
+    importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
+    importSettingsFile.addEventListener('change', importSettings);
+  }
+
+  // Save All button
+  const saveAllBtn = document.getElementById('saveAllBtn');
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener('click', saveOptions);
+  }
+  
+  // Theme buttons
+  if (saveThemeBtn) {
+    saveThemeBtn.addEventListener('click', async () => {
+      if (currentThemeSelect && themeManager) {
+        const selectedTheme = currentThemeSelect.value;
+        await themeManager.setTheme(selectedTheme);
+        showNotification('Theme saved successfully!');
+      }
+    });
+  }
+  
+  if (resetThemeBtn) {
+    resetThemeBtn.addEventListener('click', async () => {
+      if (themeManager) {
+        await themeManager.setTheme('light');
+        if (currentThemeSelect) currentThemeSelect.value = 'light';
+        showNotification('Theme reset to default!');
+      }
+    });
+  }
+  
+  // Preset buttons for storage
+  const presetButtons = document.querySelectorAll('.preset-btn');
+  presetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.value;
+      if (maxStoredRequests && value) {
+        maxStoredRequests.value = value;
+        updateStorageUsageDisplay();
+      }
+    });
   });
+  
+  // Site tracking buttons
+  const validateSitesBtn = document.getElementById('validateSitesBtn');
+  if (validateSitesBtn) {
+    validateSitesBtn.addEventListener('click', validateTrackingSites);
+  }
+  
+  const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
+  if (addCurrentSiteBtn) {
+    addCurrentSiteBtn.addEventListener('click', addCurrentSiteToTracking);
+  }
+  
+  // Site preset buttons
+  const sitePresetButtons = document.querySelectorAll('.site-preset-btn');
+  sitePresetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.preset;
+      handleSitePreset(preset);
+    });
+  });
+  
+  // Update storage display when max changes
+  if (maxStoredRequests) {
+    maxStoredRequests.addEventListener('change', updateStorageUsageDisplay);
+  }
 }
 
-if (clearDbBtn) {
-  clearDbBtn.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all stored requests?')) {
-      chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
-        if (response && response.success) {
-          showNotification('Database cleared successfully!');
-          loadDatabaseInfo();
-        } else {
-          showNotification('Failed to clear database', true);
-        }
-      });
+// Helper function to update storage usage display
+function updateStorageUsageDisplay() {
+  const currentCount = parseInt(document.getElementById('currentStorageCount')?.textContent || '0');
+  const maxCount = parseInt(maxStoredRequests?.value || 10000);
+  const maxDisplay = document.getElementById('maxStorageDisplay');
+  const usageBarFill = document.getElementById('usageBarFill');
+  
+  if (maxDisplay) {
+    maxDisplay.textContent = maxCount.toLocaleString();
+  }
+  
+  if (usageBarFill) {
+    const percentage = (currentCount / maxCount) * 100;
+    usageBarFill.style.width = `${Math.min(percentage, 100)}%`;
+    
+    // Color coding
+    if (percentage > 90) {
+      usageBarFill.style.backgroundColor = '#e53e3e';
+    } else if (percentage > 75) {
+      usageBarFill.style.backgroundColor = '#ed8936';
+    } else {
+      usageBarFill.style.backgroundColor = '#667eea';
+    }
+  }
+}
+
+// Helper functions for site tracking
+function validateTrackingSites() {
+  const trackingSites = document.getElementById('trackingSites');
+  const validationResult = document.getElementById('sitesValidationResult');
+  
+  if (!trackingSites || !validationResult) return;
+  
+  const sites = trackingSites.value.split('\n').filter(s => s.trim());
+  
+  if (sites.length === 0) {
+    validationResult.textContent = 'No sites to validate';
+    validationResult.style.color = '#999';
+    return;
+  }
+  
+  // Simple validation - check for basic URL patterns
+  let valid = 0;
+  let invalid = 0;
+  
+  sites.forEach(site => {
+    const trimmed = site.trim();
+    // Check if it's a regex pattern
+    if (trimmed.startsWith('/') && trimmed.endsWith('/')) {
+      valid++;
+    }
+    // Check if it contains wildcard or looks like a URL
+    else if (trimmed.includes('*') || trimmed.includes('://') || trimmed.includes('.')) {
+      valid++;
+    } else {
+      invalid++;
     }
   });
+  
+  if (invalid === 0) {
+    validationResult.textContent = `✓ All ${valid} patterns are valid`;
+    validationResult.style.color = '#48bb78';
+  } else {
+    validationResult.textContent = `⚠ ${valid} valid, ${invalid} may be invalid`;
+    validationResult.style.color = '#ed8936';
+  }
 }
 
-// Add import/export event listeners
-if (exportSettingsBtn) {
-  exportSettingsBtn.addEventListener('click', exportSettings);
-}
-if (importSettingsBtn && importSettingsFile) {
-  importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
-  importSettingsFile.addEventListener('change', importSettings);
+async function addCurrentSiteToTracking() {
+  const trackingSites = document.getElementById('trackingSites');
+  if (!trackingSites) return;
+  
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0] && tabs[0].url) {
+      const url = new URL(tabs[0].url);
+      const sitePattern = `${url.protocol}//${url.hostname}/*`;
+      
+      const current = trackingSites.value.trim();
+      if (current) {
+        trackingSites.value = current + '\n' + sitePattern;
+      } else {
+        trackingSites.value = sitePattern;
+      }
+      
+      showNotification(`Added: ${sitePattern}`);
+      validateTrackingSites();
+    }
+  } catch (error) {
+    console.error('Failed to add current site:', error);
+    showNotification('Failed to add current site', true);
+  }
 }
 
-// Save All button
-const saveAllBtn = document.getElementById('saveAllBtn');
-if (saveAllBtn) {
-  saveAllBtn.addEventListener('click', saveOptions);
+function handleSitePreset(preset) {
+  const trackingSites = document.getElementById('trackingSites');
+  if (!trackingSites) return;
+  
+  switch (preset) {
+    case 'current':
+      addCurrentSiteToTracking();
+      break;
+    case 'popular':
+      trackingSites.value = `https://api.github.com/*
+https://*.googleapis.com/*
+https://api.twitter.com/*
+https://graph.facebook.com/*
+https://api.stripe.com/*
+https://*.amazonaws.com/*`;
+      validateTrackingSites();
+      showNotification('Added popular API patterns');
+      break;
+    case 'clear':
+      if (confirm('Clear all tracking sites?')) {
+        trackingSites.value = '';
+        validateTrackingSites();
+        showNotification('Tracking sites cleared');
+      }
+      break;
+  }
 }
 
 // Advanced Tab Functionality
