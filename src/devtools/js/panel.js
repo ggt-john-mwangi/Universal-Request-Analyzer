@@ -332,54 +332,107 @@ export class DevToolsPanel {
 
   setupEventListeners() {
     // Filter controls
-    document.getElementById("domainFilter").addEventListener("change", () => {
-      this.onDomainFilterChange();
-    });
-    document.getElementById("pageFilter").addEventListener("change", () => this.applyFilters());
-    document.getElementById("timeRange").addEventListener("change", () => this.applyFilters());
-    document.getElementById("requestTypeFilter").addEventListener("change", () => this.applyFilters());
-    document.getElementById("statusFilter").addEventListener("change", () => this.applyFilters());
+    const pageFilter = document.getElementById("pageFilter");
+    const timeRange = document.getElementById("timeRange");
+    const requestTypeFilter = document.getElementById("requestTypeFilter");
+    const statusFilter = document.getElementById("statusFilter");
+    
+    if (pageFilter) {
+      pageFilter.addEventListener("change", () => this.applyFilters());
+    }
+    if (timeRange) {
+      timeRange.addEventListener("change", () => this.applyFilters());
+    }
+    if (requestTypeFilter) {
+      requestTypeFilter.addEventListener("change", () => this.applyFilters());
+    }
+    if (statusFilter) {
+      statusFilter.addEventListener("change", () => this.applyFilters());
+    }
     
     // Action buttons
-    document.getElementById("refreshMetrics").addEventListener("click", () => this.refreshMetrics());
-    document.getElementById("clearFilters").addEventListener("click", () => this.clearFilters());
-    document.getElementById("exportMetrics").addEventListener("click", () => this.exportMetrics());
-    document.getElementById("resetFiltersBtn")?.addEventListener("click", () => this.clearFilters());
+    const refreshMetrics = document.getElementById("refreshMetrics");
+    if (refreshMetrics) {
+      refreshMetrics.addEventListener("click", () => this.refreshMetrics());
+    }
+    
+    const clearFilters = document.getElementById("clearFilters");
+    if (clearFilters) {
+      clearFilters.addEventListener("click", () => this.clearFilters());
+    }
+    
+    const exportMetrics = document.getElementById("exportMetrics");
+    if (exportMetrics) {
+      exportMetrics.addEventListener("click", () => this.exportMetrics());
+    }
+    
+    const resetFiltersBtn = document.getElementById("resetFiltersBtn");
+    if (resetFiltersBtn) {
+      resetFiltersBtn.addEventListener("click", () => this.clearFilters());
+    }
     
     // Time Travel feature
-    document.getElementById("timeTravelBtn")?.addEventListener("click", () => this.openTimeTravelModal());
-    document.getElementById("closeTimeTravelModal")?.addEventListener("click", () => this.closeTimeTravelModal());
-    document.getElementById("loadHistoricalData")?.addEventListener("click", () => this.loadHistoricalData());
+    const timeTravelBtn = document.getElementById("timeTravelBtn");
+    if (timeTravelBtn) {
+      timeTravelBtn.addEventListener("click", () => this.openTimeTravelModal());
+    }
+    
+    const closeTimeTravelModal = document.getElementById("closeTimeTravelModal");
+    if (closeTimeTravelModal) {
+      closeTimeTravelModal.addEventListener("click", () => this.closeTimeTravelModal());
+    }
+    
+    const loadHistoricalData = document.getElementById("loadHistoricalData");
+    if (loadHistoricalData) {
+      loadHistoricalData.addEventListener("click", () => this.loadHistoricalData());
+    }
     
     // HAR export features
-    document.getElementById("copyHAR")?.addEventListener("click", () => this.copyAsHAR());
-    document.getElementById("exportHAR")?.addEventListener("click", () => this.exportAsHAR());
+    const copyHAR = document.getElementById("copyHAR");
+    if (copyHAR) {
+      copyHAR.addEventListener("click", () => this.copyAsHAR());
+    }
+    
+    const exportHAR = document.getElementById("exportHAR");
+    if (exportHAR) {
+      exportHAR.addEventListener("click", () => this.exportAsHAR());
+    }
     
     // Performance budgets
-    document.getElementById("budgetResponseTime")?.addEventListener("change", () => this.checkPerformanceBudgets());
-    document.getElementById("budgetTotalSize")?.addEventListener("change", () => this.checkPerformanceBudgets());
-    document.getElementById("budgetRequestCount")?.addEventListener("change", () => this.checkPerformanceBudgets());
+    const budgetResponseTime = document.getElementById("budgetResponseTime");
+    if (budgetResponseTime) {
+      budgetResponseTime.addEventListener("change", () => this.checkPerformanceBudgets());
+    }
+    
+    const budgetTotalSize = document.getElementById("budgetTotalSize");
+    if (budgetTotalSize) {
+      budgetTotalSize.addEventListener("change", () => this.checkPerformanceBudgets());
+    }
+    
+    const budgetRequestCount = document.getElementById("budgetRequestCount");
+    if (budgetRequestCount) {
+      budgetRequestCount.addEventListener("change", () => this.checkPerformanceBudgets());
+    }
     
     // Live streaming
-    document.getElementById("pauseCapture")?.addEventListener("click", () => this.toggleCapture());
-    document.getElementById("clearFilters")?.addEventListener("click", () => this.clearFilters());
-    document.getElementById("exportMetrics")?.addEventListener("click", () => this.exportMetrics());
+    const pauseCapture = document.getElementById("pauseCapture");
+    if (pauseCapture) {
+      pauseCapture.addEventListener("click", () => this.toggleCapture());
+    }
     
     // Tab navigation
-    document.querySelectorAll(".tab-btn").forEach((button) => {
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    tabButtons.forEach((button) => {
       button.addEventListener("click", () => this.switchTab(button.dataset.tab));
     });
     
     // Search
-    document.getElementById("searchRequests")?.addEventListener("input", (e) => {
-      this.searchRequests(e.target.value);
-    });
-    
-    // Filter changes
-    document.getElementById("pageFilter")?.addEventListener("change", () => this.applyFilters());
-    document.getElementById("requestTypeFilter")?.addEventListener("change", () => this.applyFilters());
-    document.getElementById("statusFilter")?.addEventListener("change", () => this.applyFilters());
-    document.getElementById("timeRange")?.addEventListener("change", () => this.applyFilters());
+    const searchRequests = document.getElementById("searchRequests");
+    if (searchRequests) {
+      searchRequests.addEventListener("input", (e) => {
+        this.searchRequests(e.target.value);
+      });
+    }
   }
 
   // Helper to get theme colors from CSS variables
@@ -943,13 +996,20 @@ export class DevToolsPanel {
 
   // Clear all filters
   clearFilters() {
-    document.getElementById("domainFilter").value = "current";
-    document.getElementById("pageFilter").value = "";
-    document.getElementById("timeRange").value = "300";
-    document.getElementById("requestTypeFilter").value = "";
-    document.getElementById("statusFilter").value = "";
-    document.getElementById("searchRequests").value = "";
-    this.onDomainFilterChange(); // Reload pages for current domain
+    const pageFilter = document.getElementById("pageFilter");
+    const timeRange = document.getElementById("timeRange");
+    const requestTypeFilter = document.getElementById("requestTypeFilter");
+    const statusFilter = document.getElementById("statusFilter");
+    const searchRequests = document.getElementById("searchRequests");
+    
+    if (pageFilter) pageFilter.value = "";
+    if (timeRange) timeRange.value = "300";
+    if (requestTypeFilter) requestTypeFilter.value = "";
+    if (statusFilter) statusFilter.value = "";
+    if (searchRequests) searchRequests.value = "";
+    
+    // Reload data with cleared filters
+    this.applyFilters();
   }
 
   // Switch between tabs
@@ -1589,34 +1649,37 @@ export class DevToolsPanel {
 
   // Get active filters
   getActiveFilters() {
-    const domainFilter = document.getElementById("domainFilter").value;
-    const pageFilter = document.getElementById("pageFilter").value;
-    const timeRange = parseInt(document.getElementById("timeRange").value);
-    const requestType = document.getElementById("requestTypeFilter").value;
-    const status = document.getElementById("statusFilter").value;
+    const pageFilter = document.getElementById("pageFilter");
+    const timeRange = document.getElementById("timeRange");
+    const requestTypeFilter = document.getElementById("requestTypeFilter");
+    const statusFilter = document.getElementById("statusFilter");
     
-    const filters = { timeRange };
+    const filters = { 
+      timeRange: timeRange ? parseInt(timeRange.value) : 300 
+    };
     
-    // Determine domain to filter by
-    let domain = null;
-    if (domainFilter === "current") {
-      domain = this.currentDomain;
-    } else if (domainFilter !== "all") {
-      domain = domainFilter;
-    }
-    
-    // Add domain filter
-    if (domain && domain !== "all") {
-      filters.domain = domain;
+    // Use the current domain (already determined from inspected window)
+    if (this.currentDomain) {
+      filters.domain = this.currentDomain;
     }
     
     // Add page filter (if specific page selected)
-    if (pageFilter && pageFilter !== "") {
-      filters.pageUrl = pageFilter;
+    const pageValue = pageFilter ? pageFilter.value : "";
+    if (pageValue && pageValue !== "") {
+      filters.pageUrl = pageValue;
     }
     
-    if (requestType) filters.type = requestType;
-    if (status) filters.statusPrefix = status;
+    // Add request type filter
+    const requestType = requestTypeFilter ? requestTypeFilter.value : "";
+    if (requestType) {
+      filters.type = requestType;
+    }
+    
+    // Add status filter
+    const status = statusFilter ? statusFilter.value : "";
+    if (status) {
+      filters.statusPrefix = status;
+    }
     
     // Update active filters display
     this.updateActiveFiltersDisplay(filters);
