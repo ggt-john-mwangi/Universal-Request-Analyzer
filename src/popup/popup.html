@@ -72,18 +72,17 @@
       </div>
     </div>
 
-    <!-- Page Summary -->
-    <div class="page-summary">
-      <div class="summary-title">
-        <i class="fas fa-globe"></i> Current Domain Activity (All Pages)
+    <!-- Filters Section - At Top -->
+    <div class="filters-bar">
+      <div class="filter-group">
+        <label for="pageFilter"><i class="fas fa-file"></i> Page:</label>
+        <select id="pageFilter" class="filter-select">
+          <option value="">All Pages in Domain</option>
+        </select>
       </div>
-      
-      <!-- Request Type Filter -->
-      <div class="filter-section">
-        <label for="requestTypeFilter" style="font-size: 12px; color: #666; margin-right: 8px;">
-          <i class="fas fa-filter"></i> Request Type:
-        </label>
-        <select id="requestTypeFilter" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 12px;">
+      <div class="filter-group">
+        <label for="requestTypeFilter"><i class="fas fa-filter"></i> Type:</label>
+        <select id="requestTypeFilter" class="filter-select">
           <option value="">All Types</option>
           <option value="xmlhttprequest">XHR/API</option>
           <option value="fetch">Fetch</option>
@@ -94,6 +93,13 @@
           <option value="document">Documents</option>
           <option value="other">Other</option>
         </select>
+      </div>
+    </div>
+
+    <!-- Page Summary -->
+    <div class="page-summary">
+      <div class="summary-title">
+        <i class="fas fa-chart-line"></i> <span id="currentDomainDisplay">Loading...</span>
       </div>
       
       <div class="summary-stats">

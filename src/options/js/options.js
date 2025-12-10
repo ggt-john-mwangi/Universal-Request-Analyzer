@@ -25,44 +25,80 @@ import '../../config/feature-flags.js';
 import themeManager from '../../config/theme-manager.js';
 import '../../lib/chart.min.js';
 
-// DOM elements
-const captureEnabled = document.getElementById('captureEnabled');
-const maxStoredRequests = document.getElementById('maxStoredRequests');
-const captureTypeCheckboxes = document.querySelectorAll(
-  'input[name="captureType"]'
-);
-const includeDomains = document.getElementById('includeDomains');
-const excludeDomains = document.getElementById('excludeDomains');
-const autoExport = document.getElementById('autoExport');
-const exportFormat = document.getElementById('exportFormat');
-const exportInterval = document.getElementById('exportInterval');
-const exportPath = document.getElementById('exportPath');
-const plotEnabled = document.getElementById('plotEnabled');
-const plotTypeCheckboxes = document.querySelectorAll('input[name="plotType"]');
-const saveBtn = document.getElementById('saveBtn');
-const resetBtn = document.getElementById('resetBtn');
-const exportDbBtn = document.getElementById('exportDbBtn');
-const clearDbBtn = document.getElementById('clearDbBtn');
-const notification = document.getElementById('notification');
-const dbTotalRequests = document.getElementById('dbTotalRequests');
-const dbSize = document.getElementById('dbSize');
-const lastExport = document.getElementById('lastExport');
+// Constants
+const DEFAULT_EXPORT_FORMAT = 'json';
+const DEFAULT_TIME_RANGE = 300; // 5 minutes in seconds
+const POPULAR_API_PATTERNS = [
+  'https://api.github.com/*',
+  'https://*.googleapis.com/*',
+  'https://api.twitter.com/*',
+  'https://graph.facebook.com/*',
+  'https://api.stripe.com/*',
+  'https://*.amazonaws.com/*'
+];
 
-// Add import/export elements
-const exportSettingsBtn = document.getElementById('exportSettingsBtn');
-const importSettingsBtn = document.getElementById('importSettingsBtn');
-const importSettingsFile = document.getElementById('importSettingsFile');
-
-// Theme elements
-const currentThemeSelect = document.getElementById('currentTheme');
-const themesContainer = document.querySelector('.themes-container');
-const saveThemeBtn = document.getElementById('saveThemeBtn');
-const resetThemeBtn = document.getElementById('resetThemeBtn');
+// DOM elements - will be initialized in DOMContentLoaded
+let captureEnabled;
+let maxStoredRequests;
+let captureTypeCheckboxes;
+let includeDomains;
+let excludeDomains;
+let autoExport;
+let exportFormat;
+let exportInterval;
+let exportPath;
+let plotEnabled;
+let plotTypeCheckboxes;
+let saveBtn;
+let resetBtn;
+let exportDbBtn;
+let clearDbBtn;
+let notification;
+let dbTotalRequests;
+let dbSize;
+let lastExport;
+let exportSettingsBtn;
+let importSettingsBtn;
+let importSettingsFile;
+let currentThemeSelect;
+let themesContainer;
+let saveThemeBtn;
+let resetThemeBtn;
 
 // Load when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     console.log('Options page: DOM loaded, initializing...');
+    
+    // Initialize DOM elements first
+    captureEnabled = document.getElementById('captureEnabled');
+    maxStoredRequests = document.getElementById('maxStoredRequests');
+    captureTypeCheckboxes = document.querySelectorAll('input[name="captureType"]');
+    includeDomains = document.getElementById('includeDomains');
+    excludeDomains = document.getElementById('excludeDomains');
+    autoExport = document.getElementById('autoExport');
+    exportFormat = document.getElementById('exportFormat');
+    exportInterval = document.getElementById('exportInterval');
+    exportPath = document.getElementById('exportPath');
+    plotEnabled = document.getElementById('plotEnabled');
+    plotTypeCheckboxes = document.querySelectorAll('input[name="plotType"]');
+    saveBtn = document.getElementById('saveBtn');
+    resetBtn = document.getElementById('resetBtn');
+    exportDbBtn = document.getElementById('exportDbBtn');
+    clearDbBtn = document.getElementById('clearDbBtn');
+    notification = document.getElementById('notification');
+    dbTotalRequests = document.getElementById('dbTotalRequests');
+    dbSize = document.getElementById('dbSize');
+    lastExport = document.getElementById('lastExport');
+    exportSettingsBtn = document.getElementById('exportSettingsBtn');
+    importSettingsBtn = document.getElementById('importSettingsBtn');
+    importSettingsFile = document.getElementById('importSettingsFile');
+    currentThemeSelect = document.getElementById('currentTheme');
+    themesContainer = document.querySelector('.themes-container');
+    saveThemeBtn = document.getElementById('saveThemeBtn');
+    resetThemeBtn = document.getElementById('resetThemeBtn');
+    
+    console.log('Options page: DOM elements initialized');
     
     // Initialize settings manager
     console.log('Options page: Initializing settings manager...');
@@ -100,6 +136,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Render theme options
     console.log('Options page: Rendering theme options...');
     renderThemeOptions();
+    
+    // Setup event listeners for buttons
+    console.log('Options page: Setting up event listeners...');
+    setupEventListeners();
     
     // Initialize advanced tab
     console.log('Options page: Initializing advanced tab...');
@@ -600,63 +640,332 @@ function showNotification(message, isError = false) {
   }, 5000);
 }
 
-// Add event listeners
-if (saveBtn) {
-  saveBtn.addEventListener('click', saveOptions);
-}
-if (resetBtn) {
-  resetBtn.addEventListener('click', resetOptions);
-}
-if (exportDbBtn) {
-  exportDbBtn.addEventListener('click', () => {
-    chrome.runtime.sendMessage(
-      {
-        action: 'exportDatabase',
-        format: exportFormat.value,
-        filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
-          exportFormat.value
-        }`,
-      },
-      (response) => {
-        if (response && response.success) {
-          showNotification('Database exported successfully!');
-          lastExport.textContent = new Date().toLocaleString();
-        } else {
-          showNotification('Failed to export database', true);
+// Setup event listeners for all buttons and controls
+function setupEventListeners() {
+  // Save and Reset buttons
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveOptions);
+  }
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetOptions);
+  }
+  
+  // Database buttons
+  if (exportDbBtn) {
+    exportDbBtn.addEventListener('click', () => {
+      chrome.runtime.sendMessage(
+        {
+          action: 'exportDatabase',
+          format: exportFormat?.value || DEFAULT_EXPORT_FORMAT,
+          filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
+            exportFormat?.value || DEFAULT_EXPORT_FORMAT
+          }`,
+        },
+        (response) => {
+          if (response && response.success) {
+            showNotification('Database exported successfully!');
+            if (lastExport) lastExport.textContent = new Date().toLocaleString();
+          } else {
+            showNotification('Failed to export database', true);
+          }
         }
-      }
-    );
-  });
-}
+      );
+    });
+  }
 
-if (clearDbBtn) {
-  clearDbBtn.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all stored requests?')) {
+  if (clearDbBtn) {
+    clearDbBtn.addEventListener('click', async () => {
+      // Enhanced confirmation with database info
+      const response = await chrome.runtime.sendMessage({ action: 'getDatabaseSize' });
+      const records = response?.records || 0;
+      const sizeMB = response?.size ? (response.size / (1024 * 1024)).toFixed(2) : '0';
+      
+      const confirmed = confirm(
+        `⚠️ WARNING: Clear All Database Records?\n\n` +
+        `This will permanently delete:\n` +
+        `- ${records.toLocaleString()} records\n` +
+        `- ${sizeMB} MB of data\n\n` +
+        `This action cannot be undone!\n\n` +
+        `Are you sure?`
+      );
+      
+      if (!confirmed) return;
+      
+      // Second confirmation for large databases
+      if (records > 10000) {
+        const doubleConfirm = confirm(
+          `⚠️ FINAL CONFIRMATION\n\n` +
+          `You are about to delete ${records.toLocaleString()} records.\n\n` +
+          `This is your last chance to cancel.`
+        );
+        
+        if (!doubleConfirm) return;
+      }
+      
       chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
         if (response && response.success) {
           showNotification('Database cleared successfully!');
           loadDatabaseInfo();
+          updateDatabaseSizeDisplay();
         } else {
           showNotification('Failed to clear database', true);
         }
       });
+    });
+  }
+
+  // Import/export settings
+  if (exportSettingsBtn) {
+    exportSettingsBtn.addEventListener('click', exportSettings);
+  }
+  if (importSettingsBtn && importSettingsFile) {
+    importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
+    importSettingsFile.addEventListener('change', importSettingsWithValidation);
+  }
+
+  // Save All button
+  const saveAllBtn = document.getElementById('saveAllBtn');
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener('click', saveOptions);
+  }
+  
+  // Theme buttons
+  if (saveThemeBtn) {
+    saveThemeBtn.addEventListener('click', async () => {
+      if (currentThemeSelect && themeManager) {
+        const selectedTheme = currentThemeSelect.value;
+        await themeManager.setTheme(selectedTheme);
+        showNotification('Theme saved successfully!');
+      }
+    });
+  }
+  
+  if (resetThemeBtn) {
+    resetThemeBtn.addEventListener('click', async () => {
+      if (themeManager) {
+        await themeManager.setTheme('light');
+        if (currentThemeSelect) currentThemeSelect.value = 'light';
+        showNotification('Theme reset to default!');
+      }
+    });
+  }
+  
+  // Preset buttons for storage
+  const presetButtons = document.querySelectorAll('.preset-btn');
+  presetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.value;
+      if (maxStoredRequests && value) {
+        maxStoredRequests.value = value;
+        updateStorageUsageDisplay();
+      }
+    });
+  });
+  
+  // Site tracking buttons
+  const validateSitesBtn = document.getElementById('validateSitesBtn');
+  if (validateSitesBtn) {
+    validateSitesBtn.addEventListener('click', validateTrackingSites);
+  }
+  
+  const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
+  if (addCurrentSiteBtn) {
+    addCurrentSiteBtn.addEventListener('click', addCurrentSiteToTracking);
+  }
+  
+  // Site preset buttons
+  const sitePresetButtons = document.querySelectorAll('.site-preset-btn');
+  sitePresetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.preset;
+      handleSitePreset(preset);
+    });
+  });
+  
+  // Update storage display when max changes
+  if (maxStoredRequests) {
+    maxStoredRequests.addEventListener('change', updateStorageUsageDisplay);
+  }
+  
+  // Filter toggle buttons
+  const dashboardFilterToggle = document.getElementById('dashboardFilterToggle');
+  if (dashboardFilterToggle) {
+    dashboardFilterToggle.addEventListener('click', function() {
+      const panel = document.getElementById('dashboardFilterPanel');
+      const btn = this;
+      
+      if (panel && panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        btn.classList.remove('active');
+      } else if (panel) {
+        panel.classList.add('open');
+        btn.classList.add('active');
+      }
+    });
+  }
+  
+  const analyticsFilterToggle = document.getElementById('analyticsFilterToggle');
+  if (analyticsFilterToggle) {
+    analyticsFilterToggle.addEventListener('click', function() {
+      const panel = document.getElementById('analyticsFilterPanel');
+      const btn = this;
+      
+      if (panel && panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        btn.classList.remove('active');
+      } else if (panel) {
+        panel.classList.add('open');
+        btn.classList.add('active');
+      }
+    });
+  }
+  
+  // Data Safety Features
+  const previewCleanupBtn = document.getElementById('previewCleanupBtn');
+  if (previewCleanupBtn) {
+    previewCleanupBtn.addEventListener('click', previewCleanup);
+  }
+  
+  const createBackupBtn = document.getElementById('createBackupBtn');
+  if (createBackupBtn) {
+    createBackupBtn.addEventListener('click', createBackupBeforeCleanup);
+  }
+  
+  const executeCleanupBtn = document.getElementById('executeCleanupBtn');
+  if (executeCleanupBtn) {
+    executeCleanupBtn.addEventListener('click', performCleanupWithConfirmation);
+  }
+  
+  // Initialize database size display
+  updateDatabaseSizeDisplay();
+  
+  // Add validation to domain inputs
+  const includeDomains = document.getElementById('includeDomains');
+  if (includeDomains) {
+    includeDomains.addEventListener('blur', () => validateDomainList(includeDomains));
+  }
+  
+  const excludeDomains = document.getElementById('excludeDomains');
+  if (excludeDomains) {
+    excludeDomains.addEventListener('blur', () => validateDomainList(excludeDomains));
+  }
+}
+
+// Helper function to update storage usage display
+function updateStorageUsageDisplay() {
+  const currentCount = parseInt(document.getElementById('currentStorageCount')?.textContent || '0');
+  const maxCount = parseInt(maxStoredRequests?.value || 10000);
+  const maxDisplay = document.getElementById('maxStorageDisplay');
+  const usageBarFill = document.getElementById('usageBarFill');
+  
+  if (maxDisplay) {
+    maxDisplay.textContent = maxCount.toLocaleString();
+  }
+  
+  if (usageBarFill) {
+    const percentage = (currentCount / maxCount) * 100;
+    usageBarFill.style.width = `${Math.min(percentage, 100)}%`;
+    
+    // Color coding
+    if (percentage > 90) {
+      usageBarFill.style.backgroundColor = '#e53e3e';
+    } else if (percentage > 75) {
+      usageBarFill.style.backgroundColor = '#ed8936';
+    } else {
+      usageBarFill.style.backgroundColor = '#667eea';
+    }
+  }
+}
+
+// Helper functions for site tracking
+function validateTrackingSites() {
+  const trackingSites = document.getElementById('trackingSites');
+  const validationResult = document.getElementById('sitesValidationResult');
+  
+  if (!trackingSites || !validationResult) return;
+  
+  const sites = trackingSites.value.split('\n').filter(s => s.trim());
+  
+  if (sites.length === 0) {
+    validationResult.textContent = 'No sites to validate';
+    validationResult.style.color = '#999';
+    return;
+  }
+  
+  // Simple validation - check for basic URL patterns
+  let valid = 0;
+  let invalid = 0;
+  
+  sites.forEach(site => {
+    const trimmed = site.trim();
+    // Check if it's a regex pattern
+    if (trimmed.startsWith('/') && trimmed.endsWith('/')) {
+      valid++;
+    }
+    // Check if it contains wildcard or looks like a URL
+    else if (trimmed.includes('*') || trimmed.includes('://') || trimmed.includes('.')) {
+      valid++;
+    } else {
+      invalid++;
     }
   });
+  
+  if (invalid === 0) {
+    validationResult.textContent = `✓ All ${valid} patterns are valid`;
+    validationResult.style.color = '#48bb78';
+  } else {
+    validationResult.textContent = `⚠ ${valid} valid, ${invalid} may be invalid`;
+    validationResult.style.color = '#ed8936';
+  }
 }
 
-// Add import/export event listeners
-if (exportSettingsBtn) {
-  exportSettingsBtn.addEventListener('click', exportSettings);
-}
-if (importSettingsBtn && importSettingsFile) {
-  importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
-  importSettingsFile.addEventListener('change', importSettings);
+async function addCurrentSiteToTracking() {
+  const trackingSites = document.getElementById('trackingSites');
+  if (!trackingSites) return;
+  
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0] && tabs[0].url) {
+      const url = new URL(tabs[0].url);
+      const sitePattern = `${url.protocol}//${url.hostname}/*`;
+      
+      const current = trackingSites.value.trim();
+      if (current) {
+        trackingSites.value = current + '\n' + sitePattern;
+      } else {
+        trackingSites.value = sitePattern;
+      }
+      
+      showNotification(`Added: ${sitePattern}`);
+      validateTrackingSites();
+    }
+  } catch (error) {
+    console.error('Failed to add current site:', error);
+    showNotification('Failed to add current site', true);
+  }
 }
 
-// Save All button
-const saveAllBtn = document.getElementById('saveAllBtn');
-if (saveAllBtn) {
-  saveAllBtn.addEventListener('click', saveOptions);
+function handleSitePreset(preset) {
+  const trackingSites = document.getElementById('trackingSites');
+  if (!trackingSites) return;
+  
+  switch (preset) {
+    case 'current':
+      addCurrentSiteToTracking();
+      break;
+    case 'popular':
+      trackingSites.value = POPULAR_API_PATTERNS.join('\n');
+      validateTrackingSites();
+      showNotification('Added popular API patterns');
+      break;
+    case 'clear':
+      if (confirm('Clear all tracking sites?')) {
+        trackingSites.value = '';
+        validateTrackingSites();
+        showNotification('Tracking sites cleared');
+      }
+      break;
+  }
 }
 
 // Advanced Tab Functionality
@@ -2169,29 +2478,426 @@ async function initializeAlerts() {
   }
 }
 
-// Filter Toggle Functionality
-document.getElementById('dashboardFilterToggle')?.addEventListener('click', function() {
-  const panel = document.getElementById('dashboardFilterPanel');
-  const btn = this;
-  
-  if (panel.classList.contains('open')) {
-    panel.classList.remove('open');
-    btn.classList.remove('active');
-  } else {
-    panel.classList.add('open');
-    btn.classList.add('active');
-  }
-});
+// ===== DATA SAFETY FEATURES =====
 
-document.getElementById('analyticsFilterToggle')?.addEventListener('click', function() {
-  const panel = document.getElementById('analyticsFilterPanel');
-  const btn = this;
-  
-  if (panel.classList.contains('open')) {
-    panel.classList.remove('open');
-    btn.classList.remove('active');
-  } else {
-    panel.classList.add('open');
-    btn.classList.add('active');
+// Update database size display
+async function updateDatabaseSizeDisplay() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDatabaseSize'
+    });
+    
+    if (response && response.success) {
+      const sizeElement = document.getElementById('currentDbSize');
+      const recordsElement = document.getElementById('currentDbRecords');
+      const oldestElement = document.getElementById('oldestRecord');
+      
+      if (sizeElement) {
+        const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
+        sizeElement.textContent = `${sizeMB} MB`;
+        
+        // Color code based on size
+        if (sizeMB > 100) {
+          sizeElement.style.color = '#e53e3e';
+        } else if (sizeMB > 50) {
+          sizeElement.style.color = '#ed8936';
+        } else {
+          sizeElement.style.color = '#48bb78';
+        }
+      }
+      
+      if (recordsElement) {
+        recordsElement.textContent = (response.records || 0).toLocaleString();
+      }
+      
+      if (oldestElement && response.oldestDate) {
+        const date = new Date(response.oldestDate);
+        oldestElement.textContent = date.toLocaleDateString();
+      }
+      
+      // Check storage limits and show warning
+      await checkStorageWarning(response.records || 0);
+    }
+  } catch (error) {
+    console.error('Failed to get database size:', error);
   }
-});
+}
+
+// Check and display storage warning
+async function checkStorageWarning(currentRecords) {
+  const maxStoredRequests = document.getElementById('maxStoredRequests');
+  const currentStorageCount = document.getElementById('currentStorageCount');
+  
+  if (!maxStoredRequests) return;
+  
+  const maxRecords = parseInt(maxStoredRequests.value) || 10000;
+  const percentage = (currentRecords / maxRecords) * 100;
+  
+  // Update current count display
+  if (currentStorageCount) {
+    currentStorageCount.textContent = currentRecords.toLocaleString();
+  }
+  
+  // Update usage bar
+  updateStorageUsageDisplay();
+  
+  // Show warning if approaching limit
+  if (percentage >= 90) {
+    showStorageWarning(
+      `⚠️ Storage Nearly Full: ${percentage.toFixed(0)}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
+      'error'
+    );
+  } else if (percentage >= 75) {
+    showStorageWarning(
+      `⚠️ Storage Warning: ${percentage.toFixed(0)}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
+      'warning'
+    );
+  }
+}
+
+// Show storage warning banner
+function showStorageWarning(message, type = 'warning') {
+  let warningBanner = document.getElementById('storageWarningBanner');
+  
+  if (!warningBanner) {
+    warningBanner = document.createElement('div');
+    warningBanner.id = 'storageWarningBanner';
+    warningBanner.className = 'warning-banner';
+    
+    // Insert at top of general settings tab
+    const generalTab = document.getElementById('general');
+    if (generalTab) {
+      generalTab.insertBefore(warningBanner, generalTab.firstChild);
+    }
+  }
+  
+  warningBanner.className = `warning-banner ${type}`;
+  warningBanner.innerHTML = `
+    <i class="fas fa-exclamation-triangle"></i>
+    <span>${message}</span>
+    <button onclick="this.parentElement.style.display='none'" class="close-btn">
+      <i class="fas fa-times"></i>
+    </button>
+  `;
+  warningBanner.style.display = 'flex';
+  
+  // Add styles if not already present
+  if (!document.getElementById('warningBannerStyles')) {
+    const style = document.createElement('style');
+    style.id = 'warningBannerStyles';
+    style.textContent = `
+      .warning-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        font-weight: 500;
+      }
+      .warning-banner.warning {
+        background: #fef5e7;
+        border-left: 4px solid #ed8936;
+        color: #744210;
+      }
+      .warning-banner.error {
+        background: #fee;
+        border-left: 4px solid #e53e3e;
+        color: #742a2a;
+      }
+      .warning-banner .close-btn {
+        margin-left: auto;
+        background: none;
+        border: none;
+        cursor: pointer;
+        opacity: 0.6;
+        padding: 4px;
+      }
+      .warning-banner .close-btn:hover {
+        opacity: 1;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
+// Preview cleanup (dry-run)
+async function previewCleanup() {
+  const cleanupAge = document.getElementById('cleanupAge');
+  const previewBox = document.getElementById('cleanupPreview');
+  const recordsCount = document.getElementById('previewRecordsCount');
+  const sizeFreed = document.getElementById('previewSizeFreed');
+  const recordsRemaining = document.getElementById('previewRecordsRemaining');
+  
+  if (!cleanupAge || !previewBox) return;
+  
+  const days = parseInt(cleanupAge.value);
+  if (isNaN(days) || days < 1) {
+    showNotification('Please enter a valid number of days', true);
+    return;
+  }
+  
+  try {
+    showNotification('Calculating cleanup preview...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'previewCleanup',
+      days: days
+    });
+    
+    if (response && response.success) {
+      if (recordsCount) recordsCount.textContent = response.recordsToDelete.toLocaleString();
+      if (sizeFreed) sizeFreed.textContent = (response.sizeFreed / (1024 * 1024)).toFixed(2) + ' MB';
+      if (recordsRemaining) recordsRemaining.textContent = response.recordsRemaining.toLocaleString();
+      
+      previewBox.style.display = 'block';
+      
+      if (response.recordsToDelete > 0) {
+        showNotification(`Preview complete: ${response.recordsToDelete} records can be deleted`);
+      } else {
+        showNotification('No records found matching cleanup criteria');
+      }
+    } else {
+      showNotification('Failed to preview cleanup: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('Cleanup preview error:', error);
+    showNotification('Failed to preview cleanup', true);
+  }
+}
+
+// Create backup before cleanup
+async function createBackupBeforeCleanup() {
+  const btn = document.getElementById('createBackupBtn');
+  const lastBackup = document.getElementById('lastBackupTime');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Backup...';
+  }
+  
+  try {
+    showNotification('Creating backup...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'createBackup',
+      includeMetadata: true
+    });
+    
+    if (response && response.success) {
+      if (lastBackup) {
+        lastBackup.textContent = `Last backup: ${new Date().toLocaleString()}`;
+      }
+      
+      showNotification(`Backup created successfully: ${response.filename}`);
+      
+      // Enable cleanup button if preview was done
+      const executeBtn = document.getElementById('executeCleanupBtn');
+      if (executeBtn) {
+        executeBtn.disabled = false;
+      }
+    } else {
+      showNotification('Failed to create backup: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('Backup error:', error);
+    showNotification('Failed to create backup', true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save"></i> Create Backup Before Cleanup';
+    }
+  }
+}
+
+// Perform cleanup with confirmation
+async function performCleanupWithConfirmation() {
+  const cleanupAge = document.getElementById('cleanupAge');
+  const previewBox = document.getElementById('cleanupPreview');
+  const recordsCount = document.getElementById('previewRecordsCount');
+  
+  if (!cleanupAge || !previewBox) return;
+  
+  // Check if preview was done
+  if (previewBox.style.display === 'none') {
+    showNotification('Please preview cleanup first', true);
+    return;
+  }
+  
+  const days = parseInt(cleanupAge.value);
+  const recordsToDelete = parseInt(recordsCount?.textContent?.replace(/,/g, '') || '0');
+  
+  // Confirmation dialog
+  const confirmed = confirm(
+    `⚠️ WARNING: This will permanently delete ${recordsToDelete.toLocaleString()} records older than ${days} days.\n\n` +
+    `Make sure you have created a backup first!\n\n` +
+    `This action cannot be undone. Continue?`
+  );
+  
+  if (!confirmed) return;
+  
+  // Second confirmation for large deletions
+  if (recordsToDelete > 10000) {
+    const doubleConfirm = confirm(
+      `⚠️ FINAL CONFIRMATION\n\n` +
+      `You are about to delete ${recordsToDelete.toLocaleString()} records.\n\n` +
+      `Are you absolutely sure?`
+    );
+    
+    if (!doubleConfirm) return;
+  }
+  
+  const executeBtn = document.getElementById('executeCleanupBtn');
+  if (executeBtn) {
+    executeBtn.disabled = true;
+    executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cleaning Up...';
+  }
+  
+  try {
+    showNotification('Performing cleanup...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'performCleanup',
+      days: days
+    });
+    
+    if (response && response.success) {
+      showNotification(`Cleanup complete: ${response.recordsDeleted.toLocaleString()} records deleted`);
+      
+      // Hide preview and refresh database info
+      previewBox.style.display = 'none';
+      await updateDatabaseSizeDisplay();
+    } else {
+      showNotification('Failed to perform cleanup: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    showNotification('Failed to perform cleanup', true);
+  } finally {
+    if (executeBtn) {
+      executeBtn.disabled = false;
+      executeBtn.innerHTML = '<i class="fas fa-broom"></i> Execute Cleanup';
+    }
+  }
+}
+
+// Validate domain list
+function validateDomainList(inputElement) {
+  if (!inputElement) return true;
+  
+  const domains = inputElement.value.split('\n').map(d => d.trim()).filter(d => d);
+  const invalidDomains = [];
+  
+  // Domain regex: basic validation for domain patterns
+  const domainRegex = /^(\*\.)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
+  const wildcardRegex = /^https?:\/\/(\*\.)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+/;
+  
+  domains.forEach(domain => {
+    // Allow wildcards, URLs, and plain domains
+    if (!domainRegex.test(domain) && !wildcardRegex.test(domain) && !domain.includes('*')) {
+      invalidDomains.push(domain);
+    }
+  });
+  
+  // Show validation feedback
+  const feedbackId = inputElement.id + 'Feedback';
+  let feedbackEl = document.getElementById(feedbackId);
+  
+  if (!feedbackEl) {
+    feedbackEl = document.createElement('div');
+    feedbackEl.id = feedbackId;
+    feedbackEl.className = 'validation-feedback';
+    inputElement.parentNode.insertBefore(feedbackEl, inputElement.nextSibling);
+  }
+  
+  if (invalidDomains.length > 0) {
+    feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Invalid domains: ${invalidDomains.join(', ')}`;
+    feedbackEl.style.color = '#e53e3e';
+    feedbackEl.style.fontSize = '12px';
+    feedbackEl.style.marginTop = '4px';
+    return false;
+  } else if (domains.length > 0) {
+    feedbackEl.innerHTML = `<i class="fas fa-check-circle"></i> ${domains.length} valid domain(s)`;
+    feedbackEl.style.color = '#48bb78';
+    feedbackEl.style.fontSize = '12px';
+    feedbackEl.style.marginTop = '4px';
+    return true;
+  } else {
+    feedbackEl.innerHTML = '';
+    return true;
+  }
+}
+
+// Enhanced import settings with validation
+async function importSettingsWithValidation() {
+  const fileInput = document.getElementById('importSettingsFile');
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    showNotification('Please select a file', true);
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  
+  // Validate file type
+  if (!file.name.endsWith('.json')) {
+    showNotification('Invalid file type. Please select a JSON file', true);
+    return;
+  }
+  
+  // Validate file size (max 50MB)
+  if (file.size > 50 * 1024 * 1024) {
+    showNotification('File too large. Maximum size is 50MB', true);
+    return;
+  }
+  
+  try {
+    const text = await file.text();
+    const settings = JSON.parse(text);
+    
+    // Validate settings structure
+    if (!settings || typeof settings !== 'object') {
+      showNotification('Invalid settings file: not a valid JSON object', true);
+      return;
+    }
+    
+    // Check for required fields or valid structure
+    const validKeys = ['general', 'monitoring', 'filters', 'export', 'retention', 'security', 'theme'];
+    const hasValidKeys = Object.keys(settings).some(key => validKeys.includes(key));
+    
+    if (!hasValidKeys) {
+      showNotification('Invalid settings file: no recognized settings found', true);
+      return;
+    }
+    
+    // Confirmation dialog
+    const settingsCount = Object.keys(settings).length;
+    const confirmed = confirm(
+      `Import ${settingsCount} setting(s)?\n\n` +
+      `This will overwrite your current settings.\n\n` +
+      `Categories: ${Object.keys(settings).join(', ')}`
+    );
+    
+    if (!confirmed) return;
+    
+    showNotification('Importing settings...');
+    
+    // Import settings
+    await chrome.storage.local.set(settings);
+    
+    // Reload options
+    await loadOptions();
+    
+    showNotification('Settings imported successfully!');
+    
+    // Clear file input
+    fileInput.value = '';
+    
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      showNotification('Invalid JSON file: ' + error.message, true);
+    } else {
+      console.error('Import error:', error);
+      showNotification('Failed to import settings', true);
+    }
+  }
+}

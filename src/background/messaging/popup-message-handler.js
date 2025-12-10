@@ -285,6 +285,22 @@ async function handleGetPageStats(data) {
 // Supports domain → page → request type filtering hierarchy
 async function handleGetFilteredStats(filters) {
   try {
+    console.log('handleGetFilteredStats called with filters:', filters);
+    console.log('dbManager available:', !!dbManager);
+    
+    if (!dbManager || !dbManager.executeQuery) {
+      console.error('Database manager not initialized or missing executeQuery method');
+      return { 
+        success: false, 
+        error: 'Database not initialized',
+        totalRequests: 0,
+        timestamps: [],
+        responseTimes: [],
+        requestTypes: {},
+        statusCodes: {}
+      };
+    }
+    
     const { domain, pageUrl, timeRange, type, statusPrefix } = filters || {};
     
     // Default to last 5 minutes if not specified
@@ -352,17 +368,32 @@ async function handleGetFilteredStats(filters) {
     
     query += ' ORDER BY timestamp DESC LIMIT 1000';
     
+    console.log('Executing query:', query);
+    console.log('With params:', params);
+    
     let requests = [];
     
     try {
-      if (dbManager?.executeQuery) {
-        const result = dbManager.executeQuery(query, params);
-        if (result && result[0]) {
-          requests = mapResultToArray(result[0]);
-        }
+      const result = dbManager.executeQuery(query, params);
+      console.log('Query result:', result);
+      
+      if (result && result[0]) {
+        requests = mapResultToArray(result[0]);
+        console.log('Mapped requests count:', requests.length);
+      } else {
+        console.log('No results from query');
       }
     } catch (queryError) {
       console.error('Filtered stats query error:', queryError);
+      return {
+        success: false,
+        error: queryError.message,
+        totalRequests: 0,
+        timestamps: [],
+        responseTimes: [],
+        requestTypes: {},
+        statusCodes: {}
+      };
     }
     
     // Process data for charts
