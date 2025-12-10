@@ -388,28 +388,6 @@
               <canvas id="dashboardPerformanceChart"></canvas>
             </div>
           </div>
-
-          <!-- Data Layer Status -->
-          <div class="data-layer-status">
-            <h3><i class="fas fa-layer-group"></i> Medallion Architecture Status</h3>
-            <div class="layer-cards">
-              <div class="layer-card bronze">
-                <div class="layer-name">Bronze Layer</div>
-                <div class="layer-count" id="bronzeCount">0</div>
-                <div class="layer-desc">Raw requests</div>
-              </div>
-              <div class="layer-card silver">
-                <div class="layer-name">Silver Layer</div>
-                <div class="layer-count" id="silverCount">0</div>
-                <div class="layer-desc">Processed requests</div>
-              </div>
-              <div class="layer-card gold">
-                <div class="layer-name">Gold Layer</div>
-                <div class="layer-count" id="goldCount">0</div>
-                <div class="layer-desc">Analytics</div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1104,8 +1082,6 @@ example.org/api/*"></textarea>
               <p class="placeholder">No cleanup history available</p>
             </div>
           </div>
-
-          <div id="dataPurge"></div>
         </div>
       </section>
 
@@ -1364,6 +1340,106 @@ example.org/api/*"></textarea>
   </div>
 
   <div id="notification" class="notification"></div>
+
+  <!-- Dashboard Filter Modal -->
+  <div id="dashboardFilterModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-filter"></i> Dashboard Filters</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="dashboardModalDomainFilter">
+            <i class="fas fa-globe"></i> Domain:
+          </label>
+          <select id="dashboardModalDomainFilter" style="width: 100%;">
+            <option value="all">All Domains</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="dashboardModalPageFilter">
+            <i class="fas fa-file"></i> Page:
+          </label>
+          <select id="dashboardModalPageFilter" style="width: 100%;">
+            <option value="">All Pages (Aggregated)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="dashboardModalRequestTypeFilter">
+            <i class="fas fa-filter"></i> Type:
+          </label>
+          <select id="dashboardModalRequestTypeFilter" style="width: 100%;">
+            <option value="">All Types</option>
+            <option value="xmlhttprequest">XHR/API</option>
+            <option value="fetch">Fetch</option>
+            <option value="script">Scripts</option>
+            <option value="stylesheet">Stylesheets</option>
+            <option value="image">Images</option>
+            <option value="font">Fonts</option>
+            <option value="document">Documents</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="applyDashboardFiltersBtn" class="btn-primary">
+          <i class="fas fa-check"></i> Apply Filters
+        </button>
+        <button id="cancelDashboardFiltersBtn" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Filter Modal -->
+  <div id="analyticsFilterModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-filter"></i> Analytics Filters</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="analyticsModalDomainFilter">
+            <i class="fas fa-globe"></i> Domain:
+          </label>
+          <select id="analyticsModalDomainFilter" style="width: 100%;">
+            <option value="all">All Domains</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="analyticsModalPageFilter">
+            <i class="fas fa-file"></i> Page:
+          </label>
+          <select id="analyticsModalPageFilter" style="width: 100%;">
+            <option value="">All Pages (Aggregated)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="analyticsModalRequestTypeFilter">
+            <i class="fas fa-filter"></i> Type:
+          </label>
+          <select id="analyticsModalRequestTypeFilter" style="width: 100%;">
+            <option value="">All Types</option>
+            <option value="xmlhttprequest">XHR/API</option>
+            <option value="fetch">Fetch</option>
+            <option value="script">Scripts</option>
+            <option value="stylesheet">Stylesheets</option>
+            <option value="image">Images</option>
+            <option value="font">Fonts</option>
+            <option value="document">Documents</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="applyAnalyticsFiltersBtn" class="btn-primary">
+          <i class="fas fa-check"></i> Apply Filters
+        </button>
+        <button id="cancelAnalyticsFiltersBtn" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="options.js"></script>
 </body>

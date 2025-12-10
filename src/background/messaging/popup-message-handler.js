@@ -798,7 +798,7 @@ async function handleGetWebVitals(filters = {}) {
       
       try {
         if (dbManager?.executeQuery) {
-          const result = dbManager.executeQuery(query, params);
+          const result = await dbManager.executeQuery(query, params);
           if (result && result[0]?.values && result[0].values.length > 0) {
             const row = result[0].values[0];
             const avgValue = row[0];
@@ -877,7 +877,7 @@ async function handleGetSessionMetrics(filters = {}) {
     
     try {
       if (dbManager?.executeQuery) {
-        const result = dbManager.executeQuery(query, [startTime]);
+        const result = await dbManager.executeQuery(query, [startTime]);
         if (result && result[0]?.values && result[0].values.length > 0) {
           const row = result[0].values[0];
           metrics.totalSessions = row[0] || 0;
@@ -1645,10 +1645,10 @@ async function handleGetAlertRules() {
     `;
     
     if (dbManager?.executeQuery) {
-      dbManager.executeQuery(createTableQuery);
+      await dbManager.executeQuery(createTableQuery);
       
       const query = 'SELECT * FROM alert_rules ORDER BY created_at DESC';
-      const result = dbManager.executeQuery(query);
+      const result = await dbManager.executeQuery(query);
       
       const rules = result && result[0] ? mapResultToArray(result[0]) : [];
       return { success: true, rules };
@@ -1687,7 +1687,7 @@ async function handleSaveAlertRule(rule) {
     ];
     
     if (dbManager?.executeQuery) {
-      dbManager.executeQuery(query, params);
+      await dbManager.executeQuery(query, params);
       return { success: true, message: 'Alert rule saved successfully' };
     }
     
@@ -1708,7 +1708,7 @@ async function handleDeleteAlertRule(ruleId) {
     const query = 'DELETE FROM alert_rules WHERE id = ?';
     
     if (dbManager?.executeQuery) {
-      dbManager.executeQuery(query, [ruleId]);
+      await dbManager.executeQuery(query, [ruleId]);
       return { success: true, message: 'Alert rule deleted successfully' };
     }
     
@@ -1736,14 +1736,14 @@ async function handleGetAlertHistory(limit = 100) {
     `;
     
     if (dbManager?.executeQuery) {
-      dbManager.executeQuery(createTableQuery);
+      await dbManager.executeQuery(createTableQuery);
       
       const query = `
         SELECT * FROM alert_history 
         ORDER BY triggered_at DESC 
         LIMIT ?
       `;
-      const result = dbManager.executeQuery(query, [limit]);
+      const result = await dbManager.executeQuery(query, [limit]);
       
       const history = result && result[0] ? mapResultToArray(result[0]) : [];
       return { success: true, history };

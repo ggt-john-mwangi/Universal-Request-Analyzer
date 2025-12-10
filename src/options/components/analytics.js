@@ -80,10 +80,14 @@ class Analytics {
   async loadDomainFilter() {
     try {
       const domainSelect = document.getElementById('analyticsDomainFilter');
+      const modalDomainSelect = document.getElementById('analyticsModalDomainFilter');
       if (!domainSelect) return;
       
       // Reset dropdown
       domainSelect.innerHTML = '<option value="all">All Domains</option>';
+      if (modalDomainSelect) {
+        modalDomainSelect.innerHTML = '<option value="all">All Domains</option>';
+      }
       
       // Get all domains
       const response = await chrome.runtime.sendMessage({
@@ -99,6 +103,14 @@ class Analytics {
             option.value = domain;
             option.textContent = `${domain} (${domainObj.requestCount} requests)`;
             domainSelect.appendChild(option);
+            
+            // Also add to modal dropdown
+            if (modalDomainSelect) {
+              const modalOption = document.createElement('option');
+              modalOption.value = domain;
+              modalOption.textContent = `${domain} (${domainObj.requestCount} requests)`;
+              modalDomainSelect.appendChild(modalOption);
+            }
           }
         });
         console.log(`Loaded ${response.domains.length} domains for analytics filter`);
