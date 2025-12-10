@@ -19,14 +19,22 @@ window.addEventListener('beforeunload', () => {
 async function checkAuthState() {
   showLoading();
   try {
-    const result = await chrome.storage.local.get('currentUser');
-    if (result.currentUser) {
-      currentUser = result.currentUser;
-      showApp();
-      await loadPageSummary();
-    } else {
-      showAuth();
+    const result = await chrome.storage.local.get(['currentUser', 'sessionExpiry']);
+    
+    // Check if session is still valid (within 24 hours)
+    if (result.currentUser && result.sessionExpiry) {
+      if (Date.now() < result.sessionExpiry) {
+        currentUser = result.currentUser;
+        showApp();
+        await loadPageSummary();
+        return;
+      } else {
+        // Session expired, clear it
+        await chrome.storage.local.remove(['currentUser', 'sessionExpiry']);
+      }
     }
+    
+    showAuth();
   } catch (error) {
     console.error('Failed to check auth state:', error);
     showAuth();
@@ -145,6 +153,14 @@ function setupEventListeners() {
   document.getElementById('requestTypeFilter')?.addEventListener('change', async () => {
     await loadPageSummary();
   });
+  
+  // Page Filter - reload stats when changed
+  document.getElementById('pageFilter')?.addEventListener('change', async () => {
+    await loadPageSummary();
+  });
+  
+  // Load pages for current domain (call after DOM is ready)
+  loadPagesForDomain().catch(err => console.error('Failed to load pages:', err));
 
   // Quick actions
   document.getElementById('openDevtools')?.addEventListener('click', () => {
@@ -258,12 +274,17 @@ async function handleRegister() {
 
     if (response.success) {
       currentUser = response.user;
+      // Save session with 24h expiry
+      await chrome.storage.local.set({
+        currentUser: response.user,
+        sessionExpiry: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+      });
       showSuccess('registerSuccess', 'Registration successful! Redirecting...');
       
       setTimeout(() => {
         showApp();
         loadPageSummary();
-      }, 1000);
+      }, 500);
     } else {
       showError('registerError', response.error || 'Registration failed');
     }
@@ -294,6 +315,11 @@ async function handleLogin() {
 
     if (response.success) {
       currentUser = response.user;
+      // Save session with 24h expiry
+      await chrome.storage.local.set({
+        currentUser: response.user,
+        sessionExpiry: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+      });
       showApp();
       await loadPageSummary();
     } else {
@@ -369,18 +395,21 @@ async function loadPageSummary() {
 
     console.log('Loading page summary for:', currentTab.url);
     
-    // Get selected request type filter
+    // Get selected filters
     const requestTypeFilter = document.getElementById('requestTypeFilter');
     const requestType = requestTypeFilter ? requestTypeFilter.value : '';
+    
+    const pageFilter = document.getElementById('pageFilter');
+    const selectedPage = pageFilter ? pageFilter.value : '';
 
     // Get detailed filtered stats from background
-    // This now aggregates across all pages for the current domain
     const response = await chrome.runtime.sendMessage({
       action: 'getPageStats',
       data: { 
-        url: currentTab.url,
+        url: selectedPage || currentTab.url, // Use selected page or current URL
         tabId: currentTab.id,
-        requestType: requestType  // Pass request type filter
+        requestType: requestType,
+        domain: new URL(currentTab.url).hostname // Pass domain for aggregation
       }
     });
 
@@ -791,6 +820,67 @@ function clearMessages() {
       element.textContent = '';
     }
   });
+}
+
+// Load pages for current domain
+async function loadPagesForDomain() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) return;
+    
+    const url = new URL(currentTab.url);
+    const currentDomain = url.hostname;
+    
+    // Update domain display
+    const domainDisplay = document.getElementById('currentDomainDisplay');
+    if (domainDisplay) {
+      domainDisplay.textContent = currentDomain;
+    }
+    
+    // Get pages for this domain
+    const pageSelect = document.getElementById('pageFilter');
+    if (!pageSelect) return;
+    
+    pageSelect.innerHTML = '<option value="">All Pages in Domain</option>';
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'executeDirectQuery',
+      query: `
+        SELECT DISTINCT page_url, COUNT(*) as request_count
+        FROM bronze_requests
+        WHERE domain = '${currentDomain}'
+        AND page_url IS NOT NULL
+        AND created_at > ${Date.now() - (7 * 24 * 60 * 60 * 1000)}
+        GROUP BY page_url
+        ORDER BY request_count DESC
+        LIMIT 20
+      `
+    });
+    
+    if (response && response.success && response.data && response.data.length > 0) {
+      response.data.forEach(row => {
+        if (row.page_url) {
+          const option = document.createElement('option');
+          option.value = row.page_url;
+          
+          try {
+            const pageUrl = new URL(row.page_url);
+            const path = pageUrl.pathname + pageUrl.search;
+            const displayText = path.length > 40 ? path.substring(0, 37) + '...' : path;
+            option.textContent = `${displayText} (${row.request_count})`;
+          } catch {
+            option.textContent = row.page_url;
+          }
+          
+          pageSelect.appendChild(option);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load pages for domain:', error);
+  }
 }
 
 // Load tracked sites for QA selector
