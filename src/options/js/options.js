@@ -25,6 +25,18 @@ import '../../config/feature-flags.js';
 import themeManager from '../../config/theme-manager.js';
 import '../../lib/chart.min.js';
 
+// Constants
+const DEFAULT_EXPORT_FORMAT = 'json';
+const DEFAULT_TIME_RANGE = 300; // 5 minutes in seconds
+const POPULAR_API_PATTERNS = [
+  'https://api.github.com/*',
+  'https://*.googleapis.com/*',
+  'https://api.twitter.com/*',
+  'https://graph.facebook.com/*',
+  'https://api.stripe.com/*',
+  'https://*.amazonaws.com/*'
+];
+
 // DOM elements - will be initialized in DOMContentLoaded
 let captureEnabled;
 let maxStoredRequests;
@@ -644,9 +656,9 @@ function setupEventListeners() {
       chrome.runtime.sendMessage(
         {
           action: 'exportDatabase',
-          format: exportFormat?.value || 'json',
+          format: exportFormat?.value || DEFAULT_EXPORT_FORMAT,
           filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
-            exportFormat?.value || 'json'
+            exportFormat?.value || DEFAULT_EXPORT_FORMAT
           }`,
         },
         (response) => {
@@ -853,12 +865,7 @@ function handleSitePreset(preset) {
       addCurrentSiteToTracking();
       break;
     case 'popular':
-      trackingSites.value = `https://api.github.com/*
-https://*.googleapis.com/*
-https://api.twitter.com/*
-https://graph.facebook.com/*
-https://api.stripe.com/*
-https://*.amazonaws.com/*`;
+      trackingSites.value = POPULAR_API_PATTERNS.join('\n');
       validateTrackingSites();
       showNotification('Added popular API patterns');
       break;

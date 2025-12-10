@@ -14,6 +14,7 @@ export class DevToolsPanel {
     this.SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
     this.MAX_CHART_POINTS = 20;
     this.ERROR_STATUS_PREFIX = '4xx';
+    this.DEFAULT_TIME_RANGE = 300; // 5 minutes in seconds
     
     this.initialize();
   }
@@ -1655,7 +1656,7 @@ export class DevToolsPanel {
     const statusFilter = document.getElementById("statusFilter");
     
     const filters = { 
-      timeRange: timeRange ? parseInt(timeRange.value) : 300 
+      timeRange: timeRange ? parseInt(timeRange.value) : this.DEFAULT_TIME_RANGE 
     };
     
     // Use the current domain (already determined from inspected window)
