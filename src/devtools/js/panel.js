@@ -718,6 +718,7 @@ export class DevToolsPanel {
       }
 
       const filters = this.getActiveFilters();
+      console.log('DevTools Panel: Collecting metrics with filters:', filters);
 
       // Get metrics from background page
       chrome.runtime.sendMessage(
@@ -733,22 +734,26 @@ export class DevToolsPanel {
             return;
           }
 
+          console.log('DevTools Panel: Received response:', response);
+
           if (response && response.success) {
             // Check if there's data
             if (!response.totalRequests || response.totalRequests === 0) {
+              console.log('DevTools Panel: No data available (totalRequests = 0)');
               this.showNoDataState(true);
             } else {
+              console.log('DevTools Panel: Data available, updating metrics');
               this.showNoDataState(false);
               this.updateMetrics(response);
             }
           } else {
-            console.error("Failed to get metrics:", response?.error);
+            console.error("DevTools Panel: Failed to get metrics:", response?.error);
             this.showNoDataState(true);
           }
         }
       );
     } catch (error) {
-      console.error("Error collecting metrics:", error);
+      console.error("DevTools Panel: Error collecting metrics:", error);
       // Stop collection on error to prevent spam
       this.stopMetricsCollection();
     }
