@@ -16,6 +16,11 @@
   --border-color: #dee2e6;
   --divider-color: #e9ecef;
   --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-color: #e9ecef;
+  --success-bg-color: #d4edda;
+  --error-bg-color: #f8d7da;
+  --warning-bg-color: #fff3cd;
+  --info-bg-color: #d1ecf1;
 }
 
 /* Dark theme */
@@ -35,6 +40,11 @@ body.dark {
   --border-color: #495057;
   --divider-color: #6c757d;
   --shadow-color: rgba(0, 0, 0, 0.5);
+  --hover-color: #495057;
+  --success-bg-color: #1e4620;
+  --error-bg-color: #5a1f1f;
+  --warning-bg-color: #4d3b00;
+  --info-bg-color: #0f4852;
 }
 
 /* High Contrast theme */
@@ -54,6 +64,11 @@ body.theme-highContrast {
   --border-color: #ffffff;
   --divider-color: #ffffff;
   --shadow-color: rgba(255, 255, 255, 0.5);
+  --hover-color: #333333;
+  --success-bg-color: #003300;
+  --error-bg-color: #330000;
+  --warning-bg-color: #333300;
+  --info-bg-color: #003333;
 }
 
 /* Blue theme */
@@ -73,6 +88,11 @@ body.theme-blue {
   --border-color: #99ccff;
   --divider-color: #cce6ff;
   --shadow-color: rgba(0, 102, 204, 0.2);
+  --hover-color: #cce6ff;
+  --success-bg-color: #ccffcc;
+  --error-bg-color: #ffcccc;
+  --warning-bg-color: #fff0cc;
+  --info-bg-color: #ccf5ff;
 }
 
 /* Apply theme variables to elements */

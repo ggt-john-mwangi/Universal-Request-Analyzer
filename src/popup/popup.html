@@ -1,183 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Universal Request Analyzer</title>
+  <link rel="stylesheet" href="../css/themes.css">
   <link rel="stylesheet" href="../assets/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="./css/popup.css">
-  <link rel="stylesheet" href="./css/settings.css">
-  <link rel="stylesheet" href="./css/data-visualization.css">
-  <link rel="stylesheet" href="./css/themes.css">
-  <link rel="stylesheet" href="styles.css">
+  <script src="../lib/shared-theme-init.js"></script>
+  <script src="../lib/chart.min.js"></script>
 </head>
+<body>
+  <!-- Auth Screen -->
+  <div id="authContainer" class="auth-container">
+    <img src="../assets/icons/icon128.png" alt="Logo" class="auth-logo">
+    <h1 class="auth-title">Universal Request Analyzer</h1>
+    <p class="auth-subtitle">Analyze and monitor your web requests</p>
 
-<body class="popup_container no-scrollbar">
-  <header class="popup_header">
-    <div class="logo">
-      <img src="assets/icons/icon48.png" alt="URA">
-    </div>
-    <div class="controls">
-      <button id="clearBtn" title="Clear all requests">
-        <i class="fas fa-trash"></i> Clear
-      </button>
-      <button id="exportBtn" title="Export data">
-        <i class="fas fa-file-export"></i> Export
-      </button>
-      <button id="filterBtn" title="Filter requests">
-        <i class="fas fa-filter"></i> Filter
-      </button>
-      <button id="openOptions" title="Open settings">
-        <i class="fas fa-sliders-h"></i> Settings
-      </button>
-    </div>
-  </header>
+    <!-- Register Form -->
+    <form id="registerForm" class="auth-form">
+      <div class="form-group">
+        <label for="registerName">Name (Optional)</label>
+        <input type="text" id="registerName" placeholder="Enter your name">
+      </div>
+      <div class="form-group">
+        <label for="registerEmail">Email</label>
+        <input type="email" id="registerEmail" placeholder="Enter your email" required>
+      </div>
+      <div class="form-group">
+        <label for="registerPassword">Password</label>
+        <input type="password" id="registerPassword" placeholder="Min 6 characters" required>
+      </div>
+      <button type="submit" class="auth-btn">Register</button>
+      <div class="auth-link">
+        Already have an account? <a id="showLogin">Login</a>
+      </div>
+      <div id="registerError" class="error-message"></div>
+      <div id="registerSuccess" class="success-message"></div>
+    </form>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="requests">
-      <i class="fas fa-exchange-alt"></i> Requests
-    </button>
-    <button class="tab-btn" data-tab="stats">
-      <i class="fas fa-chart-line"></i> Stats
-    </button>
-    <button class="tab-btn" data-tab="performance">
-      <i class="fas fa-tachometer-alt"></i> Performance
-    </button>
-    <button class="tab-btn" data-tab="settings">
-      <i class="fas fa-cog"></i> Settings
-    </button>
+    <!-- Login Form -->
+    <form id="loginForm" class="auth-form hidden">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="Enter your email" required>
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter your password" required>
+      </div>
+      <button type="submit" class="auth-btn">Login</button>
+      <div class="auth-link">
+        Don't have an account? <a id="showRegister">Register</a>
+      </div>
+      <div id="loginError" class="error-message"></div>
+    </form>
   </div>
 
-  <div class="content-area">
-    <!-- Requests Tab -->
-    <div class="tab-content active" id="requests-tab">
-      <div class="filter-panel" id="filterPanel">
-        <div class="filter-row">
-          <label for="statusFilter">
-            <i class="fas fa-info-circle"></i> Status:
-          </label>
-          <select id="statusFilter">
-            <option value="all">All</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-            <option value="error">Error</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="requests-list" id="requestsList"></div>
-    </div>
-
-    <!-- Stats Tab -->
-    <div class="tab-content" id="stats-tab">
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-title">Total Requests</div>
-          <div class="metric-value" id="totalRequests">0</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-title">Average Response Time</div>
-          <div class="metric-value" id="avgResponseTime">0 ms</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-title">Success Rate</div>
-          <div class="metric-value" id="successRate">0%</div>
-        </div>
-      </div>
-
-      <div class="chart-container">
-        <canvas id="statsChart"></canvas>
+  <!-- Main App (shown after login) -->
+  <div id="appContainer" class="app-container">
+    <!-- User Info Bar -->
+    <div class="user-info">
+      <span class="user-name">Welcome, <span id="userName">User</span>!</span>
+      <div class="user-actions">
+        <button id="refreshSettingsBtn" class="action-btn" title="Refresh settings from database">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+        <button id="logoutBtn" class="logout-btn">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
       </div>
     </div>
 
-    <!-- Performance Tab -->
-    <div class="tab-content" id="performance-tab">
-      <div class="performance-controls">
-        <label class="toggle-switch">
-          <input type="checkbox" id="performanceToggle">
-          <span class="slider"></span>
-          Enable Performance Metrics
-        </label>
+    <!-- Filters Section - At Top -->
+    <div class="filters-bar">
+      <div class="filter-group">
+        <label for="pageFilter"><i class="fas fa-file"></i> Page:</label>
+        <select id="pageFilter" class="filter-select">
+          <option value="">All Pages in Domain</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="requestTypeFilter"><i class="fas fa-filter"></i> Type:</label>
+        <select id="requestTypeFilter" class="filter-select">
+          <option value="">All Types</option>
+          <option value="xmlhttprequest">XHR/API</option>
+          <option value="fetch">Fetch</option>
+          <option value="script">Scripts</option>
+          <option value="stylesheet">Stylesheets</option>
+          <option value="image">Images</option>
+          <option value="font">Fonts</option>
+          <option value="document">Documents</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Page Summary -->
+    <div class="page-summary">
+      <div class="summary-title">
+        <i class="fas fa-chart-line"></i> <span id="currentDomainDisplay">Loading...</span>
+      </div>
+      
+      <div class="summary-stats">
+        <div class="stat-item">
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value" id="totalRequests">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Avg Response</div>
+          <div class="stat-value" id="avgResponse">0ms</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Errors</div>
+          <div class="stat-value" id="errorCount">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Data Transferred</div>
+          <div class="stat-value" id="dataTransferred">0KB</div>
+        </div>
       </div>
 
-      <div class="metrics-panel" id="metricsPanel">
-        <h3>Page Performance</h3>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-title">DNS Lookup</div>
-            <div class="metric-value" id="dnsTime">0 ms</div>
+      <!-- Request Timeline Chart -->
+      <div class="timeline-chart">
+        <div class="chart-title">Request Timeline (Last 5 min)</div>
+        <canvas id="requestTimelineChart" width="400" height="200"></canvas>
+      </div>
+
+      <!-- Status Breakdown -->
+      <div class="status-breakdown">
+        <div class="breakdown-title">Status Codes</div>
+        <div class="status-grid">
+          <div class="status-badge success">
+            <span class="status-label">2xx</span>
+            <span class="status-count" id="status2xx">0</span>
           </div>
-          <div class="metric-card">
-            <div class="metric-title">TCP Connection</div>
-            <div class="metric-value" id="tcpTime">0 ms</div>
+          <div class="status-badge redirect">
+            <span class="status-label">3xx</span>
+            <span class="status-count" id="status3xx">0</span>
           </div>
-          <div class="metric-card">
-            <div class="metric-title">SSL/TLS</div>
-            <div class="metric-value" id="sslTime">0 ms</div>
+          <div class="status-badge client-error">
+            <span class="status-label">4xx</span>
+            <span class="status-count" id="status4xx">0</span>
           </div>
-          <div class="metric-card">
-            <div class="metric-title">Time to First Byte</div>
-            <div class="metric-value" id="ttfbTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">Download Time</div>
-            <div class="metric-value" id="downloadTime">0 ms</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-title">Total Time</div>
-            <div class="metric-value" id="totalTime">0 ms</div>
+          <div class="status-badge server-error">
+            <span class="status-label">5xx</span>
+            <span class="status-count" id="status5xx">0</span>
           </div>
         </div>
+      </div>
 
-        <h3>Resource Timing</h3>
-        <div class="chart-container">
-          <canvas id="resourceChart"></canvas>
+      <!-- Request Types -->
+      <div class="request-types">
+        <div class="breakdown-title">Request Types</div>
+        <div class="types-list" id="requestTypesList">
+          <div class="type-item">
+            <span class="type-name">XHR</span>
+            <span class="type-bar"><span class="type-bar-fill"></span></span>
+            <span class="type-count">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Errors -->
+      <div class="recent-errors">
+        <div class="breakdown-title">
+          <i class="fas fa-exclamation-triangle"></i> Recent Errors
+        </div>
+        <div class="errors-list" id="recentErrorsList">
+          <p class="placeholder">No errors in the last 5 minutes</p>
         </div>
       </div>
     </div>
 
-    <!-- Settings Tab -->
-    <div class="tab-content" id="settings-tab">
-      <div class="settings-section">
-        <h3>Settings Backup & Restore</h3>
-        <div class="settings-actions">
-          <button id="ExportSettingsBtn" class="primary-btn">
-            <i class="fas fa-file-export"></i> Export Settings
-          </button>
-          <input type="file" id="ImportSettingsFile" accept=".json" style="display: none;">
-          <button id="ImportSettingsBtn" class="secondary-btn">
-            <i class="fas fa-file-import"></i> Import Settings
-          </button>
-        </div>
-        <p class="settings-description">
-          Backup your settings or restore them from a previously exported file.
-        </p>
+    <!-- QA Quick View -->
+    <div class="qa-quick-view">
+      <div class="qa-header">
+        <i class="fas fa-search"></i> QA Quick View
+      </div>
+      <div class="site-selector">
+        <label for="siteSelect">Select Site:</label>
+        <select id="siteSelect">
+          <option value="">Current Page</option>
+        </select>
+      </div>
+      <div class="qa-navigation">
+        <button class="qa-nav-btn" id="viewRequests">
+          <i class="fas fa-list"></i> View Requests
+        </button>
+        <button class="qa-nav-btn" id="viewAnalytics">
+          <i class="fas fa-chart-bar"></i> Analytics
+        </button>
+        <button class="qa-nav-btn" id="exportData">
+          <i class="fas fa-download"></i> Export
+        </button>
       </div>
     </div>
-  </div>
-  <!-- Exports Panel -->
-  <div class="panel" id="export-container">
-    <div class="panel-header">
-      <h3>Exports Panel</h3>
-      <button id="closeExports">
-        <i class="fas fa-times"></i>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button class="action-btn" id="openDevtools">
+        <i class="fas fa-chart-line"></i>
+        <span>Analytics</span>
+      </button>
+      <button class="action-btn" id="openDashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </button>
+      <button class="action-btn" id="openHelp">
+        <i class="fas fa-question-circle"></i>
+        <span>Help</span>
       </button>
     </div>
-    <div class="panel-content"></div>
-  </div>
-  <!-- Request Details Panel -->
-  <div class="panel" id="requestDetails">
-    <div class="panel-header">
-      <h3>Request Details</h3>
-      <button id="closeDetails">
-        <i class="fas fa-times"></i>
-      </button>
+
+    <!-- Footer -->
+    <div class="footer-info">
+      Extension v1.0.0 • <a href="#" id="viewPrivacy">Privacy</a> • <a href="#" id="reportIssue">Report Issue</a>
     </div>
-    <div class="panel-content"></div>
   </div>
 
   <script src="popup.js"></script>
 </body>
-
 </html>

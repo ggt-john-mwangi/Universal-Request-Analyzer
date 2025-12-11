@@ -36,116 +36,116 @@ const DEFAULT_FEATURE_FLAGS = {
 
 // Feature dependencies - features that require other features to be enabled
 const FEATURE_DEPENDENCIES = {
-  teamSharing: ["authentication", "onlineSync"],
-  cloudExport: ["authentication"],
-  remoteStorage: ["authentication", "onlineSync"],
-  aiAnalysis: ["statistics"],
-  predictiveAnalytics: ["statistics", "aiAnalysis"],
-  securityScanning: ["requestModification"],
+  teamSharing: ['authentication', 'onlineSync'],
+  cloudExport: ['authentication'],
+  remoteStorage: ['authentication', 'onlineSync'],
+  aiAnalysis: ['statistics'],
+  predictiveAnalytics: ['statistics', 'aiAnalysis'],
+  securityScanning: ['requestModification'],
 };
 
 // Feature permissions - minimum permission level required for each feature
 const FEATURE_PERMISSIONS = {
-  captureRequests: "basic",
-  filterRequests: "basic",
-  exportData: "basic",
-  statistics: "basic",
-  visualization: "basic",
+  captureRequests: 'basic',
+  filterRequests: 'basic',
+  exportData: 'basic',
+  statistics: 'basic',
+  visualization: 'basic',
 
-  onlineSync: "standard",
-  authentication: "basic",
-  remoteStorage: "standard",
-  cloudExport: "standard",
+  onlineSync: 'standard',
+  authentication: 'basic',
+  remoteStorage: 'standard',
+  cloudExport: 'standard',
 
-  requestModification: "advanced",
-  requestMocking: "advanced",
-  automatedTesting: "advanced",
-  performanceAlerts: "advanced",
+  requestModification: 'advanced',
+  requestMocking: 'advanced',
+  automatedTesting: 'advanced',
+  performanceAlerts: 'advanced',
 
-  teamSharing: "team",
-  customRules: "advanced",
+  teamSharing: 'team',
+  customRules: 'advanced',
 
-  aiAnalysis: "premium",
-  predictiveAnalytics: "premium",
-  securityScanning: "premium",
+  aiAnalysis: 'premium',
+  predictiveAnalytics: 'premium',
+  securityScanning: 'premium',
 };
 
 // Permission levels in order of increasing access
 const PERMISSION_LEVELS = [
-  "basic",
-  "standard",
-  "advanced",
-  "team",
-  "premium",
-  "admin",
+  'basic',
+  'standard',
+  'advanced',
+  'team',
+  'premium',
+  'admin',
 ];
 
 // Feature descriptions for UI display
 const FEATURE_DESCRIPTIONS = {
-  captureRequests: "Capture and analyze network requests",
-  filterRequests: "Filter and search through captured requests",
-  exportData: "Export captured data to various formats",
-  statistics: "View statistics and analytics about captured requests",
-  visualization: "Visualize request data with charts and graphs",
+  captureRequests: 'Capture and analyze network requests',
+  filterRequests: 'Filter and search through captured requests',
+  exportData: 'Export captured data to various formats',
+  statistics: 'View statistics and analytics about captured requests',
+  visualization: 'Visualize request data with charts and graphs',
 
-  onlineSync: "Synchronize data with online storage",
-  authentication: "User authentication and profiles",
-  remoteStorage: "Store captured data in the cloud",
-  cloudExport: "Export data directly to cloud storage services",
-  teamSharing: "Share captured data with team members",
+  onlineSync: 'Synchronize data with online storage',
+  authentication: 'User authentication and profiles',
+  remoteStorage: 'Store captured data in the cloud',
+  cloudExport: 'Export data directly to cloud storage services',
+  teamSharing: 'Share captured data with team members',
 
-  requestModification: "Modify requests before they are sent",
-  requestMocking: "Create mock responses for requests",
-  automatedTesting: "Run automated tests on captured requests",
-  performanceAlerts: "Get alerts for performance issues",
-  customRules: "Create custom rules for request analysis",
+  requestModification: 'Modify requests before they are sent',
+  requestMocking: 'Create mock responses for requests',
+  automatedTesting: 'Run automated tests on captured requests',
+  performanceAlerts: 'Get alerts for performance issues',
+  customRules: 'Create custom rules for request analysis',
 
-  aiAnalysis: "AI-powered analysis of request patterns",
-  predictiveAnalytics: "Predict future request patterns",
-  securityScanning: "Scan requests for security vulnerabilities",
+  aiAnalysis: 'AI-powered analysis of request patterns',
+  predictiveAnalytics: 'Predict future request patterns',
+  securityScanning: 'Scan requests for security vulnerabilities',
 };
 
 // Feature categories for UI organization
 const FEATURE_CATEGORIES = {
   core: [
-    "captureRequests",
-    "filterRequests",
-    "exportData",
-    "statistics",
-    "visualization",
+    'captureRequests',
+    'filterRequests',
+    'exportData',
+    'statistics',
+    'visualization',
   ],
   online: [
-    "onlineSync",
-    "authentication",
-    "remoteStorage",
-    "cloudExport",
-    "teamSharing",
+    'onlineSync',
+    'authentication',
+    'remoteStorage',
+    'cloudExport',
+    'teamSharing',
   ],
   advanced: [
-    "requestModification",
-    "requestMocking",
-    "automatedTesting",
-    "performanceAlerts",
-    "customRules",
+    'requestModification',
+    'requestMocking',
+    'automatedTesting',
+    'performanceAlerts',
+    'customRules',
   ],
-  experimental: ["aiAnalysis", "predictiveAnalytics", "securityScanning"],
+  experimental: ['aiAnalysis', 'predictiveAnalytics', 'securityScanning'],
 };
 
 // Declare chrome if it's not already defined (e.g., in a testing environment)
-if (typeof chrome === "undefined") {
+if (typeof chrome === 'undefined') {
   global.chrome = {
     storage: {
       local: {
         get: (keys, callback) => {
           // Mock implementation for testing
           const data = {};
-          if (typeof keys === "string") {
+          if (typeof keys === 'string') {
             data[keys] = localStorage.getItem(keys);
           } else if (Array.isArray(keys)) {
             keys.forEach((key) => {
               data[key] = localStorage.getItem(key);
             });
-          } else if (typeof keys === "object") {
+          } else if (typeof keys === 'object') {
             Object.keys(keys).forEach((key) => {
               data[key] = localStorage.getItem(key);
             });
@@ -170,7 +170,7 @@ if (typeof chrome === "undefined") {
 class FeatureFlagsManager {
   constructor() {
     this.flags = { ...DEFAULT_FEATURE_FLAGS };
-    this.userPermissionLevel = "basic";
+    this.userPermissionLevel = 'basic';
     this.initialized = false;
     this.dependencyGraph = new Map();
     this.reverseGraph = new Map();
@@ -207,7 +207,7 @@ class FeatureFlagsManager {
    */
   detectCircularDependencies(feature, visited = new Set(), path = new Set()) {
     if (path.has(feature)) {
-      const cycle = [...path, feature].join(" -> ");
+      const cycle = [...path, feature].join(' -> ');
       throw new Error(`Circular dependency detected: ${cycle}`);
     }
 
@@ -320,9 +320,9 @@ class FeatureFlagsManager {
       // Save the validated flags
       await this.saveToStorage();
 
-      console.log("Feature flags initialized:", this.flags);
+      console.log('Feature flags initialized:', this.flags);
     } catch (error) {
-      console.error("Error initializing feature flags:", error);
+      console.error('Error initializing feature flags:', error);
       // Fall back to defaults
       this.flags = { ...DEFAULT_FEATURE_FLAGS };
       if (options.initialFlags) {
@@ -338,7 +338,7 @@ class FeatureFlagsManager {
    */
   async loadFromStorage() {
     return new Promise((resolve) => {
-      chrome.storage.local.get("featureFlags", (data) => {
+      chrome.storage.local.get('featureFlags', (data) => {
         resolve(data.featureFlags || {});
       });
     });
@@ -364,7 +364,7 @@ class FeatureFlagsManager {
    */
   isEnabled(featureName) {
     if (!this.initialized) {
-      console.warn("Feature flags not initialized, using defaults");
+      console.warn('Feature flags not initialized, using defaults');
       return DEFAULT_FEATURE_FLAGS[featureName] || false;
     }
 
@@ -470,7 +470,7 @@ class FeatureFlagsManager {
    * @returns {boolean} - Whether the user has permission
    */
   hasPermission(featureName) {
-    const requiredLevel = FEATURE_PERMISSIONS[featureName] || "admin";
+    const requiredLevel = FEATURE_PERMISSIONS[featureName] || 'admin';
     const userLevelIndex = PERMISSION_LEVELS.indexOf(this.userPermissionLevel);
     const requiredLevelIndex = PERMISSION_LEVELS.indexOf(requiredLevel);
 
@@ -508,12 +508,12 @@ class FeatureFlagsManager {
       result[category] = features.map((feature) => ({
         id: feature,
         name: feature
-          .replace(/([A-Z])/g, " $1")
+          .replace(/([A-Z])/g, ' $1')
           .replace(/^./, (str) => str.toUpperCase()),
-        description: FEATURE_DESCRIPTIONS[feature] || "",
+        description: FEATURE_DESCRIPTIONS[feature] || '',
         enabled: this.flags[feature] || false,
         hasPermission: this.hasPermission(feature),
-        requiredPermission: FEATURE_PERMISSIONS[feature] || "admin",
+        requiredPermission: FEATURE_PERMISSIONS[feature] || 'admin',
         dependencies: FEATURE_DEPENDENCIES[feature] || [],
       }));
     }

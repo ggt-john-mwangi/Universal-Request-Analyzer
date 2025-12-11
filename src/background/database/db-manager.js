@@ -1,4 +1,88 @@
 // Database manager - handles all database operations
+//
+// ========================================================================
+// DATABASE INITIALIZATION DATA FLOW
+// ========================================================================
+//
+// This module manages the complete lifecycle of the SQLite database for the
+// Universal Request Analyzer extension. The initialization process follows
+// a carefully orchestrated sequence to ensure data integrity and proper
+// migration handling.
+//
+// Complete Initialization Flow:
+// ------------------------------
+//
+// 1. Extension Startup (background.js)
+//    └─> calls initDatabase()
+//
+// 2. initDatabase() [THIS FILE - Line 235]
+//    ├─> Sets up encryption manager (optional)
+//    ├─> Creates/uses event bus for pub/sub (with default fallback)
+//    ├─> Calls initializeDatabase() [Line 1021]
+//    ├─> Publishes "database:ready" event
+//    └─> Returns database API object
+//
+// 3. initializeDatabase() [THIS FILE - Line 1021]
+//    ├─> Initializes SQL.js WASM module
+//    ├─> Attempts to load existing database:
+//    │   ├─> Strategy 1: Load from OPFS (Origin Private File System)
+//    │   ├─> Strategy 2: Load from Chrome local storage (fallback)
+//    │   └─> Strategy 3: Create new database
+//    ├─> For new databases:
+//    │   ├─> Calls createTables(db) [schema.js]
+//    │   └─> Saves to both OPFS and Chrome storage
+//    ├─> Calls migrateDatabase(db) [migrations.js]
+//    └─> Sets up 60-second auto-save interval
+//
+// 4. createTables(db) [schema.js - Line 3]
+//    ├─> Creates db_version table FIRST (critical for migrations)
+//    ├─> Creates requests table (main data)
+//    ├─> Creates related tables (timings, headers, etc.)
+//    ├─> Creates indexes for performance
+//    └─> Returns true on success
+//
+// 5. migrateDatabase(db) [migrations.js - Line 128]
+//    ├─> Calls getDatabaseVersion(db) to read from db_version table
+//    ├─> Identifies pending migrations (version > current)
+//    ├─> For each pending migration:
+//    │   ├─> BEGIN TRANSACTION
+//    │   ├─> Execute migration SQL
+//    │   ├─> Call setDatabaseVersion(db, version) - updates db_version
+//    │   ├─> COMMIT (or ROLLBACK on error)
+//    │   └─> Log completion
+//    └─> Returns true when all migrations complete
+//
+// Critical Design Decisions:
+// --------------------------
+// 
+// 1. db_version Table Creation Order:
+//    - MUST be created in schema.js BEFORE any migrations run
+//    - Prevents "no such table: db_version" errors
+//    - Migration v2 also creates it for legacy compatibility
+//
+// 2. Event Bus Default Creation:
+//    - initDatabase() creates default event bus if none provided
+//    - Prevents "Cannot read properties of undefined (reading 'publish')"
+//    - Allows standalone operation without dependency injection
+//
+// 3. Storage Redundancy:
+//    - Saves to both OPFS and Chrome storage
+//    - OPFS: Better performance, larger quota
+//    - Chrome storage: Fallback if OPFS unavailable
+//
+// 4. Transaction-Based Migrations:
+//    - Each migration is atomic (all-or-nothing)
+//    - Failed migrations don't corrupt database state
+//    - Version tracking prevents duplicate applications
+//
+// Error Handling:
+// ---------------
+// - Up to 3 retry attempts with exponential backoff
+// - Final fallback: In-memory database (no persistence)
+// - All errors logged with context for debugging
+// - Transactions ensure database integrity on failures
+//
+// ========================================================================
 
 import { createTables } from "./schema.js";
 import { migrateDatabase } from "./migrations.js";
@@ -44,6 +128,60 @@ async function saveDatabaseToOPFS(data) {
   }
 }
 
+// Chrome storage backup functions for data persistence
+async function loadDatabaseFromChromeStorage() {
+  try {
+    if (typeof chrome === "undefined" || !chrome.storage) {
+      return null;
+    }
+    
+    const result = await chrome.storage.local.get(["db_backup"]);
+    if (result.db_backup) {
+      console.log("[DB] Found database backup in Chrome storage.");
+      // Convert base64 string back to Uint8Array using efficient method
+      const binaryString = atob(result.db_backup);
+      const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+      return bytes;
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to load database from Chrome storage:", error);
+    return null;
+  }
+}
+
+async function saveDatabaseToChromeStorage(data) {
+  try {
+    if (typeof chrome === "undefined" || !chrome.storage) {
+      return;
+    }
+    
+    // Convert Uint8Array to base64 string for storage using chunked approach
+    // to avoid stack overflow with large databases
+    const CHUNK_SIZE = 8192;
+    let binaryString = '';
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+      const chunk = data.subarray(i, Math.min(i + CHUNK_SIZE, data.length));
+      binaryString += String.fromCharCode.apply(null, chunk);
+    }
+    const base64String = btoa(binaryString);
+    
+    // Chrome storage has a limit, so we'll only save if it's not too large
+    const sizeInBytes = base64String.length;
+    const maxSize = 5 * 1024 * 1024; // 5MB limit
+    
+    if (sizeInBytes > maxSize) {
+      console.warn(`[DB] Database too large for Chrome storage backup (${(sizeInBytes / 1024 / 1024).toFixed(2)}MB). Skipping backup.`);
+      return;
+    }
+    
+    await chrome.storage.local.set({ db_backup: base64String });
+    console.log(`[DB] Database backed up to Chrome storage (${(sizeInBytes / 1024).toFixed(2)}KB).`);
+  } catch (error) {
+    console.error("Failed to save database to Chrome storage:", error);
+  }
+}
+
 // Add a function to log errors into the database
 export function logErrorToDatabase(db, error) {
   if (!db || typeof db.exec !== "function") {
@@ -66,17 +204,75 @@ export function logErrorToDatabase(db, error) {
   }
 }
 
-// Initialize the database
-export async function initDatabase(dbConfig, encryptionMgr, events) {
+/**
+ * Initialize the database with optional dependency injection.
+ * 
+ * Data Flow:
+ * 1. Set up encryption manager (if provided)
+ * 2. Create or use provided event bus for publish/subscribe pattern
+ * 3. Call initializeDatabase() which:
+ *    - Loads existing database from OPFS/Chrome storage OR creates new database
+ *    - Calls createTables(db) to create schema (including db_version table FIRST)
+ *    - Calls migrateDatabase(db) to apply pending migrations
+ *    - Sets up auto-save interval for persistence
+ * 4. Publish "database:ready" event to notify other components
+ * 5. Return database API object with all query/operation functions
+ * 
+ * @param {Object} dbConfig - Database configuration options (optional, defaults to {})
+ * @param {Object} encryptionMgr - Encryption manager instance (optional, defaults to null)
+ * @param {Object} events - Event bus with subscribe/publish methods (optional, creates default if null)
+ * @returns {Promise<Object>} Database API object with query and operation functions
+ * @throws {DatabaseError} If initialization fails after all retry attempts
+ * 
+ * @example
+ * // Standalone initialization (creates default event bus)
+ * const dbApi = await initDatabase();
+ * 
+ * @example
+ * // With dependency injection
+ * const dbApi = await initDatabase(config, encryptionManager, eventBus);
+ */
+export async function initDatabase(dbConfig = {}, encryptionMgr = null, events = null) {
   try {
+    // Step 1: Set up encryption manager if provided
     encryptionManager = encryptionMgr;
-    eventBus = events;
+    
+    // Step 2: Create a default event bus if not provided via dependency injection
+    // This allows the database to work standalone without external dependencies
+    if (!events) {
+      const subscribers = new Map();
+      eventBus = {
+        subscribe: (event, callback) => {
+          if (!subscribers.has(event)) {
+            subscribers.set(event, []);
+          }
+          subscribers.get(event).push(callback);
+        },
+        publish: (event, data) => {
+          if (subscribers.has(event)) {
+            subscribers.get(event).forEach(callback => {
+              try {
+                callback(data);
+              } catch (error) {
+                // Log but don't throw - prevents one faulty handler from breaking others
+                console.error(`Event handler error for ${event}:`, error);
+              }
+            });
+          }
+        }
+      };
+    } else {
+      eventBus = events;
+    }
 
+    // Step 3: Initialize the database with retry logic and fallback strategies
+    // This handles loading from storage or creating a new database with schema
     db = await initializeDatabase();
 
-    // Publish database ready event
+    // Step 4: Notify other components that database is ready
     eventBus.publish("database:ready", { timestamp: Date.now() });
 
+    // Step 5: Return the public API for database operations
     return {
       executeQuery,
       executeTransaction,
@@ -793,64 +989,145 @@ function backupDatabase() {
 // Initialize the database with proper handling of OPFS
 
 /**
- * Initializes the SQLite database using SQL.js and optionally loads from OPFS.
- * Handles retries, migration, and periodic auto-saving.
- *
- * @returns {Promise<SQL.Database>} The initialized database instance
+ * Initialize the database with robust error handling and multiple fallback strategies.
+ * 
+ * Initialization Data Flow:
+ * 1. Initialize SQL.js WASM module with correct asset paths
+ * 2. Attempt to load existing database using fallback strategies:
+ *    a. Strategy 1: Load from OPFS (Origin Private File System) - primary storage
+ *    b. Strategy 2: Load from Chrome local storage - backup if OPFS fails
+ *    c. Strategy 3: Create new database if no existing data found
+ * 3. For new databases:
+ *    - Call createTables(db) to create schema with db_version table FIRST
+ *    - Save initial database to both OPFS and Chrome storage for redundancy
+ * 4. Run migrateDatabase(db) to apply any pending schema migrations
+ *    - Reads current version from db_version table (created in step 3)
+ *    - Applies migrations in order, updating db_version after each
+ * 5. Set up auto-save interval (60s) to persist changes to storage
+ * 6. On retry exhaustion: Create in-memory fallback database (no persistence)
+ * 
+ * Retry Strategy:
+ * - Up to MAX_RETRIES (3) attempts with exponential backoff
+ * - Delays: 1s, 2s, 4s between retries
+ * - Final fallback: In-memory database if all attempts fail
+ * 
+ * @returns {Promise<SQL.Database>} The initialized SQL.js database instance
+ * @throws {Error} If all initialization attempts fail, including the in-memory fallback
+ * 
+ * @note If all retries fail, creates an in-memory database without persistence.
+ *       Data will be lost when extension is reloaded or service worker suspends.
+ *       This is a last-resort fallback to keep extension functional.
  */
 export async function initializeDatabase() {
   const MAX_RETRIES = 3;
-  const AUTO_SAVE_INTERVAL_MS = 60000;
+  const AUTO_SAVE_INTERVAL_MS = 60000; // 60 seconds
   let retryCount = 0;
 
   while (retryCount < MAX_RETRIES) {
     try {
-      // Initialize SQL.js with correct wasm path handling
+      console.log(`[DB] Attempting to initialize database (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+      
+      // Step 1: Initialize SQL.js WASM module with correct asset paths
+      // The WASM file must be loaded from the extension's assets directory
       const SQL = await initSqlJs({
         locateFile: (file) => {
-          if (typeof chrome !== "undefined" && chrome.runtime) {
-            return chrome.runtime.getURL(`assets/wasm/${file}`);
-          } else if (typeof browser !== "undefined" && browser.runtime) {
-            return browser.runtime.getURL(`assets/wasm/${file}`);
-          } else {
-            return `assets/wasm/${file}`;
-          }
+          const url = typeof chrome !== "undefined" && chrome.runtime
+            ? chrome.runtime.getURL(`assets/wasm/${file}`)
+            : typeof browser !== "undefined" && browser.runtime
+            ? browser.runtime.getURL(`assets/wasm/${file}`)
+            : `assets/wasm/${file}`;
+          console.log(`[DB] Loading WASM file: ${file} from ${url}`);
+          return url;
         },
       });
 
-      // Load from OPFS if supported and available
-      if (await opfsSupported()) {
-        const savedDb = await loadDatabaseFromOPFS();
+      console.log("[DB] SQL.js initialized successfully");
 
-        if (savedDb) {
-          db = new SQL.Database(savedDb);
-          console.log("[DB] Loaded existing database from OPFS.");
-        } else {
-          db = new SQL.Database();
-          console.log("[DB] Created new in-memory database.");
-          await createTables(db);
-          await saveDatabaseToOPFS(db.export());
+      // Step 2: Try to load existing database with multiple fallback strategies
+      let dbLoaded = false;
+      
+      // Strategy 1: Load from OPFS (primary storage mechanism)
+      // OPFS provides better performance and larger storage quota
+      if (await opfsSupported()) {
+        try {
+          const savedDb = await loadDatabaseFromOPFS();
+          if (savedDb && savedDb.length > 0) {
+            db = new SQL.Database(savedDb);
+            console.log("[DB] Loaded existing database from OPFS.");
+            dbLoaded = true;
+          }
+        } catch (opfsError) {
+          console.warn("[DB] Failed to load from OPFS:", opfsError);
         }
-      } else {
+      }
+      
+      // Strategy 2: Load from Chrome storage as backup
+      // Falls back to Chrome storage if OPFS is unavailable or fails
+      if (!dbLoaded) {
+        try {
+          const backup = await loadDatabaseFromChromeStorage();
+          if (backup && backup.length > 0) {
+            db = new SQL.Database(backup);
+            console.log("[DB] Loaded database from Chrome storage backup.");
+            dbLoaded = true;
+            // Restore to OPFS if supported for better performance next time
+            if (await opfsSupported()) {
+              await saveDatabaseToOPFS(backup);
+              console.log("[DB] Restored backup to OPFS.");
+            }
+          }
+        } catch (storageError) {
+          console.warn("[DB] Failed to load from Chrome storage:", storageError);
+        }
+      }
+      
+      // Strategy 3: Create new database with complete schema
+      // This happens on first install or if no existing database found
+      if (!dbLoaded) {
+        console.log("[DB] Creating new database.");
         db = new SQL.Database();
-        console.warn("[DB] OPFS not supported — using in-memory only.");
+        
+        // Create all tables including db_version FIRST (required for migrations)
+        // See schema.js for detailed table structure and creation order
         await createTables(db);
+        
+        // Persist new database to both storage mechanisms for redundancy
+        const initialData = db.export();
+        if (await opfsSupported()) {
+          await saveDatabaseToOPFS(initialData);
+        }
+        await saveDatabaseToChromeStorage(initialData);
+        console.log("[DB] New database created and saved.");
       }
 
-      // Run migrations (optional)
+      // Step 3: Run migrations to update schema to latest version
+      // This reads from db_version table (created in createTables above)
+      // and applies any migrations that haven't been applied yet
       try {
         await migrateDatabase(db);
+        console.log("[DB] Migrations completed successfully.");
       } catch (migrationError) {
+        console.error("[DB] Migration failed:", migrationError);
         throw new Error(`Migration failed: ${migrationError.message}`);
       }
 
-      // Start auto-save
+      // Step 4: Start auto-save interval to persist changes periodically
+      // Saves to both OPFS and Chrome storage for redundancy
       autoSaveInterval = setInterval(async () => {
-        if (!db || isSaving || !(await opfsSupported())) return;
+        if (!db || isSaving) return;
         isSaving = true;
         try {
           const data = db.export();
-          await saveDatabaseToOPFS(data);
+          
+          // Save to OPFS if supported
+          if (await opfsSupported()) {
+            await saveDatabaseToOPFS(data);
+          }
+          
+          // Always save to Chrome storage as backup
+          await saveDatabaseToChromeStorage(data);
+          
+          console.log("[DB] Auto-save completed.");
         } catch (err) {
           console.error("[DB] Auto-save failed:", err);
         } finally {
@@ -858,18 +1135,43 @@ export async function initializeDatabase() {
         }
       }, AUTO_SAVE_INTERVAL_MS);
 
+      console.log("[DB] Database initialized successfully!");
       return db;
     } catch (err) {
       retryCount++;
-      console.error(`[DB] Initialization failed (attempt ${retryCount}):`, err);
+      console.error(`[DB] Initialization failed (attempt ${retryCount}/${MAX_RETRIES}):`, err);
+      console.error("[DB] Error stack:", err.stack);
 
       if (retryCount >= MAX_RETRIES) {
-        throw new Error(
-          "Database failed to initialize after multiple retries."
-        );
+        // Last resort: create in-memory database without persistence
+        console.error("[DB] All initialization attempts failed. Creating in-memory fallback database.");
+        try {
+          const SQL = await initSqlJs({
+            locateFile: (file) => {
+              const url = typeof chrome !== "undefined" && chrome.runtime
+                ? chrome.runtime.getURL(`assets/wasm/${file}`)
+                : typeof browser !== "undefined" && browser.runtime
+                ? browser.runtime.getURL(`assets/wasm/${file}`)
+                : `assets/wasm/${file}`;
+              return url;
+            },
+          });
+          db = new SQL.Database();
+          await createTables(db);
+          console.warn("[DB] Fallback in-memory database created (no persistence).");
+          return db;
+        } catch (fallbackError) {
+          console.error("[DB] Even fallback failed:", fallbackError);
+          throw new Error(
+            `Database failed to initialize after ${MAX_RETRIES} retries. Error: ${err.message}`
+          );
+        }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait before retry with exponential backoff
+      const delay = 1000 * Math.pow(2, retryCount - 1);
+      console.log(`[DB] Waiting ${delay}ms before retry...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
@@ -883,6 +1185,36 @@ export function cleanupDatabase() {
     autoSaveInterval = null;
   }
 }
+
+/**
+ * Manually save database to both OPFS and Chrome storage
+ * Useful for ensuring data is saved before extension updates or uninstalls
+ */
+export async function saveDatabase() {
+  if (!db) {
+    console.warn("[DB] No database to save.");
+    return false;
+  }
+  
+  try {
+    const data = db.export();
+    
+    // Save to OPFS if supported
+    if (await opfsSupported()) {
+      await saveDatabaseToOPFS(data);
+    }
+    
+    // Always save to Chrome storage as backup
+    await saveDatabaseToChromeStorage(data);
+    
+    console.log("[DB] Database saved manually.");
+    return true;
+  } catch (error) {
+    console.error("[DB] Manual save failed:", error);
+    return false;
+  }
+}
+
 /**
  * Checks whether the browser supports the Origin Private File System (OPFS).
  *
