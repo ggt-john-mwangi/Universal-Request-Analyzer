@@ -1099,6 +1099,9 @@ export class DevToolsPanel {
               <button class="btn-icon btn-view-details" data-request-id="${req.id}" title="View details">
                 <i class="fas fa-info-circle"></i>
               </button>
+              <button class="btn-icon btn-copy-curl" data-request='${JSON.stringify(req).replace(/'/g, "&apos;")}' title="Copy as cURL">
+                <i class="fas fa-terminal"></i>
+              </button>
               ${errorIcon}
             </td>
           </tr>
@@ -1109,10 +1112,18 @@ export class DevToolsPanel {
       
       // Use event delegation instead of inline onclick
       tbody.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-view-details');
-        if (btn) {
-          const requestId = btn.dataset.requestId;
+        const viewBtn = e.target.closest('.btn-view-details');
+        if (viewBtn) {
+          const requestId = viewBtn.dataset.requestId;
           this.viewRequestDetails(requestId);
+          return;
+        }
+        
+        const curlBtn = e.target.closest('.btn-copy-curl');
+        if (curlBtn) {
+          const requestData = JSON.parse(curlBtn.dataset.request.replace(/&apos;/g, "'"));
+          this.copyAsCurl(requestData);
+          return;
         }
       });
       
@@ -1136,6 +1147,70 @@ export class DevToolsPanel {
     message.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2196F3; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
     document.body.appendChild(message);
     setTimeout(() => message.remove(), 3000);
+  }
+  
+  // Copy request as cURL command
+  copyAsCurl(request) {
+    try {
+      let curl = `curl '${request.url}'`;
+      
+      // Add method if not GET
+      if (request.method && request.method !== 'GET') {
+        curl += ` -X ${request.method}`;
+      }
+      
+      // Add headers
+      if (request.request_headers) {
+        try {
+          const headers = typeof request.request_headers === 'string' 
+            ? JSON.parse(request.request_headers) 
+            : request.request_headers;
+          
+          for (const [name, value] of Object.entries(headers)) {
+            // Skip some headers that curl adds automatically
+            if (!['host', 'content-length', 'connection'].includes(name.toLowerCase())) {
+              curl += ` -H '${name}: ${value}'`;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing headers:', e);
+        }
+      }
+      
+      // Add request body if present
+      if (request.request_body) {
+        curl += ` --data '${request.request_body.replace(/'/g, "\\'")}'`;
+      }
+      
+      // Add compressed flag if applicable
+      curl += ' --compressed';
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(curl).then(() => {
+        this.showToast('cURL command copied to clipboard!', 'success');
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        this.showToast('Failed to copy cURL command', 'error');
+      });
+    } catch (error) {
+      console.error('Error generating cURL:', error);
+      this.showToast('Failed to generate cURL command', 'error');
+    }
+  }
+  
+  // Show toast notification
+  showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    const bgColors = {
+      success: '#48bb78',
+      error: '#f56565',
+      info: '#2196F3'
+    };
+    toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: ${bgColors[type] || bgColors.info}; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
   }
   
   // Helper to truncate URLs
