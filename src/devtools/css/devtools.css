@@ -832,3 +832,24 @@ body {
 .btn-secondary:hover {
   background: var(--border);
 }
+
+/* Fix canvas height issues in error section */
+.errors-chart {
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.errors-chart canvas {
+  max-height: 350px !important;
+  height: 350px !important;
+}
+
+#errorsList {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+#errorCategories {
+  max-height: 300px;
+  overflow-y: auto;
+}
