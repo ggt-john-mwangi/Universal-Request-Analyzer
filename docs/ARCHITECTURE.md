@@ -327,6 +327,100 @@ Star schema enables:
 - Time-series analysis
 - Cross-dimensional analysis
 
+## Star Schema Details
+
+### Dimension Tables
+
+#### 1. Time Dimension (`dim_time`)
+Multi-granularity time tracking with support for 8 timeframes.
+
+**Supported Timeframes:**
+- `1min` - 1 minute periods
+- `5min` - 5 minute periods
+- `15min` - 15 minute periods
+- `1h` - 1 hour periods
+- `4h` - 4 hour periods
+- `1d` - Daily periods
+- `1w` - Weekly periods
+- `1m` - Monthly periods
+
+**Key Columns:**
+- `time_key` - Primary key
+- `timestamp` - Unix timestamp
+- `year, quarter, month, week, day, hour, minute` - Date/time components
+- `period_1min ... period_1m` - Period identifiers for each timeframe
+
+#### 2. Domain Dimension with SCD Type 2 (`dim_domain`)
+Tracks domain attributes with full historical versioning using Slowly Changing Dimensions Type 2.
+
+**SCD Type 2 Implementation:**
+- Maintains complete history of attribute changes
+- Each change creates a new version with `valid_from` and `valid_to` timestamps
+- `is_current` flag identifies the active record
+- Enables point-in-time queries
+
+**Key Columns:**
+- `domain_key` - Primary key
+- `domain` - Domain name
+- `is_third_party` - Third-party status
+- `category` - Domain category (analytics, cdn, social, etc.)
+- `risk_level` - Security risk assessment
+- `valid_from, valid_to` - Validity period
+- `is_current` - Current version flag
+- `version` - Version number
+
+**Example History:**
+```
+domain_key | domain      | risk_level | valid_from | valid_to   | is_current | version
+-----------|-------------|------------|------------|------------|------------|--------
+1          | api.com     | low        | 1638316800 | 1640908800 | 0          | 1
+2          | api.com     | medium     | 1640908800 | NULL       | 1          | 2
+```
+
+#### 3. Resource Type Dimension (`dim_resource_type`)
+Pre-populated resource type categorization:
+- document, stylesheet, script, image, font
+- xmlhttprequest, fetch, websocket
+- media, other
+
+#### 4. Status Code Dimension (`dim_status_code`)
+HTTP status code metadata with success/error/redirect classifications.
+
+### Fact Tables
+
+#### 1. Request Fact Table (`fact_requests`)
+Atomic request metrics linked to all dimensions.
+
+**Key Measures:**
+- Timing: duration_ms, dns_time_ms, tcp_time_ms, ssl_time_ms, wait_time_ms, download_time_ms
+- Size: size_bytes, header_size_bytes, body_size_bytes
+- Quality: performance_score, quality_score
+- Flags: is_cached, is_compressed, has_error, is_secure
+
+#### 2. OHLC Performance Fact (`fact_ohlc_performance`)
+Candlestick-style aggregated metrics per timeframe.
+
+**OHLC Metrics:**
+- `open_time` - First request duration in period
+- `high_time` - Maximum request duration
+- `low_time` - Minimum request duration
+- `close_time` - Last request duration
+
+**Aggregate Metrics:**
+- Request count and volume
+- Average, median (P50), P95, P99 percentiles
+- Success/error counts and rates
+- Performance and quality scores
+
+#### 3. Performance Trends Fact (`fact_performance_trends`)
+Tracks metric changes with moving averages and volatility measures.
+
+#### 4. Quality Metrics Fact (`fact_quality_metrics`)
+Comprehensive quality assessment including:
+- Availability rate, performance index, reliability score
+- Performance distribution buckets
+- Cache hit rates
+
 ## Configuration
 
 ### Application Settings
