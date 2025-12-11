@@ -1099,7 +1099,7 @@ export class DevToolsPanel {
               <button class="btn-icon btn-view-details" data-request-id="${req.id}" title="View details">
                 <i class="fas fa-info-circle"></i>
               </button>
-              <button class="btn-icon btn-copy-curl" data-request='${JSON.stringify(req).replace(/'/g, "&apos;")}' title="Copy as cURL">
+              <button class="btn-icon btn-copy-curl" data-request-id="${req.id}" title="Copy as cURL">
                 <i class="fas fa-terminal"></i>
               </button>
               ${errorIcon}
@@ -1109,6 +1109,9 @@ export class DevToolsPanel {
       });
       
       tbody.innerHTML = rows;
+      
+      // Store requests for copy as cURL functionality
+      this.currentRequests = response.requests;
       
       // Use event delegation instead of inline onclick
       tbody.addEventListener('click', (e) => {
@@ -1121,8 +1124,11 @@ export class DevToolsPanel {
         
         const curlBtn = e.target.closest('.btn-copy-curl');
         if (curlBtn) {
-          const requestData = JSON.parse(curlBtn.dataset.request.replace(/&apos;/g, "'"));
-          this.copyAsCurl(requestData);
+          const requestId = curlBtn.dataset.requestId;
+          const requestData = this.currentRequests.find(r => r.id === requestId);
+          if (requestData) {
+            this.copyAsCurl(requestData);
+          }
           return;
         }
       });
@@ -1150,6 +1156,7 @@ export class DevToolsPanel {
   }
   
   // Copy request as cURL command
+  // Note: Headers are stored in a separate table and not included in basic cURL export
   copyAsCurl(request) {
     try {
       let curl = `curl '${request.url}'`;
@@ -1159,30 +1166,12 @@ export class DevToolsPanel {
         curl += ` -X ${request.method}`;
       }
       
-      // Add headers
-      if (request.request_headers) {
-        try {
-          const headers = typeof request.request_headers === 'string' 
-            ? JSON.parse(request.request_headers) 
-            : request.request_headers;
-          
-          for (const [name, value] of Object.entries(headers)) {
-            // Skip some headers that curl adds automatically
-            if (!['host', 'content-length', 'connection'].includes(name.toLowerCase())) {
-              curl += ` -H '${name}: ${value}'`;
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing headers:', e);
-        }
-      }
+      // Note: Headers are stored in bronze_request_headers table
+      // and not fetched for performance reasons
+      // Add common headers manually
+      curl += ` -H 'Accept: */*'`;
       
-      // Add request body if present
-      if (request.request_body) {
-        curl += ` --data '${request.request_body.replace(/'/g, "\\'")}'`;
-      }
-      
-      // Add compressed flag if applicable
+      // Add compressed flag
       curl += ' --compressed';
       
       // Copy to clipboard

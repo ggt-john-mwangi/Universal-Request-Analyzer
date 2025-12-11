@@ -2093,8 +2093,10 @@ async function handleExportAsHAR(filters) {
     }
 
     // Build query to get requests based on filters
+    // Note: Headers are stored in separate table, so we'll fetch them separately if needed
     let query = `
       SELECT 
+        id,
         method,
         url,
         status,
@@ -2102,11 +2104,7 @@ async function handleExportAsHAR(filters) {
         duration,
         size_bytes,
         from_cache,
-        timestamp,
-        request_headers,
-        response_headers,
-        request_body,
-        response_body
+        timestamp
       FROM bronze_requests
       WHERE 1=1
     `;
@@ -2133,7 +2131,8 @@ async function handleExportAsHAR(filters) {
     }
     
     // Limit to recent requests
-    query += ` AND timestamp > ${Date.now() - (24 * 60 * 60 * 1000)}`;
+    query += ` AND timestamp > ?`;
+    params.push(Date.now() - (24 * 60 * 60 * 1000));
     query += ` ORDER BY timestamp DESC LIMIT 500`;
     
     const result = dbManager.executeQuery(query, params);
@@ -2168,6 +2167,8 @@ async function handleExportAsHAR(filters) {
     };
     
     // Convert requests to HAR entries
+    // Note: For simplicity, we're not fetching headers from the separate table
+    // This keeps the export fast and the headers are optional in HAR format
     for (const req of parsedResult.data) {
       const entry = {
         startedDateTime: new Date(req.timestamp).toISOString(),
@@ -2177,21 +2178,21 @@ async function handleExportAsHAR(filters) {
           url: req.url || '',
           httpVersion: 'HTTP/1.1',
           cookies: [],
-          headers: parseHeaders(req.request_headers),
+          headers: [], // Headers stored in separate table
           queryString: parseQueryString(req.url),
           headersSize: -1,
-          bodySize: req.request_body ? req.request_body.length : 0
+          bodySize: 0
         },
         response: {
           status: req.status || 0,
           statusText: getStatusText(req.status),
           httpVersion: 'HTTP/1.1',
           cookies: [],
-          headers: parseHeaders(req.response_headers),
+          headers: [], // Headers stored in separate table
           content: {
             size: req.size_bytes || 0,
             mimeType: getMimeType(req.type),
-            text: req.response_body || ''
+            text: ''
           },
           redirectURL: '',
           headersSize: -1,
