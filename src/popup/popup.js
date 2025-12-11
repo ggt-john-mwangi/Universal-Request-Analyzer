@@ -25,6 +25,31 @@ function showApp() {
 
 // Setup event listeners
 function setupEventListeners() {
+  // Mode Toggle
+  const simpleModeBtn = document.getElementById('simpleModeBtn');
+  const advancedModeBtn = document.getElementById('advancedModeBtn');
+  
+  if (simpleModeBtn && advancedModeBtn) {
+    // Load saved mode preference
+    chrome.storage.local.get(['viewMode'], (result) => {
+      const mode = result.viewMode || 'simple';
+      setViewMode(mode);
+    });
+    
+    simpleModeBtn.addEventListener('click', () => {
+      setViewMode('simple');
+      chrome.storage.local.set({ viewMode: 'simple' });
+    });
+    
+    advancedModeBtn.addEventListener('click', () => {
+      setViewMode('advanced');
+      chrome.storage.local.set({ viewMode: 'advanced' });
+    });
+  }
+  
+  // Load resource usage
+  loadResourceUsage();
+  
   // Refresh Settings Button - sync settings from DB to storage
   document.getElementById('refreshSettingsBtn')?.addEventListener('click', async function() {
     const btn = this;
@@ -823,3 +848,53 @@ async function loadTrackedSites() {
 }
 
 
+
+// Set view mode (simple or advanced)
+function setViewMode(mode) {
+  const simpleModeBtn = document.getElementById('simpleModeBtn');
+  const advancedModeBtn = document.getElementById('advancedModeBtn');
+  const advancedElements = document.querySelectorAll('.timeline-chart, .request-types, .qa-quick-view, .filters-section');
+  const resourceUsage = document.getElementById('resourceUsage');
+  
+  if (mode === 'simple') {
+    simpleModeBtn?.classList.add('active');
+    advancedModeBtn?.classList.remove('active');
+    // Hide advanced features
+    advancedElements.forEach(el => el.style.display = 'none');
+    // Show resource usage in simple mode
+    if (resourceUsage) resourceUsage.style.display = 'flex';
+  } else {
+    simpleModeBtn?.classList.remove('active');
+    advancedModeBtn?.classList.add('active');
+    // Show advanced features
+    advancedElements.forEach(el => el.style.display = '');
+    // Hide resource usage in advanced mode
+    if (resourceUsage) resourceUsage.style.display = 'none';
+  }
+}
+
+// Load resource usage
+async function loadResourceUsage() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDatabaseSize'
+    });
+    
+    if (response && response.success) {
+      const requestCount = response.records || 0;
+      const sizeMB = response.size ? (response.size / (1024 * 1024)).toFixed(2) : '0';
+      
+      const requestCountEl = document.getElementById('requestCount');
+      const storageSizeEl = document.getElementById('storageSize');
+      
+      if (requestCountEl) {
+        requestCountEl.textContent = `${requestCount.toLocaleString()} / 10,000`;
+      }
+      if (storageSizeEl) {
+        storageSizeEl.textContent = `${sizeMB} MB`;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load resource usage:', error);
+  }
+}

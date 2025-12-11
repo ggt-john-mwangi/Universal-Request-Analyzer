@@ -26,6 +26,28 @@
       </div>
     </div>
 
+    <!-- Mode Toggle -->
+    <div class="mode-toggle">
+      <button id="simpleModeBtn" class="mode-btn active" data-mode="simple">
+        <i class="fas fa-th-large"></i> Simple
+      </button>
+      <button id="advancedModeBtn" class="mode-btn" data-mode="advanced">
+        <i class="fas fa-cogs"></i> Advanced
+      </button>
+    </div>
+
+    <!-- Resource Usage Display -->
+    <div id="resourceUsage" class="resource-usage" style="display: none;">
+      <div class="resource-item">
+        <span class="resource-label"><i class="fas fa-database"></i> Requests:</span>
+        <span class="resource-value" id="requestCount">0 / 10,000</span>
+      </div>
+      <div class="resource-item">
+        <span class="resource-label"><i class="fas fa-hdd"></i> Storage:</span>
+        <span class="resource-value" id="storageSize">0 MB</span>
+      </div>
+    </div>
+
     <!-- Quick Filter Chips -->
     <div class="quick-filters">
       <button class="filter-chip active" data-filter="all">
