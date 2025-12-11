@@ -5,23 +5,50 @@ let shouldMonitor = false;
 let configLoaded = false;
 
 // Load configuration from storage
-chrome.storage.sync.get(['trackOnlyConfiguredSites', 'trackingSites'], function(config) {
+chrome.storage.sync.get(['trackOnlyConfiguredSites', 'trackingSites', 'capture'], function(config) {
   configLoaded = true;
+  
+  const currentUrl = window.location.href;
+  const currentDomain = window.location.hostname;
+  
+  // Check excludePatterns first for optimization
+  const captureConfig = config.capture || {};
+  const excludePatterns = captureConfig.filters?.excludePatterns || [
+    // Default exclude patterns for browser internals
+    'chrome://*',
+    'chrome-extension://*',
+    'moz-extension://*',
+    'edge://*',
+    'about:*',
+    'file://*',
+  ];
+  
+  const excludeDomains = captureConfig.filters?.excludeDomains || ['localhost', '127.0.0.1', '0.0.0.0'];
+  
+  // Check if URL is excluded (optimization - exit early)
+  for (const pattern of excludePatterns) {
+    if (matchesPattern(currentUrl, currentDomain, pattern)) {
+      console.log(`[URA] URL ${currentUrl} matches exclude pattern "${pattern}". Monitoring disabled.`);
+      return;
+    }
+  }
+  
+  // Check if domain is excluded
+  if (excludeDomains.includes(currentDomain)) {
+    console.log(`[URA] Domain ${currentDomain} is in exclude list. Monitoring disabled.`);
+    return;
+  }
   
   const trackOnlyConfigured = config.trackOnlyConfiguredSites !== false; // Default true
   const trackingSites = config.trackingSites || '';
   
   if (!trackOnlyConfigured) {
-    // Monitor all sites
+    // Monitor all sites (not excluded)
     shouldMonitor = true;
     console.log('[URA] Monitoring all sites (trackOnlyConfiguredSites = false)');
     initializeMonitoring();
     return;
   }
-  
-  // Check if current domain matches any configured pattern
-  const currentUrl = window.location.href;
-  const currentDomain = window.location.hostname;
   
   if (!trackingSites.trim()) {
     // No sites configured, don't monitor

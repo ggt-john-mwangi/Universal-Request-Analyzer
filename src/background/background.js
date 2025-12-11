@@ -276,12 +276,35 @@ class IntegratedExtensionInitializer {
           sendResponse({ success: true, message: 'pong' });
           break;
 
+        case 'clearDatabase':
+          try {
+            await this.medallionDb.clearDatabase();
+            sendResponse({ success: true });
+          } catch (clearError) {
+            sendResponse({ success: false, error: clearError.message });
+          }
+          break;
+
         case 'resetDatabase':
           try {
             await this.medallionDb.resetDatabase();
             sendResponse({ success: true });
           } catch (resetError) {
             sendResponse({ success: false, error: resetError.message });
+          }
+          break;
+        
+        case 'getDatabaseSize':
+          try {
+            const size = await this.medallionDb.getDatabaseSize();
+            const stats = await this.medallionDb.getDatabaseStats();
+            sendResponse({ 
+              success: true, 
+              size: size, 
+              records: stats?.totalRequests || 0 
+            });
+          } catch (sizeError) {
+            sendResponse({ success: false, error: sizeError.message });
           }
           break;
           
