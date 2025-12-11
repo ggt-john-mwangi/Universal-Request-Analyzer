@@ -853,3 +853,184 @@ body {
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* WebSocket Inspector */
+.websocket-header,
+.realtime-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.websocket-controls,
+.realtime-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.websocket-stats {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.websocket-messages,
+.realtime-feed {
+  max-height: 600px;
+  overflow-y: auto;
+  background: var(--background);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.websocket-list,
+.realtime-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.websocket-message {
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 4px solid var(--border-color);
+  background: var(--surface);
+}
+
+.websocket-message.outgoing {
+  border-left-color: var(--info-color);
+}
+
+.websocket-message.incoming {
+  border-left-color: var(--success-color);
+}
+
+.ws-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.ws-time {
+  color: var(--text-secondary);
+}
+
+.ws-direction {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.ws-size {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ws-connection {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.ws-data {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  padding: 8px;
+  background: var(--background);
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Real-time Feed */
+.realtime-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 13px;
+  position: relative;
+  overflow: hidden;
+}
+
+.realtime-item.realtime-error {
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid var(--error-color);
+}
+
+.realtime-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 95px;
+}
+
+.realtime-url {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realtime-duration {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 50px;
+  text-align: right;
+}
+
+.realtime-timing-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--primary-color);
+  transition: width 0.3s;
+}
+
+.autoscroll-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.autoscroll-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}

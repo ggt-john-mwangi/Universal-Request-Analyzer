@@ -184,6 +184,12 @@ export class DevToolsPanel {
             <button data-tab="errors" class="tab-btn">
               <i class="fas fa-bug"></i> Errors
             </button>
+            <button data-tab="websocket" class="tab-btn">
+              <i class="fas fa-plug"></i> WebSocket
+            </button>
+            <button data-tab="realtime" class="tab-btn">
+              <i class="fas fa-bolt"></i> Real-time Feed
+            </button>
           </div>
           
           <!-- Overview Tab -->
@@ -324,6 +330,60 @@ export class DevToolsPanel {
             <div class="error-categories">
               <h4><i class="fas fa-tags"></i> Error Categories</h4>
               <div id="errorCategories"></div>
+            </div>
+          </div>
+          
+          <!-- WebSocket Tab -->
+          <div id="websocketTab" class="tab-content">
+            <div class="websocket-header">
+              <h4><i class="fas fa-plug"></i> WebSocket Inspector</h4>
+              <div class="websocket-controls">
+                <button id="clearWebSocketBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-trash"></i> Clear
+                </button>
+                <button id="pauseWebSocketBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-pause"></i> Pause
+                </button>
+              </div>
+            </div>
+            <div class="websocket-stats">
+              <div class="stat-box">
+                <span class="stat-label">Connections:</span>
+                <span class="stat-value" id="wsConnectionCount">0</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">Messages Sent:</span>
+                <span class="stat-value" id="wsSentCount">0</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">Messages Received:</span>
+                <span class="stat-value" id="wsReceivedCount">0</span>
+              </div>
+            </div>
+            <div class="websocket-messages" id="websocketMessages">
+              <p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>
+            </div>
+          </div>
+          
+          <!-- Real-time Feed Tab -->
+          <div id="realtimeTab" class="tab-content">
+            <div class="realtime-header">
+              <h4><i class="fas fa-bolt"></i> Real-time Request Feed</h4>
+              <div class="realtime-controls">
+                <button id="clearRealtimeBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-trash"></i> Clear
+                </button>
+                <button id="pauseRealtimeBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-pause"></i> Pause
+                </button>
+                <label class="autoscroll-label">
+                  <input type="checkbox" id="autoScrollCheckbox" checked>
+                  <span>Auto-scroll</span>
+                </label>
+              </div>
+            </div>
+            <div class="realtime-feed" id="realtimeFeed">
+              <p class="placeholder">Waiting for requests...</p>
             </div>
           </div>
         </div>
@@ -1056,6 +1116,12 @@ export class DevToolsPanel {
         break;
       case 'errors':
         await this.loadErrorsData();
+        break;
+      case 'websocket':
+        await this.loadWebSocketData();
+        break;
+      case 'realtime':
+        this.startRealtimeFeed();
         break;
     }
   }
@@ -2308,6 +2374,201 @@ export class DevToolsPanel {
         chart.destroy();
       }
     });
+  }
+
+  // WebSocket Inspector Methods
+  async loadWebSocketData() {
+    // Initialize WebSocket tracking
+    this.websocketMessages = this.websocketMessages || [];
+    this.websocketPaused = false;
+    
+    // Setup event listeners for WebSocket controls
+    const clearBtn = document.getElementById('clearWebSocketBtn');
+    const pauseBtn = document.getElementById('pauseWebSocketBtn');
+    
+    if (clearBtn) {
+      clearBtn.onclick = () => this.clearWebSocket();
+    }
+    if (pauseBtn) {
+      pauseBtn.onclick = () => this.toggleWebSocketPause();
+    }
+    
+    // Display message that WebSocket tracking is active
+    this.updateWebSocketDisplay();
+  }
+  
+  toggleWebSocketPause() {
+    this.websocketPaused = !this.websocketPaused;
+    const btn = document.getElementById('pauseWebSocketBtn');
+    if (btn) {
+      btn.innerHTML = this.websocketPaused ? 
+        '<i class="fas fa-play"></i> Resume' : 
+        '<i class="fas fa-pause"></i> Pause';
+    }
+  }
+  
+  clearWebSocket() {
+    this.websocketMessages = [];
+    this.updateWebSocketDisplay();
+  }
+  
+  updateWebSocketDisplay() {
+    const container = document.getElementById('websocketMessages');
+    if (!container) return;
+    
+    if (this.websocketMessages.length === 0) {
+      container.innerHTML = '<p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>';
+      return;
+    }
+    
+    let html = '<div class="websocket-list">';
+    
+    this.websocketMessages.slice(-100).reverse().forEach((msg, idx) => {
+      const direction = msg.direction === 'sent' ? 'outgoing' : 'incoming';
+      html += `
+        <div class="websocket-message ${direction}">
+          <div class="ws-header">
+            <span class="ws-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+            <span class="ws-direction">${msg.direction === 'sent' ? '→' : '←'} ${msg.direction.toUpperCase()}</span>
+            <span class="ws-size">${this.formatBytes(msg.size || 0)}</span>
+          </div>
+          <div class="ws-connection">${msg.url || 'Unknown connection'}</div>
+          <div class="ws-data">${this.truncateText(msg.data || '', 200)}</div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // Update stats
+    const sentCount = this.websocketMessages.filter(m => m.direction === 'sent').length;
+    const receivedCount = this.websocketMessages.filter(m => m.direction === 'received').length;
+    const connections = new Set(this.websocketMessages.map(m => m.url)).size;
+    
+    document.getElementById('wsConnectionCount').textContent = connections;
+    document.getElementById('wsSentCount').textContent = sentCount;
+    document.getElementById('wsReceivedCount').textContent = receivedCount;
+  }
+  
+  // Real-time Feed Methods
+  startRealtimeFeed() {
+    this.realtimeMessages = this.realtimeMessages || [];
+    this.realtimePaused = false;
+    
+    // Setup event listeners
+    const clearBtn = document.getElementById('clearRealtimeBtn');
+    const pauseBtn = document.getElementById('pauseRealtimeBtn');
+    
+    if (clearBtn) {
+      clearBtn.onclick = () => this.clearRealtimeFeed();
+    }
+    if (pauseBtn) {
+      pauseBtn.onclick = () => this.toggleRealtimePause();
+    }
+    
+    // Start polling for new requests
+    if (!this.realtimeInterval) {
+      this.realtimeInterval = setInterval(() => this.pollRealtimeRequests(), 1000);
+    }
+    
+    this.updateRealtimeDisplay();
+  }
+  
+  async pollRealtimeRequests() {
+    if (this.realtimePaused) return;
+    
+    try {
+      const filters = {
+        ...this.getActiveFilters(),
+        timeRange: 5 // Last 5 seconds
+      };
+      
+      const response = await chrome.runtime.sendMessage({
+        action: 'getDetailedRequests',
+        filters,
+        limit: 10
+      });
+      
+      if (response && response.success && response.requests) {
+        response.requests.forEach(req => {
+          // Only add if not already in feed
+          if (!this.realtimeMessages.find(m => m.id === req.id)) {
+            this.addRealtimeRequest(req);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to poll realtime requests:', error);
+    }
+  }
+  
+  toggleRealtimePause() {
+    this.realtimePaused = !this.realtimePaused;
+    const btn = document.getElementById('pauseRealtimeBtn');
+    if (btn) {
+      btn.innerHTML = this.realtimePaused ? 
+        '<i class="fas fa-play"></i> Resume' : 
+        '<i class="fas fa-pause"></i> Pause';
+    }
+  }
+  
+  clearRealtimeFeed() {
+    this.realtimeMessages = [];
+    this.updateRealtimeDisplay();
+  }
+  
+  addRealtimeRequest(request) {
+    if (this.realtimePaused) return;
+    
+    this.realtimeMessages.push(request);
+    if (this.realtimeMessages.length > 200) {
+      this.realtimeMessages.shift();
+    }
+    
+    this.updateRealtimeDisplay();
+  }
+  
+  updateRealtimeDisplay() {
+    const container = document.getElementById('realtimeFeed');
+    if (!container) return;
+    
+    if (this.realtimeMessages.length === 0) {
+      container.innerHTML = '<p class="placeholder">Waiting for requests...</p>';
+      return;
+    }
+    
+    let html = '<div class="realtime-list">';
+    
+    this.realtimeMessages.slice(-50).reverse().forEach(req => {
+      const statusClass = req.status >= 400 ? 'error' : req.status >= 300 ? 'warning' : 'success';
+      const errorClass = req.status >= 400 ? 'realtime-error' : '';
+      
+      html += `
+        <div class="realtime-item ${errorClass}">
+          <div class="realtime-time">${new Date(req.timestamp).toLocaleTimeString()}.${new Date(req.timestamp).getMilliseconds()}</div>
+          <span class="method-badge">${req.method || 'GET'}</span>
+          <span class="status-badge status-${statusClass}">${req.status || 'N/A'}</span>
+          <span class="realtime-url" title="${req.url}">${this.truncateUrl(req.url, 70)}</span>
+          <span class="realtime-duration">${req.duration || 0}ms</span>
+          <div class="realtime-timing-bar" style="width: ${Math.min((req.duration || 0) / 10, 100)}%"></div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // Auto-scroll if enabled
+    const autoScrollCheckbox = document.getElementById('autoScrollCheckbox');
+    if (autoScrollCheckbox && autoScrollCheckbox.checked) {
+      container.scrollTop = 0; // Scroll to top since we reverse the list
+    }
+  }
+  
+  truncateText(text, maxLength) {
+    if (!text || text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   }
 }
 
