@@ -689,5 +689,5 @@ We welcome feature requests! Please:
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: December 2025  
+**Last Updated**: December 2024  
 **License**: MIT

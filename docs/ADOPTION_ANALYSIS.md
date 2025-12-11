@@ -603,14 +603,19 @@ The network request analysis tool market serves three primary segments:
 ### Priority 2: Add Essential Missing Features
 
 1. **One-Click HAR Export**
-   ```javascript
-   // Add button in popup and devtools
-   <button onclick="exportHAR()">
-     Export as HAR
-   </button>
    
-   // Generate HAR 1.2 format
-   // Auto-download to Downloads folder
+   HTML:
+   ```html
+   <button onclick="exportHAR()">Export as HAR</button>
+   ```
+   
+   JavaScript:
+   ```javascript
+   // Generate HAR 1.2 format and auto-download
+   async function exportHAR() {
+     const harData = await generateHARFormat();
+     downloadFile(harData, 'requests.har');
+   }
    ```
 
 2. **Copy as cURL**
@@ -1039,5 +1044,5 @@ Universal Request Analyzer has the technical foundation to become a leading netw
 ---
 
 **Document Version:** 1.0  
-**Last Updated:** December 2025  
+**Last Updated:** December 2024  
 **Next Review:** Quarterly

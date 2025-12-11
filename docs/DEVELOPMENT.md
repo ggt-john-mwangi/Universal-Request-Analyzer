@@ -561,11 +561,28 @@ We use Semantic Versioning (semver):
 
 ## Additional Resources
 
+### Project Documentation
 - **Architecture Documentation**: [ARCHITECTURE.md](./ARCHITECTURE.md)
 - **User Guide**: [USER_GUIDE.md](./USER_GUIDE.md)
 - **Contributing Guide**: [../CONTRIBUTING.md](../CONTRIBUTING.md)
 - **Testing Guide**: [../TESTING_GUIDE.md](../TESTING_GUIDE.md)
 - **Code of Conduct**: [../CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md)
+
+### External Resources
+- **Browser Extension APIs**:
+  - [Chrome Extension API](https://developer.chrome.com/docs/extensions/reference/)
+  - [Firefox WebExtensions](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions)
+  - [Web Extension Polyfill](https://github.com/mozilla/webextension-polyfill)
+
+- **Testing & Tools**:
+  - [Jest Documentation](https://jestjs.io/docs/getting-started)
+  - [Webpack Guide](https://webpack.js.org/guides/)
+  - [ESLint Rules](https://eslint.org/docs/rules/)
+
+- **Performance & Optimization**:
+  - [Web Performance APIs](https://developer.mozilla.org/en-US/docs/Web/API/Performance_API)
+  - [SQLite Documentation](https://www.sqlite.org/docs.html)
+  - [Chart.js Documentation](https://www.chartjs.org/docs/latest/)
 
 ## Getting Help
 

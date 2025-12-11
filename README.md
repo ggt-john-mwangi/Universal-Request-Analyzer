@@ -272,7 +272,16 @@ See [Architecture Documentation](docs/ARCHITECTURE.md) for technical deep dive.
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Alternatives & When to Use Them
+
+- **[Requestly](https://requestly.io/)** - Best for modifying/mocking HTTP requests and responses
+- **[HTTP Toolkit](https://httptoolkit.tech/)** - Best for system-wide traffic capture and API reverse engineering
+- **[ModHeader](https://modheader.com/)** - Best for simple HTTP header modification
+- **[Charles Proxy](https://www.charlesproxy.com/)** / **[Fiddler](https://www.telerik.com/fiddler)** - Best for professional-grade desktop debugging
+
+Use Universal Request Analyzer when you need persistent data, historical analysis, and performance tracking without complex setup.
 
 ## License
 
