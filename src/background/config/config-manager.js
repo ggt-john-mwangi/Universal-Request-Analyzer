@@ -43,7 +43,28 @@ class ConfigManager {
     this.setDefault("capture.enabled", true);
     this.setDefault("capture.filters", {
       includePatterns: ["*://*/*"],
-      excludePatterns: [],
+      excludePatterns: [
+        // Browser internal URLs
+        "chrome://*",
+        "chrome-extension://*",
+        "moz-extension://*",
+        "edge://*",
+        "about:*",
+        "file://*",
+        // Browser system pages
+        "chrome-search://*",
+        "chrome-devtools://*",
+        // Extension store and update URLs
+        "*://chrome.google.com/webstore/*",
+        "*://addons.mozilla.org/*",
+        "*://microsoftedge.microsoft.com/addons/*",
+      ],
+      excludeDomains: [
+        // Browser internal domains
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+      ],
       resourceTypes: [
         "main_frame",
         "sub_frame",

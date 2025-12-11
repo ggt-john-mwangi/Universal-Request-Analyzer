@@ -1677,7 +1677,44 @@ async function handleSaveAlertRule(rule) {
     // Ensure table exists
     await handleGetAlertRules();
     
-    const query = `
+    if (!dbManager?.executeQuery) {
+      return { success: false, error: 'Database not available' };
+    }
+    
+    // Check for duplicate rule with same name and metric
+    const checkQuery = `
+      SELECT id FROM alert_rules 
+      WHERE name = ? AND metric = ? AND domain = ?
+      LIMIT 1
+    `;
+    
+    const checkResult = dbManager.executeQuery(checkQuery, [
+      rule.name,
+      rule.metric,
+      rule.domain || null
+    ]);
+    
+    // If duplicate exists, update instead of insert
+    if (checkResult && checkResult[0] && checkResult[0].values && checkResult[0].values.length > 0) {
+      const existingId = checkResult[0].values[0][0];
+      const updateQuery = `
+        UPDATE alert_rules 
+        SET condition = ?, threshold = ?, enabled = ?
+        WHERE id = ?
+      `;
+      
+      await dbManager.executeQuery(updateQuery, [
+        rule.condition,
+        rule.threshold,
+        rule.enabled !== false ? 1 : 0,
+        existingId
+      ]);
+      
+      return { success: true, message: 'Alert rule updated successfully' };
+    }
+    
+    // Insert new rule
+    const insertQuery = `
       INSERT INTO alert_rules (name, metric, condition, threshold, domain, enabled, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
@@ -1692,12 +1729,8 @@ async function handleSaveAlertRule(rule) {
       Date.now()
     ];
     
-    if (dbManager?.executeQuery) {
-      await dbManager.executeQuery(query, params);
-      return { success: true, message: 'Alert rule saved successfully' };
-    }
-    
-    return { success: false, error: 'Database not available' };
+    await dbManager.executeQuery(insertQuery, params);
+    return { success: true, message: 'Alert rule saved successfully' };
   } catch (error) {
     console.error('Save alert rule error:', error);
     return { success: false, error: error.message };
