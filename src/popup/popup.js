@@ -113,7 +113,7 @@ function setupEventListeners() {
   });
 
   document.getElementById('openHelp')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+    chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html') });
   });
 
   // Footer links
