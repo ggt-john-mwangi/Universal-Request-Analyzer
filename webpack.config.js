@@ -113,8 +113,8 @@ module.exports = (env, argv) => {
         chunks: ["panel"],
       }), 
       new HtmlWebpackPlugin({
-        template: "./src/help.html",
-        filename: "help.html",
+        template: "./src/help/help.html",
+        filename: "help/help.html",
         chunks: [],
       }),
       // Package the dist/ folder into a single ZIP for upload/sideload

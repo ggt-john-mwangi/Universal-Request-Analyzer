@@ -116,6 +116,12 @@ async function handleMessage(message, sender) {
       case 'getPerformanceInsights':
         return await handleGetPerformanceInsights(message.filters);
       
+      case 'exportAsHAR':
+        return await handleExportAsHAR(message.filters);
+      
+      case 'getRecentErrors':
+        return await handleGetRecentErrors(data);
+      
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -1671,7 +1677,44 @@ async function handleSaveAlertRule(rule) {
     // Ensure table exists
     await handleGetAlertRules();
     
-    const query = `
+    if (!dbManager?.executeQuery) {
+      return { success: false, error: 'Database not available' };
+    }
+    
+    // Check for duplicate rule with same name and metric
+    const checkQuery = `
+      SELECT id FROM alert_rules 
+      WHERE name = ? AND metric = ? AND domain = ?
+      LIMIT 1
+    `;
+    
+    const checkResult = dbManager.executeQuery(checkQuery, [
+      rule.name,
+      rule.metric,
+      rule.domain || null
+    ]);
+    
+    // If duplicate exists, update instead of insert
+    if (checkResult && checkResult[0] && checkResult[0].values && checkResult[0].values.length > 0) {
+      const existingId = checkResult[0].values[0][0];
+      const updateQuery = `
+        UPDATE alert_rules 
+        SET condition = ?, threshold = ?, enabled = ?
+        WHERE id = ?
+      `;
+      
+      await dbManager.executeQuery(updateQuery, [
+        rule.condition,
+        rule.threshold,
+        rule.enabled !== false ? 1 : 0,
+        existingId
+      ]);
+      
+      return { success: true, message: 'Alert rule updated successfully' };
+    }
+    
+    // Insert new rule
+    const insertQuery = `
       INSERT INTO alert_rules (name, metric, condition, threshold, domain, enabled, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
@@ -1686,12 +1729,8 @@ async function handleSaveAlertRule(rule) {
       Date.now()
     ];
     
-    if (dbManager?.executeQuery) {
-      await dbManager.executeQuery(query, params);
-      return { success: true, message: 'Alert rule saved successfully' };
-    }
-    
-    return { success: false, error: 'Database not available' };
+    await dbManager.executeQuery(insertQuery, params);
+    return { success: true, message: 'Alert rule saved successfully' };
   } catch (error) {
     console.error('Save alert rule error:', error);
     return { success: false, error: error.message };
@@ -2075,6 +2114,269 @@ async function handleSyncSettingsToStorage() {
     };
   } catch (error) {
     console.error('Sync settings to storage error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle Export as HAR
+async function handleExportAsHAR(filters) {
+  try {
+    if (!dbManager) {
+      return { success: false, error: 'Database manager not initialized' };
+    }
+
+    // Build query to get requests based on filters
+    // Note: Headers are stored in separate table, so we'll fetch them separately if needed
+    let query = `
+      SELECT 
+        id,
+        method,
+        url,
+        status,
+        type,
+        duration,
+        size_bytes,
+        from_cache,
+        timestamp
+      FROM bronze_requests
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    // Apply domain filter
+    if (filters.domain) {
+      query += ` AND domain = ?`;
+      params.push(filters.domain);
+    }
+    
+    // Apply quick filter
+    if (filters.quickFilter && filters.quickFilter !== 'all') {
+      if (filters.quickFilter === '2xx') {
+        query += ` AND status >= 200 AND status < 300`;
+      } else if (filters.quickFilter === '4xx') {
+        query += ` AND status >= 400 AND status < 500`;
+      } else if (filters.quickFilter === '5xx') {
+        query += ` AND status >= 500 AND status < 600`;
+      } else if (filters.quickFilter === 'xhr') {
+        query += ` AND type = 'xmlhttprequest'`;
+      }
+    }
+    
+    // Limit to recent requests
+    query += ` AND timestamp > ?`;
+    params.push(Date.now() - (24 * 60 * 60 * 1000));
+    query += ` ORDER BY timestamp DESC LIMIT 500`;
+    
+    const result = dbManager.executeQuery(query, params);
+    
+    // Parse result from sql.js format
+    const parsedResult = {
+      success: result && result.length > 0,
+      data: result && result[0] && result[0].values ? 
+        result[0].values.map(row => {
+          const obj = {};
+          result[0].columns.forEach((col, idx) => {
+            obj[col] = row[idx];
+          });
+          return obj;
+        }) : []
+    };
+    
+    if (!parsedResult.success || !parsedResult.data) {
+      return { success: false, error: 'Failed to fetch requests' };
+    }
+    
+    // Build HAR 1.2 format
+    const har = {
+      log: {
+        version: '1.2',
+        creator: {
+          name: 'Universal Request Analyzer',
+          version: '1.0.0'
+        },
+        entries: []
+      }
+    };
+    
+    // Convert requests to HAR entries
+    // Note: For simplicity, we're not fetching headers from the separate table
+    // This keeps the export fast and the headers are optional in HAR format
+    for (const req of parsedResult.data) {
+      const entry = {
+        startedDateTime: new Date(req.timestamp).toISOString(),
+        time: req.duration || 0,
+        request: {
+          method: req.method || 'GET',
+          url: req.url || '',
+          httpVersion: 'HTTP/1.1',
+          cookies: [],
+          headers: [], // Headers stored in separate table
+          queryString: parseQueryString(req.url),
+          headersSize: -1,
+          bodySize: 0
+        },
+        response: {
+          status: req.status || 0,
+          statusText: getStatusText(req.status),
+          httpVersion: 'HTTP/1.1',
+          cookies: [],
+          headers: [], // Headers stored in separate table
+          content: {
+            size: req.size_bytes || 0,
+            mimeType: getMimeType(req.type),
+            text: ''
+          },
+          redirectURL: '',
+          headersSize: -1,
+          bodySize: req.size_bytes || 0
+        },
+        cache: {
+          beforeRequest: req.from_cache ? {} : null,
+          afterRequest: req.from_cache ? {} : null
+        },
+        timings: {
+          blocked: -1,
+          dns: -1,
+          connect: -1,
+          send: 0,
+          wait: req.duration || 0,
+          receive: 0,
+          ssl: -1
+        }
+      };
+      
+      har.log.entries.push(entry);
+    }
+    
+    return {
+      success: true,
+      har: har,
+      count: har.log.entries.length
+    };
+  } catch (error) {
+    console.error('Export HAR error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Helper: Parse headers from JSON string
+function parseHeaders(headersJson) {
+  if (!headersJson) return [];
+  try {
+    const headers = JSON.parse(headersJson);
+    return Object.entries(headers).map(([name, value]) => ({
+      name,
+      value: String(value)
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// Helper: Parse query string from URL
+function parseQueryString(url) {
+  if (!url) return [];
+  try {
+    const urlObj = new URL(url);
+    const params = [];
+    urlObj.searchParams.forEach((value, name) => {
+      params.push({ name, value });
+    });
+    return params;
+  } catch {
+    return [];
+  }
+}
+
+// Helper: Get HTTP status text
+function getStatusText(status) {
+  const statusTexts = {
+    200: 'OK',
+    201: 'Created',
+    204: 'No Content',
+    301: 'Moved Permanently',
+    302: 'Found',
+    304: 'Not Modified',
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    500: 'Internal Server Error',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable'
+  };
+  return statusTexts[status] || '';
+}
+
+// Helper: Get MIME type from resource type
+function getMimeType(type) {
+  const mimeTypes = {
+    'script': 'application/javascript',
+    'stylesheet': 'text/css',
+    'image': 'image/*',
+    'font': 'font/*',
+    'document': 'text/html',
+    'xmlhttprequest': 'application/json',
+    'fetch': 'application/json'
+  };
+  return mimeTypes[type] || 'application/octet-stream';
+}
+
+// Handle Get Recent Errors
+async function handleGetRecentErrors(data) {
+  try {
+    if (!dbManager) {
+      return { success: false, error: 'Database manager not initialized' };
+    }
+
+    const { url, timeRange } = data;
+    const timestampCutoff = Date.now() - (timeRange || 300000); // Default 5 minutes
+    
+    // Get domain from URL
+    let domain = '';
+    try {
+      const urlObj = new URL(url);
+      domain = urlObj.hostname;
+    } catch {
+      return { success: false, error: 'Invalid URL' };
+    }
+    
+    // Query for recent errors from current domain
+    const query = `
+      SELECT 
+        url,
+        status,
+        method,
+        type,
+        timestamp,
+        error
+      FROM bronze_requests
+      WHERE domain = ?
+        AND status >= 400
+        AND timestamp > ?
+      ORDER BY timestamp DESC
+      LIMIT 5
+    `;
+    
+    const queryResult = dbManager.executeQuery(query, [domain, timestampCutoff]);
+    
+    // Parse result from sql.js format
+    const errors = queryResult && queryResult[0] && queryResult[0].values ?
+      queryResult[0].values.map(row => {
+        const obj = {};
+        queryResult[0].columns.forEach((col, idx) => {
+          obj[col] = row[idx];
+        });
+        return obj;
+      }) : [];
+    
+    return {
+      success: true,
+      errors: errors
+    };
+  } catch (error) {
+    console.error('Get recent errors error:', error);
     return { success: false, error: error.message };
   }
 }
