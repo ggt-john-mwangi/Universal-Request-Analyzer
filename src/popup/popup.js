@@ -822,36 +822,4 @@ async function loadTrackedSites() {
   }
 }
 
-// Show notification (simple toast-like notification)
-function showNotification(message, isError = false) {
-  // Create notification element if it doesn't exist
-  let notification = document.getElementById('popupNotification');
-  if (!notification) {
-    notification = document.createElement('div');
-    notification.id = 'popupNotification';
-    notification.style.cssText = `
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      padding: 12px 20px;
-      background: ${isError ? '#f56565' : '#48bb78'};
-      color: white;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      z-index: 10000;
-      max-width: 300px;
-      animation: slideIn 0.3s ease;
-    `;
-    document.body.appendChild(notification);
-  }
 
-  notification.textContent = message;
-  notification.style.background = isError ? '#f56565' : '#48bb78';
-  notification.style.display = 'block';
-
-  setTimeout(() => {
-    notification.style.display = 'none';
-  }, 3000);
-}
