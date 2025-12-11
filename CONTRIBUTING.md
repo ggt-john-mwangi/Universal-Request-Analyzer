@@ -30,24 +30,94 @@ This section guides you through submitting an enhancement suggestion, including 
 - Describe the current behavior and explain which behavior you expected to see instead
 - Explain why this enhancement would be useful to most users
 
+### JavaScript Code Style
+
+- **Indentation**: 2 spaces
+- **Quotes**: Single quotes for strings
+- **Semicolons**: Required
+- **Naming**:
+  - Classes: PascalCase
+  - Functions/Variables: camelCase
+  - Constants: UPPER_SNAKE_CASE
+- **Comments**: Use JSDoc for functions and classes
+
+See [Development Guide - Code Style](docs/DEVELOPMENT.md#code-style--standards) for complete guidelines.
+
 ### Pull Requests
 
 - Fill in the required template
 - Do not include issue numbers in the PR title
-- Include screenshots and animated GIFs in your pull request whenever possible
-- Follow the JavaScript and CSS styleguides
+- Include screenshots and animated GIFs for UI changes
+- Follow the JavaScript styleguide
 - Include tests when adding new features
+- Update documentation if needed
 - End all files with a newline
 - Avoid platform-dependent code
+
+**Before Submitting:**
+- [ ] Run `npm run lint` - No linting errors
+- [ ] Run `npm test` - All tests pass
+- [ ] Run `npm run build` - Builds successfully
+- [ ] Test in browser - Extension works as expected
+- [ ] Update documentation - If adding/changing features
+
+## Development Setup
+
+For detailed development instructions, see [Development Guide](docs/DEVELOPMENT.md).
+
+**Quick Start:**
+```bash
+git clone https://github.com/YOUR_USERNAME/Universal-Request-Analyzer.git
+cd Universal-Request-Analyzer
+npm install
+npm run build
+```
+
+## Documentation
+
+Help improve our documentation:
+
+- **User Guide**: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) - User-facing documentation
+- **Development Guide**: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) - Developer documentation
+- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture
+- **Adoption Analysis**: [docs/ADOPTION_ANALYSIS.md](docs/ADOPTION_ANALYSIS.md) - Market analysis
+
+When contributing, ensure documentation stays up-to-date with code changes.
 
 ## Styleguides
 
 ### Git Commit Messages
 
+Follow conventional commits format:
+
+```
+type(scope): subject
+
+body (optional)
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting)
+- `refactor`: Code refactoring
+- `test`: Test changes
+- `chore`: Build/tool changes
+
+**Examples:**
+```
+feat(popup): add request type filter
+fix(database): resolve SCD Type 2 version conflict
+docs(user-guide): update performance metrics section
+```
+
+### Code Style
+
 - Use the present tense ("Add feature" not "Added feature")
 - Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
 - Limit the first line to 72 characters or less
-- Reference issues and pull requests liberally after the first line
+- Reference issues and pull requests in the body
 
 ### JavaScript Styleguide
 
