@@ -19,42 +19,56 @@ class Alerts {
   }
 
   setupEventListeners() {
+    // Remove any existing listeners by cloning and replacing elements
+    // This prevents duplicate event listeners if setupEventListeners is called multiple times
+    
     // Add alert rule button
     const addAlertRuleBtn = document.getElementById('addAlertRuleBtn');
     if (addAlertRuleBtn) {
-      addAlertRuleBtn.addEventListener('click', () => this.showAlertRuleModal());
+      const newAddBtn = addAlertRuleBtn.cloneNode(true);
+      addAlertRuleBtn.parentNode.replaceChild(newAddBtn, addAlertRuleBtn);
+      newAddBtn.addEventListener('click', () => this.showAlertRuleModal());
     }
 
     // Refresh alert history
     const refreshAlertHistoryBtn = document.getElementById('refreshAlertHistoryBtn');
     if (refreshAlertHistoryBtn) {
-      refreshAlertHistoryBtn.addEventListener('click', () => this.loadAlertHistory());
+      const newRefreshBtn = refreshAlertHistoryBtn.cloneNode(true);
+      refreshAlertHistoryBtn.parentNode.replaceChild(newRefreshBtn, refreshAlertHistoryBtn);
+      newRefreshBtn.addEventListener('click', () => this.loadAlertHistory());
     }
 
     // Modal controls
     const modalClose = document.querySelector('#alertRuleModal .modal-close');
     if (modalClose) {
-      modalClose.addEventListener('click', () => this.hideAlertRuleModal());
+      const newModalClose = modalClose.cloneNode(true);
+      modalClose.parentNode.replaceChild(newModalClose, modalClose);
+      newModalClose.addEventListener('click', () => this.hideAlertRuleModal());
     }
 
     const saveAlertRuleBtn = document.getElementById('saveAlertRuleBtn');
     if (saveAlertRuleBtn) {
-      saveAlertRuleBtn.addEventListener('click', () => this.saveAlertRule());
+      const newSaveBtn = saveAlertRuleBtn.cloneNode(true);
+      saveAlertRuleBtn.parentNode.replaceChild(newSaveBtn, saveAlertRuleBtn);
+      newSaveBtn.addEventListener('click', () => this.saveAlertRule());
     }
 
     const cancelAlertRuleBtn = document.getElementById('cancelAlertRuleBtn');
     if (cancelAlertRuleBtn) {
-      cancelAlertRuleBtn.addEventListener('click', () => this.hideAlertRuleModal());
+      const newCancelBtn = cancelAlertRuleBtn.cloneNode(true);
+      cancelAlertRuleBtn.parentNode.replaceChild(newCancelBtn, cancelAlertRuleBtn);
+      newCancelBtn.addEventListener('click', () => this.hideAlertRuleModal());
     }
 
     // Close modal on background click
     const modal = document.getElementById('alertRuleModal');
-    if (modal) {
+    if (modal && !this._modalClickHandlerAdded) {
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
           this.hideAlertRuleModal();
         }
       });
+      this._modalClickHandlerAdded = true;
     }
   }
 

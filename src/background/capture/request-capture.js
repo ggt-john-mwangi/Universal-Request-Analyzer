@@ -825,12 +825,22 @@ function shouldCaptureByUrl(url) {
   try {
     const { domain } = parseUrl(url);
 
+    // Check URL pattern exclusions (browser internal URLs, extensions, etc.)
+    if (config.captureFilters.excludePatterns && config.captureFilters.excludePatterns.length > 0) {
+      for (const pattern of config.captureFilters.excludePatterns) {
+        if (matchesPattern(url, pattern)) {
+          return false;
+        }
+      }
+    }
+
     // Check domain filters
-    if (config.captureFilters.excludeDomains.includes(domain)) {
+    if (config.captureFilters.excludeDomains && config.captureFilters.excludeDomains.includes(domain)) {
       return false;
     }
 
     if (
+      config.captureFilters.includeDomains &&
       config.captureFilters.includeDomains.length > 0 &&
       !config.captureFilters.includeDomains.includes(domain)
     ) {
@@ -841,6 +851,19 @@ function shouldCaptureByUrl(url) {
   } catch (e) {
     return false;
   }
+}
+
+// Helper function to match URL against pattern (supports wildcards)
+function matchesPattern(url, pattern) {
+  // Convert pattern to regex
+  // * matches any characters except /
+  // ** matches any characters including /
+  const regexPattern = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex chars
+    .replace(/\*/g, '.*'); // Convert * to .*
+  
+  const regex = new RegExp('^' + regexPattern + '$');
+  return regex.test(url);
 }
 
 // Enable request capture

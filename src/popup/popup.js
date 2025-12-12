@@ -1,12 +1,12 @@
-// Simplified Popup Script with Auth
-// Shows register/login first, then page summary
+// Simplified Popup Script - No Auth Required
+// Shows page summary immediately on load
 
-let currentUser = null;
 let refreshInterval = null;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
-  await checkAuthState();
+  showApp();
+  await loadPageSummary();
   setupEventListeners();
 });
 
@@ -15,100 +15,40 @@ window.addEventListener('beforeunload', () => {
   stopAutoRefresh();
 });
 
-// Check if user is logged in
-async function checkAuthState() {
-  showLoading();
-  try {
-    const result = await chrome.storage.local.get(['currentUser', 'sessionExpiry']);
-    
-    // Check if session is still valid (within 24 hours)
-    if (result.currentUser && result.sessionExpiry) {
-      if (Date.now() < result.sessionExpiry) {
-        currentUser = result.currentUser;
-        showApp();
-        await loadPageSummary();
-        return;
-      } else {
-        // Session expired, clear it
-        await chrome.storage.local.remove(['currentUser', 'sessionExpiry']);
-      }
-    }
-    
-    showAuth();
-  } catch (error) {
-    console.error('Failed to check auth state:', error);
-    showAuth();
-  } finally {
-    hideLoading();
-  }
-}
-
-// Show loading state
-function showLoading() {
-  const authContainer = document.getElementById('authContainer');
-  const appContainer = document.getElementById('appContainer');
-  
-  if (authContainer) authContainer.classList.add('loading');
-  if (appContainer) appContainer.classList.add('loading');
-}
-
-// Hide loading state
-function hideLoading() {
-  const authContainer = document.getElementById('authContainer');
-  const appContainer = document.getElementById('appContainer');
-  
-  if (authContainer) authContainer.classList.remove('loading');
-  if (appContainer) appContainer.classList.remove('loading');
-}
-
-// Show auth screen
-function showAuth() {
-  document.getElementById('authContainer').classList.remove('hidden');
-  document.getElementById('appContainer').classList.remove('active');
-}
-
 // Show main app
 function showApp() {
-  document.getElementById('authContainer').classList.add('hidden');
-  document.getElementById('appContainer').classList.add('active');
-  
-  // Update user name
-  if (currentUser) {
-    document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+  const appContainer = document.getElementById('appContainer');
+  if (appContainer) {
+    appContainer.classList.add('active');
   }
 }
 
 // Setup event listeners
 function setupEventListeners() {
-  // Auth form toggles
-  document.getElementById('showLogin')?.addEventListener('click', () => {
-    document.getElementById('registerForm').classList.add('hidden');
-    document.getElementById('loginForm').classList.remove('hidden');
-    clearMessages();
-  });
-
-  document.getElementById('showRegister')?.addEventListener('click', () => {
-    document.getElementById('loginForm').classList.add('hidden');
-    document.getElementById('registerForm').classList.remove('hidden');
-    clearMessages();
-  });
-
-  // Register form
-  document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await handleRegister();
-  });
-
-  // Login form
-  document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await handleLogin();
-  });
-
-  // Logout
-  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-    await handleLogout();
-  });
+  // Mode Toggle
+  const simpleModeBtn = document.getElementById('simpleModeBtn');
+  const advancedModeBtn = document.getElementById('advancedModeBtn');
+  
+  if (simpleModeBtn && advancedModeBtn) {
+    // Load saved mode preference
+    chrome.storage.local.get(['viewMode'], (result) => {
+      const mode = result.viewMode || 'simple';
+      setViewMode(mode);
+    });
+    
+    simpleModeBtn.addEventListener('click', () => {
+      setViewMode('simple');
+      chrome.storage.local.set({ viewMode: 'simple' });
+    });
+    
+    advancedModeBtn.addEventListener('click', () => {
+      setViewMode('advanced');
+      chrome.storage.local.set({ viewMode: 'advanced' });
+    });
+  }
+  
+  // Load resource usage
+  loadResourceUsage();
   
   // Refresh Settings Button - sync settings from DB to storage
   document.getElementById('refreshSettingsBtn')?.addEventListener('click', async function() {
@@ -173,7 +113,7 @@ function setupEventListeners() {
   });
 
   document.getElementById('openHelp')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+    chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html') });
   });
 
   // Footer links
@@ -243,110 +183,96 @@ function setupEventListeners() {
     }
   });
 
+  // Quick filter chips
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      // Toggle active state
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+      
+      // Apply filter
+      const filterType = this.dataset.filter;
+      applyQuickFilter(filterType);
+    });
+  });
+
+  // HAR Export button
+  document.getElementById('exportHARBtn')?.addEventListener('click', async () => {
+    await exportAsHAR();
+  });
+
   // Load tracked sites for QA selector
   loadTrackedSites();
 }
 
-// Handle registration
-async function handleRegister() {
-  const name = document.getElementById('registerName').value;
-  const email = document.getElementById('registerEmail').value;
-  const password = document.getElementById('registerPassword').value;
+// Apply quick filter
+let currentQuickFilter = 'all';
 
-  clearMessages();
-
-  if (!email || !password) {
-    showError('registerError', 'Email and password are required');
-    return;
+async function applyQuickFilter(filterType) {
+  currentQuickFilter = filterType;
+  
+  // Update the advanced filter based on quick filter
+  const requestTypeFilter = document.getElementById('requestTypeFilter');
+  
+  if (filterType === 'all') {
+    if (requestTypeFilter) requestTypeFilter.value = '';
+  } else if (filterType === 'xhr') {
+    if (requestTypeFilter) requestTypeFilter.value = 'xmlhttprequest';
   }
-
-  if (password.length < 6) {
-    showError('registerError', 'Password must be at least 6 characters');
-    return;
-  }
-
-  try {
-    // Call background script to register
-    const response = await chrome.runtime.sendMessage({
-      action: 'register',
-      data: { email, password, name }
-    });
-
-    if (response.success) {
-      currentUser = response.user;
-      // Save session with 24h expiry
-      await chrome.storage.local.set({
-        currentUser: response.user,
-        sessionExpiry: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
-      });
-      showSuccess('registerSuccess', 'Registration successful! Redirecting...');
-      
-      setTimeout(() => {
-        showApp();
-        loadPageSummary();
-      }, 500);
-    } else {
-      showError('registerError', response.error || 'Registration failed');
-    }
-  } catch (error) {
-    console.error('Registration error:', error);
-    showError('registerError', 'Registration failed. Please try again.');
-  }
+  // For status code filters (2xx, 4xx, 5xx), we'll filter in the display
+  
+  await loadPageSummary();
 }
 
-// Handle login
-async function handleLogin() {
-  const email = document.getElementById('loginEmail').value;
-  const password = document.getElementById('loginPassword').value;
-
-  clearMessages();
-
-  if (!email || !password) {
-    showError('loginError', 'Email and password are required');
-    return;
-  }
-
+// Export as HAR
+async function exportAsHAR() {
   try {
-    // Call background script to login
-    const response = await chrome.runtime.sendMessage({
-      action: 'login',
-      data: { email, password }
-    });
-
-    if (response.success) {
-      currentUser = response.user;
-      // Save session with 24h expiry
-      await chrome.storage.local.set({
-        currentUser: response.user,
-        sessionExpiry: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
-      });
-      showApp();
-      await loadPageSummary();
-    } else {
-      showError('loginError', response.error || 'Login failed');
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    showError('loginError', 'Login failed. Please try again.');
-  }
-}
-
-// Handle logout
-async function handleLogout() {
-  try {
-    await chrome.runtime.sendMessage({ action: 'logout' });
-    currentUser = null;
-    showAuth();
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
     
-    // Clear forms
-    document.getElementById('loginEmail').value = '';
-    document.getElementById('loginPassword').value = '';
-    document.getElementById('registerEmail').value = '';
-    document.getElementById('registerPassword').value = '';
-    document.getElementById('registerName').value = '';
+    if (!currentTab || !currentTab.url) {
+      showNotification('No active tab found', true);
+      return;
+    }
+    
+    // Get current domain
+    const domain = new URL(currentTab.url).hostname;
+    
+    // Request HAR export from background
+    const response = await chrome.runtime.sendMessage({
+      action: 'exportAsHAR',
+      filters: { 
+        domain: domain,
+        quickFilter: currentQuickFilter
+      }
+    });
+    
+    if (response && response.success && response.har) {
+      // Create and download HAR file
+      const harData = JSON.stringify(response.har, null, 2);
+      const blob = new Blob([harData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `requests-${domain}-${Date.now()}.har`;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      showNotification('HAR exported successfully!');
+    } else {
+      showNotification('HAR export failed: ' + (response?.error || 'Unknown error'), true);
+    }
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('HAR export error:', error);
+    showNotification('HAR export failed', true);
   }
+}
+
+// Show notification (simple implementation)
+function showNotification(message, isError = false) {
+  console.log(isError ? 'Error:' : 'Success:', message);
+  // Could add a toast notification here in the future
 }
 
 // Start auto-refresh for page summary
@@ -796,31 +722,7 @@ function truncateUrl(url, maxLength) {
   }
 }
 
-// Show error message
-function showError(elementId, message) {
-  const element = document.getElementById(elementId);
-  if (element) {
-    element.textContent = message;
-  }
-}
 
-// Show success message
-function showSuccess(elementId, message) {
-  const element = document.getElementById(elementId);
-  if (element) {
-    element.textContent = message;
-  }
-}
-
-// Clear all messages
-function clearMessages() {
-  ['registerError', 'registerSuccess', 'loginError'].forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.textContent = '';
-    }
-  });
-}
 
 // Load pages for current domain
 async function loadPagesForDomain() {
@@ -945,36 +847,54 @@ async function loadTrackedSites() {
   }
 }
 
-// Show notification (simple toast-like notification)
-function showNotification(message, isError = false) {
-  // Create notification element if it doesn't exist
-  let notification = document.getElementById('popupNotification');
-  if (!notification) {
-    notification = document.createElement('div');
-    notification.id = 'popupNotification';
-    notification.style.cssText = `
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      padding: 12px 20px;
-      background: ${isError ? '#f56565' : '#48bb78'};
-      color: white;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      z-index: 10000;
-      max-width: 300px;
-      animation: slideIn 0.3s ease;
-    `;
-    document.body.appendChild(notification);
+
+
+// Set view mode (simple or advanced)
+function setViewMode(mode) {
+  const simpleModeBtn = document.getElementById('simpleModeBtn');
+  const advancedModeBtn = document.getElementById('advancedModeBtn');
+  const advancedElements = document.querySelectorAll('.timeline-chart, .request-types, .qa-quick-view, .filters-section');
+  const resourceUsage = document.getElementById('resourceUsage');
+  
+  if (mode === 'simple') {
+    simpleModeBtn?.classList.add('active');
+    advancedModeBtn?.classList.remove('active');
+    // Hide advanced features
+    advancedElements.forEach(el => el.style.display = 'none');
+    // Show resource usage in simple mode
+    if (resourceUsage) resourceUsage.style.display = 'flex';
+  } else {
+    simpleModeBtn?.classList.remove('active');
+    advancedModeBtn?.classList.add('active');
+    // Show advanced features
+    advancedElements.forEach(el => el.style.display = '');
+    // Hide resource usage in advanced mode
+    if (resourceUsage) resourceUsage.style.display = 'none';
   }
+}
 
-  notification.textContent = message;
-  notification.style.background = isError ? '#f56565' : '#48bb78';
-  notification.style.display = 'block';
-
-  setTimeout(() => {
-    notification.style.display = 'none';
-  }, 3000);
+// Load resource usage
+async function loadResourceUsage() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getDatabaseSize'
+    });
+    
+    if (response && response.success) {
+      const requestCount = response.records || 0;
+      const sizeMB = response.size ? (response.size / (1024 * 1024)).toFixed(2) : '0';
+      
+      const requestCountEl = document.getElementById('requestCount');
+      const storageSizeEl = document.getElementById('storageSize');
+      
+      if (requestCountEl) {
+        requestCountEl.textContent = `${requestCount.toLocaleString()} / 10,000`;
+      }
+      if (storageSizeEl) {
+        storageSizeEl.textContent = `${sizeMB} MB`;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load resource usage:', error);
+  }
 }

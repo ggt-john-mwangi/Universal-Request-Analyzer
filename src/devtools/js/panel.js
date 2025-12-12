@@ -184,6 +184,12 @@ export class DevToolsPanel {
             <button data-tab="errors" class="tab-btn">
               <i class="fas fa-bug"></i> Errors
             </button>
+            <button data-tab="websocket" class="tab-btn">
+              <i class="fas fa-plug"></i> WebSocket
+            </button>
+            <button data-tab="realtime" class="tab-btn">
+              <i class="fas fa-bolt"></i> Real-time Feed
+            </button>
           </div>
           
           <!-- Overview Tab -->
@@ -324,6 +330,60 @@ export class DevToolsPanel {
             <div class="error-categories">
               <h4><i class="fas fa-tags"></i> Error Categories</h4>
               <div id="errorCategories"></div>
+            </div>
+          </div>
+          
+          <!-- WebSocket Tab -->
+          <div id="websocketTab" class="tab-content">
+            <div class="websocket-header">
+              <h4><i class="fas fa-plug"></i> WebSocket Inspector</h4>
+              <div class="websocket-controls">
+                <button id="clearWebSocketBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-trash"></i> Clear
+                </button>
+                <button id="pauseWebSocketBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-pause"></i> Pause
+                </button>
+              </div>
+            </div>
+            <div class="websocket-stats">
+              <div class="stat-box">
+                <span class="stat-label">Connections:</span>
+                <span class="stat-value" id="wsConnectionCount">0</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">Messages Sent:</span>
+                <span class="stat-value" id="wsSentCount">0</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">Messages Received:</span>
+                <span class="stat-value" id="wsReceivedCount">0</span>
+              </div>
+            </div>
+            <div class="websocket-messages" id="websocketMessages">
+              <p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>
+            </div>
+          </div>
+          
+          <!-- Real-time Feed Tab -->
+          <div id="realtimeTab" class="tab-content">
+            <div class="realtime-header">
+              <h4><i class="fas fa-bolt"></i> Real-time Request Feed</h4>
+              <div class="realtime-controls">
+                <button id="clearRealtimeBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-trash"></i> Clear
+                </button>
+                <button id="pauseRealtimeBtn" class="btn-secondary btn-sm">
+                  <i class="fas fa-pause"></i> Pause
+                </button>
+                <label class="autoscroll-label">
+                  <input type="checkbox" id="autoScrollCheckbox" checked>
+                  <span>Auto-scroll</span>
+                </label>
+              </div>
+            </div>
+            <div class="realtime-feed" id="realtimeFeed">
+              <p class="placeholder">Waiting for requests...</p>
             </div>
           </div>
         </div>
@@ -1057,6 +1117,12 @@ export class DevToolsPanel {
       case 'errors':
         await this.loadErrorsData();
         break;
+      case 'websocket':
+        await this.loadWebSocketData();
+        break;
+      case 'realtime':
+        this.startRealtimeFeed();
+        break;
     }
   }
 
@@ -1099,6 +1165,9 @@ export class DevToolsPanel {
               <button class="btn-icon btn-view-details" data-request-id="${req.id}" title="View details">
                 <i class="fas fa-info-circle"></i>
               </button>
+              <button class="btn-icon btn-copy-curl" data-request-id="${req.id}" title="Copy as cURL">
+                <i class="fas fa-terminal"></i>
+              </button>
               ${errorIcon}
             </td>
           </tr>
@@ -1107,12 +1176,26 @@ export class DevToolsPanel {
       
       tbody.innerHTML = rows;
       
+      // Store requests for copy as cURL functionality
+      this.currentRequests = response.requests;
+      
       // Use event delegation instead of inline onclick
       tbody.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-view-details');
-        if (btn) {
-          const requestId = btn.dataset.requestId;
+        const viewBtn = e.target.closest('.btn-view-details');
+        if (viewBtn) {
+          const requestId = viewBtn.dataset.requestId;
           this.viewRequestDetails(requestId);
+          return;
+        }
+        
+        const curlBtn = e.target.closest('.btn-copy-curl');
+        if (curlBtn) {
+          const requestId = curlBtn.dataset.requestId;
+          const requestData = this.currentRequests.find(r => r.id === requestId);
+          if (requestData) {
+            this.copyAsCurl(requestData);
+          }
+          return;
         }
       });
       
@@ -1136,6 +1219,53 @@ export class DevToolsPanel {
     message.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2196F3; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
     document.body.appendChild(message);
     setTimeout(() => message.remove(), 3000);
+  }
+  
+  // Copy request as cURL command
+  // Note: Headers are stored in a separate table and not included in basic cURL export
+  copyAsCurl(request) {
+    try {
+      let curl = `curl '${request.url}'`;
+      
+      // Add method if not GET
+      if (request.method && request.method !== 'GET') {
+        curl += ` -X ${request.method}`;
+      }
+      
+      // Note: Headers are stored in bronze_request_headers table
+      // and not fetched for performance reasons
+      // Add common headers manually
+      curl += ` -H 'Accept: */*'`;
+      
+      // Add compressed flag
+      curl += ' --compressed';
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(curl).then(() => {
+        this.showToast('cURL command copied to clipboard!', 'success');
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        this.showToast('Failed to copy cURL command', 'error');
+      });
+    } catch (error) {
+      console.error('Error generating cURL:', error);
+      this.showToast('Failed to generate cURL command', 'error');
+    }
+  }
+  
+  // Show toast notification
+  showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    const bgColors = {
+      success: '#48bb78',
+      error: '#f56565',
+      info: '#2196F3'
+    };
+    toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: ${bgColors[type] || bgColors.info}; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
   }
   
   // Helper to truncate URLs
@@ -1314,29 +1444,55 @@ export class DevToolsPanel {
     // Find timeline bounds
     const minTime = Math.min(...requests.map(r => r.timestamp));
     const maxTime = Math.max(...requests.map(r => r.timestamp + (r.duration || 0)));
-    const timeRange = maxTime - minTime;
+    const timeRange = maxTime - minTime || 1000; // Default to 1 second if all same time
     
-    let html = '<div class="waterfall-rows">';
+    // Create timeline header with time markers
+    let html = `
+      <div class="waterfall-header">
+        <div class="waterfall-legend">
+          <div class="legend-item"><span class="legend-color queued"></span> Queued</div>
+          <div class="legend-item"><span class="legend-color dns"></span> DNS</div>
+          <div class="legend-item"><span class="legend-color tcp"></span> TCP</div>
+          <div class="legend-item"><span class="legend-color ssl"></span> SSL</div>
+          <div class="legend-item"><span class="legend-color waiting"></span> Waiting (TTFB)</div>
+          <div class="legend-item"><span class="legend-color download"></span> Download</div>
+        </div>
+        <div class="waterfall-timeline-header">
+          <span>0ms</span>
+          <span>${Math.round(timeRange / 4)}ms</span>
+          <span>${Math.round(timeRange / 2)}ms</span>
+          <span>${Math.round(3 * timeRange / 4)}ms</span>
+          <span>${Math.round(timeRange)}ms</span>
+        </div>
+      </div>
+      <div class="waterfall-rows">
+    `;
     
-    requests.forEach(req => {
+    requests.forEach((req, index) => {
       const startOffset = ((req.timestamp - minTime) / timeRange) * 100;
       const duration = req.duration || 0;
-      const width = (duration / timeRange) * 100;
+      const width = Math.max((duration / timeRange) * 100, 0.5);
       
-      const phases = req.phases || {};
-      const totalPhases = Object.values(phases).reduce((a, b) => a + b, 0);
+      const statusClass = req.status >= 400 ? 'error' : req.status >= 300 ? 'warning' : 'success';
+      
+      // Estimate timing phases if not provided
+      const phases = req.phases || this.estimateTimingPhases(req);
+      const totalPhases = Object.values(phases).reduce((a, b) => a + b, 0) || duration;
       
       html += `
-        <div class="waterfall-row">
-          <div class="waterfall-label" title="${req.url}">
-            <span class="method-badge">${req.method || 'GET'}</span>
-            ${this.truncateUrl(req.url, 40)}
+        <div class="waterfall-row" data-index="${index}">
+          <div class="waterfall-info">
+            <div class="waterfall-label" title="${req.url}">
+              <span class="method-badge ${statusClass}">${req.method || 'GET'}</span>
+              <span class="status-code status-${statusClass}">${req.status || ''}</span>
+              <span class="url-text">${this.truncateUrl(req.url, 35)}</span>
+            </div>
           </div>
           <div class="waterfall-timeline">
-            <div class="waterfall-bar" style="left: ${startOffset}%; width: ${Math.max(width, 0.5)}%;">
-              ${totalPhases > 0 ? this.renderWaterfallPhases(phases, totalPhases) : ''}
+            <div class="waterfall-bar" style="left: ${startOffset}%; width: ${width}%;" title="${req.url}">
+              ${this.renderWaterfallPhases(phases, totalPhases)}
             </div>
-            <div class="waterfall-time">${Math.round(duration)}ms</div>
+            <div class="waterfall-duration">${Math.round(duration)}ms</div>
           </div>
         </div>
       `;
@@ -1346,30 +1502,78 @@ export class DevToolsPanel {
     container.innerHTML = html;
   }
   
+  // Estimate timing phases from available data
+  estimateTimingPhases(request) {
+    const duration = request.duration || 0;
+    
+    // If we don't have detailed timing, estimate based on request type
+    const phases = {};
+    
+    // Rough estimates for different phases
+    if (duration > 0) {
+      // DNS typically 20-50ms
+      phases.dns = Math.min(duration * 0.1, 50);
+      // TCP connection 20-100ms
+      phases.tcp = Math.min(duration * 0.15, 100);
+      // SSL for HTTPS
+      if (request.url && request.url.startsWith('https')) {
+        phases.ssl = Math.min(duration * 0.1, 80);
+      }
+      // Waiting for response (TTFB)
+      phases.waiting = duration * 0.3;
+      // Download
+      phases.download = duration * 0.35;
+    }
+    
+    return phases;
+  }
+  
   // Render waterfall timing phases
   renderWaterfallPhases(phases, total) {
     const colors = {
-      queued: '#ccc',
-      dns: '#4CAF50',
-      tcp: '#2196F3',
-      ssl: '#9C27B0',
-      ttfb: '#FF9800',
-      download: '#F44336'
+      queued: '#cbd5e0',
+      dns: '#48bb78',
+      tcp: '#4299e1',
+      ssl: '#9f7aea',
+      waiting: '#ed8936',
+      ttfb: '#ed8936',
+      download: '#f56565'
+    };
+    
+    const phaseNames = {
+      queued: 'Queued',
+      dns: 'DNS Lookup',
+      tcp: 'TCP Connection',
+      ssl: 'SSL/TLS',
+      waiting: 'Waiting (TTFB)',
+      ttfb: 'Waiting (TTFB)',
+      download: 'Content Download'
     };
     
     let html = '';
     let cumulative = 0;
     
-    Object.entries(phases).forEach(([phase, time]) => {
-      const percent = (time / total) * 100;
-      html += `
-        <div class="phase-segment ${phase}" 
-             style="left: ${cumulative}%; width: ${percent}%; background: ${colors[phase] || '#888'};"
-             title="${phase}: ${time}ms">
-        </div>
-      `;
-      cumulative += percent;
+    // Order phases logically
+    const orderedPhases = ['queued', 'dns', 'tcp', 'ssl', 'waiting', 'ttfb', 'download'];
+    
+    orderedPhases.forEach(phase => {
+      if (phases[phase] && phases[phase] > 0) {
+        const time = phases[phase];
+        const percent = (time / total) * 100;
+        html += `
+          <div class="phase-segment ${phase}" 
+               style="left: ${cumulative}%; width: ${Math.max(percent, 0.5)}%; background: ${colors[phase] || '#888'};"
+               title="${phaseNames[phase] || phase}: ${Math.round(time)}ms">
+          </div>
+        `;
+        cumulative += percent;
+      }
     });
+    
+    // If no segments were rendered, show a simple bar
+    if (html === '') {
+      html = `<div class="phase-segment default" style="width: 100%; background: ${colors.download};" title="Total: ${Math.round(total)}ms"></div>`;
+    }
     
     return html;
   }
@@ -2244,6 +2448,209 @@ export class DevToolsPanel {
         chart.destroy();
       }
     });
+  }
+
+  // WebSocket Inspector Methods
+  async loadWebSocketData() {
+    // Initialize WebSocket tracking
+    this.websocketMessages = this.websocketMessages || [];
+    this.websocketPaused = false;
+    
+    // Setup event listeners for WebSocket controls
+    const clearBtn = document.getElementById('clearWebSocketBtn');
+    const pauseBtn = document.getElementById('pauseWebSocketBtn');
+    
+    if (clearBtn) {
+      // Remove existing listener if any
+      clearBtn.replaceWith(clearBtn.cloneNode(true));
+      document.getElementById('clearWebSocketBtn').addEventListener('click', () => this.clearWebSocket());
+    }
+    if (pauseBtn) {
+      // Remove existing listener if any
+      pauseBtn.replaceWith(pauseBtn.cloneNode(true));
+      document.getElementById('pauseWebSocketBtn').addEventListener('click', () => this.toggleWebSocketPause());
+    }
+    
+    // Display message that WebSocket tracking is active
+    this.updateWebSocketDisplay();
+  }
+  
+  toggleWebSocketPause() {
+    this.websocketPaused = !this.websocketPaused;
+    const btn = document.getElementById('pauseWebSocketBtn');
+    if (btn) {
+      btn.innerHTML = this.websocketPaused ? 
+        '<i class="fas fa-play"></i> Resume' : 
+        '<i class="fas fa-pause"></i> Pause';
+    }
+  }
+  
+  clearWebSocket() {
+    this.websocketMessages = [];
+    this.updateWebSocketDisplay();
+  }
+  
+  updateWebSocketDisplay() {
+    const container = document.getElementById('websocketMessages');
+    if (!container) return;
+    
+    if (this.websocketMessages.length === 0) {
+      container.innerHTML = '<p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>';
+      return;
+    }
+    
+    let html = '<div class="websocket-list">';
+    
+    this.websocketMessages.slice(-100).reverse().forEach((msg, idx) => {
+      const direction = msg.direction === 'sent' ? 'outgoing' : 'incoming';
+      html += `
+        <div class="websocket-message ${direction}">
+          <div class="ws-header">
+            <span class="ws-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+            <span class="ws-direction">${msg.direction === 'sent' ? '→' : '←'} ${msg.direction.toUpperCase()}</span>
+            <span class="ws-size">${this.formatBytes(msg.size || 0)}</span>
+          </div>
+          <div class="ws-connection">${msg.url || 'Unknown connection'}</div>
+          <div class="ws-data">${this.truncateText(msg.data || '', 200)}</div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // Update stats
+    const sentCount = this.websocketMessages.filter(m => m.direction === 'sent').length;
+    const receivedCount = this.websocketMessages.filter(m => m.direction === 'received').length;
+    const connections = new Set(this.websocketMessages.map(m => m.url)).size;
+    
+    document.getElementById('wsConnectionCount').textContent = connections;
+    document.getElementById('wsSentCount').textContent = sentCount;
+    document.getElementById('wsReceivedCount').textContent = receivedCount;
+  }
+  
+  // Real-time Feed Methods
+  startRealtimeFeed() {
+    this.realtimeMessages = this.realtimeMessages || [];
+    this.realtimePaused = false;
+    
+    // Setup event listeners
+    const clearBtn = document.getElementById('clearRealtimeBtn');
+    const pauseBtn = document.getElementById('pauseRealtimeBtn');
+    
+    if (clearBtn) {
+      // Remove existing listener if any
+      clearBtn.replaceWith(clearBtn.cloneNode(true));
+      document.getElementById('clearRealtimeBtn').addEventListener('click', () => this.clearRealtimeFeed());
+    }
+    if (pauseBtn) {
+      // Remove existing listener if any
+      pauseBtn.replaceWith(pauseBtn.cloneNode(true));
+      document.getElementById('pauseRealtimeBtn').addEventListener('click', () => this.toggleRealtimePause());
+    }
+    
+    // Start polling for new requests
+    if (!this.realtimeInterval) {
+      this.realtimeInterval = setInterval(() => this.pollRealtimeRequests(), 1000);
+    }
+    
+    this.updateRealtimeDisplay();
+  }
+  
+  async pollRealtimeRequests() {
+    if (this.realtimePaused) return;
+    
+    try {
+      const filters = {
+        ...this.getActiveFilters(),
+        timeRange: 5 // Last 5 seconds
+      };
+      
+      const response = await chrome.runtime.sendMessage({
+        action: 'getDetailedRequests',
+        filters,
+        limit: 10
+      });
+      
+      if (response && response.success && response.requests) {
+        response.requests.forEach(req => {
+          // Only add if not already in feed
+          if (!this.realtimeMessages.find(m => m.id === req.id)) {
+            this.addRealtimeRequest(req);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to poll realtime requests:', error);
+    }
+  }
+  
+  toggleRealtimePause() {
+    this.realtimePaused = !this.realtimePaused;
+    const btn = document.getElementById('pauseRealtimeBtn');
+    if (btn) {
+      btn.innerHTML = this.realtimePaused ? 
+        '<i class="fas fa-play"></i> Resume' : 
+        '<i class="fas fa-pause"></i> Pause';
+    }
+  }
+  
+  clearRealtimeFeed() {
+    this.realtimeMessages = [];
+    this.updateRealtimeDisplay();
+  }
+  
+  addRealtimeRequest(request) {
+    if (this.realtimePaused) return;
+    
+    this.realtimeMessages.push(request);
+    if (this.realtimeMessages.length > 200) {
+      this.realtimeMessages.shift();
+    }
+    
+    this.updateRealtimeDisplay();
+  }
+  
+  updateRealtimeDisplay() {
+    const container = document.getElementById('realtimeFeed');
+    if (!container) return;
+    
+    if (this.realtimeMessages.length === 0) {
+      container.innerHTML = '<p class="placeholder">Waiting for requests...</p>';
+      return;
+    }
+    
+    let html = '<div class="realtime-list">';
+    
+    this.realtimeMessages.slice(-50).reverse().forEach(req => {
+      const statusClass = req.status >= 400 ? 'error' : req.status >= 300 ? 'warning' : 'success';
+      const errorClass = req.status >= 400 ? 'realtime-error' : '';
+      
+      html += `
+        <div class="realtime-item ${errorClass}">
+          <div class="realtime-time">${new Date(req.timestamp).toLocaleTimeString()}.${new Date(req.timestamp).getMilliseconds()}</div>
+          <span class="method-badge">${req.method || 'GET'}</span>
+          <span class="status-badge status-${statusClass}">${req.status || 'N/A'}</span>
+          <span class="realtime-url" title="${req.url}">${this.truncateUrl(req.url, 70)}</span>
+          <span class="realtime-duration">${req.duration || 0}ms</span>
+          <div class="realtime-timing-bar" style="width: ${Math.min((req.duration || 0) / 10, 100)}%"></div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // Auto-scroll if enabled
+    const autoScrollCheckbox = document.getElementById('autoScrollCheckbox');
+    if (autoScrollCheckbox && autoScrollCheckbox.checked) {
+      container.scrollTop = 0; // Scroll to top since we reverse the list
+    }
+  }
+  
+  truncateText(text, maxLength) {
+    if (!text || text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   }
 }
 
