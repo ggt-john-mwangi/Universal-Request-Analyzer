@@ -21,10 +21,39 @@
   --error-bg-color: #f8d7da;
   --warning-bg-color: #fff3cd;
   --info-bg-color: #d1ecf1;
+  --primary-dark: #0052a3;
+  --surface-secondary: #e9ecef;
+}
+
+/* Light theme explicit class */
+body.theme-light {
+  --background-color: #ffffff;
+  --surface-color: #f5f5f5;
+  --primary-color: #0066cc;
+  --secondary-color: #6c757d;
+  --accent-color: #ff9800;
+  --error-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #17a2b8;
+  --success-color: #28a745;
+  --text-primary-color: #212529;
+  --text-secondary-color: #6c757d;
+  --text-disabled-color: #adb5bd;
+  --border-color: #dee2e6;
+  --divider-color: #e9ecef;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-color: #e9ecef;
+  --success-bg-color: #d4edda;
+  --error-bg-color: #f8d7da;
+  --warning-bg-color: #fff3cd;
+  --info-bg-color: #d1ecf1;
+  --primary-dark: #0052a3;
+  --surface-secondary: #e9ecef;
 }
 
 /* Dark theme */
-body.dark {
+body.dark,
+body.theme-dark {
   --background-color: #212529;
   --surface-color: #343a40;
   --primary-color: #0d6efd;
@@ -45,6 +74,8 @@ body.dark {
   --error-bg-color: #5a1f1f;
   --warning-bg-color: #4d3b00;
   --info-bg-color: #0f4852;
+  --primary-dark: #0b5ed7;
+  --surface-secondary: #495057;
 }
 
 /* High Contrast theme */
@@ -69,6 +100,8 @@ body.theme-highContrast {
   --error-bg-color: #330000;
   --warning-bg-color: #333300;
   --info-bg-color: #003333;
+  --primary-dark: #eeeeee;
+  --surface-secondary: #1a1a1a;
 }
 
 /* Blue theme */
@@ -93,6 +126,8 @@ body.theme-blue {
   --error-bg-color: #ffcccc;
   --warning-bg-color: #fff0cc;
   --info-bg-color: #ccf5ff;
+  --primary-dark: #004d99;
+  --surface-secondary: #d9ebff;
 }
 
 /* Apply theme variables to elements */
