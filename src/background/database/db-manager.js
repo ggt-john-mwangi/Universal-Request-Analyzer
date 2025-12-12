@@ -54,7 +54,7 @@
 //
 // Critical Design Decisions:
 // --------------------------
-// 
+//
 // 1. db_version Table Creation Order:
 //    - MUST be created in schema.js BEFORE any migrations run
 //    - Prevents "no such table: db_version" errors
@@ -134,13 +134,13 @@ async function loadDatabaseFromChromeStorage() {
     if (typeof chrome === "undefined" || !chrome.storage) {
       return null;
     }
-    
+
     const result = await chrome.storage.local.get(["db_backup"]);
     if (result.db_backup) {
       console.log("[DB] Found database backup in Chrome storage.");
       // Convert base64 string back to Uint8Array using efficient method
       const binaryString = atob(result.db_backup);
-      const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+      const bytes = Uint8Array.from(binaryString, (c) => c.charCodeAt(0));
       return bytes;
     }
     return null;
@@ -155,28 +155,42 @@ async function saveDatabaseToChromeStorage(data) {
     if (typeof chrome === "undefined" || !chrome.storage) {
       return;
     }
-    
+
     // Convert Uint8Array to base64 string for storage using chunked approach
     // to avoid stack overflow with large databases
     const CHUNK_SIZE = 8192;
-    let binaryString = '';
+    let binaryString = "";
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
       const chunk = data.subarray(i, Math.min(i + CHUNK_SIZE, data.length));
       binaryString += String.fromCharCode.apply(null, chunk);
     }
     const base64String = btoa(binaryString);
-    
+
     // Chrome storage has a limit, so we'll only save if it's not too large
     const sizeInBytes = base64String.length;
     const maxSize = 5 * 1024 * 1024; // 5MB limit
-    
+
     if (sizeInBytes > maxSize) {
-      console.warn(`[DB] Database too large for Chrome storage backup (${(sizeInBytes / 1024 / 1024).toFixed(2)}MB). Skipping backup.`);
+      // Only log once per session to avoid console spam
+      if (!this._backupWarningShown) {
+        console.info(
+          `[DB] Database too large for Chrome storage backup (${(
+            sizeInBytes /
+            1024 /
+            1024
+          ).toFixed(2)}MB). Using OPFS only.`
+        );
+        this._backupWarningShown = true;
+      }
       return;
     }
-    
+
     await chrome.storage.local.set({ db_backup: base64String });
-    console.log(`[DB] Database backed up to Chrome storage (${(sizeInBytes / 1024).toFixed(2)}KB).`);
+    console.log(
+      `[DB] Database backed up to Chrome storage (${(
+        sizeInBytes / 1024
+      ).toFixed(2)}KB).`
+    );
   } catch (error) {
     console.error("Failed to save database to Chrome storage:", error);
   }
@@ -206,7 +220,7 @@ export function logErrorToDatabase(db, error) {
 
 /**
  * Initialize the database with optional dependency injection.
- * 
+ *
  * Data Flow:
  * 1. Set up encryption manager (if provided)
  * 2. Create or use provided event bus for publish/subscribe pattern
@@ -217,26 +231,30 @@ export function logErrorToDatabase(db, error) {
  *    - Sets up auto-save interval for persistence
  * 4. Publish "database:ready" event to notify other components
  * 5. Return database API object with all query/operation functions
- * 
+ *
  * @param {Object} dbConfig - Database configuration options (optional, defaults to {})
  * @param {Object} encryptionMgr - Encryption manager instance (optional, defaults to null)
  * @param {Object} events - Event bus with subscribe/publish methods (optional, creates default if null)
  * @returns {Promise<Object>} Database API object with query and operation functions
  * @throws {DatabaseError} If initialization fails after all retry attempts
- * 
+ *
  * @example
  * // Standalone initialization (creates default event bus)
  * const dbApi = await initDatabase();
- * 
+ *
  * @example
  * // With dependency injection
  * const dbApi = await initDatabase(config, encryptionManager, eventBus);
  */
-export async function initDatabase(dbConfig = {}, encryptionMgr = null, events = null) {
+export async function initDatabase(
+  dbConfig = {},
+  encryptionMgr = null,
+  events = null
+) {
   try {
     // Step 1: Set up encryption manager if provided
     encryptionManager = encryptionMgr;
-    
+
     // Step 2: Create a default event bus if not provided via dependency injection
     // This allows the database to work standalone without external dependencies
     if (!events) {
@@ -250,7 +268,7 @@ export async function initDatabase(dbConfig = {}, encryptionMgr = null, events =
         },
         publish: (event, data) => {
           if (subscribers.has(event)) {
-            subscribers.get(event).forEach(callback => {
+            subscribers.get(event).forEach((callback) => {
               try {
                 callback(data);
               } catch (error) {
@@ -259,7 +277,7 @@ export async function initDatabase(dbConfig = {}, encryptionMgr = null, events =
               }
             });
           }
-        }
+        },
       };
     } else {
       eventBus = events;
@@ -990,7 +1008,7 @@ function backupDatabase() {
 
 /**
  * Initialize the database with robust error handling and multiple fallback strategies.
- * 
+ *
  * Initialization Data Flow:
  * 1. Initialize SQL.js WASM module with correct asset paths
  * 2. Attempt to load existing database using fallback strategies:
@@ -1005,15 +1023,15 @@ function backupDatabase() {
  *    - Applies migrations in order, updating db_version after each
  * 5. Set up auto-save interval (60s) to persist changes to storage
  * 6. On retry exhaustion: Create in-memory fallback database (no persistence)
- * 
+ *
  * Retry Strategy:
  * - Up to MAX_RETRIES (3) attempts with exponential backoff
  * - Delays: 1s, 2s, 4s between retries
  * - Final fallback: In-memory database if all attempts fail
- * 
+ *
  * @returns {Promise<SQL.Database>} The initialized SQL.js database instance
  * @throws {Error} If all initialization attempts fail, including the in-memory fallback
- * 
+ *
  * @note If all retries fail, creates an in-memory database without persistence.
  *       Data will be lost when extension is reloaded or service worker suspends.
  *       This is a last-resort fallback to keep extension functional.
@@ -1025,17 +1043,22 @@ export async function initializeDatabase() {
 
   while (retryCount < MAX_RETRIES) {
     try {
-      console.log(`[DB] Attempting to initialize database (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
-      
+      console.log(
+        `[DB] Attempting to initialize database (attempt ${
+          retryCount + 1
+        }/${MAX_RETRIES})...`
+      );
+
       // Step 1: Initialize SQL.js WASM module with correct asset paths
       // The WASM file must be loaded from the extension's assets directory
       const SQL = await initSqlJs({
         locateFile: (file) => {
-          const url = typeof chrome !== "undefined" && chrome.runtime
-            ? chrome.runtime.getURL(`assets/wasm/${file}`)
-            : typeof browser !== "undefined" && browser.runtime
-            ? browser.runtime.getURL(`assets/wasm/${file}`)
-            : `assets/wasm/${file}`;
+          const url =
+            typeof chrome !== "undefined" && chrome.runtime
+              ? chrome.runtime.getURL(`assets/wasm/${file}`)
+              : typeof browser !== "undefined" && browser.runtime
+              ? browser.runtime.getURL(`assets/wasm/${file}`)
+              : `assets/wasm/${file}`;
           console.log(`[DB] Loading WASM file: ${file} from ${url}`);
           return url;
         },
@@ -1045,7 +1068,7 @@ export async function initializeDatabase() {
 
       // Step 2: Try to load existing database with multiple fallback strategies
       let dbLoaded = false;
-      
+
       // Strategy 1: Load from OPFS (primary storage mechanism)
       // OPFS provides better performance and larger storage quota
       if (await opfsSupported()) {
@@ -1060,7 +1083,7 @@ export async function initializeDatabase() {
           console.warn("[DB] Failed to load from OPFS:", opfsError);
         }
       }
-      
+
       // Strategy 2: Load from Chrome storage as backup
       // Falls back to Chrome storage if OPFS is unavailable or fails
       if (!dbLoaded) {
@@ -1077,20 +1100,23 @@ export async function initializeDatabase() {
             }
           }
         } catch (storageError) {
-          console.warn("[DB] Failed to load from Chrome storage:", storageError);
+          console.warn(
+            "[DB] Failed to load from Chrome storage:",
+            storageError
+          );
         }
       }
-      
+
       // Strategy 3: Create new database with complete schema
       // This happens on first install or if no existing database found
       if (!dbLoaded) {
         console.log("[DB] Creating new database.");
         db = new SQL.Database();
-        
+
         // Create all tables including db_version FIRST (required for migrations)
         // See schema.js for detailed table structure and creation order
         await createTables(db);
-        
+
         // Persist new database to both storage mechanisms for redundancy
         const initialData = db.export();
         if (await opfsSupported()) {
@@ -1098,6 +1124,28 @@ export async function initializeDatabase() {
         }
         await saveDatabaseToChromeStorage(initialData);
         console.log("[DB] New database created and saved.");
+      } else {
+        // For existing databases, ensure db_version table exists
+        // This handles databases created before migrations system was added
+        console.log(
+          "[DB] Ensuring db_version table exists for existing database..."
+        );
+        try {
+          db.exec(`
+            CREATE TABLE IF NOT EXISTS db_version (
+              version INTEGER PRIMARY KEY,
+              description TEXT,
+              applied_at INTEGER,
+              status TEXT
+            )
+          `);
+          console.log("[DB] db_version table verified/created.");
+        } catch (versionTableError) {
+          console.error(
+            "[DB] Failed to create db_version table:",
+            versionTableError
+          );
+        }
       }
 
       // Step 3: Run migrations to update schema to latest version
@@ -1118,15 +1166,15 @@ export async function initializeDatabase() {
         isSaving = true;
         try {
           const data = db.export();
-          
+
           // Save to OPFS if supported
           if (await opfsSupported()) {
             await saveDatabaseToOPFS(data);
           }
-          
+
           // Always save to Chrome storage as backup
           await saveDatabaseToChromeStorage(data);
-          
+
           console.log("[DB] Auto-save completed.");
         } catch (err) {
           console.error("[DB] Auto-save failed:", err);
@@ -1139,26 +1187,34 @@ export async function initializeDatabase() {
       return db;
     } catch (err) {
       retryCount++;
-      console.error(`[DB] Initialization failed (attempt ${retryCount}/${MAX_RETRIES}):`, err);
+      console.error(
+        `[DB] Initialization failed (attempt ${retryCount}/${MAX_RETRIES}):`,
+        err
+      );
       console.error("[DB] Error stack:", err.stack);
 
       if (retryCount >= MAX_RETRIES) {
         // Last resort: create in-memory database without persistence
-        console.error("[DB] All initialization attempts failed. Creating in-memory fallback database.");
+        console.error(
+          "[DB] All initialization attempts failed. Creating in-memory fallback database."
+        );
         try {
           const SQL = await initSqlJs({
             locateFile: (file) => {
-              const url = typeof chrome !== "undefined" && chrome.runtime
-                ? chrome.runtime.getURL(`assets/wasm/${file}`)
-                : typeof browser !== "undefined" && browser.runtime
-                ? browser.runtime.getURL(`assets/wasm/${file}`)
-                : `assets/wasm/${file}`;
+              const url =
+                typeof chrome !== "undefined" && chrome.runtime
+                  ? chrome.runtime.getURL(`assets/wasm/${file}`)
+                  : typeof browser !== "undefined" && browser.runtime
+                  ? browser.runtime.getURL(`assets/wasm/${file}`)
+                  : `assets/wasm/${file}`;
               return url;
             },
           });
           db = new SQL.Database();
           await createTables(db);
-          console.warn("[DB] Fallback in-memory database created (no persistence).");
+          console.warn(
+            "[DB] Fallback in-memory database created (no persistence)."
+          );
           return db;
         } catch (fallbackError) {
           console.error("[DB] Even fallback failed:", fallbackError);
@@ -1195,18 +1251,18 @@ export async function saveDatabase() {
     console.warn("[DB] No database to save.");
     return false;
   }
-  
+
   try {
     const data = db.export();
-    
+
     // Save to OPFS if supported
     if (await opfsSupported()) {
       await saveDatabaseToOPFS(data);
     }
-    
+
     // Always save to Chrome storage as backup
     await saveDatabaseToChromeStorage(data);
-    
+
     console.log("[DB] Database saved manually.");
     return true;
   } catch (error) {

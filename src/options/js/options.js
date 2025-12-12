@@ -1,40 +1,40 @@
 // Import necessary modules
-import '../components/dashboard.js';
-import '../components/analytics.js';
-import '../components/alerts.js';
-import '../components/auto-export.js';
-import '../components/capture-filters.js';
-import '../components/capture-settings.js';
-import '../../lib/shared-components/chart-components.js';
-import '../../lib/shared-components/chart-renderer.js';
-import '../../lib/shared-components/data-filter-panel.js';
-import '../../lib/shared-components/data-loader.js';
+import "../components/dashboard.js";
+import "../components/analytics.js";
+import "../components/alerts.js";
+import "../components/auto-export.js";
+import "../components/capture-filters.js";
+import "../components/capture-settings.js";
+import "../../lib/shared-components/chart-components.js";
+import "../../lib/shared-components/chart-renderer.js";
+import "../../lib/shared-components/data-filter-panel.js";
+import "../../lib/shared-components/data-loader.js";
 // Removed unused import: renderDataPurge - Data Retention section is now in HTML
-import '../../lib/shared-components/data-visualization.js';
-import '../components/export-db.js';
-import '../../lib/shared-components/export-panel.js';
-import '../../lib/shared-components/filters.js';
-import '../../lib/shared-components/notifications.js';
-import '../../lib/shared-components/performance-monitor.js';
-import settingsManager from '../../lib/shared-components/settings-manager.js';
-import '../../lib/shared-components/settings-ui.js';
-import '../../lib/shared-components/tab-manager.js';
-import '../components/visualization.js';
-import '../../auth/acl-manager.js';
-import '../../config/feature-flags.js';
-import themeManager from '../../config/theme-manager.js';
-import '../../lib/chart.min.js';
+import "../../lib/shared-components/data-visualization.js";
+import "../components/export-db.js";
+import "../../lib/shared-components/export-panel.js";
+import "../../lib/shared-components/filters.js";
+import "../../lib/shared-components/notifications.js";
+import "../../lib/shared-components/performance-monitor.js";
+import settingsManager from "../../lib/shared-components/settings-manager.js";
+import "../../lib/shared-components/settings-ui.js";
+import "../../lib/shared-components/tab-manager.js";
+import "../components/visualization.js";
+import "../../auth/acl-manager.js";
+import "../../config/feature-flags.js";
+import themeManager from "../../config/theme-manager.js";
+import "../../lib/chart.min.js";
 
 // Constants
-const DEFAULT_EXPORT_FORMAT = 'json';
+const DEFAULT_EXPORT_FORMAT = "json";
 const DEFAULT_TIME_RANGE = 300; // 5 minutes in seconds
 const POPULAR_API_PATTERNS = [
-  'https://api.github.com/*',
-  'https://*.googleapis.com/*',
-  'https://api.twitter.com/*',
-  'https://graph.facebook.com/*',
-  'https://api.stripe.com/*',
-  'https://*.amazonaws.com/*'
+  "https://api.github.com/*",
+  "https://*.googleapis.com/*",
+  "https://api.twitter.com/*",
+  "https://graph.facebook.com/*",
+  "https://api.stripe.com/*",
+  "https://*.amazonaws.com/*",
 ];
 
 // DOM elements - will be initialized in DOMContentLoaded
@@ -66,58 +66,61 @@ let saveThemeBtn;
 let resetThemeBtn;
 
 // Load when DOM is ready
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener("DOMContentLoaded", async () => {
   try {
-    console.log('Options page: DOM loaded, initializing...');
-    
+    console.log("Options page: DOM loaded, initializing...");
+
     // Initialize DOM elements first
-    captureEnabled = document.getElementById('captureEnabled');
-    maxStoredRequests = document.getElementById('maxStoredRequests');
-    captureTypeCheckboxes = document.querySelectorAll('input[name="captureType"]');
-    includeDomains = document.getElementById('includeDomains');
-    excludeDomains = document.getElementById('excludeDomains');
-    autoExport = document.getElementById('autoExport');
-    exportFormat = document.getElementById('exportFormat');
-    exportInterval = document.getElementById('exportInterval');
-    exportPath = document.getElementById('exportPath');
-    plotEnabled = document.getElementById('plotEnabled');
+    captureEnabled = document.getElementById("captureEnabled");
+    maxStoredRequests = document.getElementById("maxStoredRequests");
+    captureTypeCheckboxes = document.querySelectorAll(
+      'input[name="captureType"]'
+    );
+    includeDomains = document.getElementById("includeDomains");
+    excludeDomains = document.getElementById("excludeDomains");
+    autoExport = document.getElementById("autoExport");
+    exportFormat = document.getElementById("exportFormat");
+    exportInterval = document.getElementById("exportInterval");
+    exportPath = document.getElementById("exportPath");
+    plotEnabled = document.getElementById("plotEnabled");
     plotTypeCheckboxes = document.querySelectorAll('input[name="plotType"]');
-    saveBtn = document.getElementById('saveBtn');
-    resetBtn = document.getElementById('resetBtn');
-    exportDbBtn = document.getElementById('exportDbBtn');
-    clearDbBtn = document.getElementById('clearDbBtn');
-    notification = document.getElementById('notification');
-    dbTotalRequests = document.getElementById('dbTotalRequests');
-    dbSize = document.getElementById('dbSize');
-    lastExport = document.getElementById('lastExport');
-    exportSettingsBtn = document.getElementById('exportSettingsBtn');
-    importSettingsBtn = document.getElementById('importSettingsBtn');
-    importSettingsFile = document.getElementById('importSettingsFile');
-    currentThemeSelect = document.getElementById('currentTheme');
-    themesContainer = document.querySelector('.themes-container');
-    saveThemeBtn = document.getElementById('saveThemeBtn');
-    resetThemeBtn = document.getElementById('resetThemeBtn');
-    
-    console.log('Options page: DOM elements initialized');
-    
+    saveBtn = document.getElementById("saveBtn");
+    resetBtn = document.getElementById("resetBtn");
+    exportDbBtn = document.getElementById("exportDbBtn");
+    clearDbBtn = document.getElementById("clearDbBtn");
+    notification = document.getElementById("notification");
+    dbTotalRequests = document.getElementById("dbTotalRequests");
+    dbSize = document.getElementById("dbSize");
+    lastExport = document.getElementById("lastExport");
+    exportSettingsBtn = document.getElementById("exportSettingsBtn");
+    importSettingsBtn = document.getElementById("importSettingsBtn");
+    importSettingsFile = document.getElementById("importSettingsFile");
+    currentThemeSelect = document.getElementById("currentTheme");
+    themesContainer = document.querySelector(".themes-container");
+    saveThemeBtn = document.getElementById("saveThemeBtn");
+    resetThemeBtn = document.getElementById("resetThemeBtn");
+
+    console.log("Options page: DOM elements initialized");
+
     // Initialize settings manager
-    console.log('Options page: Initializing settings manager...');
+    console.log("Options page: Initializing settings manager...");
     await settingsManager.initialize();
-    console.log('Options page: Settings manager initialized');
+    console.log("Options page: Settings manager initialized");
 
     // Initialize theme manager
-    console.log('Options page: Initializing theme manager...');
-    const currentTheme = settingsManager.getAllSettings()?.theme?.current || 'light';
+    console.log("Options page: Initializing theme manager...");
+    const currentTheme =
+      settingsManager.getAllSettings()?.theme?.current || "light";
     await themeManager.initialize({
       initialTheme: currentTheme,
       onUpdate: handleThemeUpdate,
     });
-    console.log('Options page: Theme manager initialized');
+    console.log("Options page: Theme manager initialized");
 
     // Load initial settings
-    console.log('Options page: Loading options...');
+    console.log("Options page: Loading options...");
     await loadOptions();
-    console.log('Options page: Options loaded');
+    console.log("Options page: Options loaded");
 
     // Add settings change listener
     settingsManager.addSettingsListener(handleSettingsChange);
@@ -126,34 +129,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // The Data Retention section is already in options.html
 
     // Set up tab navigation
-    console.log('Options page: Setting up tab navigation...');
+    console.log("Options page: Setting up tab navigation...");
     setupTabNavigation();
 
     // Render theme options
-    console.log('Options page: Rendering theme options...');
+    console.log("Options page: Rendering theme options...");
     renderThemeOptions();
-    
+
     // Setup event listeners for buttons
-    console.log('Options page: Setting up event listeners...');
+    console.log("Options page: Setting up event listeners...");
     setupEventListeners();
-    
+
     // Initialize advanced tab
-    console.log('Options page: Initializing advanced tab...');
+    console.log("Options page: Initializing advanced tab...");
     initializeAdvancedTab();
-    
+
     // Initialize Analytics component
-    console.log('Options page: Initializing analytics...');
+    console.log("Options page: Initializing analytics...");
     await initializeAnalytics();
-    
+
     // Initialize Alerts component
-    console.log('Options page: Initializing alerts...');
+    console.log("Options page: Initializing alerts...");
     await initializeAlerts();
-    
-    console.log('Options page: Initialization complete!');
+
+    console.log("Options page: Initialization complete!");
   } catch (error) {
-    console.error('Error initializing options:', error);
-    console.error('Error stack:', error.stack);
-    showNotification('Failed to initialize options: ' + error.message, true);
+    console.error("Error initializing options:", error);
+    console.error("Error stack:", error.stack);
+    showNotification("Failed to initialize options: " + error.message, true);
   }
 });
 
@@ -164,12 +167,15 @@ async function loadOptions() {
     const settings = allSettings.settings;
 
     // Update capture settings - with null checks
-    if (captureEnabled) captureEnabled.checked = settings?.capture?.enabled ?? true;
-    if (maxStoredRequests) maxStoredRequests.value = settings?.general?.maxStoredRequests ?? 10000;
+    if (captureEnabled)
+      captureEnabled.checked = settings?.capture?.enabled ?? true;
+    if (maxStoredRequests)
+      maxStoredRequests.value = settings?.general?.maxStoredRequests ?? 10000;
 
     // Update capture types
     if (captureTypeCheckboxes && captureTypeCheckboxes.length > 0) {
-      const includeTypes = settings?.capture?.captureFilters?.includeTypes || [];
+      const includeTypes =
+        settings?.capture?.captureFilters?.includeTypes || [];
       captureTypeCheckboxes.forEach((checkbox) => {
         checkbox.checked = includeTypes.includes(checkbox.value);
       });
@@ -177,20 +183,42 @@ async function loadOptions() {
 
     // Update domains
     if (includeDomains) {
-      includeDomains.value = (settings?.capture?.captureFilters?.includeDomains || []).join(', ');
+      const defaultInclude = ["github.com", "api.github.com"];
+      const savedInclude =
+        settings?.capture?.captureFilters?.includeDomains || [];
+      // Use saved settings if available, otherwise use defaults
+      includeDomains.value = (
+        savedInclude.length > 0 ? savedInclude : defaultInclude
+      ).join(", ");
     }
     if (excludeDomains) {
-      excludeDomains.value = (settings?.capture?.captureFilters?.excludeDomains || []).join(', ');
+      const defaultExclude = [
+        "chrome://*",
+        "edge://*",
+        "about:*",
+        "chrome-extension://*",
+        "moz-extension://*",
+      ];
+      const savedExclude =
+        settings?.capture?.captureFilters?.excludeDomains || [];
+      // Use saved settings if available, otherwise use defaults
+      excludeDomains.value = (
+        savedExclude.length > 0 ? savedExclude : defaultExclude
+      ).join(", ");
     }
 
     // Update export settings
     if (autoExport) autoExport.checked = settings?.general?.autoExport ?? false;
-    if (exportFormat) exportFormat.value = settings?.general?.defaultExportFormat || 'json';
-    if (exportInterval) exportInterval.value = (settings?.general?.autoExportInterval || 3600000) / 60000; // Convert to minutes
-    if (exportPath) exportPath.value = settings?.general?.exportPath || '';
+    if (exportFormat)
+      exportFormat.value = settings?.general?.defaultExportFormat || "json";
+    if (exportInterval)
+      exportInterval.value =
+        (settings?.general?.autoExportInterval || 3600000) / 60000; // Convert to minutes
+    if (exportPath) exportPath.value = settings?.general?.exportPath || "";
 
     // Update visualization settings
-    if (plotEnabled) plotEnabled.checked = settings?.display?.showCharts ?? true;
+    if (plotEnabled)
+      plotEnabled.checked = settings?.display?.showCharts ?? true;
     if (plotTypeCheckboxes && plotTypeCheckboxes.length > 0) {
       const enabledCharts = settings?.display?.enabledCharts || [];
       plotTypeCheckboxes.forEach((checkbox) => {
@@ -200,18 +228,18 @@ async function loadOptions() {
 
     // Update theme settings
     if (currentThemeSelect && themeManager) {
-      currentThemeSelect.value = themeManager.currentTheme || 'light';
+      currentThemeSelect.value = themeManager.currentTheme || "light";
       renderThemeCards();
     }
 
     // Load database info
     await loadDatabaseInfo();
-    if (typeof loadSqliteExportToggle === 'function') {
+    if (typeof loadSqliteExportToggle === "function") {
       loadSqliteExportToggle();
     }
   } catch (error) {
-    console.error('Error in loadOptions:', error);
-    showNotification('Error loading some settings: ' + error.message, true);
+    console.error("Error in loadOptions:", error);
+    showNotification("Error loading some settings: " + error.message, true);
   }
 }
 
@@ -220,52 +248,56 @@ async function loadDatabaseInfo() {
   try {
     // Skip if elements don't exist
     if (!dbTotalRequests && !dbSize && !lastExport) {
-      console.log('Database info elements not found, skipping...');
+      console.log("Database info elements not found, skipping...");
       return;
     }
 
     const response = await chrome.runtime.sendMessage({
-      action: 'getDashboardStats',
-      timeRange: 86400
+      action: "getDashboardStats",
+      timeRange: 86400,
     });
 
     if (response && response.success && response.stats) {
       const stats = response.stats;
-      
+
       if (dbTotalRequests) {
         dbTotalRequests.textContent = stats.totalRequests || 0;
       }
-      
+
       // Estimate database size
-      const totalRecords = (stats.layerCounts?.bronze || 0) + 
-                          (stats.layerCounts?.silver || 0) + 
-                          (stats.layerCounts?.gold || 0);
+      const totalRecords =
+        (stats.layerCounts?.bronze || 0) +
+        (stats.layerCounts?.silver || 0) +
+        (stats.layerCounts?.gold || 0);
       const estimatedSize = Math.round(totalRecords * 0.5); // ~0.5KB per record
-      
+
       if (dbSize) {
-        dbSize.textContent = estimatedSize < 1024 
-          ? `${estimatedSize} KB` 
-          : `${(estimatedSize / 1024).toFixed(2)} MB`;
+        dbSize.textContent =
+          estimatedSize < 1024
+            ? `${estimatedSize} KB`
+            : `${(estimatedSize / 1024).toFixed(2)} MB`;
       }
-      
+
       if (lastExport) {
         // Get last export time from storage
-        const result = await chrome.storage.local.get('lastExportTime');
+        const result = await chrome.storage.local.get("lastExportTime");
         if (result.lastExportTime) {
-          lastExport.textContent = new Date(result.lastExportTime).toLocaleString();
+          lastExport.textContent = new Date(
+            result.lastExportTime
+          ).toLocaleString();
         } else {
-          lastExport.textContent = 'Never';
+          lastExport.textContent = "Never";
         }
       }
     }
   } catch (error) {
-    console.error('Failed to load database info:', error);
+    console.error("Failed to load database info:", error);
   }
 }
 
 // Placeholder for SQLite export toggle (if needed by other components)
 function loadSqliteExportToggle() {
-  console.log('loadSqliteExportToggle called');
+  console.log("loadSqliteExportToggle called");
   // Implementation can be added here if needed
 }
 
@@ -301,11 +333,11 @@ async function saveOptions() {
           .filter((checkbox) => checkbox.checked)
           .map((checkbox) => checkbox.value),
         includeDomains: includeDomains.value
-          .split(',')
+          .split(",")
           .map((d) => d.trim())
           .filter((d) => d),
         excludeDomains: excludeDomains.value
-          .split(',')
+          .split(",")
           .map((d) => d.trim())
           .filter((d) => d),
       },
@@ -330,9 +362,9 @@ async function saveOptions() {
 
   const success = await settingsManager.updateSettings(newSettings);
   if (success) {
-    showNotification('Options saved successfully!');
+    showNotification("Options saved successfully!");
   } else {
-    showNotification('Error saving options', true);
+    showNotification("Error saving options", true);
   }
 }
 
@@ -341,9 +373,9 @@ async function resetOptions() {
   const success = await settingsManager.resetAllToDefaults();
   if (success) {
     await loadOptions();
-    showNotification('Options reset to defaults!');
+    showNotification("Options reset to defaults!");
   } else {
-    showNotification('Error resetting options', true);
+    showNotification("Error resetting options", true);
   }
 }
 
@@ -351,10 +383,10 @@ async function resetOptions() {
 function exportSettings() {
   const exportData = settingsManager.exportSettings();
   const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-    type: 'application/json',
+    type: "application/json",
   });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = `request-analyzer-settings-${new Date()
     .toISOString()
@@ -363,7 +395,7 @@ function exportSettings() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showNotification('Settings exported successfully!');
+  showNotification("Settings exported successfully!");
 }
 
 // Import settings from file
@@ -372,16 +404,16 @@ async function importSettings(event) {
   if (!file) return;
 
   // Check selective import option
-  const selectiveImport = document.getElementById('selectiveImport');
+  const selectiveImport = document.getElementById("selectiveImport");
   const isSelective = selectiveImport && selectiveImport.checked;
-  
+
   // Confirm import action
-  const confirmMsg = isSelective 
-    ? 'Import selected sections? Your current settings for these sections will be overwritten. A backup will be created automatically.'
-    : 'Import all settings? This will overwrite ALL current settings. A backup will be created automatically.';
-  
+  const confirmMsg = isSelective
+    ? "Import selected sections? Your current settings for these sections will be overwritten. A backup will be created automatically."
+    : "Import all settings? This will overwrite ALL current settings. A backup will be created automatically.";
+
   if (!confirm(confirmMsg)) {
-    event.target.value = '';
+    event.target.value = "";
     return;
   }
 
@@ -390,95 +422,112 @@ async function importSettings(event) {
     reader.onload = async (e) => {
       try {
         const importData = JSON.parse(e.target.result);
-        
+
         // Validate import data
-        if (!importData || typeof importData !== 'object') {
-          throw new Error('Invalid settings file format');
+        if (!importData || typeof importData !== "object") {
+          throw new Error("Invalid settings file format");
         }
-        
+
         // Create automatic backup before import
-        showNotification('Creating backup before import...');
+        showNotification("Creating backup before import...");
         const backup = settingsManager.exportSettings();
         const backupBlob = new Blob([JSON.stringify(backup, null, 2)], {
-          type: 'application/json'
+          type: "application/json",
         });
         const backupUrl = URL.createObjectURL(backupBlob);
-        const backupLink = document.createElement('a');
+        const backupLink = document.createElement("a");
         backupLink.href = backupUrl;
         backupLink.download = `ura-backup-before-import-${Date.now()}.json`;
         backupLink.click();
         URL.revokeObjectURL(backupUrl);
-        
+
         // Handle selective import
         let dataToImport = importData;
         if (isSelective) {
           const selectedSections = Array.from(
             document.querySelectorAll('input[name="importSection"]:checked')
-          ).map(cb => cb.value);
-          
+          ).map((cb) => cb.value);
+
           if (selectedSections.length === 0) {
-            showNotification('No sections selected for import', true);
-            event.target.value = '';
+            showNotification("No sections selected for import", true);
+            event.target.value = "";
             return;
           }
-          
+
           // Get current settings
           const currentData = settingsManager.exportSettings();
-          
+
           // Merge: keep current data, override only selected sections
           dataToImport = { ...currentData };
-          selectedSections.forEach(section => {
+          selectedSections.forEach((section) => {
             if (importData[section]) {
               dataToImport[section] = importData[section];
             }
           });
-          
-          showNotification(`Importing ${selectedSections.length} section(s)...`);
+
+          showNotification(
+            `Importing ${selectedSections.length} section(s)...`
+          );
         }
-        
+
         const success = await settingsManager.importSettings(dataToImport);
 
         if (success) {
           await loadOptions(); // Reload UI with new settings
-          showNotification('Settings imported successfully! Backup saved to downloads.');
+          showNotification(
+            "Settings imported successfully! Backup saved to downloads."
+          );
         } else {
-          showNotification('Failed to import settings', true);
+          showNotification("Failed to import settings", true);
         }
       } catch (error) {
-        console.error('Import error:', error);
+        console.error("Import error:", error);
         showNotification(`Invalid settings file: ${error.message}`, true);
       }
     };
     reader.readAsText(file);
   } catch (error) {
-    console.error('File read error:', error);
-    showNotification('Failed to read settings file', true);
+    console.error("File read error:", error);
+    showNotification("Failed to read settings file", true);
   }
 
   // Clear the file input for future imports
-  event.target.value = '';
+  event.target.value = "";
 }
 
 // Selective import toggle
-const selectiveImportCheckbox = document.getElementById('selectiveImport');
-const selectiveImportOptions = document.getElementById('selectiveImportOptions');
+const selectiveImportCheckbox = document.getElementById("selectiveImport");
+const selectiveImportOptions = document.getElementById(
+  "selectiveImportOptions"
+);
 
 if (selectiveImportCheckbox && selectiveImportOptions) {
-  selectiveImportCheckbox.addEventListener('change', () => {
-    selectiveImportOptions.style.display = selectiveImportCheckbox.checked ? 'block' : 'none';
+  selectiveImportCheckbox.addEventListener("change", () => {
+    selectiveImportOptions.style.display = selectiveImportCheckbox.checked
+      ? "block"
+      : "none";
   });
 }
 
 // Render theme options
 function renderThemeOptions() {
   // Handle theme selection change
-  currentThemeSelect.addEventListener('change', async (e) => {
+  currentThemeSelect.addEventListener("change", async (e) => {
     const themeId = e.target.value;
     await themeManager.setTheme(themeId);
+
+    // Also save to settingsManager immediately so it persists on reload
+    await settingsManager.updateSettings({
+      theme: {
+        current: themeId,
+      },
+    });
+
+    renderThemeCards();
   });
 
   // Handle theme save
-  saveThemeBtn.addEventListener('click', async () => {
+  saveThemeBtn.addEventListener("click", async () => {
     const success = await settingsManager.updateSettings({
       theme: {
         current: themeManager.currentTheme,
@@ -486,19 +535,19 @@ function renderThemeOptions() {
     });
 
     if (success) {
-      showNotification('Theme settings saved successfully!');
+      showNotification("Theme settings saved successfully!");
     } else {
-      showNotification('Error saving theme settings', true);
+      showNotification("Error saving theme settings", true);
     }
   });
 
   // Handle theme reset
-  resetThemeBtn.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to reset theme settings to defaults?')) {
+  resetThemeBtn.addEventListener("click", async () => {
+    if (confirm("Are you sure you want to reset theme settings to defaults?")) {
       await themeManager.resetToDefaults();
       currentThemeSelect.value = themeManager.currentTheme;
       renderThemeCards();
-      showNotification('Theme settings reset to defaults!');
+      showNotification("Theme settings reset to defaults!");
     }
   });
 
@@ -513,11 +562,11 @@ function renderThemeCards() {
     .map(
       (theme) => `
     <div class="theme-card ${
-  theme.isCurrentTheme ? 'current-theme' : ''
-}" data-theme-id="${theme.id}">
+      theme.isCurrentTheme ? "current-theme" : ""
+    }" data-theme-id="${theme.id}">
       <div class="theme-preview" style="background-color: ${
-  theme.previewColors.background
-}">
+        theme.previewColors.background
+      }">
         <div class="theme-preview-header" style="
           background-color: ${theme.previewColors.surface};
           color: ${theme.previewColors.text};
@@ -531,18 +580,18 @@ function renderThemeCards() {
       </div>
       <div class="theme-actions">
         <button class="theme-apply-btn" data-theme-id="${theme.id}"
-          ${theme.isCurrentTheme ? 'disabled' : ''}>
-          ${theme.isCurrentTheme ? 'Current Theme' : 'Apply Theme'}
+          ${theme.isCurrentTheme ? "disabled" : ""}>
+          ${theme.isCurrentTheme ? "Current Theme" : "Apply Theme"}
         </button>
       </div>
     </div>
   `
     )
-    .join('');
+    .join("");
 
   // Add theme card click handlers
-  document.querySelectorAll('.theme-apply-btn').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+  document.querySelectorAll(".theme-apply-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
       e.preventDefault();
       const themeId = e.target.dataset.themeId;
       await themeManager.setTheme(themeId);
@@ -557,42 +606,44 @@ function renderThemeCards() {
 
 // Setup tab navigation
 function setupTabNavigation() {
-  const navItems = document.querySelectorAll('.nav-item');
-  const tabContents = document.querySelectorAll('.tab-content');
-  const pageTitle = document.getElementById('pageTitle');
+  const navItems = document.querySelectorAll(".nav-item");
+  const tabContents = document.querySelectorAll(".tab-content");
+  const pageTitle = document.getElementById("pageTitle");
 
-  console.log(`Found ${navItems.length} nav items and ${tabContents.length} tab contents`);
+  console.log(
+    `Found ${navItems.length} nav items and ${tabContents.length} tab contents`
+  );
 
   // Tab titles mapping
   const tabTitles = {
-    dashboard: 'Dashboard',
-    general: 'General Settings',
-    monitoring: 'Monitoring',
-    filters: 'Filters',
-    export: 'Export Settings',
-    retention: 'Data Retention',
-    security: 'Security Settings',
-    themes: 'Themes',
-    advanced: 'Advanced Tools'
+    dashboard: "Dashboard",
+    general: "General Settings",
+    monitoring: "Monitoring",
+    filters: "Filters",
+    export: "Export Settings",
+    retention: "Data Retention",
+    security: "Security Settings",
+    themes: "Themes",
+    advanced: "Advanced Tools",
   };
 
   navItems.forEach((item, index) => {
     const tabName = item.dataset.tab;
     console.log(`Nav item ${index}: ${tabName}`);
-    
-    item.addEventListener('click', () => {
+
+    item.addEventListener("click", () => {
       const tab = item.dataset.tab;
       console.log(`Tab clicked: ${tab}`);
 
       // Remove active class from all items and contents
-      navItems.forEach((i) => i.classList.remove('active'));
-      tabContents.forEach((c) => c.classList.remove('active'));
+      navItems.forEach((i) => i.classList.remove("active"));
+      tabContents.forEach((c) => c.classList.remove("active"));
 
       // Add active class to clicked item and corresponding content
-      item.classList.add('active');
+      item.classList.add("active");
       const content = document.getElementById(tab);
       if (content) {
-        content.classList.add('active');
+        content.classList.add("active");
         console.log(`Activated content for: ${tab}`);
       } else {
         console.error(`No content found for tab: ${tab}`);
@@ -606,20 +657,20 @@ function setupTabNavigation() {
   });
 
   // Also support old tab-button class for backwards compatibility
-  const oldTabs = document.querySelectorAll('.tab-button');
+  const oldTabs = document.querySelectorAll(".tab-button");
   oldTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener("click", () => {
       const tabId = tab.dataset.tab;
 
       // Update active button
-      oldTabs.forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
+      oldTabs.forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
 
       // Update active content
-      tabContents.forEach((c) => c.classList.remove('active'));
+      tabContents.forEach((c) => c.classList.remove("active"));
       const content = document.getElementById(tabId);
       if (content) {
-        content.classList.add('active');
+        content.classList.add("active");
       }
     });
   });
@@ -628,11 +679,11 @@ function setupTabNavigation() {
 // Show notification
 function showNotification(message, isError = false) {
   notification.textContent = message;
-  notification.className = 'notification' + (isError ? ' error' : '');
-  notification.classList.add('visible');
+  notification.className = "notification" + (isError ? " error" : "");
+  notification.classList.add("visible");
 
   setTimeout(() => {
-    notification.classList.remove('visible');
+    notification.classList.remove("visible");
   }, 5000);
 }
 
@@ -640,18 +691,18 @@ function showNotification(message, isError = false) {
 function setupEventListeners() {
   // Save and Reset buttons
   if (saveBtn) {
-    saveBtn.addEventListener('click', saveOptions);
+    saveBtn.addEventListener("click", saveOptions);
   }
   if (resetBtn) {
-    resetBtn.addEventListener('click', resetOptions);
+    resetBtn.addEventListener("click", resetOptions);
   }
-  
+
   // Database buttons
   if (exportDbBtn) {
-    exportDbBtn.addEventListener('click', () => {
+    exportDbBtn.addEventListener("click", () => {
       chrome.runtime.sendMessage(
         {
-          action: 'exportDatabase',
+          action: "exportDatabase",
           format: exportFormat?.value || DEFAULT_EXPORT_FORMAT,
           filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
             exportFormat?.value || DEFAULT_EXPORT_FORMAT
@@ -659,10 +710,11 @@ function setupEventListeners() {
         },
         (response) => {
           if (response && response.success) {
-            showNotification('Database exported successfully!');
-            if (lastExport) lastExport.textContent = new Date().toLocaleString();
+            showNotification("Database exported successfully!");
+            if (lastExport)
+              lastExport.textContent = new Date().toLocaleString();
           } else {
-            showNotification('Failed to export database', true);
+            showNotification("Failed to export database", true);
           }
         }
       );
@@ -670,41 +722,45 @@ function setupEventListeners() {
   }
 
   if (clearDbBtn) {
-    clearDbBtn.addEventListener('click', async () => {
+    clearDbBtn.addEventListener("click", async () => {
       // Enhanced confirmation with database info
-      const response = await chrome.runtime.sendMessage({ action: 'getDatabaseSize' });
+      const response = await chrome.runtime.sendMessage({
+        action: "getDatabaseSize",
+      });
       const records = response?.records || 0;
-      const sizeMB = response?.size ? (response.size / (1024 * 1024)).toFixed(2) : '0';
-      
+      const sizeMB = response?.size
+        ? (response.size / (1024 * 1024)).toFixed(2)
+        : "0";
+
       const confirmed = confirm(
         `⚠️ WARNING: Clear All Database Records?\n\n` +
-        `This will permanently delete:\n` +
-        `- ${records.toLocaleString()} records\n` +
-        `- ${sizeMB} MB of data\n\n` +
-        `This action cannot be undone!\n\n` +
-        `Are you sure?`
+          `This will permanently delete:\n` +
+          `- ${records.toLocaleString()} records\n` +
+          `- ${sizeMB} MB of data\n\n` +
+          `This action cannot be undone!\n\n` +
+          `Are you sure?`
       );
-      
+
       if (!confirmed) return;
-      
+
       // Second confirmation for large databases
       if (records > 10000) {
         const doubleConfirm = confirm(
           `⚠️ FINAL CONFIRMATION\n\n` +
-          `You are about to delete ${records.toLocaleString()} records.\n\n` +
-          `This is your last chance to cancel.`
+            `You are about to delete ${records.toLocaleString()} records.\n\n` +
+            `This is your last chance to cancel.`
         );
-        
+
         if (!doubleConfirm) return;
       }
-      
-      chrome.runtime.sendMessage({ action: 'clearDatabase' }, (response) => {
+
+      chrome.runtime.sendMessage({ action: "clearDatabase" }, (response) => {
         if (response && response.success) {
-          showNotification('Database cleared successfully!');
+          showNotification("Database cleared successfully!");
           loadDatabaseInfo();
           updateDatabaseSizeDisplay();
         } else {
-          showNotification('Failed to clear database', true);
+          showNotification("Failed to clear database", true);
         }
       });
     });
@@ -712,44 +768,46 @@ function setupEventListeners() {
 
   // Import/export settings
   if (exportSettingsBtn) {
-    exportSettingsBtn.addEventListener('click', exportSettings);
+    exportSettingsBtn.addEventListener("click", exportSettings);
   }
   if (importSettingsBtn && importSettingsFile) {
-    importSettingsBtn.addEventListener('click', () => importSettingsFile.click());
-    importSettingsFile.addEventListener('change', importSettingsWithValidation);
+    importSettingsBtn.addEventListener("click", () =>
+      importSettingsFile.click()
+    );
+    importSettingsFile.addEventListener("change", importSettingsWithValidation);
   }
 
   // Save All button
-  const saveAllBtn = document.getElementById('saveAllBtn');
+  const saveAllBtn = document.getElementById("saveAllBtn");
   if (saveAllBtn) {
-    saveAllBtn.addEventListener('click', saveOptions);
+    saveAllBtn.addEventListener("click", saveOptions);
   }
-  
+
   // Theme buttons
   if (saveThemeBtn) {
-    saveThemeBtn.addEventListener('click', async () => {
+    saveThemeBtn.addEventListener("click", async () => {
       if (currentThemeSelect && themeManager) {
         const selectedTheme = currentThemeSelect.value;
         await themeManager.setTheme(selectedTheme);
-        showNotification('Theme saved successfully!');
+        showNotification("Theme saved successfully!");
       }
     });
   }
-  
+
   if (resetThemeBtn) {
-    resetThemeBtn.addEventListener('click', async () => {
+    resetThemeBtn.addEventListener("click", async () => {
       if (themeManager) {
-        await themeManager.setTheme('light');
-        if (currentThemeSelect) currentThemeSelect.value = 'light';
-        showNotification('Theme reset to default!');
+        await themeManager.setTheme("light");
+        if (currentThemeSelect) currentThemeSelect.value = "light";
+        showNotification("Theme reset to default!");
       }
     });
   }
-  
+
   // Preset buttons for storage
-  const presetButtons = document.querySelectorAll('.preset-btn');
-  presetButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
+  const presetButtons = document.querySelectorAll(".preset-btn");
+  presetButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
       const value = btn.dataset.value;
       if (maxStoredRequests && value) {
         maxStoredRequests.value = value;
@@ -757,312 +815,358 @@ function setupEventListeners() {
       }
     });
   });
-  
+
   // Site tracking buttons
-  const validateSitesBtn = document.getElementById('validateSitesBtn');
+  const validateSitesBtn = document.getElementById("validateSitesBtn");
   if (validateSitesBtn) {
-    validateSitesBtn.addEventListener('click', validateTrackingSites);
+    validateSitesBtn.addEventListener("click", validateTrackingSites);
   }
-  
-  const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
+
+  const addCurrentSiteBtn = document.getElementById("addCurrentSiteBtn");
   if (addCurrentSiteBtn) {
-    addCurrentSiteBtn.addEventListener('click', addCurrentSiteToTracking);
+    addCurrentSiteBtn.addEventListener("click", addCurrentSiteToTracking);
   }
-  
+
   // Site preset buttons
-  const sitePresetButtons = document.querySelectorAll('.site-preset-btn');
-  sitePresetButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
+  const sitePresetButtons = document.querySelectorAll(".site-preset-btn");
+  sitePresetButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
       const preset = btn.dataset.preset;
       handleSitePreset(preset);
     });
   });
-  
+
   // Update storage display when max changes
   if (maxStoredRequests) {
-    maxStoredRequests.addEventListener('change', updateStorageUsageDisplay);
+    maxStoredRequests.addEventListener("change", updateStorageUsageDisplay);
   }
-  
+
   // Filter modal buttons
-  const dashboardFilterToggle = document.getElementById('dashboardFilterToggle');
-  const dashboardFilterModal = document.getElementById('dashboardFilterModal');
+  const dashboardFilterToggle = document.getElementById(
+    "dashboardFilterToggle"
+  );
+  const dashboardFilterModal = document.getElementById("dashboardFilterModal");
   if (dashboardFilterToggle && dashboardFilterModal) {
-    dashboardFilterToggle.addEventListener('click', function() {
+    dashboardFilterToggle.addEventListener("click", function () {
       // Sync current filter values to modal
-      const currentDomain = document.getElementById('dashboardDomainFilter')?.value || 'all';
-      const currentPage = document.getElementById('dashboardPageFilter')?.value || '';
-      const currentType = document.getElementById('dashboardRequestTypeFilter')?.value || '';
-      
-      const modalDomain = document.getElementById('dashboardModalDomainFilter');
-      const modalPage = document.getElementById('dashboardModalPageFilter');
-      const modalType = document.getElementById('dashboardModalRequestTypeFilter');
-      
+      const currentDomain =
+        document.getElementById("dashboardDomainFilter")?.value || "all";
+      const currentPage =
+        document.getElementById("dashboardPageFilter")?.value || "";
+      const currentType =
+        document.getElementById("dashboardRequestTypeFilter")?.value || "";
+
+      const modalDomain = document.getElementById("dashboardModalDomainFilter");
+      const modalPage = document.getElementById("dashboardModalPageFilter");
+      const modalType = document.getElementById(
+        "dashboardModalRequestTypeFilter"
+      );
+
       if (modalDomain) modalDomain.value = currentDomain;
       if (modalPage) modalPage.value = currentPage;
       if (modalType) modalType.value = currentType;
-      
-      dashboardFilterModal.style.display = 'flex';
+
+      dashboardFilterModal.style.display = "flex";
     });
-    
+
     // Close modal button
-    const dashboardModalClose = dashboardFilterModal.querySelector('.modal-close');
+    const dashboardModalClose =
+      dashboardFilterModal.querySelector(".modal-close");
     if (dashboardModalClose) {
-      dashboardModalClose.addEventListener('click', () => {
-        dashboardFilterModal.style.display = 'none';
+      dashboardModalClose.addEventListener("click", () => {
+        dashboardFilterModal.style.display = "none";
       });
     }
-    
+
     // Cancel button
-    const cancelDashboardFiltersBtn = document.getElementById('cancelDashboardFiltersBtn');
+    const cancelDashboardFiltersBtn = document.getElementById(
+      "cancelDashboardFiltersBtn"
+    );
     if (cancelDashboardFiltersBtn) {
-      cancelDashboardFiltersBtn.addEventListener('click', () => {
-        dashboardFilterModal.style.display = 'none';
+      cancelDashboardFiltersBtn.addEventListener("click", () => {
+        dashboardFilterModal.style.display = "none";
       });
     }
-    
+
     // Apply filters button
-    const applyDashboardFiltersBtn = document.getElementById('applyDashboardFiltersBtn');
+    const applyDashboardFiltersBtn = document.getElementById(
+      "applyDashboardFiltersBtn"
+    );
     if (applyDashboardFiltersBtn) {
-      applyDashboardFiltersBtn.addEventListener('click', () => {
+      applyDashboardFiltersBtn.addEventListener("click", () => {
         // Copy modal values back to actual filters
-        const modalDomain = document.getElementById('dashboardModalDomainFilter');
-        const modalPage = document.getElementById('dashboardModalPageFilter');
-        const modalType = document.getElementById('dashboardModalRequestTypeFilter');
-        
-        const actualDomain = document.getElementById('dashboardDomainFilter');
-        const actualPage = document.getElementById('dashboardPageFilter');
-        const actualType = document.getElementById('dashboardRequestTypeFilter');
-        
+        const modalDomain = document.getElementById(
+          "dashboardModalDomainFilter"
+        );
+        const modalPage = document.getElementById("dashboardModalPageFilter");
+        const modalType = document.getElementById(
+          "dashboardModalRequestTypeFilter"
+        );
+
+        const actualDomain = document.getElementById("dashboardDomainFilter");
+        const actualPage = document.getElementById("dashboardPageFilter");
+        const actualType = document.getElementById(
+          "dashboardRequestTypeFilter"
+        );
+
         if (modalDomain && actualDomain) actualDomain.value = modalDomain.value;
         if (modalPage && actualPage) actualPage.value = modalPage.value;
         if (modalType && actualType) actualType.value = modalType.value;
-        
+
         // Trigger change events to refresh dashboard
-        if (actualDomain) actualDomain.dispatchEvent(new Event('change'));
-        
-        dashboardFilterModal.style.display = 'none';
+        if (actualDomain) actualDomain.dispatchEvent(new Event("change"));
+
+        dashboardFilterModal.style.display = "none";
       });
     }
-    
+
     // Close on background click
-    dashboardFilterModal.addEventListener('click', (e) => {
+    dashboardFilterModal.addEventListener("click", (e) => {
       if (e.target === dashboardFilterModal) {
-        dashboardFilterModal.style.display = 'none';
+        dashboardFilterModal.style.display = "none";
       }
     });
   }
-  
-  const analyticsFilterToggle = document.getElementById('analyticsFilterToggle');
-  const analyticsFilterModal = document.getElementById('analyticsFilterModal');
+
+  const analyticsFilterToggle = document.getElementById(
+    "analyticsFilterToggle"
+  );
+  const analyticsFilterModal = document.getElementById("analyticsFilterModal");
   if (analyticsFilterToggle && analyticsFilterModal) {
-    analyticsFilterToggle.addEventListener('click', function() {
+    analyticsFilterToggle.addEventListener("click", function () {
       // Sync current filter values to modal
-      const currentDomain = document.getElementById('analyticsDomainFilter')?.value || 'all';
-      const currentPage = document.getElementById('analyticsPageFilter')?.value || '';
-      const currentType = document.getElementById('analyticsRequestTypeFilter')?.value || '';
-      
-      const modalDomain = document.getElementById('analyticsModalDomainFilter');
-      const modalPage = document.getElementById('analyticsModalPageFilter');
-      const modalType = document.getElementById('analyticsModalRequestTypeFilter');
-      
+      const currentDomain =
+        document.getElementById("analyticsDomainFilter")?.value || "all";
+      const currentPage =
+        document.getElementById("analyticsPageFilter")?.value || "";
+      const currentType =
+        document.getElementById("analyticsRequestTypeFilter")?.value || "";
+
+      const modalDomain = document.getElementById("analyticsModalDomainFilter");
+      const modalPage = document.getElementById("analyticsModalPageFilter");
+      const modalType = document.getElementById(
+        "analyticsModalRequestTypeFilter"
+      );
+
       if (modalDomain) modalDomain.value = currentDomain;
       if (modalPage) modalPage.value = currentPage;
       if (modalType) modalType.value = currentType;
-      
-      analyticsFilterModal.style.display = 'flex';
+
+      analyticsFilterModal.style.display = "flex";
     });
-    
+
     // Close modal button
-    const analyticsModalClose = analyticsFilterModal.querySelector('.modal-close');
+    const analyticsModalClose =
+      analyticsFilterModal.querySelector(".modal-close");
     if (analyticsModalClose) {
-      analyticsModalClose.addEventListener('click', () => {
-        analyticsFilterModal.style.display = 'none';
+      analyticsModalClose.addEventListener("click", () => {
+        analyticsFilterModal.style.display = "none";
       });
     }
-    
+
     // Cancel button
-    const cancelAnalyticsFiltersBtn = document.getElementById('cancelAnalyticsFiltersBtn');
+    const cancelAnalyticsFiltersBtn = document.getElementById(
+      "cancelAnalyticsFiltersBtn"
+    );
     if (cancelAnalyticsFiltersBtn) {
-      cancelAnalyticsFiltersBtn.addEventListener('click', () => {
-        analyticsFilterModal.style.display = 'none';
+      cancelAnalyticsFiltersBtn.addEventListener("click", () => {
+        analyticsFilterModal.style.display = "none";
       });
     }
-    
+
     // Apply filters button
-    const applyAnalyticsFiltersBtn = document.getElementById('applyAnalyticsFiltersBtn');
+    const applyAnalyticsFiltersBtn = document.getElementById(
+      "applyAnalyticsFiltersBtn"
+    );
     if (applyAnalyticsFiltersBtn) {
-      applyAnalyticsFiltersBtn.addEventListener('click', () => {
+      applyAnalyticsFiltersBtn.addEventListener("click", () => {
         // Copy modal values back to actual filters
-        const modalDomain = document.getElementById('analyticsModalDomainFilter');
-        const modalPage = document.getElementById('analyticsModalPageFilter');
-        const modalType = document.getElementById('analyticsModalRequestTypeFilter');
-        
-        const actualDomain = document.getElementById('analyticsDomainFilter');
-        const actualPage = document.getElementById('analyticsPageFilter');
-        const actualType = document.getElementById('analyticsRequestTypeFilter');
-        
+        const modalDomain = document.getElementById(
+          "analyticsModalDomainFilter"
+        );
+        const modalPage = document.getElementById("analyticsModalPageFilter");
+        const modalType = document.getElementById(
+          "analyticsModalRequestTypeFilter"
+        );
+
+        const actualDomain = document.getElementById("analyticsDomainFilter");
+        const actualPage = document.getElementById("analyticsPageFilter");
+        const actualType = document.getElementById(
+          "analyticsRequestTypeFilter"
+        );
+
         if (modalDomain && actualDomain) actualDomain.value = modalDomain.value;
         if (modalPage && actualPage) actualPage.value = modalPage.value;
         if (modalType && actualType) actualType.value = modalType.value;
-        
+
         // Trigger change events to refresh analytics
-        if (actualDomain) actualDomain.dispatchEvent(new Event('change'));
-        
-        analyticsFilterModal.style.display = 'none';
+        if (actualDomain) actualDomain.dispatchEvent(new Event("change"));
+
+        analyticsFilterModal.style.display = "none";
       });
     }
-    
+
     // Close on background click
-    analyticsFilterModal.addEventListener('click', (e) => {
+    analyticsFilterModal.addEventListener("click", (e) => {
       if (e.target === analyticsFilterModal) {
-        analyticsFilterModal.style.display = 'none';
+        analyticsFilterModal.style.display = "none";
       }
     });
   }
-  
+
   // Data Safety Features
-  const previewCleanupBtn = document.getElementById('previewCleanupBtn');
+  const previewCleanupBtn = document.getElementById("previewCleanupBtn");
   if (previewCleanupBtn) {
-    previewCleanupBtn.addEventListener('click', previewCleanup);
+    previewCleanupBtn.addEventListener("click", previewCleanup);
   }
-  
-  const createBackupBtn = document.getElementById('createBackupBtn');
+
+  const createBackupBtn = document.getElementById("createBackupBtn");
   if (createBackupBtn) {
-    createBackupBtn.addEventListener('click', createBackupBeforeCleanup);
+    createBackupBtn.addEventListener("click", createBackupBeforeCleanup);
   }
-  
-  const executeCleanupBtn = document.getElementById('executeCleanupBtn');
+
+  const executeCleanupBtn = document.getElementById("executeCleanupBtn");
   if (executeCleanupBtn) {
-    executeCleanupBtn.addEventListener('click', performCleanupWithConfirmation);
+    executeCleanupBtn.addEventListener("click", performCleanupWithConfirmation);
   }
-  
+
   // Initialize database size display
   updateDatabaseSizeDisplay();
-  
+
   // Add validation to domain inputs
-  const includeDomains = document.getElementById('includeDomains');
+  const includeDomains = document.getElementById("includeDomains");
   if (includeDomains) {
-    includeDomains.addEventListener('blur', () => validateDomainList(includeDomains));
+    includeDomains.addEventListener("blur", () =>
+      validateDomainList(includeDomains)
+    );
   }
-  
-  const excludeDomains = document.getElementById('excludeDomains');
+
+  const excludeDomains = document.getElementById("excludeDomains");
   if (excludeDomains) {
-    excludeDomains.addEventListener('blur', () => validateDomainList(excludeDomains));
+    excludeDomains.addEventListener("blur", () =>
+      validateDomainList(excludeDomains)
+    );
   }
 }
 
 // Helper function to update storage usage display
 function updateStorageUsageDisplay() {
-  const currentCount = parseInt(document.getElementById('currentStorageCount')?.textContent || '0');
+  const currentCount = parseInt(
+    document.getElementById("currentStorageCount")?.textContent || "0"
+  );
   const maxCount = parseInt(maxStoredRequests?.value || 10000);
-  const maxDisplay = document.getElementById('maxStorageDisplay');
-  const usageBarFill = document.getElementById('usageBarFill');
-  
+  const maxDisplay = document.getElementById("maxStorageDisplay");
+  const usageBarFill = document.getElementById("usageBarFill");
+
   if (maxDisplay) {
     maxDisplay.textContent = maxCount.toLocaleString();
   }
-  
+
   if (usageBarFill) {
     const percentage = (currentCount / maxCount) * 100;
     usageBarFill.style.width = `${Math.min(percentage, 100)}%`;
-    
+
     // Color coding
     if (percentage > 90) {
-      usageBarFill.style.backgroundColor = '#e53e3e';
+      usageBarFill.style.backgroundColor = "#e53e3e";
     } else if (percentage > 75) {
-      usageBarFill.style.backgroundColor = '#ed8936';
+      usageBarFill.style.backgroundColor = "#ed8936";
     } else {
-      usageBarFill.style.backgroundColor = '#667eea';
+      usageBarFill.style.backgroundColor = "#667eea";
     }
   }
 }
 
 // Helper functions for site tracking
 function validateTrackingSites() {
-  const trackingSites = document.getElementById('trackingSites');
-  const validationResult = document.getElementById('sitesValidationResult');
-  
+  const trackingSites = document.getElementById("trackingSites");
+  const validationResult = document.getElementById("sitesValidationResult");
+
   if (!trackingSites || !validationResult) return;
-  
-  const sites = trackingSites.value.split('\n').filter(s => s.trim());
-  
+
+  const sites = trackingSites.value.split("\n").filter((s) => s.trim());
+
   if (sites.length === 0) {
-    validationResult.textContent = 'No sites to validate';
-    validationResult.style.color = '#999';
+    validationResult.textContent = "No sites to validate";
+    validationResult.style.color = "#999";
     return;
   }
-  
+
   // Simple validation - check for basic URL patterns
   let valid = 0;
   let invalid = 0;
-  
-  sites.forEach(site => {
+
+  sites.forEach((site) => {
     const trimmed = site.trim();
     // Check if it's a regex pattern
-    if (trimmed.startsWith('/') && trimmed.endsWith('/')) {
+    if (trimmed.startsWith("/") && trimmed.endsWith("/")) {
       valid++;
     }
     // Check if it contains wildcard or looks like a URL
-    else if (trimmed.includes('*') || trimmed.includes('://') || trimmed.includes('.')) {
+    else if (
+      trimmed.includes("*") ||
+      trimmed.includes("://") ||
+      trimmed.includes(".")
+    ) {
       valid++;
     } else {
       invalid++;
     }
   });
-  
+
   if (invalid === 0) {
     validationResult.textContent = `✓ All ${valid} patterns are valid`;
-    validationResult.style.color = '#48bb78';
+    validationResult.style.color = "#48bb78";
   } else {
     validationResult.textContent = `⚠ ${valid} valid, ${invalid} may be invalid`;
-    validationResult.style.color = '#ed8936';
+    validationResult.style.color = "#ed8936";
   }
 }
 
 async function addCurrentSiteToTracking() {
-  const trackingSites = document.getElementById('trackingSites');
+  const trackingSites = document.getElementById("trackingSites");
   if (!trackingSites) return;
-  
+
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tabs[0] && tabs[0].url) {
       const url = new URL(tabs[0].url);
       const sitePattern = `${url.protocol}//${url.hostname}/*`;
-      
+
       const current = trackingSites.value.trim();
       if (current) {
-        trackingSites.value = current + '\n' + sitePattern;
+        trackingSites.value = current + "\n" + sitePattern;
       } else {
         trackingSites.value = sitePattern;
       }
-      
+
       showNotification(`Added: ${sitePattern}`);
       validateTrackingSites();
     }
   } catch (error) {
-    console.error('Failed to add current site:', error);
-    showNotification('Failed to add current site', true);
+    console.error("Failed to add current site:", error);
+    showNotification("Failed to add current site", true);
   }
 }
 
 function handleSitePreset(preset) {
-  const trackingSites = document.getElementById('trackingSites');
+  const trackingSites = document.getElementById("trackingSites");
   if (!trackingSites) return;
-  
+
   switch (preset) {
-    case 'current':
+    case "current":
       addCurrentSiteToTracking();
       break;
-    case 'popular':
-      trackingSites.value = POPULAR_API_PATTERNS.join('\n');
+    case "popular":
+      trackingSites.value = POPULAR_API_PATTERNS.join("\n");
       validateTrackingSites();
-      showNotification('Added popular API patterns');
+      showNotification("Added popular API patterns");
       break;
-    case 'clear':
-      if (confirm('Clear all tracking sites?')) {
-        trackingSites.value = '';
+    case "clear":
+      if (confirm("Clear all tracking sites?")) {
+        trackingSites.value = "";
         validateTrackingSites();
-        showNotification('Tracking sites cleared');
+        showNotification("Tracking sites cleared");
       }
       break;
   }
@@ -1071,44 +1175,53 @@ function handleSitePreset(preset) {
 // Advanced Tab Functionality
 function initializeAdvancedTab() {
   // Execute Query
-  const executeQueryBtn = document.getElementById('executeQueryBtn');
-  const clearQueryBtn = document.getElementById('clearQueryBtn');
-  const advancedQuery = document.getElementById('advancedQuery');
-  const queryResult = document.getElementById('queryResult');
+  const executeQueryBtn = document.getElementById("executeQueryBtn");
+  const clearQueryBtn = document.getElementById("clearQueryBtn");
+  const advancedQuery = document.getElementById("advancedQuery");
+  const queryResult = document.getElementById("queryResult");
 
   if (executeQueryBtn) {
-    executeQueryBtn.addEventListener('click', async () => {
+    executeQueryBtn.addEventListener("click", async () => {
       const query = advancedQuery?.value?.trim();
       if (!query) {
-        showNotification('Please enter a query', true);
+        showNotification("Please enter a query", true);
         return;
       }
 
       try {
         const response = await chrome.runtime.sendMessage({
-          action: 'executeDirectQuery',
-          query: query
+          action: "executeDirectQuery",
+          query: query,
         });
 
         if (response.success && queryResult) {
           displayQueryResult(response.data, queryResult);
-          showNotification('Query executed successfully');
+          showNotification("Query executed successfully");
           // Save to query history
           await saveQueryToHistory(query, true, null);
         } else {
           if (queryResult) {
-            queryResult.innerHTML = `<p style="color: red;">Error: ${response.error || 'Query failed'}</p>`;
+            queryResult.innerHTML = `<p style="color: red;">Error: ${
+              response.error || "Query failed"
+            }</p>`;
           }
-          showNotification('Query failed: ' + (response.error || 'Unknown error'), true);
+          showNotification(
+            "Query failed: " + (response.error || "Unknown error"),
+            true
+          );
           // Save failed query to history
-          await saveQueryToHistory(query, false, response.error || 'Unknown error');
+          await saveQueryToHistory(
+            query,
+            false,
+            response.error || "Unknown error"
+          );
         }
       } catch (error) {
-        console.error('Query execution error:', error);
+        console.error("Query execution error:", error);
         if (queryResult) {
           queryResult.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
         }
-        showNotification('Query execution failed', true);
+        showNotification("Query execution failed", true);
         // Save failed query to history
         await saveQueryToHistory(query, false, error.message);
       }
@@ -1116,127 +1229,135 @@ function initializeAdvancedTab() {
   }
 
   if (clearQueryBtn && advancedQuery && queryResult) {
-    clearQueryBtn.addEventListener('click', () => {
-      advancedQuery.value = '';
-      queryResult.innerHTML = '<p class="placeholder">Execute a query to see results...</p>';
+    clearQueryBtn.addEventListener("click", () => {
+      advancedQuery.value = "";
+      queryResult.innerHTML =
+        '<p class="placeholder">Execute a query to see results...</p>';
     });
   }
 
   // Inspect Schema
-  const inspectSchemaBtn = document.getElementById('inspectSchemaBtn');
+  const inspectSchemaBtn = document.getElementById("inspectSchemaBtn");
   if (inspectSchemaBtn) {
-    inspectSchemaBtn.addEventListener('click', async () => {
-      const query = "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name";
+    inspectSchemaBtn.addEventListener("click", async () => {
+      const query =
+        "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name";
       if (advancedQuery) advancedQuery.value = query;
-      
+
       try {
         const response = await chrome.runtime.sendMessage({
-          action: 'executeDirectQuery',
-          query: query
+          action: "executeDirectQuery",
+          query: query,
         });
 
         if (response.success && queryResult) {
           displayQueryResult(response.data, queryResult);
-          showNotification('Schema loaded successfully');
+          showNotification("Schema loaded successfully");
         }
       } catch (error) {
-        showNotification('Failed to load schema', true);
+        showNotification("Failed to load schema", true);
       }
     });
   }
 
   // View Logs
-  const viewLogsBtn = document.getElementById('viewLogsBtn');
+  const viewLogsBtn = document.getElementById("viewLogsBtn");
   if (viewLogsBtn) {
-    viewLogsBtn.addEventListener('click', () => {
-      console.log('=== Universal Request Analyzer Debug Info ===');
-      console.log('Extension version: 1.0.0');
-      console.log('Current time:', new Date().toISOString());
-      showNotification('Check browser console for logs');
+    viewLogsBtn.addEventListener("click", () => {
+      console.log("=== Universal Request Analyzer Debug Info ===");
+      console.log("Extension version: 1.0.0");
+      console.log("Current time:", new Date().toISOString());
+      showNotification("Check browser console for logs");
     });
   }
 
   // Test Connection
-  const testConnectionBtn = document.getElementById('testConnectionBtn');
+  const testConnectionBtn = document.getElementById("testConnectionBtn");
   if (testConnectionBtn) {
-    testConnectionBtn.addEventListener('click', async () => {
+    testConnectionBtn.addEventListener("click", async () => {
       try {
         const response = await chrome.runtime.sendMessage({
-          action: 'ping'
+          action: "ping",
         });
-        
+
         if (response && response.success) {
-          showNotification('✓ Background script connection successful');
+          showNotification("✓ Background script connection successful");
         } else {
-          showNotification('⚠ Background script not responding properly', true);
+          showNotification("⚠ Background script not responding properly", true);
         }
       } catch (error) {
-        showNotification('✗ Failed to connect to background script', true);
+        showNotification("✗ Failed to connect to background script", true);
       }
     });
   }
 
   // Force Processing
-  const forceProcessBtn = document.getElementById('forceProcessBtn');
+  const forceProcessBtn = document.getElementById("forceProcessBtn");
   if (forceProcessBtn) {
-    forceProcessBtn.addEventListener('click', async () => {
+    forceProcessBtn.addEventListener("click", async () => {
       try {
         const response = await chrome.runtime.sendMessage({
-          action: 'processToSilver'
+          action: "processToSilver",
         });
-        
+
         if (response && response.success) {
-          showNotification(`Processed ${response.processed || 0} records to Silver layer`);
+          showNotification(
+            `Processed ${response.processed || 0} records to Silver layer`
+          );
           await loadAdvancedStats();
         } else {
-          showNotification('Processing failed', true);
+          showNotification("Processing failed", true);
         }
       } catch (error) {
-        showNotification('Failed to trigger processing', true);
+        showNotification("Failed to trigger processing", true);
       }
     });
   }
 
   // Export Raw DB
-  const exportRawDbBtn = document.getElementById('exportRawDbBtn');
+  const exportRawDbBtn = document.getElementById("exportRawDbBtn");
   if (exportRawDbBtn) {
-    exportRawDbBtn.addEventListener('click', async () => {
+    exportRawDbBtn.addEventListener("click", async () => {
       try {
         const response = await chrome.runtime.sendMessage({
-          action: 'exportDatabase',
-          format: 'sqlite'
+          action: "exportDatabase",
+          format: "sqlite",
         });
-        
+
         if (response && response.success) {
-          showNotification('Database export initiated');
+          showNotification("Database export initiated");
         } else {
-          showNotification('Export failed', true);
+          showNotification("Export failed", true);
         }
       } catch (error) {
-        showNotification('Failed to export database', true);
+        showNotification("Failed to export database", true);
       }
     });
   }
 
   // Reset Database
-  const resetDatabaseBtn = document.getElementById('resetDatabaseBtn');
+  const resetDatabaseBtn = document.getElementById("resetDatabaseBtn");
   if (resetDatabaseBtn) {
-    resetDatabaseBtn.addEventListener('click', async () => {
-      if (confirm('⚠️ WARNING: This will delete ALL data and cannot be undone!\n\nAre you sure you want to reset the database?')) {
-        if (confirm('This is your last chance. Really reset the database?')) {
+    resetDatabaseBtn.addEventListener("click", async () => {
+      if (
+        confirm(
+          "⚠️ WARNING: This will delete ALL data and cannot be undone!\n\nAre you sure you want to reset the database?"
+        )
+      ) {
+        if (confirm("This is your last chance. Really reset the database?")) {
           try {
             const response = await chrome.runtime.sendMessage({
-              action: 'resetDatabase'
+              action: "resetDatabase",
             });
-            
+
             if (response && response.success) {
-              showNotification('Database reset successfully');
+              showNotification("Database reset successfully");
               await loadAdvancedStats();
             } else {
-              showNotification('Reset failed', true);
+              showNotification("Reset failed", true);
             }
           } catch (error) {
-            showNotification('Failed to reset database', true);
+            showNotification("Failed to reset database", true);
           }
         }
       }
@@ -1244,18 +1365,18 @@ function initializeAdvancedTab() {
   }
 
   // Clear Cache
-  const clearCacheBtn = document.getElementById('clearCacheBtn');
+  const clearCacheBtn = document.getElementById("clearCacheBtn");
   if (clearCacheBtn) {
-    clearCacheBtn.addEventListener('click', async () => {
-      if (confirm('Clear extension cache and reload?')) {
+    clearCacheBtn.addEventListener("click", async () => {
+      if (confirm("Clear extension cache and reload?")) {
         try {
           await chrome.storage.local.clear();
-          showNotification('Cache cleared. Reloading...');
+          showNotification("Cache cleared. Reloading...");
           setTimeout(() => {
             window.location.reload();
           }, 1000);
         } catch (error) {
-          showNotification('Failed to clear cache', true);
+          showNotification("Failed to clear cache", true);
         }
       }
     });
@@ -1263,21 +1384,21 @@ function initializeAdvancedTab() {
 
   // Load advanced stats
   loadAdvancedStats();
-  
+
   // Initialize database tables listing
   loadDatabaseTables();
-  
+
   // Initialize query history
   loadQueryHistory();
-  
+
   // Clear history button
-  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  const clearHistoryBtn = document.getElementById("clearHistoryBtn");
   if (clearHistoryBtn) {
-    clearHistoryBtn.addEventListener('click', async () => {
-      if (confirm('Clear all query history?')) {
+    clearHistoryBtn.addEventListener("click", async () => {
+      if (confirm("Clear all query history?")) {
         await chrome.storage.local.set({ queryHistory: [] });
         loadQueryHistory();
-        showNotification('Query history cleared');
+        showNotification("Query history cleared");
       }
     });
   }
@@ -1294,23 +1415,24 @@ function displayQueryResult(data, container) {
 
     // Get columns from first object
     const columns = Object.keys(data[0]);
-    
-    let html = '<table><thead><tr>';
-    columns.forEach(col => {
+
+    let html = "<table><thead><tr>";
+    columns.forEach((col) => {
       html += `<th>${col}</th>`;
     });
-    html += '</tr></thead><tbody>';
+    html += "</tr></thead><tbody>";
 
-    data.forEach(row => {
-      html += '<tr>';
-      columns.forEach(col => {
-        const displayValue = row[col] === null || row[col] === undefined ? 'NULL' : row[col];
+    data.forEach((row) => {
+      html += "<tr>";
+      columns.forEach((col) => {
+        const displayValue =
+          row[col] === null || row[col] === undefined ? "NULL" : row[col];
         html += `<td>${displayValue}</td>`;
       });
-      html += '</tr>';
+      html += "</tr>";
     });
 
-    html += '</tbody></table>';
+    html += "</tbody></table>";
     html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.length} row(s)</p>`;
     container.innerHTML = html;
     return;
@@ -1323,27 +1445,31 @@ function displayQueryResult(data, container) {
   }
 
   const resultData = data[0];
-  if (!resultData.columns || !resultData.values || resultData.values.length === 0) {
+  if (
+    !resultData.columns ||
+    !resultData.values ||
+    resultData.values.length === 0
+  ) {
     container.innerHTML = '<p class="placeholder">No results</p>';
     return;
   }
 
-  let html = '<table><thead><tr>';
-  resultData.columns.forEach(col => {
+  let html = "<table><thead><tr>";
+  resultData.columns.forEach((col) => {
     html += `<th>${col}</th>`;
   });
-  html += '</tr></thead><tbody>';
+  html += "</tr></thead><tbody>";
 
-  resultData.values.forEach(row => {
-    html += '<tr>';
-    row.forEach(cell => {
-      const displayValue = cell === null ? 'NULL' : cell;
+  resultData.values.forEach((row) => {
+    html += "<tr>";
+    row.forEach((cell) => {
+      const displayValue = cell === null ? "NULL" : cell;
       html += `<td>${displayValue}</td>`;
     });
-    html += '</tr>';
+    html += "</tr>";
   });
 
-  html += '</tbody></table>';
+  html += "</tbody></table>";
   html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${resultData.values.length} row(s)</p>`;
   container.innerHTML = html;
 }
@@ -1352,57 +1478,60 @@ function displayQueryResult(data, container) {
 async function loadAdvancedStats() {
   try {
     const response = await chrome.runtime.sendMessage({
-      action: 'getDashboardStats',
-      timeRange: 86400 // 24 hours
+      action: "getDashboardStats",
+      timeRange: 86400, // 24 hours
     });
 
     if (response && response.success && response.stats) {
       const stats = response.stats;
-      
+
       // Update layer counts
-      const bronzeCount = document.getElementById('advancedBronzeCount');
-      const silverCount = document.getElementById('advancedSilverCount');
-      const goldCount = document.getElementById('advancedGoldCount');
-      
+      const bronzeCount = document.getElementById("advancedBronzeCount");
+      const silverCount = document.getElementById("advancedSilverCount");
+      const goldCount = document.getElementById("advancedGoldCount");
+
       if (bronzeCount) bronzeCount.textContent = stats.layerCounts?.bronze || 0;
       if (silverCount) silverCount.textContent = stats.layerCounts?.silver || 0;
       if (goldCount) goldCount.textContent = stats.layerCounts?.gold || 0;
-      
+
       // Estimate database size (rough estimate)
-      const totalRecords = (stats.layerCounts?.bronze || 0) + 
-                          (stats.layerCounts?.silver || 0) + 
-                          (stats.layerCounts?.gold || 0);
+      const totalRecords =
+        (stats.layerCounts?.bronze || 0) +
+        (stats.layerCounts?.silver || 0) +
+        (stats.layerCounts?.gold || 0);
       const estimatedSize = Math.round(totalRecords * 0.5); // ~0.5KB per record
-      const dbSizeEl = document.getElementById('advancedDbSize');
+      const dbSizeEl = document.getElementById("advancedDbSize");
       if (dbSizeEl) {
-        dbSizeEl.textContent = estimatedSize < 1024 
-          ? `${estimatedSize} KB` 
-          : `${(estimatedSize / 1024).toFixed(2)} MB`;
+        dbSizeEl.textContent =
+          estimatedSize < 1024
+            ? `${estimatedSize} KB`
+            : `${(estimatedSize / 1024).toFixed(2)} MB`;
       }
     }
   } catch (error) {
-    console.error('Failed to load advanced stats:', error);
+    console.error("Failed to load advanced stats:", error);
   }
 }
 
 // Load database tables with counts
 async function loadDatabaseTables() {
-  const tablesListContainer = document.getElementById('tablesListContainer');
+  const tablesListContainer = document.getElementById("tablesListContainer");
   if (!tablesListContainer) return;
 
   try {
     // Query to get all tables
     const response = await chrome.runtime.sendMessage({
-      action: 'executeDirectQuery',
-      query: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      action: "executeDirectQuery",
+      query: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
     });
 
     if (response.success && response.data && response.data.length > 0) {
       // Extract table names from data array
-      const tables = response.data.map(row => row.name);
-      
+      const tables = response.data.map((row) => row.name);
+
       if (tables.length === 0) {
-        tablesListContainer.innerHTML = '<p class="placeholder">No tables found</p>';
+        tablesListContainer.innerHTML =
+          '<p class="placeholder">No tables found</p>';
         return;
       }
 
@@ -1410,18 +1539,23 @@ async function loadDatabaseTables() {
       const tableData = [];
       for (const tableName of tables) {
         // Validate table name to prevent SQL injection
-        if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+        if (
+          !tableName ||
+          typeof tableName !== "string" ||
+          !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)
+        ) {
           console.warn(`Invalid table name: ${tableName}`);
           continue;
         }
-        
+
         try {
           const countResponse = await chrome.runtime.sendMessage({
-            action: 'executeDirectQuery',
-            query: `SELECT COUNT(*) as count FROM ${tableName}`
+            action: "executeDirectQuery",
+            query: `SELECT COUNT(*) as count FROM ${tableName}`,
           });
-          
-          const count = countResponse.success && countResponse.data[0]?.count || 0;
+
+          const count =
+            (countResponse.success && countResponse.data[0]?.count) || 0;
           tableData.push({ name: tableName, count });
         } catch (error) {
           console.error(`Error getting count for ${tableName}:`, error);
@@ -1430,8 +1564,8 @@ async function loadDatabaseTables() {
       }
 
       // Render table items
-      let html = '';
-      tableData.forEach(table => {
+      let html = "";
+      tableData.forEach((table) => {
         html += `
           <div class="table-item" data-table="${table.name}">
             <div class="table-item-name">
@@ -1445,83 +1579,95 @@ async function loadDatabaseTables() {
       tablesListContainer.innerHTML = html;
 
       // Add click handlers
-      const tableItems = tablesListContainer.querySelectorAll('.table-item');
-      tableItems.forEach(item => {
-        item.addEventListener('click', async () => {
+      const tableItems = tablesListContainer.querySelectorAll(".table-item");
+      tableItems.forEach((item) => {
+        item.addEventListener("click", async () => {
           // Remove selected class from all
-          tableItems.forEach(i => i.classList.remove('selected'));
+          tableItems.forEach((i) => i.classList.remove("selected"));
           // Add selected class to clicked item
-          item.classList.add('selected');
-          
+          item.classList.add("selected");
+
           const tableName = item.dataset.table;
           await loadTablePreview(tableName);
         });
       });
     } else {
-      tablesListContainer.innerHTML = '<p class="placeholder">Error loading tables</p>';
+      tablesListContainer.innerHTML =
+        '<p class="placeholder">Error loading tables</p>';
     }
   } catch (error) {
-    console.error('Error loading database tables:', error);
-    tablesListContainer.innerHTML = '<p class="placeholder">Error loading tables</p>';
+    console.error("Error loading database tables:", error);
+    tablesListContainer.innerHTML =
+      '<p class="placeholder">Error loading tables</p>';
   }
 }
 
 // Load preview of a table (first 5 records)
 async function loadTablePreview(tableName) {
-  const tablePreviewContainer = document.getElementById('tablePreviewContainer');
+  const tablePreviewContainer = document.getElementById(
+    "tablePreviewContainer"
+  );
   if (!tablePreviewContainer) return;
 
   // Validate table name to prevent SQL injection
-  if (!tableName || typeof tableName !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
-    tablePreviewContainer.innerHTML = '<p class="placeholder">Invalid table name</p>';
+  if (
+    !tableName ||
+    typeof tableName !== "string" ||
+    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)
+  ) {
+    tablePreviewContainer.innerHTML =
+      '<p class="placeholder">Invalid table name</p>';
     return;
   }
 
   try {
     tablePreviewContainer.innerHTML = '<p class="placeholder">Loading...</p>';
-    
+
     const response = await chrome.runtime.sendMessage({
-      action: 'executeDirectQuery',
-      query: `SELECT * FROM ${tableName} LIMIT 5`
+      action: "executeDirectQuery",
+      query: `SELECT * FROM ${tableName} LIMIT 5`,
     });
 
     if (response.success && response.data && response.data.length > 0) {
       // Data is already in array of objects format
       const columns = Object.keys(response.data[0]);
-      
+
       if (columns.length === 0) {
         tablePreviewContainer.innerHTML = `<p class="placeholder">Table "${tableName}" is empty</p>`;
         return;
       }
 
       let html = `<h4 style="margin: 0 0 10px 0; color: #667eea;">Preview: ${tableName} (${response.data.length} records)</h4>`;
-      html += '<table><thead><tr>';
-      columns.forEach(col => {
+      html += "<table><thead><tr>";
+      columns.forEach((col) => {
         html += `<th>${col}</th>`;
       });
-      html += '</tr></thead><tbody>';
+      html += "</tr></thead><tbody>";
 
-      response.data.forEach(row => {
-        html += '<tr>';
-        columns.forEach(col => {
+      response.data.forEach((row) => {
+        html += "<tr>";
+        columns.forEach((col) => {
           let displayValue = row[col];
           if (displayValue === null || displayValue === undefined) {
             displayValue = '<em style="color: #999;">NULL</em>';
-          } else if (typeof displayValue === 'string' && displayValue.length > 100) {
-            displayValue = displayValue.substring(0, 100) + '...';
+          } else if (
+            typeof displayValue === "string" &&
+            displayValue.length > 100
+          ) {
+            displayValue = displayValue.substring(0, 100) + "...";
           }
           html += `<td>${displayValue}</td>`;
         });
-        html += '</tr>';
+        html += "</tr>";
       });
 
-      html += '</tbody></table>';
+      html += "</tbody></table>";
       tablePreviewContainer.innerHTML = html;
     } else {
       tablePreviewContainer.innerHTML = `<p class="placeholder">Error loading preview for "${tableName}"</p>`;
     }
   } catch (error) {
-    console.error('Error loading table preview:', error);
+    console.error("Error loading table preview:", error);
     tablePreviewContainer.innerHTML = `<p class="placeholder">Error loading preview</p>`;
   }
 }
@@ -1529,50 +1675,53 @@ async function loadTablePreview(tableName) {
 // Save query to history
 async function saveQueryToHistory(query, success, error) {
   try {
-    const result = await chrome.storage.local.get('queryHistory');
+    const result = await chrome.storage.local.get("queryHistory");
     const history = result.queryHistory || [];
-    
+
     // Add new query at the beginning
     history.unshift({
       query,
       success,
       error,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
-    
+
     // Keep only last 50 queries
     const trimmedHistory = history.slice(0, 50);
-    
+
     await chrome.storage.local.set({ queryHistory: trimmedHistory });
-    
+
     // Reload history display
     await loadQueryHistory();
   } catch (error) {
-    console.error('Error saving query to history:', error);
+    console.error("Error saving query to history:", error);
   }
 }
 
 // Load and display query history
 async function loadQueryHistory() {
-  const queryHistoryContainer = document.getElementById('queryHistoryContainer');
+  const queryHistoryContainer = document.getElementById(
+    "queryHistoryContainer"
+  );
   if (!queryHistoryContainer) return;
 
   try {
-    const result = await chrome.storage.local.get('queryHistory');
+    const result = await chrome.storage.local.get("queryHistory");
     const history = result.queryHistory || [];
-    
+
     if (history.length === 0) {
-      queryHistoryContainer.innerHTML = '<p class="placeholder">No query history yet. Execute queries to see them here.</p>';
+      queryHistoryContainer.innerHTML =
+        '<p class="placeholder">No query history yet. Execute queries to see them here.</p>';
       return;
     }
 
-    let html = '';
+    let html = "";
     history.forEach((item, index) => {
       const date = new Date(item.timestamp);
       const timeStr = date.toLocaleString();
-      const statusClass = item.success ? 'success' : 'error';
-      const statusText = item.success ? 'Success' : 'Error';
-      
+      const statusClass = item.success ? "success" : "error";
+      const statusText = item.success ? "Success" : "Error";
+
       html += `
         <div class="query-history-item" data-index="${index}">
           <div class="query-history-header">
@@ -1580,29 +1729,34 @@ async function loadQueryHistory() {
             <span class="query-history-status ${statusClass}">${statusText}</span>
           </div>
           <div class="query-history-query">${item.query}</div>
-          ${item.error ? `<div style="color: #f44336; font-size: 11px; margin-top: 4px;">${item.error}</div>` : ''}
+          ${
+            item.error
+              ? `<div style="color: #f44336; font-size: 11px; margin-top: 4px;">${item.error}</div>`
+              : ""
+          }
         </div>
       `;
     });
-    
+
     queryHistoryContainer.innerHTML = html;
-    
+
     // Add click handlers to load query
-    const items = queryHistoryContainer.querySelectorAll('.query-history-item');
-    items.forEach(item => {
-      item.addEventListener('click', () => {
+    const items = queryHistoryContainer.querySelectorAll(".query-history-item");
+    items.forEach((item) => {
+      item.addEventListener("click", () => {
         const index = parseInt(item.dataset.index);
         const query = history[index].query;
-        const advancedQuery = document.getElementById('advancedQuery');
+        const advancedQuery = document.getElementById("advancedQuery");
         if (advancedQuery) {
           advancedQuery.value = query;
-          showNotification('Query loaded from history');
+          showNotification("Query loaded from history");
         }
       });
     });
   } catch (error) {
-    console.error('Error loading query history:', error);
-    queryHistoryContainer.innerHTML = '<p class="placeholder">Error loading query history</p>';
+    console.error("Error loading query history:", error);
+    queryHistoryContainer.innerHTML =
+      '<p class="placeholder">Error loading query history</p>';
   }
 }
 
@@ -1612,17 +1766,17 @@ async function loadQueryHistory() {
 let dashboardRefreshInterval = null;
 
 function initializeDashboard() {
-  const autoRefreshCheckbox = document.getElementById('dashboardAutoRefresh');
-  
+  const autoRefreshCheckbox = document.getElementById("dashboardAutoRefresh");
+
   if (autoRefreshCheckbox) {
-    autoRefreshCheckbox.addEventListener('change', (e) => {
+    autoRefreshCheckbox.addEventListener("change", (e) => {
       if (e.target.checked) {
         startDashboardAutoRefresh();
       } else {
         stopDashboardAutoRefresh();
       }
     });
-    
+
     // Start if checked
     if (autoRefreshCheckbox.checked) {
       startDashboardAutoRefresh();
@@ -1633,7 +1787,7 @@ function initializeDashboard() {
 function startDashboardAutoRefresh() {
   // Clear existing interval
   stopDashboardAutoRefresh();
-  
+
   // Set new interval (30 seconds)
   dashboardRefreshInterval = setInterval(() => {
     loadDashboardData();
@@ -1648,70 +1802,70 @@ function stopDashboardAutoRefresh() {
 }
 
 async function loadDashboardData() {
-  const loadingEl = document.getElementById('dashboardLoading');
-  if (loadingEl) loadingEl.style.display = 'block';
-  
+  const loadingEl = document.getElementById("dashboardLoading");
+  if (loadingEl) loadingEl.style.display = "block";
+
   try {
     // Load dashboard stats
     await loadAdvancedStats();
-    
+
     // Update dashboard metrics if the component is available
     // The dashboard component will handle its own rendering
   } catch (error) {
-    console.error('Failed to load dashboard data:', error);
-    showNotification('Failed to load dashboard data', true);
+    console.error("Failed to load dashboard data:", error);
+    showNotification("Failed to load dashboard data", true);
   } finally {
-    if (loadingEl) loadingEl.style.display = 'none';
+    if (loadingEl) loadingEl.style.display = "none";
   }
 }
 
 // Storage Usage Indicator
 async function updateStorageUsage() {
-  const currentCount = document.getElementById('currentStorageCount');
-  const maxDisplay = document.getElementById('maxStorageDisplay');
-  const usageBarFill = document.getElementById('usageBarFill');
-  const maxInput = document.getElementById('maxStoredRequests');
-  
+  const currentCount = document.getElementById("currentStorageCount");
+  const maxDisplay = document.getElementById("maxStorageDisplay");
+  const usageBarFill = document.getElementById("usageBarFill");
+  const maxInput = document.getElementById("maxStoredRequests");
+
   if (!currentCount || !maxDisplay || !usageBarFill || !maxInput) return;
-  
+
   try {
     const response = await chrome.runtime.sendMessage({
-      action: 'getDashboardStats',
-      timeRange: 86400
+      action: "getDashboardStats",
+      timeRange: 86400,
     });
-    
+
     if (response && response.success && response.stats) {
       const current = response.stats.layerCounts?.bronze || 0;
       const max = parseInt(maxInput.value) || 10000;
       const percentage = (current / max) * 100;
-      
+
       currentCount.textContent = current.toLocaleString();
       maxDisplay.textContent = max.toLocaleString();
       usageBarFill.style.width = `${Math.min(percentage, 100)}%`;
-      
+
       // Update capture status indicator
-      const captureStatus = document.getElementById('captureStatus');
-      const captureEnabled = document.getElementById('captureEnabled');
+      const captureStatus = document.getElementById("captureStatus");
+      const captureEnabled = document.getElementById("captureEnabled");
       if (captureStatus && captureEnabled) {
         if (captureEnabled.checked) {
-          captureStatus.className = 'status-indicator active';
-          captureStatus.title = 'Capture is active';
+          captureStatus.className = "status-indicator active";
+          captureStatus.title = "Capture is active";
         } else {
-          captureStatus.className = 'status-indicator inactive';
-          captureStatus.title = 'Capture is disabled';
+          captureStatus.className = "status-indicator inactive";
+          captureStatus.title = "Capture is disabled";
         }
       }
     }
   } catch (error) {
-    console.error('Failed to update storage usage:', error);
+    console.error("Failed to update storage usage:", error);
   }
 }
 
 // Preset Buttons
-document.querySelectorAll('.preset-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
+document.querySelectorAll(".preset-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
     const value = parseInt(btn.dataset.value);
-    const maxInput = document.getElementById('maxStoredRequests');
+    const maxInput = document.getElementById("maxStoredRequests");
     if (maxInput) {
       maxInput.value = value;
       updateStorageUsage();
@@ -1720,73 +1874,75 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
 });
 
 // Filter Presets
-document.querySelectorAll('.filter-preset-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
+document.querySelectorAll(".filter-preset-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
     const preset = btn.dataset.preset;
     const checkboxes = document.querySelectorAll('input[name="captureType"]');
-    const includeDomains = document.getElementById('includeDomains');
-    const excludeDomains = document.getElementById('excludeDomains');
-    const statusFilters = document.querySelectorAll('input[name="statusFilter"]');
-    const urlPattern = document.getElementById('urlPattern');
-    const minResponseTime = document.getElementById('minResponseTime');
-    const maxResponseTime = document.getElementById('maxResponseTime');
-    const minSize = document.getElementById('minSize');
-    const maxSize = document.getElementById('maxSize');
-    
-    if (preset === 'api') {
+    const includeDomains = document.getElementById("includeDomains");
+    const excludeDomains = document.getElementById("excludeDomains");
+    const statusFilters = document.querySelectorAll(
+      'input[name="statusFilter"]'
+    );
+    const urlPattern = document.getElementById("urlPattern");
+    const minResponseTime = document.getElementById("minResponseTime");
+    const maxResponseTime = document.getElementById("maxResponseTime");
+    const minSize = document.getElementById("minSize");
+    const maxSize = document.getElementById("maxSize");
+
+    if (preset === "api") {
       // API Only: XHR and Fetch only
-      checkboxes.forEach(cb => {
-        cb.checked = cb.value === 'xmlhttprequest' || cb.value === 'fetch';
+      checkboxes.forEach((cb) => {
+        cb.checked = cb.value === "xmlhttprequest" || cb.value === "fetch";
       });
-      if (includeDomains) includeDomains.value = '';
-      if (excludeDomains) excludeDomains.value = '';
-      if (urlPattern) urlPattern.value = '';
-      statusFilters.forEach(cb => cb.checked = true);
-      if (minResponseTime) minResponseTime.value = '';
-      if (maxResponseTime) maxResponseTime.value = '';
-      if (minSize) minSize.value = '';
-      if (maxSize) maxSize.value = '';
-    } else if (preset === 'noImages') {
+      if (includeDomains) includeDomains.value = "";
+      if (excludeDomains) excludeDomains.value = "";
+      if (urlPattern) urlPattern.value = "";
+      statusFilters.forEach((cb) => (cb.checked = true));
+      if (minResponseTime) minResponseTime.value = "";
+      if (maxResponseTime) maxResponseTime.value = "";
+      if (minSize) minSize.value = "";
+      if (maxSize) maxSize.value = "";
+    } else if (preset === "noImages") {
       // No Images/Fonts: Everything except images and fonts
-      checkboxes.forEach(cb => {
-        cb.checked = cb.value !== 'image' && cb.value !== 'font';
+      checkboxes.forEach((cb) => {
+        cb.checked = cb.value !== "image" && cb.value !== "font";
       });
-      if (excludeDomains) excludeDomains.value = '';
-      if (urlPattern) urlPattern.value = '';
-      statusFilters.forEach(cb => cb.checked = true);
-    } else if (preset === 'errors') {
+      if (excludeDomains) excludeDomains.value = "";
+      if (urlPattern) urlPattern.value = "";
+      statusFilters.forEach((cb) => (cb.checked = true));
+    } else if (preset === "errors") {
       // Errors Only: Only 4xx and 5xx
-      checkboxes.forEach(cb => cb.checked = true);
-      statusFilters.forEach(cb => {
-        cb.checked = cb.value === '4xx' || cb.value === '5xx';
+      checkboxes.forEach((cb) => (cb.checked = true));
+      statusFilters.forEach((cb) => {
+        cb.checked = cb.value === "4xx" || cb.value === "5xx";
       });
-      if (urlPattern) urlPattern.value = '';
-      if (minResponseTime) minResponseTime.value = '';
-    } else if (preset === 'slow') {
+      if (urlPattern) urlPattern.value = "";
+      if (minResponseTime) minResponseTime.value = "";
+    } else if (preset === "slow") {
       // Slow Requests: Response time > 1000ms
-      checkboxes.forEach(cb => cb.checked = true);
-      statusFilters.forEach(cb => cb.checked = true);
-      if (minResponseTime) minResponseTime.value = '1000';
-      if (maxResponseTime) maxResponseTime.value = '';
-      if (urlPattern) urlPattern.value = '';
-    } else if (preset === 'all') {
+      checkboxes.forEach((cb) => (cb.checked = true));
+      statusFilters.forEach((cb) => (cb.checked = true));
+      if (minResponseTime) minResponseTime.value = "1000";
+      if (maxResponseTime) maxResponseTime.value = "";
+      if (urlPattern) urlPattern.value = "";
+    } else if (preset === "all") {
       // Capture All
-      checkboxes.forEach(cb => cb.checked = true);
-      statusFilters.forEach(cb => cb.checked = true);
-      if (includeDomains) includeDomains.value = '';
-      if (excludeDomains) excludeDomains.value = '';
-      if (urlPattern) urlPattern.value = '';
-      if (minResponseTime) minResponseTime.value = '';
-      if (maxResponseTime) maxResponseTime.value = '';
-      if (minSize) minSize.value = '';
-      if (maxSize) maxSize.value = '';
+      checkboxes.forEach((cb) => (cb.checked = true));
+      statusFilters.forEach((cb) => (cb.checked = true));
+      if (includeDomains) includeDomains.value = "";
+      if (excludeDomains) excludeDomains.value = "";
+      if (urlPattern) urlPattern.value = "";
+      if (minResponseTime) minResponseTime.value = "";
+      if (maxResponseTime) maxResponseTime.value = "";
+      if (minSize) minSize.value = "";
+      if (maxSize) maxSize.value = "";
     }
-    
+
     showNotification(`Applied "${preset}" filter preset`);
     updateActiveFiltersSummary();
-    
+
     // Auto-apply if enabled
-    const autoApply = document.getElementById('autoApplyFilters');
+    const autoApply = document.getElementById("autoApplyFilters");
     if (autoApply && autoApply.checked) {
       applyFiltersToVisualizations();
     }
@@ -1795,182 +1951,205 @@ document.querySelectorAll('.filter-preset-btn').forEach(btn => {
 
 // Advanced Filter Functions
 function updateActiveFiltersSummary() {
-  const summaryEl = document.getElementById('activeFiltersSummary');
+  const summaryEl = document.getElementById("activeFiltersSummary");
   if (!summaryEl) return;
-  
+
   const filters = collectActiveFilters();
-  
+
   if (filters.length === 0) {
-    summaryEl.innerHTML = '<p class="placeholder">No filters applied. Showing all requests.</p>';
+    summaryEl.innerHTML =
+      '<p class="placeholder">No filters applied. Showing all requests.</p>';
     return;
   }
-  
-  let html = '<ul>';
-  filters.forEach(filter => {
+
+  let html = "<ul>";
+  filters.forEach((filter) => {
     html += `<li><strong>${filter.type}:</strong> ${filter.value}</li>`;
   });
-  html += '</ul>';
+  html += "</ul>";
   summaryEl.innerHTML = html;
 }
 
 function collectActiveFilters() {
   const filters = [];
-  
+
   // Request types
-  const selectedTypes = Array.from(document.querySelectorAll('input[name="captureType"]:checked'))
-    .map(cb => cb.value);
+  const selectedTypes = Array.from(
+    document.querySelectorAll('input[name="captureType"]:checked')
+  ).map((cb) => cb.value);
   if (selectedTypes.length > 0 && selectedTypes.length < 7) {
     filters.push({
-      type: 'Request Types',
-      value: selectedTypes.join(', ')
+      type: "Request Types",
+      value: selectedTypes.join(", "),
     });
   }
-  
+
   // Domains
-  const includeDomains = document.getElementById('includeDomains');
+  const includeDomains = document.getElementById("includeDomains");
   if (includeDomains && includeDomains.value.trim()) {
     filters.push({
-      type: 'Include Domains',
-      value: includeDomains.value
+      type: "Include Domains",
+      value: includeDomains.value,
     });
   }
-  
-  const excludeDomains = document.getElementById('excludeDomains');
+
+  const excludeDomains = document.getElementById("excludeDomains");
   if (excludeDomains && excludeDomains.value.trim()) {
     filters.push({
-      type: 'Exclude Domains',
-      value: excludeDomains.value
+      type: "Exclude Domains",
+      value: excludeDomains.value,
     });
   }
-  
+
   // URL Pattern
-  const urlPattern = document.getElementById('urlPattern');
+  const urlPattern = document.getElementById("urlPattern");
   if (urlPattern && urlPattern.value.trim()) {
     filters.push({
-      type: 'URL Pattern',
-      value: urlPattern.value
+      type: "URL Pattern",
+      value: urlPattern.value,
     });
   }
-  
+
   // Status codes
-  const selectedStatus = Array.from(document.querySelectorAll('input[name="statusFilter"]:checked'))
-    .map(cb => cb.value);
+  const selectedStatus = Array.from(
+    document.querySelectorAll('input[name="statusFilter"]:checked')
+  ).map((cb) => cb.value);
   if (selectedStatus.length > 0 && selectedStatus.length < 4) {
     filters.push({
-      type: 'Status Codes',
-      value: selectedStatus.join(', ')
+      type: "Status Codes",
+      value: selectedStatus.join(", "),
     });
   }
-  
+
   // Response time
-  const minResponseTime = document.getElementById('minResponseTime');
-  const maxResponseTime = document.getElementById('maxResponseTime');
+  const minResponseTime = document.getElementById("minResponseTime");
+  const maxResponseTime = document.getElementById("maxResponseTime");
   if (minResponseTime && minResponseTime.value) {
     const min = minResponseTime.value;
-    const max = maxResponseTime && maxResponseTime.value ? maxResponseTime.value : '∞';
+    const max =
+      maxResponseTime && maxResponseTime.value ? maxResponseTime.value : "∞";
     filters.push({
-      type: 'Response Time',
-      value: `${min}ms - ${max}ms`
+      type: "Response Time",
+      value: `${min}ms - ${max}ms`,
     });
   }
-  
+
   // Size
-  const minSize = document.getElementById('minSize');
-  const maxSize = document.getElementById('maxSize');
+  const minSize = document.getElementById("minSize");
+  const maxSize = document.getElementById("maxSize");
   if (minSize && minSize.value) {
     const min = minSize.value;
-    const max = maxSize && maxSize.value ? maxSize.value : '∞';
+    const max = maxSize && maxSize.value ? maxSize.value : "∞";
     filters.push({
-      type: 'Response Size',
-      value: `${min} - ${max} bytes`
+      type: "Response Size",
+      value: `${min} - ${max} bytes`,
     });
   }
-  
+
   return filters;
 }
 
 async function applyFiltersToVisualizations() {
-  const applyBtn = document.getElementById('applyFiltersBtn');
+  const applyBtn = document.getElementById("applyFiltersBtn");
   if (applyBtn) {
     applyBtn.disabled = true;
     applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
   }
-  
+
   try {
     // Collect all filter settings
     const filterConfig = {
-      requestTypes: Array.from(document.querySelectorAll('input[name="captureType"]:checked'))
-        .map(cb => cb.value),
-      includeDomains: document.getElementById('includeDomains')?.value?.split(',').map(d => d.trim()).filter(d => d) || [],
-      excludeDomains: document.getElementById('excludeDomains')?.value?.split(',').map(d => d.trim()).filter(d => d) || [],
-      urlPattern: document.getElementById('urlPattern')?.value?.trim() || '',
-      statusCodes: Array.from(document.querySelectorAll('input[name="statusFilter"]:checked'))
-        .map(cb => cb.value),
-      minResponseTime: parseInt(document.getElementById('minResponseTime')?.value) || 0,
-      maxResponseTime: parseInt(document.getElementById('maxResponseTime')?.value) || 0,
-      minSize: parseInt(document.getElementById('minSize')?.value) || 0,
-      maxSize: parseInt(document.getElementById('maxSize')?.value) || 0,
+      requestTypes: Array.from(
+        document.querySelectorAll('input[name="captureType"]:checked')
+      ).map((cb) => cb.value),
+      includeDomains:
+        document
+          .getElementById("includeDomains")
+          ?.value?.split(",")
+          .map((d) => d.trim())
+          .filter((d) => d) || [],
+      excludeDomains:
+        document
+          .getElementById("excludeDomains")
+          ?.value?.split(",")
+          .map((d) => d.trim())
+          .filter((d) => d) || [],
+      urlPattern: document.getElementById("urlPattern")?.value?.trim() || "",
+      statusCodes: Array.from(
+        document.querySelectorAll('input[name="statusFilter"]:checked')
+      ).map((cb) => cb.value),
+      minResponseTime:
+        parseInt(document.getElementById("minResponseTime")?.value) || 0,
+      maxResponseTime:
+        parseInt(document.getElementById("maxResponseTime")?.value) || 0,
+      minSize: parseInt(document.getElementById("minSize")?.value) || 0,
+      maxSize: parseInt(document.getElementById("maxSize")?.value) || 0,
     };
-    
+
     // Save filter configuration
     await chrome.runtime.sendMessage({
-      action: 'updateVisualizationFilters',
-      filters: filterConfig
+      action: "updateVisualizationFilters",
+      filters: filterConfig,
     });
-    
+
     // Trigger dashboard refresh if on dashboard tab
-    const dashboardRefreshBtn = document.getElementById('dashboardRefresh');
+    const dashboardRefreshBtn = document.getElementById("dashboardRefresh");
     if (dashboardRefreshBtn) {
       dashboardRefreshBtn.click();
     }
-    
-    showNotification('Filters applied to all visualizations');
-    
+
+    showNotification("Filters applied to all visualizations");
+
     // Update status indicator
-    const statusIndicator = document.getElementById('filterApplyStatus');
+    const statusIndicator = document.getElementById("filterApplyStatus");
     if (statusIndicator) {
-      statusIndicator.className = 'status-indicator active';
-      statusIndicator.title = 'Filters applied';
+      statusIndicator.className = "status-indicator active";
+      statusIndicator.title = "Filters applied";
     }
   } catch (error) {
-    console.error('Failed to apply filters:', error);
-    showNotification('Failed to apply filters', true);
+    console.error("Failed to apply filters:", error);
+    showNotification("Failed to apply filters", true);
   } finally {
     if (applyBtn) {
       applyBtn.disabled = false;
-      applyBtn.innerHTML = '<i class="fas fa-check"></i> Apply to Visualizations';
+      applyBtn.innerHTML =
+        '<i class="fas fa-check"></i> Apply to Visualizations';
     }
   }
 }
 
 // Clear All Filters
-const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+const clearFiltersBtn = document.getElementById("clearFiltersBtn");
 if (clearFiltersBtn) {
-  clearFiltersBtn.addEventListener('click', () => {
-    document.querySelectorAll('input[name="captureType"]').forEach(cb => cb.checked = true);
-    document.querySelectorAll('input[name="statusFilter"]').forEach(cb => cb.checked = true);
-    
-    const includeDomains = document.getElementById('includeDomains');
-    const excludeDomains = document.getElementById('excludeDomains');
-    const urlPattern = document.getElementById('urlPattern');
-    const minResponseTime = document.getElementById('minResponseTime');
-    const maxResponseTime = document.getElementById('maxResponseTime');
-    const minSize = document.getElementById('minSize');
-    const maxSize = document.getElementById('maxSize');
-    
-    if (includeDomains) includeDomains.value = '';
-    if (excludeDomains) excludeDomains.value = '';
-    if (urlPattern) urlPattern.value = '';
-    if (minResponseTime) minResponseTime.value = '';
-    if (maxResponseTime) maxResponseTime.value = '';
-    if (minSize) minSize.value = '';
-    if (maxSize) maxSize.value = '';
-    
+  clearFiltersBtn.addEventListener("click", () => {
+    document
+      .querySelectorAll('input[name="captureType"]')
+      .forEach((cb) => (cb.checked = true));
+    document
+      .querySelectorAll('input[name="statusFilter"]')
+      .forEach((cb) => (cb.checked = true));
+
+    const includeDomains = document.getElementById("includeDomains");
+    const excludeDomains = document.getElementById("excludeDomains");
+    const urlPattern = document.getElementById("urlPattern");
+    const minResponseTime = document.getElementById("minResponseTime");
+    const maxResponseTime = document.getElementById("maxResponseTime");
+    const minSize = document.getElementById("minSize");
+    const maxSize = document.getElementById("maxSize");
+
+    if (includeDomains) includeDomains.value = "";
+    if (excludeDomains) excludeDomains.value = "";
+    if (urlPattern) urlPattern.value = "";
+    if (minResponseTime) minResponseTime.value = "";
+    if (maxResponseTime) maxResponseTime.value = "";
+    if (minSize) minSize.value = "";
+    if (maxSize) maxSize.value = "";
+
     updateActiveFiltersSummary();
-    showNotification('All filters cleared');
-    
+    showNotification("All filters cleared");
+
     // Auto-apply if enabled
-    const autoApply = document.getElementById('autoApplyFilters');
+    const autoApply = document.getElementById("autoApplyFilters");
     if (autoApply && autoApply.checked) {
       applyFiltersToVisualizations();
     }
@@ -1978,24 +2157,24 @@ if (clearFiltersBtn) {
 }
 
 // Apply Filters Button
-const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+const applyFiltersBtn = document.getElementById("applyFiltersBtn");
 if (applyFiltersBtn) {
-  applyFiltersBtn.addEventListener('click', applyFiltersToVisualizations);
+  applyFiltersBtn.addEventListener("click", applyFiltersToVisualizations);
 }
 
 // Auto-apply toggle
-const autoApplyFilters = document.getElementById('autoApplyFilters');
+const autoApplyFilters = document.getElementById("autoApplyFilters");
 if (autoApplyFilters) {
-  autoApplyFilters.addEventListener('change', () => {
-    const statusIndicator = document.getElementById('filterApplyStatus');
+  autoApplyFilters.addEventListener("change", () => {
+    const statusIndicator = document.getElementById("filterApplyStatus");
     if (statusIndicator) {
       if (autoApplyFilters.checked) {
-        statusIndicator.className = 'status-indicator active';
-        statusIndicator.title = 'Auto-apply enabled';
+        statusIndicator.className = "status-indicator active";
+        statusIndicator.title = "Auto-apply enabled";
         applyFiltersToVisualizations();
       } else {
-        statusIndicator.className = 'status-indicator inactive';
-        statusIndicator.title = 'Auto-apply disabled';
+        statusIndicator.className = "status-indicator inactive";
+        statusIndicator.title = "Auto-apply disabled";
       }
     }
   });
@@ -2005,24 +2184,24 @@ if (autoApplyFilters) {
 const filterInputs = [
   ...document.querySelectorAll('input[name="captureType"]'),
   ...document.querySelectorAll('input[name="statusFilter"]'),
-  document.getElementById('includeDomains'),
-  document.getElementById('excludeDomains'),
-  document.getElementById('urlPattern'),
-  document.getElementById('minResponseTime'),
-  document.getElementById('maxResponseTime'),
-  document.getElementById('minSize'),
-  document.getElementById('maxSize'),
-].filter(el => el);
+  document.getElementById("includeDomains"),
+  document.getElementById("excludeDomains"),
+  document.getElementById("urlPattern"),
+  document.getElementById("minResponseTime"),
+  document.getElementById("maxResponseTime"),
+  document.getElementById("minSize"),
+  document.getElementById("maxSize"),
+].filter((el) => el);
 
-filterInputs.forEach(input => {
-  const eventType = input.type === 'checkbox' ? 'change' : 'blur';
+filterInputs.forEach((input) => {
+  const eventType = input.type === "checkbox" ? "change" : "blur";
   input.addEventListener(eventType, () => {
     updateActiveFiltersSummary();
-    
-    const autoApply = document.getElementById('autoApplyFilters');
+
+    const autoApply = document.getElementById("autoApplyFilters");
     if (autoApply && autoApply.checked) {
       // Debounce auto-apply for text inputs
-      if (input.type !== 'checkbox') {
+      if (input.type !== "checkbox") {
         clearTimeout(window.filterApplyTimeout);
         window.filterApplyTimeout = setTimeout(() => {
           applyFiltersToVisualizations();
@@ -2035,16 +2214,16 @@ filterInputs.forEach(input => {
 });
 
 // URL Pattern validation
-const urlPattern = document.getElementById('urlPattern');
+const urlPattern = document.getElementById("urlPattern");
 if (urlPattern) {
-  urlPattern.addEventListener('blur', () => {
+  urlPattern.addEventListener("blur", () => {
     const pattern = urlPattern.value.trim();
-    const errorEl = document.getElementById('urlPatternError');
-    
+    const errorEl = document.getElementById("urlPatternError");
+
     if (pattern && errorEl) {
       try {
         new RegExp(pattern);
-        errorEl.textContent = '';
+        errorEl.textContent = "";
       } catch (e) {
         errorEl.textContent = `Invalid regex pattern: ${e.message}`;
       }
@@ -2054,117 +2233,134 @@ if (urlPattern) {
 
 // Domain Validation
 function validateDomains(domainString) {
-  if (!domainString || !domainString.trim()) return { valid: true, domains: [] };
-  
-  const domains = domainString.split(',').map(d => d.trim()).filter(d => d);
+  if (!domainString || !domainString.trim())
+    return { valid: true, domains: [] };
+
+  const domains = domainString
+    .split(",")
+    .map((d) => d.trim())
+    .filter((d) => d);
   const invalidDomains = [];
-  
-  domains.forEach(domain => {
+
+  domains.forEach((domain) => {
     // Allow wildcard at start
-    const testDomain = domain.replace(/^\*\./, '');
+    const testDomain = domain.replace(/^\*\./, "");
     // Basic domain validation regex
-    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-    
+    const domainRegex =
+      /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+
     if (!domainRegex.test(testDomain)) {
       invalidDomains.push(domain);
     }
   });
-  
+
   return {
     valid: invalidDomains.length === 0,
     domains: domains,
-    invalidDomains: invalidDomains
+    invalidDomains: invalidDomains,
   };
 }
 
 // Add validation listeners (using existing includeDomains and excludeDomains variables)
 if (includeDomains) {
-  includeDomains.addEventListener('blur', () => {
+  includeDomains.addEventListener("blur", () => {
     const result = validateDomains(includeDomains.value);
-    const errorEl = document.getElementById('includeDomainsError');
+    const errorEl = document.getElementById("includeDomainsError");
     if (errorEl) {
       if (!result.valid) {
-        errorEl.textContent = `Invalid domains: ${result.invalidDomains.join(', ')}`;
+        errorEl.textContent = `Invalid domains: ${result.invalidDomains.join(
+          ", "
+        )}`;
       } else {
-        errorEl.textContent = '';
+        errorEl.textContent = "";
       }
     }
   });
 }
 
 if (excludeDomains) {
-  excludeDomains.addEventListener('blur', () => {
+  excludeDomains.addEventListener("blur", () => {
     const result = validateDomains(excludeDomains.value);
-    const errorEl = document.getElementById('excludeDomainsError');
+    const errorEl = document.getElementById("excludeDomainsError");
     if (errorEl) {
       if (!result.valid) {
-        errorEl.textContent = `Invalid domains: ${result.invalidDomains.join(', ')}`;
+        errorEl.textContent = `Invalid domains: ${result.invalidDomains.join(
+          ", "
+        )}`;
       } else {
-        errorEl.textContent = '';
+        errorEl.textContent = "";
       }
     }
   });
 }
 
 // Test Filters Button
-const testFiltersBtn = document.getElementById('testFiltersBtn');
+const testFiltersBtn = document.getElementById("testFiltersBtn");
 if (testFiltersBtn) {
-  testFiltersBtn.addEventListener('click', () => {
-    const includeResult = validateDomains(includeDomains?.value || '');
-    const excludeResult = validateDomains(excludeDomains?.value || '');
-    const resultEl = document.getElementById('filterTestResult');
-    
+  testFiltersBtn.addEventListener("click", () => {
+    const includeResult = validateDomains(includeDomains?.value || "");
+    const excludeResult = validateDomains(excludeDomains?.value || "");
+    const resultEl = document.getElementById("filterTestResult");
+
     if (!includeResult.valid || !excludeResult.valid) {
-      if (resultEl) resultEl.textContent = '❌ Please fix domain validation errors first';
+      if (resultEl)
+        resultEl.textContent = "❌ Please fix domain validation errors first";
       return;
     }
-    
-    const selectedTypes = Array.from(document.querySelectorAll('input[name="captureType"]:checked'))
-      .map(cb => cb.value);
-    
+
+    const selectedTypes = Array.from(
+      document.querySelectorAll('input[name="captureType"]:checked')
+    ).map((cb) => cb.value);
+
     if (resultEl) {
       resultEl.textContent = `✅ Filter valid: ${selectedTypes.length} types, ${includeResult.domains.length} included, ${excludeResult.domains.length} excluded`;
     }
-    showNotification('Filters validated successfully');
+    showNotification("Filters validated successfully");
   });
 }
 
 // Export Now Button
-const exportNowBtn = document.getElementById('exportNowBtn');
-const manualExportFormat = document.getElementById('manualExportFormat');
+const exportNowBtn = document.getElementById("exportNowBtn");
+const manualExportFormat = document.getElementById("manualExportFormat");
 
 if (exportNowBtn) {
-  exportNowBtn.addEventListener('click', async () => {
-    const format = manualExportFormat?.value || 'json';
-    const filename = `ura-export-${new Date().toISOString().slice(0, 10)}.${format}`;
-    
+  exportNowBtn.addEventListener("click", async () => {
+    const format = manualExportFormat?.value || "json";
+    const filename = `ura-export-${new Date()
+      .toISOString()
+      .slice(0, 10)}.${format}`;
+
     exportNowBtn.disabled = true;
-    exportNowBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
-    
+    exportNowBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'exportDatabase',
+        action: "exportDatabase",
         format: format,
-        filename: filename
+        filename: filename,
       });
-      
+
       if (response && response.success) {
-        showNotification('Export completed successfully!');
-        
+        showNotification("Export completed successfully!");
+
         // Update last export time
-        const lastExportTime = document.getElementById('lastExportTime');
+        const lastExportTime = document.getElementById("lastExportTime");
         if (lastExportTime) {
           lastExportTime.textContent = new Date().toLocaleString();
         }
-        
+
         // Save last export time
         await chrome.storage.local.set({ lastExportTime: Date.now() });
       } else {
-        showNotification('Export failed: ' + (response?.error || 'Unknown error'), true);
+        showNotification(
+          "Export failed: " + (response?.error || "Unknown error"),
+          true
+        );
       }
     } catch (error) {
-      console.error('Export error:', error);
-      showNotification('Export failed: ' + error.message, true);
+      console.error("Export error:", error);
+      showNotification("Export failed: " + error.message, true);
     } finally {
       exportNowBtn.disabled = false;
       exportNowBtn.innerHTML = '<i class="fas fa-download"></i> Export Now';
@@ -2173,95 +2369,103 @@ if (exportNowBtn) {
 }
 
 // Auto Export Status (using existing autoExport variable)
-const autoExportStatus = document.getElementById('autoExportStatus');
+const autoExportStatus = document.getElementById("autoExportStatus");
 
 if (autoExport && autoExportStatus) {
-  autoExport.addEventListener('change', () => {
+  autoExport.addEventListener("change", () => {
     if (autoExport.checked) {
-      autoExportStatus.className = 'status-indicator active';
-      autoExportStatus.title = 'Auto-export is enabled';
+      autoExportStatus.className = "status-indicator active";
+      autoExportStatus.title = "Auto-export is enabled";
     } else {
-      autoExportStatus.className = 'status-indicator inactive';
-      autoExportStatus.title = 'Auto-export is disabled';
+      autoExportStatus.className = "status-indicator inactive";
+      autoExportStatus.title = "Auto-export is disabled";
     }
   });
-  
+
   // Set initial state
   if (autoExport.checked) {
-    autoExportStatus.className = 'status-indicator active';
+    autoExportStatus.className = "status-indicator active";
   } else {
-    autoExportStatus.className = 'status-indicator inactive';
+    autoExportStatus.className = "status-indicator inactive";
   }
 }
 
 // Load last export time
 async function loadLastExportTime() {
-  const lastExportTimeEl = document.getElementById('lastExportTime');
+  const lastExportTimeEl = document.getElementById("lastExportTime");
   if (lastExportTimeEl) {
-    const result = await chrome.storage.local.get('lastExportTime');
+    const result = await chrome.storage.local.get("lastExportTime");
     if (result.lastExportTime) {
-      lastExportTimeEl.textContent = new Date(result.lastExportTime).toLocaleString();
+      lastExportTimeEl.textContent = new Date(
+        result.lastExportTime
+      ).toLocaleString();
     } else {
-      lastExportTimeEl.textContent = 'Never';
+      lastExportTimeEl.textContent = "Never";
     }
   }
 }
 
 // Initialize new features on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   initializeDashboard();
   updateStorageUsage();
   loadLastExportTime();
   updateActiveFiltersSummary(); // Initialize filter summary
   loadTrackedSites(); // Initialize site tracking
   populateSiteFilterDropdown(); // Initialize dashboard site filter
-  
+
   // Update storage usage when max changes
-  const maxInput = document.getElementById('maxStoredRequests');
+  const maxInput = document.getElementById("maxStoredRequests");
   if (maxInput) {
-    maxInput.addEventListener('change', updateStorageUsage);
+    maxInput.addEventListener("change", updateStorageUsage);
   }
-  
+
   // Update storage usage periodically
   setInterval(updateStorageUsage, 10000); // Every 10 seconds
 });
 
 // Site Tracking Configuration
 async function loadTrackedSites() {
-  const trackingSites = document.getElementById('trackingSites');
-  const trackedSitesList = document.getElementById('trackedSitesList');
-  
+  const trackingSites = document.getElementById("trackingSites");
+  const trackedSitesList = document.getElementById("trackedSitesList");
+
   if (!trackingSites) return;
-  
+
   try {
-    const result = await chrome.storage.local.get('trackingSites');
+    const result = await chrome.storage.local.get("trackingSites");
     const sites = result.trackingSites || [];
-    
+
     if (sites.length > 0) {
-      trackingSites.value = sites.join('\n');
+      trackingSites.value = sites.join("\n");
       updateTrackedSitesList(sites);
     }
   } catch (error) {
-    console.error('Failed to load tracked sites:', error);
+    console.error("Failed to load tracked sites:", error);
   }
 }
 
 function updateTrackedSitesList(sites) {
-  const trackedSitesList = document.getElementById('trackedSitesList');
+  const trackedSitesList = document.getElementById("trackedSitesList");
   if (!trackedSitesList) return;
-  
+
   if (sites.length === 0) {
-    trackedSitesList.innerHTML = '<p class="placeholder" style="color: #999; font-style: italic; margin: 0;">No sites configured. Add sites above to start tracking specific URLs.</p>';
+    trackedSitesList.innerHTML =
+      '<p class="placeholder" style="color: #999; font-style: italic; margin: 0;">No sites configured. Add sites above to start tracking specific URLs.</p>';
     return;
   }
-  
-  let html = '<ul style="margin: 5px 0; padding-left: 20px; font-size: 13px; line-height: 1.8;">';
-  sites.forEach(site => {
-    const isRegex = site.startsWith('/') && site.endsWith('/');
-    const icon = isRegex ? 'fa-code' : site.includes('*') ? 'fa-asterisk' : 'fa-link';
+
+  let html =
+    '<ul style="margin: 5px 0; padding-left: 20px; font-size: 13px; line-height: 1.8;">';
+  sites.forEach((site) => {
+    const isRegex = site.startsWith("/") && site.endsWith("/");
+    const icon = isRegex
+      ? "fa-code"
+      : site.includes("*")
+      ? "fa-asterisk"
+      : "fa-link";
     html += `<li><i class="fas ${icon}" style="color: #667eea; margin-right: 5px;"></i> <code style="background: #e8f0fe; padding: 2px 6px; border-radius: 3px;">${site}</code></li>`;
   });
-  html += '</ul>';
+  html += "</ul>";
   trackedSitesList.innerHTML = html;
 }
 
@@ -2269,16 +2473,16 @@ function validateSitePatterns(patterns) {
   const results = {
     valid: [],
     invalid: [],
-    warnings: []
+    warnings: [],
   };
-  
-  patterns.forEach(pattern => {
+
+  patterns.forEach((pattern) => {
     if (!pattern.trim()) return;
-    
+
     pattern = pattern.trim();
-    
+
     // Check if it's a regex pattern
-    if (pattern.startsWith('/') && pattern.endsWith('/')) {
+    if (pattern.startsWith("/") && pattern.endsWith("/")) {
       try {
         new RegExp(pattern.slice(1, -1));
         results.valid.push(pattern);
@@ -2287,93 +2491,101 @@ function validateSitePatterns(patterns) {
       }
     }
     // Check if it's a wildcard pattern
-    else if (pattern.includes('*')) {
+    else if (pattern.includes("*")) {
       // Convert wildcard to regex for validation
       const regexPattern = pattern
-        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '.*');
+        .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*/g, ".*");
       try {
         new RegExp(regexPattern);
         results.valid.push(pattern);
       } catch (e) {
-        results.invalid.push({ pattern, error: 'Invalid wildcard pattern' });
+        results.invalid.push({ pattern, error: "Invalid wildcard pattern" });
       }
     }
     // Check if it's a URL
     else {
       try {
         // Try to parse as URL
-        if (pattern.startsWith('http://') || pattern.startsWith('https://')) {
+        if (pattern.startsWith("http://") || pattern.startsWith("https://")) {
           new URL(pattern);
           results.valid.push(pattern);
         } else {
           // Assume it's a domain pattern
-          const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?/;
+          const domainRegex =
+            /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?/;
           if (domainRegex.test(pattern)) {
             results.valid.push(pattern);
-            results.warnings.push({ pattern, warning: 'Domain pattern without protocol. Consider adding https://' });
+            results.warnings.push({
+              pattern,
+              warning:
+                "Domain pattern without protocol. Consider adding https://",
+            });
           } else {
-            results.invalid.push({ pattern, error: 'Invalid URL or domain format' });
+            results.invalid.push({
+              pattern,
+              error: "Invalid URL or domain format",
+            });
           }
         }
       } catch (e) {
-        results.invalid.push({ pattern, error: 'Invalid URL format' });
+        results.invalid.push({ pattern, error: "Invalid URL format" });
       }
     }
   });
-  
+
   return results;
 }
 
 // Validate Sites Button
-const validateSitesBtn = document.getElementById('validateSitesBtn');
+const validateSitesBtn = document.getElementById("validateSitesBtn");
 if (validateSitesBtn) {
-  validateSitesBtn.addEventListener('click', async () => {
-    const trackingSites = document.getElementById('trackingSites');
-    const resultEl = document.getElementById('sitesValidationResult');
-    
+  validateSitesBtn.addEventListener("click", async () => {
+    const trackingSites = document.getElementById("trackingSites");
+    const resultEl = document.getElementById("sitesValidationResult");
+
     if (!trackingSites || !resultEl) return;
-    
-    const patterns = trackingSites.value.split('\n').filter(p => p.trim());
-    
+
+    const patterns = trackingSites.value.split("\n").filter((p) => p.trim());
+
     if (patterns.length === 0) {
-      resultEl.textContent = '⚠️ No patterns to validate';
-      resultEl.style.color = '#ff9800';
+      resultEl.textContent = "⚠️ No patterns to validate";
+      resultEl.style.color = "#ff9800";
       return;
     }
-    
+
     const validation = validateSitePatterns(patterns);
-    
+
     if (validation.invalid.length > 0) {
       resultEl.innerHTML = `❌ ${validation.invalid.length} invalid pattern(s): ${validation.invalid[0].pattern} - ${validation.invalid[0].error}`;
-      resultEl.style.color = '#f44336';
+      resultEl.style.color = "#f44336";
     } else if (validation.warnings.length > 0) {
       resultEl.innerHTML = `⚠️ ${validation.valid.length} valid, ${validation.warnings.length} warning(s)`;
-      resultEl.style.color = '#ff9800';
+      resultEl.style.color = "#ff9800";
     } else {
       resultEl.innerHTML = `✅ All ${validation.valid.length} pattern(s) valid`;
-      resultEl.style.color = '#4CAF50';
+      resultEl.style.color = "#4CAF50";
     }
-    
+
     // Save valid patterns to database first
     if (validation.valid.length > 0) {
       // Save to database
       await chrome.runtime.sendMessage({
-        action: 'saveSettingToDb',
-        key: 'trackingSites',
-        value: validation.valid
+        action: "saveSettingToDb",
+        key: "trackingSites",
+        value: validation.valid,
       });
-      
+
       // Also save to local storage for immediate use
       chrome.storage.local.set({ trackingSites: validation.valid });
       updateTrackedSitesList(validation.valid);
-      
+
       // Notify content scripts to update tracking
       chrome.runtime.sendMessage({
-        action: 'updateTrackingSites',
-        sites: validation.valid
+        action: "updateTrackingSites",
+        sites: validation.valid,
       });
-      
+
       // Update dashboard dropdown
       populateSiteFilterDropdown();
     }
@@ -2381,87 +2593,94 @@ if (validateSitesBtn) {
 }
 
 // Add Current Site Button
-const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
+const addCurrentSiteBtn = document.getElementById("addCurrentSiteBtn");
 if (addCurrentSiteBtn) {
-  addCurrentSiteBtn.addEventListener('click', async () => {
+  addCurrentSiteBtn.addEventListener("click", async () => {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
       if (tabs.length > 0 && tabs[0].url) {
         const url = new URL(tabs[0].url);
         const site = `${url.protocol}//${url.hostname}`;
-        
-        const trackingSites = document.getElementById('trackingSites');
+
+        const trackingSites = document.getElementById("trackingSites");
         if (trackingSites) {
           const currentSites = trackingSites.value.trim();
-          trackingSites.value = currentSites ? `${currentSites}\n${site}` : site;
+          trackingSites.value = currentSites
+            ? `${currentSites}\n${site}`
+            : site;
           showNotification(`Added: ${site}`);
         }
       }
     } catch (error) {
-      console.error('Failed to add current site:', error);
-      showNotification('Failed to add current site', true);
+      console.error("Failed to add current site:", error);
+      showNotification("Failed to add current site", true);
     }
   });
 }
 
 // Track Only Configured Sites Toggle
-const trackOnlyConfigured = document.getElementById('trackOnlyConfiguredSites');
+const trackOnlyConfigured = document.getElementById("trackOnlyConfiguredSites");
 if (trackOnlyConfigured) {
   // Load saved setting
-  chrome.storage.local.get('trackOnlyConfiguredSites').then(result => {
+  chrome.storage.local.get("trackOnlyConfiguredSites").then((result) => {
     trackOnlyConfigured.checked = result.trackOnlyConfiguredSites !== false; // Default true
   });
-  
+
   // Save to database when changed
-  trackOnlyConfigured.addEventListener('change', async () => {
+  trackOnlyConfigured.addEventListener("change", async () => {
     const value = trackOnlyConfigured.checked;
-    
+
     // Save to database first
     await chrome.runtime.sendMessage({
-      action: 'saveSettingToDb',
-      key: 'trackOnlyConfiguredSites',
-      value: value
+      action: "saveSettingToDb",
+      key: "trackOnlyConfiguredSites",
+      value: value,
     });
-    
+
     // Also save to local storage
     chrome.storage.local.set({ trackOnlyConfiguredSites: value });
-    
+
     // Notify content scripts
     chrome.runtime.sendMessage({
-      action: 'updateTrackingMode',
-      trackOnlyConfigured: value
+      action: "updateTrackingMode",
+      trackOnlyConfigured: value,
     });
   });
 }
 
 // Site Preset Buttons
-document.querySelectorAll('.site-preset-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
+document.querySelectorAll(".site-preset-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
     const preset = btn.dataset.preset;
-    const trackingSites = document.getElementById('trackingSites');
-    
+    const trackingSites = document.getElementById("trackingSites");
+
     if (!trackingSites) return;
-    
-    if (preset === 'current') {
+
+    if (preset === "current") {
       // Trigger add current site
-      document.getElementById('addCurrentSiteBtn')?.click();
-    } else if (preset === 'popular') {
+      document.getElementById("addCurrentSiteBtn")?.click();
+    } else if (preset === "popular") {
       const popularSites = [
-        'https://api.github.com',
-        'https://*.googleapis.com',
-        'https://api.twitter.com',
-        'https://graph.facebook.com',
-        'https://*.stripe.com',
-        '/api\\./',  // Matches any URL with /api/ path
-      ].join('\n');
-      trackingSites.value = trackingSites.value ? `${trackingSites.value}\n${popularSites}` : popularSites;
-      showNotification('Added popular API sites');
-    } else if (preset === 'clear') {
-      if (confirm('Clear all tracked sites?')) {
-        trackingSites.value = '';
+        "https://api.github.com",
+        "https://*.googleapis.com",
+        "https://api.twitter.com",
+        "https://graph.facebook.com",
+        "https://*.stripe.com",
+        "/api\\./", // Matches any URL with /api/ path
+      ].join("\n");
+      trackingSites.value = trackingSites.value
+        ? `${trackingSites.value}\n${popularSites}`
+        : popularSites;
+      showNotification("Added popular API sites");
+    } else if (preset === "clear") {
+      if (confirm("Clear all tracked sites?")) {
+        trackingSites.value = "";
         chrome.storage.local.set({ trackingSites: [] });
         updateTrackedSitesList([]);
-        showNotification('All sites cleared');
+        showNotification("All sites cleared");
       }
     }
   });
@@ -2469,13 +2688,13 @@ document.querySelectorAll('.site-preset-btn').forEach(btn => {
 
 // Dashboard Site Filter Dropdown
 async function populateSiteFilterDropdown() {
-  const dropdown = document.getElementById('dashboardSiteFilter');
+  const dropdown = document.getElementById("dashboardSiteFilter");
   if (!dropdown) return;
-  
+
   try {
     // Fetch unique domains from database
     const response = await chrome.runtime.sendMessage({
-      action: 'executeDirectQuery',
+      action: "executeDirectQuery",
       query: `
         SELECT DISTINCT domain, COUNT(*) as request_count
         FROM bronze_requests 
@@ -2483,70 +2702,75 @@ async function populateSiteFilterDropdown() {
         GROUP BY domain
         ORDER BY request_count DESC
         LIMIT 50
-      `
+      `,
     });
-    
-    console.log('Dashboard site filter response:', response);
-    
+
+    console.log("Dashboard site filter response:", response);
+
     // Clear existing options except "All Sites"
     dropdown.innerHTML = '<option value="all">All Sites</option>';
-    
-    if (response && response.success && response.data && response.data.length > 0) {
+
+    if (
+      response &&
+      response.success &&
+      response.data &&
+      response.data.length > 0
+    ) {
       const domains = response.data;
-      
+
       // Add each domain as an option
-      domains.forEach(row => {
+      domains.forEach((row) => {
         const domain = row.domain;
         const count = row.request_count || 0;
         if (domain) {
-          const option = document.createElement('option');
+          const option = document.createElement("option");
           option.value = domain;
           option.textContent = `${domain} (${count} requests)`;
           dropdown.appendChild(option);
         }
       });
-      
+
       console.log(`Populated site filter with ${domains.length} domains`);
     } else {
-      console.warn('No domains found in database');
+      console.warn("No domains found in database");
     }
-    
+
     // Add change listener to filter dashboard
-    dropdown.addEventListener('change', () => {
+    dropdown.addEventListener("change", () => {
       const selectedSite = dropdown.value;
       filterDashboardBySite(selectedSite);
     });
   } catch (error) {
-    console.error('Failed to populate site filter:', error);
+    console.error("Failed to populate site filter:", error);
   }
 }
 
 async function filterDashboardBySite(site) {
-  const loadingEl = document.getElementById('dashboardLoading');
-  if (loadingEl) loadingEl.style.display = 'block';
-  
+  const loadingEl = document.getElementById("dashboardLoading");
+  if (loadingEl) loadingEl.style.display = "block";
+
   try {
     // Send filter request to background
     const response = await chrome.runtime.sendMessage({
-      action: 'filterDashboardBySite',
-      site: site === 'all' ? null : site
+      action: "filterDashboardBySite",
+      site: site === "all" ? null : site,
     });
-    
+
     if (response && response.success) {
       // Refresh dashboard with filtered data
-      const dashboardRefreshBtn = document.getElementById('dashboardRefresh');
+      const dashboardRefreshBtn = document.getElementById("dashboardRefresh");
       if (dashboardRefreshBtn) {
         dashboardRefreshBtn.click();
       }
-      
-      const siteName = site === 'all' ? 'all sites' : site;
+
+      const siteName = site === "all" ? "all sites" : site;
       showNotification(`Dashboard filtered to: ${siteName}`);
     }
   } catch (error) {
-    console.error('Failed to filter dashboard:', error);
-    showNotification('Failed to filter dashboard', true);
+    console.error("Failed to filter dashboard:", error);
+    showNotification("Failed to filter dashboard", true);
   } finally {
-    if (loadingEl) loadingEl.style.display = 'none';
+    if (loadingEl) loadingEl.style.display = "none";
   }
 }
 
@@ -2555,12 +2779,12 @@ let analyticsInstance = null;
 
 async function initializeAnalytics() {
   try {
-    const { default: Analytics } = await import('../components/analytics.js');
+    const { default: Analytics } = await import("../components/analytics.js");
     analyticsInstance = new Analytics();
     await analyticsInstance.initialize();
-    console.log('✓ Analytics component initialized');
+    console.log("✓ Analytics component initialized");
   } catch (error) {
-    console.error('Failed to initialize Analytics:', error);
+    console.error("Failed to initialize Analytics:", error);
   }
 }
 
@@ -2569,12 +2793,12 @@ let alertsInstance = null;
 
 async function initializeAlerts() {
   try {
-    const { default: Alerts } = await import('../components/alerts.js');
+    const { default: Alerts } = await import("../components/alerts.js");
     alertsInstance = new Alerts();
     await alertsInstance.initialize();
-    console.log('✓ Alerts component initialized');
+    console.log("✓ Alerts component initialized");
   } catch (error) {
-    console.error('Failed to initialize Alerts:', error);
+    console.error("Failed to initialize Alerts:", error);
   }
 }
 
@@ -2584,93 +2808,97 @@ async function initializeAlerts() {
 async function updateDatabaseSizeDisplay() {
   try {
     const response = await chrome.runtime.sendMessage({
-      action: 'getDatabaseSize'
+      action: "getDatabaseSize",
     });
-    
+
     if (response && response.success) {
-      const sizeElement = document.getElementById('currentDbSize');
-      const recordsElement = document.getElementById('currentDbRecords');
-      const oldestElement = document.getElementById('oldestRecord');
-      
+      const sizeElement = document.getElementById("currentDbSize");
+      const recordsElement = document.getElementById("currentDbRecords");
+      const oldestElement = document.getElementById("oldestRecord");
+
       if (sizeElement) {
         const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
         sizeElement.textContent = `${sizeMB} MB`;
-        
+
         // Color code based on size
         if (sizeMB > 100) {
-          sizeElement.style.color = '#e53e3e';
+          sizeElement.style.color = "#e53e3e";
         } else if (sizeMB > 50) {
-          sizeElement.style.color = '#ed8936';
+          sizeElement.style.color = "#ed8936";
         } else {
-          sizeElement.style.color = '#48bb78';
+          sizeElement.style.color = "#48bb78";
         }
       }
-      
+
       if (recordsElement) {
         recordsElement.textContent = (response.records || 0).toLocaleString();
       }
-      
+
       if (oldestElement && response.oldestDate) {
         const date = new Date(response.oldestDate);
         oldestElement.textContent = date.toLocaleDateString();
       }
-      
+
       // Check storage limits and show warning
       await checkStorageWarning(response.records || 0);
     }
   } catch (error) {
-    console.error('Failed to get database size:', error);
+    console.error("Failed to get database size:", error);
   }
 }
 
 // Check and display storage warning
 async function checkStorageWarning(currentRecords) {
-  const maxStoredRequests = document.getElementById('maxStoredRequests');
-  const currentStorageCount = document.getElementById('currentStorageCount');
-  
+  const maxStoredRequests = document.getElementById("maxStoredRequests");
+  const currentStorageCount = document.getElementById("currentStorageCount");
+
   if (!maxStoredRequests) return;
-  
+
   const maxRecords = parseInt(maxStoredRequests.value) || 10000;
   const percentage = (currentRecords / maxRecords) * 100;
-  
+
   // Update current count display
   if (currentStorageCount) {
     currentStorageCount.textContent = currentRecords.toLocaleString();
   }
-  
+
   // Update usage bar
   updateStorageUsageDisplay();
-  
+
   // Show warning if approaching limit
   if (percentage >= 90) {
     showStorageWarning(
-      `⚠️ Storage Nearly Full: ${percentage.toFixed(0)}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
-      'error'
+      `⚠️ Storage Nearly Full: ${percentage.toFixed(
+        0
+      )}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
+      "error"
     );
   } else if (percentage >= 75) {
     showStorageWarning(
-      `⚠️ Storage Warning: ${percentage.toFixed(0)}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
-      'warning'
+      `⚠️ Storage Warning: ${percentage.toFixed(
+        0
+      )}% used (${currentRecords.toLocaleString()}/${maxRecords.toLocaleString()} records)`,
+      "warning"
     );
   }
 }
 
 // Show storage warning banner
-function showStorageWarning(message, type = 'warning') {
-  let warningBanner = document.getElementById('storageWarningBanner');
-  
+function showStorageWarning(message, type = "warning") {
+  let warningBanner = document.getElementById("storageWarningBanner");
+
   if (!warningBanner) {
-    warningBanner = document.createElement('div');
-    warningBanner.id = 'storageWarningBanner';
-    warningBanner.className = 'warning-banner';
-    
+    warningBanner = document.createElement("div");
+    warningBanner.id = "storageWarningBanner";
+    warningBanner.className = "warning-banner";
+
     // Insert at top of general settings tab
-    const generalTab = document.getElementById('general');
+    const generalTab = document.getElementById("general");
     if (generalTab) {
       generalTab.insertBefore(warningBanner, generalTab.firstChild);
     }
   }
-  
+
   warningBanner.className = `warning-banner ${type}`;
   warningBanner.innerHTML = `
     <i class="fas fa-exclamation-triangle"></i>
@@ -2679,12 +2907,12 @@ function showStorageWarning(message, type = 'warning') {
       <i class="fas fa-times"></i>
     </button>
   `;
-  warningBanner.style.display = 'flex';
-  
+  warningBanner.style.display = "flex";
+
   // Add styles if not already present
-  if (!document.getElementById('warningBannerStyles')) {
-    const style = document.createElement('style');
-    style.id = 'warningBannerStyles';
+  if (!document.getElementById("warningBannerStyles")) {
+    const style = document.createElement("style");
+    style.id = "warningBannerStyles";
     style.textContent = `
       .warning-banner {
         display: flex;
@@ -2723,156 +2951,178 @@ function showStorageWarning(message, type = 'warning') {
 
 // Preview cleanup (dry-run)
 async function previewCleanup() {
-  const cleanupAge = document.getElementById('cleanupAge');
-  const previewBox = document.getElementById('cleanupPreview');
-  const recordsCount = document.getElementById('previewRecordsCount');
-  const sizeFreed = document.getElementById('previewSizeFreed');
-  const recordsRemaining = document.getElementById('previewRecordsRemaining');
-  
+  const cleanupAge = document.getElementById("cleanupAge");
+  const previewBox = document.getElementById("cleanupPreview");
+  const recordsCount = document.getElementById("previewRecordsCount");
+  const sizeFreed = document.getElementById("previewSizeFreed");
+  const recordsRemaining = document.getElementById("previewRecordsRemaining");
+
   if (!cleanupAge || !previewBox) return;
-  
+
   const days = parseInt(cleanupAge.value);
   if (isNaN(days) || days < 1) {
-    showNotification('Please enter a valid number of days', true);
+    showNotification("Please enter a valid number of days", true);
     return;
   }
-  
+
   try {
-    showNotification('Calculating cleanup preview...');
-    
+    showNotification("Calculating cleanup preview...");
+
     const response = await chrome.runtime.sendMessage({
-      action: 'previewCleanup',
-      days: days
+      action: "previewCleanup",
+      days: days,
     });
-    
+
     if (response && response.success) {
-      if (recordsCount) recordsCount.textContent = response.recordsToDelete.toLocaleString();
-      if (sizeFreed) sizeFreed.textContent = (response.sizeFreed / (1024 * 1024)).toFixed(2) + ' MB';
-      if (recordsRemaining) recordsRemaining.textContent = response.recordsRemaining.toLocaleString();
-      
-      previewBox.style.display = 'block';
-      
+      if (recordsCount)
+        recordsCount.textContent = response.recordsToDelete.toLocaleString();
+      if (sizeFreed)
+        sizeFreed.textContent =
+          (response.sizeFreed / (1024 * 1024)).toFixed(2) + " MB";
+      if (recordsRemaining)
+        recordsRemaining.textContent =
+          response.recordsRemaining.toLocaleString();
+
+      previewBox.style.display = "block";
+
       if (response.recordsToDelete > 0) {
-        showNotification(`Preview complete: ${response.recordsToDelete} records can be deleted`);
+        showNotification(
+          `Preview complete: ${response.recordsToDelete} records can be deleted`
+        );
       } else {
-        showNotification('No records found matching cleanup criteria');
+        showNotification("No records found matching cleanup criteria");
       }
     } else {
-      showNotification('Failed to preview cleanup: ' + (response?.error || 'Unknown error'), true);
+      showNotification(
+        "Failed to preview cleanup: " + (response?.error || "Unknown error"),
+        true
+      );
     }
   } catch (error) {
-    console.error('Cleanup preview error:', error);
-    showNotification('Failed to preview cleanup', true);
+    console.error("Cleanup preview error:", error);
+    showNotification("Failed to preview cleanup", true);
   }
 }
 
 // Create backup before cleanup
 async function createBackupBeforeCleanup() {
-  const btn = document.getElementById('createBackupBtn');
-  const lastBackup = document.getElementById('lastBackupTime');
-  
+  const btn = document.getElementById("createBackupBtn");
+  const lastBackup = document.getElementById("lastBackupTime");
+
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Backup...';
   }
-  
+
   try {
-    showNotification('Creating backup...');
-    
+    showNotification("Creating backup...");
+
     const response = await chrome.runtime.sendMessage({
-      action: 'createBackup',
-      includeMetadata: true
+      action: "createBackup",
+      includeMetadata: true,
     });
-    
+
     if (response && response.success) {
       if (lastBackup) {
         lastBackup.textContent = `Last backup: ${new Date().toLocaleString()}`;
       }
-      
+
       showNotification(`Backup created successfully: ${response.filename}`);
-      
+
       // Enable cleanup button if preview was done
-      const executeBtn = document.getElementById('executeCleanupBtn');
+      const executeBtn = document.getElementById("executeCleanupBtn");
       if (executeBtn) {
         executeBtn.disabled = false;
       }
     } else {
-      showNotification('Failed to create backup: ' + (response?.error || 'Unknown error'), true);
+      showNotification(
+        "Failed to create backup: " + (response?.error || "Unknown error"),
+        true
+      );
     }
   } catch (error) {
-    console.error('Backup error:', error);
-    showNotification('Failed to create backup', true);
+    console.error("Backup error:", error);
+    showNotification("Failed to create backup", true);
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-save"></i> Create Backup Before Cleanup';
+      btn.innerHTML =
+        '<i class="fas fa-save"></i> Create Backup Before Cleanup';
     }
   }
 }
 
 // Perform cleanup with confirmation
 async function performCleanupWithConfirmation() {
-  const cleanupAge = document.getElementById('cleanupAge');
-  const previewBox = document.getElementById('cleanupPreview');
-  const recordsCount = document.getElementById('previewRecordsCount');
-  
+  const cleanupAge = document.getElementById("cleanupAge");
+  const previewBox = document.getElementById("cleanupPreview");
+  const recordsCount = document.getElementById("previewRecordsCount");
+
   if (!cleanupAge || !previewBox) return;
-  
+
   // Check if preview was done
-  if (previewBox.style.display === 'none') {
-    showNotification('Please preview cleanup first', true);
+  if (previewBox.style.display === "none") {
+    showNotification("Please preview cleanup first", true);
     return;
   }
-  
+
   const days = parseInt(cleanupAge.value);
-  const recordsToDelete = parseInt(recordsCount?.textContent?.replace(/,/g, '') || '0');
-  
+  const recordsToDelete = parseInt(
+    recordsCount?.textContent?.replace(/,/g, "") || "0"
+  );
+
   // Confirmation dialog
   const confirmed = confirm(
     `⚠️ WARNING: This will permanently delete ${recordsToDelete.toLocaleString()} records older than ${days} days.\n\n` +
-    `Make sure you have created a backup first!\n\n` +
-    `This action cannot be undone. Continue?`
+      `Make sure you have created a backup first!\n\n` +
+      `This action cannot be undone. Continue?`
   );
-  
+
   if (!confirmed) return;
-  
+
   // Second confirmation for large deletions
   if (recordsToDelete > 10000) {
     const doubleConfirm = confirm(
       `⚠️ FINAL CONFIRMATION\n\n` +
-      `You are about to delete ${recordsToDelete.toLocaleString()} records.\n\n` +
-      `Are you absolutely sure?`
+        `You are about to delete ${recordsToDelete.toLocaleString()} records.\n\n` +
+        `Are you absolutely sure?`
     );
-    
+
     if (!doubleConfirm) return;
   }
-  
-  const executeBtn = document.getElementById('executeCleanupBtn');
+
+  const executeBtn = document.getElementById("executeCleanupBtn");
   if (executeBtn) {
     executeBtn.disabled = true;
-    executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cleaning Up...';
+    executeBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin"></i> Cleaning Up...';
   }
-  
+
   try {
-    showNotification('Performing cleanup...');
-    
+    showNotification("Performing cleanup...");
+
     const response = await chrome.runtime.sendMessage({
-      action: 'performCleanup',
-      days: days
+      action: "performCleanup",
+      days: days,
     });
-    
+
     if (response && response.success) {
-      showNotification(`Cleanup complete: ${response.recordsDeleted.toLocaleString()} records deleted`);
-      
+      showNotification(
+        `Cleanup complete: ${response.recordsDeleted.toLocaleString()} records deleted`
+      );
+
       // Hide preview and refresh database info
-      previewBox.style.display = 'none';
+      previewBox.style.display = "none";
       await updateDatabaseSizeDisplay();
     } else {
-      showNotification('Failed to perform cleanup: ' + (response?.error || 'Unknown error'), true);
+      showNotification(
+        "Failed to perform cleanup: " + (response?.error || "Unknown error"),
+        true
+      );
     }
   } catch (error) {
-    console.error('Cleanup error:', error);
-    showNotification('Failed to perform cleanup', true);
+    console.error("Cleanup error:", error);
+    showNotification("Failed to perform cleanup", true);
   } finally {
     if (executeBtn) {
       executeBtn.disabled = false;
@@ -2884,120 +3134,141 @@ async function performCleanupWithConfirmation() {
 // Validate domain list
 function validateDomainList(inputElement) {
   if (!inputElement) return true;
-  
-  const domains = inputElement.value.split('\n').map(d => d.trim()).filter(d => d);
+
+  const domains = inputElement.value
+    .split("\n")
+    .map((d) => d.trim())
+    .filter((d) => d);
   const invalidDomains = [];
-  
+
   // Domain regex: basic validation for domain patterns
   const domainRegex = /^(\*\.)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
   const wildcardRegex = /^https?:\/\/(\*\.)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+/;
-  
-  domains.forEach(domain => {
+
+  domains.forEach((domain) => {
     // Allow wildcards, URLs, and plain domains
-    if (!domainRegex.test(domain) && !wildcardRegex.test(domain) && !domain.includes('*')) {
+    if (
+      !domainRegex.test(domain) &&
+      !wildcardRegex.test(domain) &&
+      !domain.includes("*")
+    ) {
       invalidDomains.push(domain);
     }
   });
-  
+
   // Show validation feedback
-  const feedbackId = inputElement.id + 'Feedback';
+  const feedbackId = inputElement.id + "Feedback";
   let feedbackEl = document.getElementById(feedbackId);
-  
+
   if (!feedbackEl) {
-    feedbackEl = document.createElement('div');
+    feedbackEl = document.createElement("div");
     feedbackEl.id = feedbackId;
-    feedbackEl.className = 'validation-feedback';
+    feedbackEl.className = "validation-feedback";
     inputElement.parentNode.insertBefore(feedbackEl, inputElement.nextSibling);
   }
-  
+
   if (invalidDomains.length > 0) {
-    feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Invalid domains: ${invalidDomains.join(', ')}`;
-    feedbackEl.style.color = '#e53e3e';
-    feedbackEl.style.fontSize = '12px';
-    feedbackEl.style.marginTop = '4px';
+    feedbackEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Invalid domains: ${invalidDomains.join(
+      ", "
+    )}`;
+    feedbackEl.style.color = "#e53e3e";
+    feedbackEl.style.fontSize = "12px";
+    feedbackEl.style.marginTop = "4px";
     return false;
   } else if (domains.length > 0) {
     feedbackEl.innerHTML = `<i class="fas fa-check-circle"></i> ${domains.length} valid domain(s)`;
-    feedbackEl.style.color = '#48bb78';
-    feedbackEl.style.fontSize = '12px';
-    feedbackEl.style.marginTop = '4px';
+    feedbackEl.style.color = "#48bb78";
+    feedbackEl.style.fontSize = "12px";
+    feedbackEl.style.marginTop = "4px";
     return true;
   } else {
-    feedbackEl.innerHTML = '';
+    feedbackEl.innerHTML = "";
     return true;
   }
 }
 
 // Enhanced import settings with validation
 async function importSettingsWithValidation() {
-  const fileInput = document.getElementById('importSettingsFile');
+  const fileInput = document.getElementById("importSettingsFile");
   if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-    showNotification('Please select a file', true);
+    showNotification("Please select a file", true);
     return;
   }
-  
+
   const file = fileInput.files[0];
-  
+
   // Validate file type
-  if (!file.name.endsWith('.json')) {
-    showNotification('Invalid file type. Please select a JSON file', true);
+  if (!file.name.endsWith(".json")) {
+    showNotification("Invalid file type. Please select a JSON file", true);
     return;
   }
-  
+
   // Validate file size (max 50MB)
   if (file.size > 50 * 1024 * 1024) {
-    showNotification('File too large. Maximum size is 50MB', true);
+    showNotification("File too large. Maximum size is 50MB", true);
     return;
   }
-  
+
   try {
     const text = await file.text();
     const settings = JSON.parse(text);
-    
+
     // Validate settings structure
-    if (!settings || typeof settings !== 'object') {
-      showNotification('Invalid settings file: not a valid JSON object', true);
+    if (!settings || typeof settings !== "object") {
+      showNotification("Invalid settings file: not a valid JSON object", true);
       return;
     }
-    
+
     // Check for required fields or valid structure
-    const validKeys = ['general', 'monitoring', 'filters', 'export', 'retention', 'security', 'theme'];
-    const hasValidKeys = Object.keys(settings).some(key => validKeys.includes(key));
-    
+    const validKeys = [
+      "general",
+      "monitoring",
+      "filters",
+      "export",
+      "retention",
+      "security",
+      "theme",
+    ];
+    const hasValidKeys = Object.keys(settings).some((key) =>
+      validKeys.includes(key)
+    );
+
     if (!hasValidKeys) {
-      showNotification('Invalid settings file: no recognized settings found', true);
+      showNotification(
+        "Invalid settings file: no recognized settings found",
+        true
+      );
       return;
     }
-    
+
     // Confirmation dialog
     const settingsCount = Object.keys(settings).length;
     const confirmed = confirm(
       `Import ${settingsCount} setting(s)?\n\n` +
-      `This will overwrite your current settings.\n\n` +
-      `Categories: ${Object.keys(settings).join(', ')}`
+        `This will overwrite your current settings.\n\n` +
+        `Categories: ${Object.keys(settings).join(", ")}`
     );
-    
+
     if (!confirmed) return;
-    
-    showNotification('Importing settings...');
-    
+
+    showNotification("Importing settings...");
+
     // Import settings
     await chrome.storage.local.set(settings);
-    
+
     // Reload options
     await loadOptions();
-    
-    showNotification('Settings imported successfully!');
-    
+
+    showNotification("Settings imported successfully!");
+
     // Clear file input
-    fileInput.value = '';
-    
+    fileInput.value = "";
   } catch (error) {
     if (error instanceof SyntaxError) {
-      showNotification('Invalid JSON file: ' + error.message, true);
+      showNotification("Invalid JSON file: " + error.message, true);
     } else {
-      console.error('Import error:', error);
-      showNotification('Failed to import settings', true);
+      console.error("Import error:", error);
+      showNotification("Failed to import settings", true);
     }
   }
 }

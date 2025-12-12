@@ -127,19 +127,91 @@ function setupEventListeners() {
     chrome.tabs.create({ url: 'https://github.com/ModernaCyber/Universal-Request-Analyzer/issues' });
   });
 
-  // QA Quick View - Site selector
+  // QA Quick View - Domain selector (filters popup stats)
   document.getElementById('siteSelect')?.addEventListener('change', async (e) => {
-    const selectedSite = e.target.value;
-    if (selectedSite) {
-      // Navigate to selected site
+    const selectedDomain = e.target.value;
+    const navigateBtn = document.getElementById('navigateToSite');
+    const exportBtn = document.getElementById('exportDomainData');
+    
+    // Enable/disable action buttons based on selection
+    if (selectedDomain) {
+      navigateBtn?.removeAttribute('disabled');
+      exportBtn?.removeAttribute('disabled');
+    } else {
+      navigateBtn?.setAttribute('disabled', 'true');
+      exportBtn?.setAttribute('disabled', 'true');
+    }
+    
+    // Reload stats filtered by selected domain
+    await loadPageSummary();
+  });
+
+  // QA Quick View - Navigate to selected domain
+  document.getElementById('navigateToSite')?.addEventListener('click', async () => {
+    const siteSelect = document.getElementById('siteSelect');
+    const selectedDomain = siteSelect?.value;
+    
+    if (selectedDomain) {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tabs[0]) {
-        chrome.tabs.update(tabs[0].id, { url: selectedSite });
+        chrome.tabs.update(tabs[0].id, { url: selectedDomain });
       }
     }
   });
 
-  // QA Quick View - Navigation buttons
+  // QA Quick View - View detailed analytics in Options page
+  document.getElementById('viewDetailsBtn')?.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  // QA Quick View - Export domain data
+  document.getElementById('exportDomainData')?.addEventListener('click', async () => {
+    const siteSelect = document.getElementById('siteSelect');
+    const selectedDomain = siteSelect?.value;
+    
+    if (!selectedDomain) {
+      showNotification('Please select a domain first', true);
+      return;
+    }
+    
+    try {
+      // Extract domain from full URL (e.g., "https://example.com" -> "example.com")
+      let domain = selectedDomain;
+      try {
+        const url = new URL(selectedDomain);
+        domain = url.hostname;
+      } catch (e) {
+        // If not a valid URL, use as-is
+      }
+      
+      const response = await chrome.runtime.sendMessage({
+        action: 'exportFilteredData',
+        filters: { domain: domain },
+        format: 'json'
+      });
+      
+      if (response.success && response.data) {
+        const exportData = JSON.stringify(response.data, null, 2);
+        const blob = new Blob([exportData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = response.filename || `${domain}-export-${Date.now()}.json`;
+        a.click();
+        
+        URL.revokeObjectURL(url);
+        showNotification('Export successful!');
+      } else {
+        showNotification('Export failed: ' + (response.error || 'Unknown error'), true);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      showNotification('Export failed', true);
+    }
+  });
+
+  // Legacy button handlers (keeping for backwards compatibility)
   document.getElementById('viewRequests')?.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
@@ -327,6 +399,21 @@ async function loadPageSummary() {
     
     const pageFilter = document.getElementById('pageFilter');
     const selectedPage = pageFilter ? pageFilter.value : '';
+    
+    // Get domain filter from QA Quick View
+    const siteSelect = document.getElementById('siteSelect');
+    const selectedDomainUrl = siteSelect ? siteSelect.value : '';
+    let filterDomain = new URL(currentTab.url).hostname;
+    
+    // Override domain if QA Quick View has a selection
+    if (selectedDomainUrl) {
+      try {
+        const url = new URL(selectedDomainUrl);
+        filterDomain = url.hostname;
+      } catch (e) {
+        filterDomain = selectedDomainUrl;
+      }
+    }
 
     // Get detailed filtered stats from background
     const response = await chrome.runtime.sendMessage({
@@ -335,7 +422,7 @@ async function loadPageSummary() {
         url: selectedPage || currentTab.url, // Use selected page or current URL
         tabId: currentTab.id,
         requestType: requestType,
-        domain: new URL(currentTab.url).hostname // Pass domain for aggregation
+        domain: filterDomain // Pass domain for aggregation (from QA Quick View or current tab)
       }
     });
 
@@ -792,7 +879,7 @@ async function loadTrackedSites() {
     if (!siteSelect) return;
 
     // Reset dropdown
-    siteSelect.innerHTML = '<option value="">Current Page</option>';
+    siteSelect.innerHTML = '<option value="">All Domains</option>';
     
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
 

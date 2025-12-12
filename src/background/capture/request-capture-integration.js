@@ -118,15 +118,44 @@ export class RequestCaptureIntegration {
         initiator: details.initiator,
         timestamp,
         startTime: details.timeStamp,
-        domain: urlParts?.hostname || '',
+        domain: null, // Will be set from page URL (tab.url hostname)
         path: urlParts?.pathname || '',
         queryString: urlParts?.search || '',
         protocol: urlParts?.protocol || '',
-        requestBody: details.requestBody ? JSON.stringify(details.requestBody) : null
+        requestBody: details.requestBody ? JSON.stringify(details.requestBody) : null,
+        pageUrl: null // Will be populated asynchronously
       };
 
-      // Store in pending requests
+      // Store in pending requests FIRST (must be synchronous)
       this.pendingRequests.set(requestId, requestData);
+
+      // Get the page URL from the tab asynchronously (non-blocking)
+      // Domain is extracted from PAGE URL, not request URL
+      // This groups API requests under the page/domain that made them
+      if (details.tabId && details.tabId > 0) {
+        chrome.tabs.get(details.tabId).then(tab => {
+          if (tab && tab.url) {
+            requestData.pageUrl = tab.url;
+            // Extract domain from PAGE URL (the tab's domain)
+            try {
+              const pageUrlObj = new URL(tab.url);
+              requestData.domain = pageUrlObj.hostname;
+              console.log('  → Page URL:', requestData.pageUrl, '→ Domain:', requestData.domain);
+            } catch (e) {
+              // Fallback to request URL hostname if page URL parsing fails
+              requestData.domain = urlParts?.hostname || '';
+              console.warn('  → Failed to parse page URL, using request hostname:', requestData.domain);
+            }
+          }
+        }).catch(tabError => {
+          // Fallback to request URL hostname if tab fetch fails
+          requestData.domain = urlParts?.hostname || '';
+          console.warn('Failed to get tab info for tabId', details.tabId, '- using request hostname:', tabError.message);
+        });
+      } else {
+        // No tab ID (background request) - use request URL hostname
+        requestData.domain = urlParts?.hostname || '';
+      }
 
       // Emit event
       this.eventBus?.publish('request:started', { requestId, timestamp });
@@ -283,6 +312,15 @@ export class RequestCaptureIntegration {
   async saveToBronze(requestData, perfMetrics = null) {
     try {
       console.log('💾 Saving request to Bronze:', requestData.method, requestData.url);
+      console.log('  📊 Request data being saved:', {
+        id: requestData.id,
+        domain: requestData.domain,
+        pageUrl: requestData.pageUrl,
+        tabId: requestData.tabId,
+        status: requestData.status,
+        duration: requestData.duration,
+        type: requestData.type
+      });
       
       if (!this.dbManager?.medallion) {
         console.error('❌ Medallion manager not available! dbManager:', !!this.dbManager, 'medallion:', !!this.dbManager?.medallion);

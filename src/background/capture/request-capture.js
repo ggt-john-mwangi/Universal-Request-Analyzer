@@ -533,30 +533,33 @@ function handleWebVital(data, tab) {
 
   try {
     const { metric, value, rating, url, timestamp } = data;
-    
-    // Store the web vital metric in the database
-    const entry = {
-      request_id: null, // Not associated with a specific request
-      entry_type: 'web-vital',
-      name: metric,
-      start_time: timestamp,
-      duration: value,
-      metrics: JSON.stringify({
-        metric: metric,
-        value: value,
-        rating: rating,
-        url: url,
-      }),
-      created_at: Date.now(),
+
+    // Helper function to escape SQL strings for inline values (SQL.js doesn't support ? placeholders)
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
     };
 
+    // Store the web vital metric in the database
+    const metricsJson = JSON.stringify({
+      metric: metric,
+      value: value,
+      rating: rating,
+      url: url,
+    });
+
+    const createdAt = Date.now();
+
     // Insert into bronze_performance_entries table
-    if (dbManager.executeQuery) {
-      dbManager.executeQuery(
-        `INSERT INTO bronze_performance_entries (request_id, entry_type, name, start_time, duration, metrics, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [entry.request_id, entry.entry_type, entry.name, entry.start_time, entry.duration, entry.metrics, entry.created_at]
-      );
+    // IMPORTANT: SQL.js does NOT support ? placeholders - must use inline values
+    if (dbManager.db) {
+      const query = `INSERT INTO bronze_performance_entries (request_id, entry_type, name, start_time, duration, metrics, created_at)
+         VALUES (NULL, ${escapeStr("web-vital")}, ${escapeStr(
+        metric
+      )}, ${timestamp}, ${value}, ${escapeStr(metricsJson)}, ${createdAt})`;
+
+      dbManager.db.exec(query);
+      console.log(`✅ Web Vital stored: ${metric} = ${value}ms (${rating})`);
     }
 
     // Publish event for real-time updates
@@ -568,10 +571,8 @@ function handleWebVital(data, tab) {
       tabId: tab ? tab.id : 0,
       timestamp: timestamp,
     });
-
-    console.log(`Core Web Vital captured: ${metric} = ${value}ms (${rating})`);
   } catch (error) {
-    console.error('Error handling web vital:', error);
+    console.error("❌ Error handling web vital:", error);
   }
 }
 
@@ -581,11 +582,11 @@ function handleSecurityIssue(data, tab) {
 
   try {
     const { issues, pageUrl, timestamp } = data;
-    
-    issues.forEach(issue => {
+
+    issues.forEach((issue) => {
       // Store security issue in events table
       const event = {
-        event_type: 'security',
+        event_type: "security",
         event_name: issue.issue,
         source: pageUrl,
         data: JSON.stringify({
@@ -604,7 +605,16 @@ function handleSecurityIssue(data, tab) {
         dbManager.executeQuery(
           `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [event.event_type, event.event_name, event.source, event.data, event.request_id, event.user_id, event.session_id, event.timestamp]
+          [
+            event.event_type,
+            event.event_name,
+            event.source,
+            event.data,
+            event.request_id,
+            event.user_id,
+            event.session_id,
+            event.timestamp,
+          ]
         );
       }
     });
@@ -617,9 +627,11 @@ function handleSecurityIssue(data, tab) {
       timestamp: timestamp,
     });
 
-    console.log(`Security issues detected: ${issues.length} mixed content warnings`);
+    console.log(
+      `Security issues detected: ${issues.length} mixed content warnings`
+    );
   } catch (error) {
-    console.error('Error handling security issue:', error);
+    console.error("Error handling security issue:", error);
   }
 }
 
@@ -629,19 +641,19 @@ function handleThirdPartyDomains(data, tab) {
 
   try {
     const { domains, pageUrl, timestamp } = data;
-    
-    domains.forEach(domainInfo => {
+
+    domains.forEach((domainInfo) => {
       // Store third-party domain info in events table
       const event = {
-        event_type: 'third-party',
-        event_name: 'domain-detected',
+        event_type: "third-party",
+        event_name: "domain-detected",
         source: pageUrl,
         data: JSON.stringify({
           domain: domainInfo.domain,
           category: domainInfo.category,
           requestCount: domainInfo.requestCount,
           totalSize: domainInfo.resources.reduce((sum, r) => sum + r.size, 0),
-          resourceTypes: [...new Set(domainInfo.resources.map(r => r.type))],
+          resourceTypes: [...new Set(domainInfo.resources.map((r) => r.type))],
         }),
         request_id: null,
         user_id: null,
@@ -653,7 +665,16 @@ function handleThirdPartyDomains(data, tab) {
         dbManager.executeQuery(
           `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [event.event_type, event.event_name, event.source, event.data, event.request_id, event.user_id, event.session_id, event.timestamp]
+          [
+            event.event_type,
+            event.event_name,
+            event.source,
+            event.data,
+            event.request_id,
+            event.user_id,
+            event.session_id,
+            event.timestamp,
+          ]
         );
       }
     });
@@ -668,7 +689,7 @@ function handleThirdPartyDomains(data, tab) {
 
     console.log(`Third-party domains detected: ${domains.length} domains`);
   } catch (error) {
-    console.error('Error handling third-party domains:', error);
+    console.error("Error handling third-party domains:", error);
   }
 }
 
@@ -826,7 +847,10 @@ function shouldCaptureByUrl(url) {
     const { domain } = parseUrl(url);
 
     // Check URL pattern exclusions (browser internal URLs, extensions, etc.)
-    if (config.captureFilters.excludePatterns && config.captureFilters.excludePatterns.length > 0) {
+    if (
+      config.captureFilters.excludePatterns &&
+      config.captureFilters.excludePatterns.length > 0
+    ) {
       for (const pattern of config.captureFilters.excludePatterns) {
         if (matchesPattern(url, pattern)) {
           return false;
@@ -835,7 +859,10 @@ function shouldCaptureByUrl(url) {
     }
 
     // Check domain filters
-    if (config.captureFilters.excludeDomains && config.captureFilters.excludeDomains.includes(domain)) {
+    if (
+      config.captureFilters.excludeDomains &&
+      config.captureFilters.excludeDomains.includes(domain)
+    ) {
       return false;
     }
 
@@ -859,10 +886,10 @@ function matchesPattern(url, pattern) {
   // * matches any characters except /
   // ** matches any characters including /
   const regexPattern = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex chars
-    .replace(/\*/g, '.*'); // Convert * to .*
-  
-  const regex = new RegExp('^' + regexPattern + '$');
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&") // Escape special regex chars
+    .replace(/\*/g, ".*"); // Convert * to .*
+
+  const regex = new RegExp("^" + regexPattern + "$");
   return regex.test(url);
 }
 

@@ -164,13 +164,14 @@ async function getDatabaseVersion(db) {
  */
 async function setDatabaseVersion(db, version, description) {
   try {
-    db.exec(
-      `
+    // CRITICAL: SQL.js db.exec() IGNORES params array - must use inline values
+    const escapedDesc = description ? `'${description.replace(/'/g, "''")}'` : "NULL";
+    const timestamp = Date.now();
+    
+    db.exec(`
       INSERT INTO db_version (version, description, applied_at, status)
-      VALUES (?, ?, ?, ?)
-    `,
-      [version, description, Date.now(), "success"]
-    );
+      VALUES (${version}, ${escapedDesc}, ${timestamp}, 'success')
+    `);
     return true;
   } catch (error) {
     console.error("Failed to set database version:", error);

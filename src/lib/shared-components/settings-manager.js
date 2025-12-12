@@ -9,6 +9,12 @@ import featureFlags from "../../config/feature-flags.js";
 import aclManager from "../../auth/acl-manager.js";
 import themeManager from "../../config/theme-manager.js";
 
+// Cross-browser API support
+const browserAPI = globalThis.browser || globalThis.chrome;
+
+// Database config manager reference (will be injected)
+let configSchemaManager = null;
+
 /**
  * Settings manager class
  */
@@ -99,8 +105,8 @@ class SettingsManager {
     };
 
     // Add event listeners for settings changes
-    if (typeof chrome !== "undefined" && chrome.runtime) {
-      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (browserAPI && browserAPI.runtime) {
+      browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.action === "settingsUpdated") {
           this.handleSettingsUpdate(message.settings);
           sendResponse({ success: true });
@@ -113,10 +119,46 @@ class SettingsManager {
    * Initialize the settings manager
    * @returns {Promise<void>}
    */
+  /**
+   * Set database manager for config persistence
+   * @param {Object} dbManager - Database manager instance with config access
+   */
+  setDatabaseManager(dbManager) {
+    configSchemaManager = dbManager;
+    console.log('Settings-manager: Database manager injected');
+  }
+
   async initialize() {
     try {
-      // Load saved settings from storage
+      // Load saved settings from storage first (fast)
       const data = await this.loadFromStorage();
+      
+      // If database is available, load from there as source of truth
+      if (configSchemaManager) {
+        try {
+          const dbSettings = await this.loadFromDatabase();
+          if (dbSettings && Object.keys(dbSettings).length > 0) {
+            // Database is source of truth, merge with defaults
+            this.settings = this.mergeSettings(this.settings, dbSettings);
+            // Sync to storage for content script access
+            await this.saveToStorage();
+            console.log('Settings loaded from database and synced to storage');
+          } else if (data && data.settings) {
+            // No DB settings yet, use storage
+            this.settings = this.mergeSettings(this.settings, data.settings);
+          }
+        } catch (dbError) {
+          console.warn('Failed to load from database, using storage:', dbError);
+          if (data && data.settings) {
+            this.settings = this.mergeSettings(this.settings, data.settings);
+          }
+        }
+      } else {
+        // No database available, use storage only
+        if (data && data.settings) {
+          this.settings = this.mergeSettings(this.settings, data.settings);
+        }
+      }
 
       if (data && data.settings) {
         // Merge saved settings with defaults
@@ -170,15 +212,63 @@ class SettingsManager {
    * @returns {Promise<Object>}
    */
   async loadFromStorage() {
+    if (!browserAPI || !browserAPI.storage) {
+      return null;
+    }
+    
     return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.get("settings", (data) => {
-          resolve(data.settings || null);
-        });
-      } else {
-        resolve(null); // Or handle the case where chrome.storage is not available
-      }
+      browserAPI.storage.local.get("settings", (data) => {
+        resolve(data.settings || null);
+      });
     });
+  }
+
+  /**
+   * Load settings from database config tables
+   * @returns {Promise<Object|null>}
+   */
+  async loadFromDatabase() {
+    if (!configSchemaManager) {
+      return null;
+    }
+
+    try {
+      const settings = {
+        capture: {},
+        general: {},
+        display: {},
+        advanced: {}
+      };
+
+      // Load capture settings
+      const captureSettings = await configSchemaManager.getSettingsByCategory('capture');
+      if (captureSettings && Object.keys(captureSettings).length > 0) {
+        settings.capture = captureSettings;
+      }
+
+      // Load general settings
+      const generalSettings = await configSchemaManager.getSettingsByCategory('general');
+      if (generalSettings && Object.keys(generalSettings).length > 0) {
+        settings.general = generalSettings;
+      }
+
+      // Load display settings
+      const displaySettings = await configSchemaManager.getSettingsByCategory('display');
+      if (displaySettings && Object.keys(displaySettings).length > 0) {
+        settings.display = displaySettings;
+      }
+
+      // Load advanced settings
+      const advancedSettings = await configSchemaManager.getSettingsByCategory('advanced');
+      if (advancedSettings && Object.keys(advancedSettings).length > 0) {
+        settings.advanced = advancedSettings;
+      }
+
+      return settings;
+    } catch (error) {
+      console.error('Failed to load settings from database:', error);
+      return null;
+    }
   }
 
   /**
@@ -186,21 +276,53 @@ class SettingsManager {
    * @returns {Promise<void>}
    */
   async saveToStorage() {
-    return new Promise((resolve) => {
-      if (typeof chrome !== "undefined" && chrome.storage) {
-        chrome.storage.local.set(
-          {
-            settings: {
-              settings: this.settings,
-              timestamp: Date.now(),
-            },
+    if (!browserAPI || !browserAPI.storage) {
+      return;
+    }
+    
+    // Save to storage (for content script access)
+    await new Promise((resolve) => {
+      browserAPI.storage.local.set(
+        {
+          settings: {
+            settings: this.settings,
+            timestamp: Date.now(),
           },
-          resolve
-        );
-      } else {
-        resolve(); // Or handle the case where chrome.storage is not available
-      }
+        },
+        resolve
+      );
     });
+
+    // Also save to database (source of truth)
+    await this.saveToDatabase();
+  }
+
+  /**
+   * Save settings to database config tables
+   * @returns {Promise<void>}
+   */
+  async saveToDatabase() {
+    if (!configSchemaManager) {
+      return;
+    }
+
+    try {
+      // Save each category of settings to database
+      for (const [category, values] of Object.entries(this.settings)) {
+        if (typeof values === 'object' && values !== null) {
+          for (const [key, value] of Object.entries(values)) {
+            const fullKey = `${category}.${key}`;
+            await configSchemaManager.setAppSetting(fullKey, value, {
+              category,
+              description: `${category} setting: ${key}`
+            });
+          }
+        }
+      }
+      console.log('Settings saved to database');
+    } catch (error) {
+      console.error('Failed to save settings to database:', error);
+    }
   }
 
   /**

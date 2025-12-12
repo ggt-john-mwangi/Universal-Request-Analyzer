@@ -1,78 +1,78 @@
 // Content script to capture performance metrics from the page
 
+// Cross-browser API support
+const browserAPI = globalThis.browser || globalThis.chrome;
+
 // Check if current domain should be monitored
 let shouldMonitor = false;
 let configLoaded = false;
 
-// Load configuration from storage
-chrome.storage.sync.get(['trackOnlyConfiguredSites', 'trackingSites', 'capture'], function(config) {
+// Load configuration from storage (using local storage where settings-manager saves)
+browserAPI.storage.local.get(['settings'], function(data) {
+  const config = data.settings?.settings || {};
   configLoaded = true;
   
   const currentUrl = window.location.href;
   const currentDomain = window.location.hostname;
   
-  // Check excludePatterns first for optimization
+  // Check capture configuration
   const captureConfig = config.capture || {};
-  const excludePatterns = captureConfig.filters?.excludePatterns || [
-    // Default exclude patterns for browser internals
+  
+  // Check if capture is disabled
+  if (captureConfig.enabled === false) {
+    console.log('[URA] Capture is disabled in settings. Monitoring disabled.');
+    return;
+  }
+  
+  const captureFilters = captureConfig.captureFilters || {};
+  
+  // Get exclude patterns with defaults
+  const excludeDomains = captureFilters.excludeDomains || [
     'chrome://*',
-    'chrome-extension://*',
-    'moz-extension://*',
     'edge://*',
     'about:*',
-    'file://*',
+    'chrome-extension://*',
+    'moz-extension://*'
   ];
   
-  const excludeDomains = captureConfig.filters?.excludeDomains || ['localhost', '127.0.0.1', '0.0.0.0'];
-  
-  // Check if URL is excluded (optimization - exit early)
-  for (const pattern of excludePatterns) {
+  // Check if domain is excluded
+  for (const pattern of excludeDomains) {
     if (matchesPattern(currentUrl, currentDomain, pattern)) {
-      console.log(`[URA] URL ${currentUrl} matches exclude pattern "${pattern}". Monitoring disabled.`);
+      console.log(`[URA] Domain ${currentDomain} matches exclude pattern "${pattern}". Monitoring disabled.`);
       return;
     }
   }
   
-  // Check if domain is excluded
-  if (excludeDomains.includes(currentDomain)) {
-    console.log(`[URA] Domain ${currentDomain} is in exclude list. Monitoring disabled.`);
-    return;
-  }
+  // Get include domains
+  const includeDomains = captureFilters.includeDomains || [];
   
-  const trackOnlyConfigured = config.trackOnlyConfiguredSites !== false; // Default true
-  const trackingSites = config.trackingSites || '';
-  
-  if (!trackOnlyConfigured) {
-    // Monitor all sites (not excluded)
+  if (includeDomains.length === 0) {
+    // No domains configured, monitor all (except excluded)
     shouldMonitor = true;
-    console.log('[URA] Monitoring all sites (trackOnlyConfiguredSites = false)');
+    console.log('[URA] No include domains configured. Monitoring all non-excluded sites.');
     initializeMonitoring();
     return;
   }
   
-  if (!trackingSites.trim()) {
-    // No sites configured, don't monitor
-    shouldMonitor = false;
-    console.log('[URA] No domains configured. Monitoring disabled.');
-    return;
-  }
-  
-  // Parse tracking patterns
-  const patterns = trackingSites.split('\n')
-    .map(p => p.trim())
-    .filter(p => p && !p.startsWith('#')); // Remove empty lines and comments
-  
-  // Check if current domain/URL matches any pattern
-  for (const pattern of patterns) {
+  // Check if current domain matches any include pattern
+  for (const pattern of includeDomains) {
     if (matchesPattern(currentUrl, currentDomain, pattern)) {
       shouldMonitor = true;
-      console.log(`[URA] Domain ${currentDomain} matches pattern "${pattern}". Monitoring enabled.`);
+      console.log(`[URA] Domain ${currentDomain} matches include pattern "${pattern}". Monitoring enabled.`);
       initializeMonitoring();
       return;
     }
   }
   
   console.log(`[URA] Domain ${currentDomain} not in monitored list. Skipping data capture.`);
+});
+
+// Listen for settings updates
+browserAPI.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.settings) {
+    // Reload configuration when settings change
+    location.reload(); // Simple approach: reload page to re-evaluate monitoring
+  }
 });
 
 // Pattern matching function

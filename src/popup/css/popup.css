@@ -28,7 +28,7 @@ body {
   justify-content: center;
   min-height: 450px;
   padding: 30px;
-  background: var(--background-color, white);
+  background: var(--background-color);
 }
 
 .auth-container.hidden {
@@ -47,7 +47,7 @@ body {
   font-size: 22px;
   font-weight: 700;
   margin-bottom: 8px;
-  color: var(--text-primary-color, #1a202c);
+  color: var(--text-primary-color);
   text-align: center;
 }
 
@@ -590,13 +590,15 @@ body {
   box-shadow: 0 0 0 3px var(--shadow-color, rgba(102, 126, 234, 0.1));
 }
 
-.qa-navigation {
+.qa-navigation,
+.qa-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
-.qa-nav-btn {
+.qa-nav-btn,
+.qa-action-btn {
   padding: 12px 8px;
   background: var(--background-color, white);
   border: 2px solid var(--border-color, #e2e8f0);
@@ -612,12 +614,37 @@ body {
   gap: 6px;
 }
 
-.qa-nav-btn i {
+.qa-action-btn {
+  justify-content: center;
+  min-height: 60px;
+}
+
+.qa-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--disabled-background, #f7fafc);
+  border-color: var(--disabled-border, #cbd5e0);
+}
+
+.qa-action-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--disabled-border, #cbd5e0);
+  background: var(--disabled-background, #f7fafc);
+}
+
+.qa-nav-btn i,
+.qa-action-btn i {
   font-size: 18px;
   color: var(--info-color, #17a2b8);
 }
 
-.qa-nav-btn:hover {
+.qa-action-btn:disabled i {
+  color: var(--disabled-text, #a0aec0);
+}
+
+.qa-nav-btn:hover,
+.qa-action-btn:not(:disabled):hover {
   border-color: var(--info-color, #17a2b8);
   background: var(--hover-color, #e6f7fa);
   transform: translateY(-2px);

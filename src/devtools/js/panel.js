@@ -9,6 +9,7 @@ export class DevToolsPanel {
     this.streamPaused = false;
     this.streamData = [];
     this.selectedRequests = new Set();
+    this.currentErrors = [];
     
     // Constants
     this.SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
@@ -217,7 +218,10 @@ export class DevToolsPanel {
           <!-- Requests Table Tab -->
           <div id="requestsTab" class="tab-content">
             <div class="table-controls">
-              <input type="text" id="searchRequests" placeholder="Search URLs, methods, status..." class="search-input">
+              <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchRequests" placeholder="Search URLs, methods, status..." class="search-input">
+              </div>
               <select id="requestsPerPage" class="filter-select-sm">
                 <option value="25">25 per page</option>
                 <option value="50">50 per page</option>
@@ -299,6 +303,51 @@ export class DevToolsPanel {
             <div class="endpoints-analysis">
               <h4><i class="fas fa-network-wired"></i> API Endpoints Analysis</h4>
               <div id="endpointsTable"></div>
+            </div>
+            
+            <div class="endpoint-performance-history" style="margin-top: 24px;">
+              <h4><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
+              <p class="hint">Track how specific endpoints perform over time. Useful for detecting performance degradation and regression analysis.</p>
+              
+              <div class="history-controls" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div class="filter-group">
+                  <label><i class="fas fa-link"></i> Endpoint Pattern:</label>
+                  <input type="text" id="endpointPattern" placeholder="e.g., /api/login, /users/:id" class="filter-input" style="min-width: 250px;">
+                </div>
+                
+                <div class="filter-group">
+                  <label><i class="fas fa-calendar"></i> Time Bucket:</label>
+                  <select id="historyTimeBucket" class="filter-select">
+                    <option value="hourly" selected>Hourly</option>
+                    <option value="daily">Daily</option>
+                  </select>
+                </div>
+                
+                <div class="filter-group">
+                  <label><i class="fas fa-clock"></i> Time Range:</label>
+                  <select id="historyTimeRange" class="filter-select">
+                    <option value="3600000">Last Hour</option>
+                    <option value="21600000">Last 6 Hours</option>
+                    <option value="86400000">Last 24 Hours</option>
+                    <option value="259200000">Last 3 Days</option>
+                    <option value="604800000" selected>Last 7 Days</option>
+                    <option value="2592000000">Last 30 Days</option>
+                  </select>
+                </div>
+                
+                <button id="loadHistoryBtn" class="btn-primary" style="align-self: flex-end;">
+                  <i class="fas fa-sync-alt"></i> Load History
+                </button>
+              </div>
+              
+              <div id="performanceHistoryChart" style="min-height: 300px; position: relative;">
+                <canvas id="historyChartCanvas"></canvas>
+              </div>
+              
+              <div id="performanceInsights" class="performance-insights" style="margin-top: 16px; display: none;">
+                <h5><i class="fas fa-lightbulb"></i> Performance Insights</h5>
+                <div id="insightsContent"></div>
+              </div>
             </div>
           </div>
           
@@ -754,6 +803,9 @@ export class DevToolsPanel {
       domainDisplay.title = `Showing data for ${currentDomain} only`;
     }
     
+    // Store current domain for use in filters
+    this.currentDomain = currentDomain;
+    
     // Load pages for current domain
     if (currentDomain) {
       await this.loadPageFilter(currentDomain);
@@ -978,13 +1030,11 @@ export class DevToolsPanel {
   }
 
   exportMetrics() {
+    const filters = this.getActiveFilters();
     chrome.runtime.sendMessage(
       {
         action: "exportFilteredData",
-        filters: {
-          pageUrl: this.currentUrl,
-          timeRange: parseInt(document.getElementById("timeRange").value),
-        },
+        filters: filters,
         format: "json",
       },
       (response) => {
@@ -994,9 +1044,10 @@ export class DevToolsPanel {
         }
         
         if (response && response.success) {
-          console.log("Metrics exported successfully");
+          this.showToast('Metrics exported successfully', 'success');
         } else {
           console.error("Export failed:", response?.error);
+          this.showToast('Export failed: ' + (response?.error || 'Unknown error'), 'error');
         }
       }
     );
@@ -1033,6 +1084,11 @@ export class DevToolsPanel {
       });
       
       console.log('Pages for domain response:', response);
+      console.log('Response structure:', {
+        success: response?.success,
+        pagesLength: response?.pages?.length,
+        pages: response?.pages
+      });
       
       if (response && response.success && response.pages && response.pages.length > 0) {
         response.pages.forEach(pageObj => {
@@ -1127,20 +1183,33 @@ export class DevToolsPanel {
   }
 
   // Load requests table
-  async loadRequestsTable() {
+  async loadRequestsTable(page = 1) {
     try {
       const filters = this.getActiveFilters();
+      const perPageSelect = document.getElementById('requestsPerPage');
+      const perPage = perPageSelect ? parseInt(perPageSelect.value) : 25;
+      const offset = (page - 1) * perPage;
+      
+      console.log('loadRequestsTable called:', { page, perPage, offset, filters });
+      
       const response = await chrome.runtime.sendMessage({
         action: 'getDetailedRequests',
         filters,
-        limit: 100,
-        offset: 0
+        limit: perPage,
+        offset: offset
+      });
+      
+      console.log('getDetailedRequests response:', {
+        success: response?.success,
+        requestsLength: response?.requests?.length,
+        totalCount: response?.totalCount
       });
       
       const tbody = document.getElementById('requestsTableBody');
       
       if (!response.success || !response.requests || response.requests.length === 0) {
         tbody.innerHTML = '<tr class="no-data-row"><td colspan="7">No requests available for selected filters</td></tr>';
+        document.getElementById('tablePagination').innerHTML = '';
         return;
       }
       
@@ -1179,25 +1248,39 @@ export class DevToolsPanel {
       // Store requests for copy as cURL functionality
       this.currentRequests = response.requests;
       
-      // Use event delegation instead of inline onclick
-      tbody.addEventListener('click', (e) => {
-        const viewBtn = e.target.closest('.btn-view-details');
-        if (viewBtn) {
-          const requestId = viewBtn.dataset.requestId;
-          this.viewRequestDetails(requestId);
-          return;
-        }
-        
-        const curlBtn = e.target.closest('.btn-copy-curl');
-        if (curlBtn) {
-          const requestId = curlBtn.dataset.requestId;
-          const requestData = this.currentRequests.find(r => r.id === requestId);
-          if (requestData) {
-            this.copyAsCurl(requestData);
+      // Render pagination
+      this.renderPagination(page, response.totalCount, perPage);
+      
+      // Add listener for per-page selector (only once)
+      if (perPageSelect && !perPageSelect.dataset.listenerAdded) {
+        perPageSelect.dataset.listenerAdded = 'true';
+        perPageSelect.addEventListener('change', () => {
+          this.loadRequestsTable(1); // Reset to page 1 when changing per-page
+        });
+      }
+      
+      // Use event delegation instead of inline onclick (only add listener once)
+      if (!tbody.dataset.listenerAdded) {
+        tbody.dataset.listenerAdded = 'true';
+        tbody.addEventListener('click', (e) => {
+          const viewBtn = e.target.closest('.btn-view-details');
+          if (viewBtn) {
+            const requestId = viewBtn.dataset.requestId;
+            this.viewRequestDetails(requestId);
+            return;
           }
-          return;
-        }
-      });
+          
+          const curlBtn = e.target.closest('.btn-copy-curl');
+          if (curlBtn) {
+            const requestId = curlBtn.dataset.requestId;
+            const requestData = this.currentRequests.find(r => r.id === requestId);
+            if (requestData) {
+              this.copyAsCurl(requestData);
+            }
+            return;
+          }
+        });
+      }
       
     } catch (error) {
       console.error('Failed to load requests table:', error);
@@ -1206,19 +1289,143 @@ export class DevToolsPanel {
     }
   }
   
+  // Render pagination controls
+  renderPagination(currentPage, totalCount, perPage) {
+    const container = document.getElementById('tablePagination');
+    if (!container || totalCount === 0) {
+      if (container) container.innerHTML = '';
+      return;
+    }
+    
+    const totalPages = Math.ceil(totalCount / perPage);
+    if (totalPages <= 1) {
+      container.innerHTML = `<span class="pagination-info">Showing ${totalCount} request${totalCount !== 1 ? 's' : ''}</span>`;
+      return;
+    }
+    
+    let html = `<span class="pagination-info">Page ${currentPage} of ${totalPages} (${totalCount} total)</span>`;
+    
+    // Previous button
+    if (currentPage > 1) {
+      html += `<button class="pagination-btn" data-page="${currentPage - 1}"><i class="fas fa-chevron-left"></i> Previous</button>`;
+    }
+    
+    // Page numbers
+    const maxPageButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+    
+    if (endPage - startPage < maxPageButtons - 1) {
+      startPage = Math.max(1, endPage - maxPageButtons + 1);
+    }
+    
+    if (startPage > 1) {
+      html += `<button class="pagination-btn" data-page="1">1</button>`;
+      if (startPage > 2) html += `<span class="pagination-ellipsis">...</span>`;
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      const activeClass = i === currentPage ? 'active' : '';
+      html += `<button class="pagination-btn ${activeClass}" data-page="${i}">${i}</button>`;
+    }
+    
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) html += `<span class="pagination-ellipsis">...</span>`;
+      html += `<button class="pagination-btn" data-page="${totalPages}">${totalPages}</button>`;
+    }
+    
+    // Next button
+    if (currentPage < totalPages) {
+      html += `<button class="pagination-btn" data-page="${currentPage + 1}">Next <i class="fas fa-chevron-right"></i></button>`;
+    }
+    
+    container.innerHTML = html;
+    
+    // Add event listeners to pagination buttons
+    container.querySelectorAll('.pagination-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = parseInt(btn.dataset.page);
+        this.loadRequestsTable(page);
+      });
+    });
+  }
+  
   // View request details
-  viewRequestDetails(requestId) {
-    console.log('View details for request:', requestId);
-    // Show inline notification instead of alert
-    const message = document.createElement('div');
-    message.className = 'toast-notification';
-    message.innerHTML = `
-      <i class="fas fa-info-circle"></i> 
-      Detailed view for request ${requestId} - Full implementation coming soon
-    `;
-    message.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2196F3; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
-    document.body.appendChild(message);
-    setTimeout(() => message.remove(), 3000);
+  async viewRequestDetails(requestId) {
+    try {
+      // Search in both currentRequests and currentErrors arrays
+      let request = this.currentRequests?.find(r => r.id === requestId);
+      if (!request) {
+        request = this.currentErrors?.find(r => r.id === requestId);
+      }
+      
+      if (!request) {
+        this.showToast('Request not found', 'error');
+        return;
+      }
+      
+      // Create modal
+      const modal = document.createElement('div');
+      modal.className = 'details-modal';
+      modal.innerHTML = `
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3><i class="fas fa-info-circle"></i> Request Details</h3>
+            <button class="modal-close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="detail-section">
+              <h4>General</h4>
+              <table class="details-table">
+                <tr><td>Method:</td><td><span class="method-badge">${request.method}</span></td></tr>
+                <tr><td>URL:</td><td class="selectable">${request.url}</td></tr>
+                <tr><td>Status:</td><td>${request.status} ${request.status_text || ''}</td></tr>
+                <tr><td>Type:</td><td>${request.type}</td></tr>
+                <tr><td>Domain:</td><td>${request.domain || 'N/A'}</td></tr>
+                <tr><td>Page:</td><td>${request.page_url || 'N/A'}</td></tr>
+              </table>
+            </div>
+            <div class="detail-section">
+              <h4>Performance</h4>
+              <table class="details-table">
+                <tr><td>Duration:</td><td>${request.duration ? Math.round(request.duration) + 'ms' : 'N/A'}</td></tr>
+                <tr><td>Size:</td><td>${this.formatBytes(request.size_bytes || 0)}</td></tr>
+                <tr><td>From Cache:</td><td>${request.from_cache ? 'Yes' : 'No'}</td></tr>
+                <tr><td>Timestamp:</td><td>${new Date(request.timestamp).toLocaleString()}</td></tr>
+              </table>
+            </div>
+            ${request.error ? `
+            <div class="detail-section">
+              <h4>Error</h4>
+              <div class="error-box">${request.error}</div>
+            </div>
+            ` : ''}
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary modal-close-btn">Close</button>
+          </div>
+        </div>
+      `;
+      
+      // Add event listeners for closing
+      const overlay = modal.querySelector('.modal-overlay');
+      const closeBtn = modal.querySelector('.modal-close');
+      const closeBtnFooter = modal.querySelector('.modal-close-btn');
+      
+      const closeModal = () => modal.remove();
+      
+      overlay.addEventListener('click', closeModal);
+      closeBtn.addEventListener('click', closeModal);
+      closeBtnFooter.addEventListener('click', closeModal);
+      
+      document.body.appendChild(modal);
+    } catch (error) {
+      console.error('Error showing request details:', error);
+      this.showToast('Failed to load request details', 'error');
+    }
   }
   
   // Copy request as cURL command
@@ -1251,21 +1458,6 @@ export class DevToolsPanel {
       console.error('Error generating cURL:', error);
       this.showToast('Failed to generate cURL command', 'error');
     }
-  }
-  
-  // Show toast notification
-  showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    const bgColors = {
-      success: '#48bb78',
-      error: '#f56565',
-      info: '#2196F3'
-    };
-    toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: ${bgColors[type] || bgColors.info}; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
   }
   
   // Helper to truncate URLs
@@ -1398,6 +1590,13 @@ export class DevToolsPanel {
       html += '</tbody></table>';
       table.innerHTML = html;
       
+      // Setup history load button listener (only once)
+      const loadHistoryBtn = document.getElementById('loadHistoryBtn');
+      if (loadHistoryBtn && !loadHistoryBtn.dataset.listenerAdded) {
+        loadHistoryBtn.dataset.listenerAdded = 'true';
+        loadHistoryBtn.addEventListener('click', () => this.loadEndpointPerformanceHistory());
+      }
+      
     } catch (error) {
       console.error('Failed to load endpoints data:', error);
       document.getElementById('endpointsTable').innerHTML = 
@@ -1405,30 +1604,310 @@ export class DevToolsPanel {
     }
   }
   
+  // Load endpoint performance history for regression analysis
+  async loadEndpointPerformanceHistory() {
+    try {
+      const filters = this.getActiveFilters();
+      const endpointPattern = document.getElementById('endpointPattern')?.value || '';
+      const timeBucket = document.getElementById('historyTimeBucket')?.value || 'hourly';
+      const timeRangeMs = parseInt(document.getElementById('historyTimeRange')?.value || '604800000');
+      
+      const startTime = Date.now() - timeRangeMs;
+      const endTime = Date.now();
+      
+      console.log('Loading endpoint performance history:', { 
+        endpoint: endpointPattern, 
+        timeBucket, 
+        startTime, 
+        endTime, 
+        domain: filters.domain 
+      });
+      
+      const response = await chrome.runtime.sendMessage({
+        action: 'getEndpointPerformanceHistory',
+        filters: {
+          domain: filters.domain,
+          pageUrl: filters.pageUrl,
+          endpoint: endpointPattern,
+          timeBucket,
+          startTime,
+          endTime
+        }
+      });
+      
+      console.log('Performance history response:', response);
+      
+      if (!response.success || !response.history || response.history.length === 0) {
+        document.getElementById('performanceHistoryChart').innerHTML = 
+          '<p class="no-data"><i class="fas fa-info-circle"></i> No performance data found. Try adjusting the endpoint pattern or time range.</p>';
+        document.getElementById('performanceInsights').style.display = 'none';
+        return;
+      }
+      
+      // Render the performance chart
+      this.renderEndpointPerformanceChart(response);
+      
+      // Generate performance insights
+      this.generatePerformanceInsights(response);
+      
+    } catch (error) {
+      console.error('Failed to load endpoint performance history:', error);
+      document.getElementById('performanceHistoryChart').innerHTML = 
+        '<p class="error-message">Error loading performance history</p>';
+    }
+  }
+  
+  // Render endpoint performance history chart
+  renderEndpointPerformanceChart(response) {
+    const canvas = document.getElementById('historyChartCanvas');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Destroy existing chart if any
+    if (this.performanceHistoryChart) {
+      this.performanceHistoryChart.destroy();
+    }
+    
+    // Group data by endpoint pattern for multi-line chart
+    const groupedData = response.groupedByEndpoint;
+    const endpoints = Object.keys(groupedData);
+    
+    if (endpoints.length === 0) {
+      document.getElementById('performanceHistoryChart').innerHTML = 
+        '<p class="no-data">No endpoints found in the data</p>';
+      return;
+    }
+    
+    // Generate colors for each endpoint
+    const colors = [
+      '#4CAF50', '#2196F3', '#FF9800', '#F44336', '#9C27B0',
+      '#00BCD4', '#FFEB3B', '#795548', '#607D8B', '#E91E63'
+    ];
+    
+    // Prepare datasets - one per endpoint
+    const datasets = endpoints.slice(0, 10).map((endpoint, index) => {
+      const records = groupedData[endpoint];
+      // Sort by time bucket
+      records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
+      
+      return {
+        label: endpoint,
+        data: records.map(r => ({ x: r.timeBucket, y: r.avgDuration })),
+        borderColor: colors[index % colors.length],
+        backgroundColor: 'transparent',
+        tension: 0.4,
+        fill: false,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      };
+    });
+    
+    this.performanceHistoryChart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: `Endpoint Performance Over Time (${response.timeBucket})`
+          },
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              afterLabel: function(context) {
+                const dataPoint = response.history[context.dataIndex];
+                if (dataPoint) {
+                  return [
+                    `Requests: ${dataPoint.requestCount}`,
+                    `Min: ${dataPoint.minDuration}ms`,
+                    `Max: ${dataPoint.maxDuration}ms`,
+                    `Errors: ${dataPoint.errorCount} (${dataPoint.errorRate}%)`
+                  ];
+                }
+                return [];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'category',
+            title: {
+              display: true,
+              text: 'Time'
+            },
+            ticks: {
+              maxRotation: 45,
+              minRotation: 45
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Average Duration (ms)'
+            }
+          }
+        }
+      }
+    });
+    
+    // Show the chart container
+    document.getElementById('performanceHistoryChart').innerHTML = '';
+    document.getElementById('performanceHistoryChart').appendChild(canvas);
+  }
+  
+  // Generate performance insights for regression analysis
+  generatePerformanceInsights(response) {
+    const insights = [];
+    const { groupedByEndpoint } = response;
+    
+    Object.keys(groupedByEndpoint).forEach(endpoint => {
+      const records = groupedByEndpoint[endpoint];
+      if (records.length < 2) return; // Need at least 2 data points
+      
+      // Sort chronologically
+      records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
+      
+      // Calculate performance trends
+      const first = records[0];
+      const last = records[records.length - 1];
+      const avgFirst = first.avgDuration;
+      const avgLast = last.avgDuration;
+      
+      const change = avgLast - avgFirst;
+      const changePercent = avgFirst > 0 ? ((change / avgFirst) * 100).toFixed(1) : 0;
+      
+      // Detect spikes (more than 50% increase between consecutive points)
+      const spikes = [];
+      for (let i = 1; i < records.length; i++) {
+        const prev = records[i - 1];
+        const curr = records[i];
+        const increase = ((curr.avgDuration - prev.avgDuration) / prev.avgDuration) * 100;
+        
+        if (increase > 50) {
+          spikes.push({
+            time: curr.timeBucket,
+            increase: increase.toFixed(1),
+            from: prev.avgDuration,
+            to: curr.avgDuration
+          });
+        }
+      }
+      
+      // Calculate error rate trend
+      const avgErrorRate = (records.reduce((sum, r) => sum + parseFloat(r.errorRate), 0) / records.length).toFixed(2);
+      
+      insights.push({
+        endpoint,
+        trend: change > 0 ? 'degradation' : 'improvement',
+        change,
+        changePercent,
+        spikes,
+        avgErrorRate,
+        totalRequests: records.reduce((sum, r) => sum + r.requestCount, 0)
+      });
+    });
+    
+    // Render insights
+    let html = '<div class="insights-grid">';
+    
+    insights.forEach(insight => {
+      const trendIcon = insight.trend === 'degradation' ? 'fa-arrow-up' : 'fa-arrow-down';
+      const trendClass = insight.trend === 'degradation' ? 'trend-bad' : 'trend-good';
+      const trendColor = insight.trend === 'degradation' ? '#F44336' : '#4CAF50';
+      
+      html += `
+        <div class="insight-card">
+          <h6><code>${insight.endpoint}</code></h6>
+          <div class="insight-stats">
+            <div class="insight-stat">
+              <i class="fas ${trendIcon}" style="color: ${trendColor}"></i>
+              <span class="${trendClass}">${Math.abs(insight.changePercent)}% ${insight.trend}</span>
+              <small>${Math.abs(insight.change).toFixed(0)}ms ${insight.change > 0 ? 'slower' : 'faster'}</small>
+            </div>
+            <div class="insight-stat">
+              <i class="fas fa-bug"></i>
+              <span>Error Rate: ${insight.avgErrorRate}%</span>
+            </div>
+            <div class="insight-stat">
+              <i class="fas fa-network-wired"></i>
+              <span>${insight.totalRequests} requests</span>
+            </div>
+          </div>
+          ${insight.spikes.length > 0 ? `
+            <div class="insight-spikes">
+              <strong><i class="fas fa-exclamation-triangle"></i> Performance Spikes Detected:</strong>
+              <ul>
+                ${insight.spikes.slice(0, 3).map(spike => `
+                  <li>${spike.time}: +${spike.increase}% (${spike.from}ms → ${spike.to}ms)</li>
+                `).join('')}
+              </ul>
+              <p class="hint">Check deployments or PR merges around these times</p>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    
+    document.getElementById('insightsContent').innerHTML = html;
+    document.getElementById('performanceInsights').style.display = 'block';
+  }
+  
   // Load waterfall chart data
   async loadWaterfallData() {
     try {
       const filters = this.getActiveFilters();
+      
+      console.log('🌊 Loading waterfall data with filters:', filters);
+      
       const response = await chrome.runtime.sendMessage({
         action: 'getWaterfallData',
         filters,
         limit: 50
       });
       
+      console.log('🌊 Waterfall response:', {
+        success: response?.success,
+        requestsLength: response?.requests?.length,
+        error: response?.error
+      });
+      
       const container = document.getElementById('waterfallChart');
       
-      if (!response.success || !response.requests || response.requests.length === 0) {
-        container.innerHTML = '<p class="no-data">No requests available for waterfall visualization</p>';
+      if (!response || !response.success) {
+        const errorMsg = response?.error || 'Unknown error';
+        console.error('Waterfall data fetch failed:', errorMsg);
+        container.innerHTML = `<p class="error-message">Error loading waterfall data: ${errorMsg}</p>`;
         return;
       }
+      
+      if (!response.requests || response.requests.length === 0) {
+        container.innerHTML = '<p class="no-data"><i class="fas fa-info-circle"></i> No requests available for waterfall visualization. Try adjusting filters or wait for requests to be captured.</p>';
+        return;
+      }
+      
+      console.log('🌊 Rendering waterfall chart with', response.requests.length, 'requests');
       
       // Render waterfall chart
       this.renderWaterfallChart(response.requests);
       
     } catch (error) {
       console.error('Failed to load waterfall data:', error);
-      document.getElementById('waterfallChart').innerHTML = 
-        '<p class="error-message">Error loading waterfall chart</p>';
+      const container = document.getElementById('waterfallChart');
+      if (container) {
+        container.innerHTML = `<p class="error-message"><i class="fas fa-exclamation-triangle"></i> Error loading waterfall chart: ${error.message}</p>`;
+      }
     }
   }
   
@@ -1775,6 +2254,35 @@ export class DevToolsPanel {
       listHtml += '</div>';
       errorsList.innerHTML = listHtml;
       
+      // Store error requests for action handlers
+      this.currentErrors = [...errors4xx, ...errors5xx];
+      
+      // Add event delegation for error actions
+      if (!errorsList.dataset.listenerAdded) {
+        errorsList.dataset.listenerAdded = 'true';
+        errorsList.addEventListener('click', (e) => {
+          const detailsBtn = e.target.closest('.btn-error-details');
+          if (detailsBtn) {
+            const requestId = detailsBtn.dataset.requestId;
+            const request = this.currentErrors.find(r => r.id === requestId);
+            if (request) {
+              this.viewRequestDetails(requestId);
+            }
+            return;
+          }
+          
+          const curlBtn = e.target.closest('.btn-error-curl');
+          if (curlBtn) {
+            const requestId = curlBtn.dataset.requestId;
+            const request = this.currentErrors.find(r => r.id === requestId);
+            if (request) {
+              this.copyAsCurl(request);
+            }
+            return;
+          }
+        });
+      }
+      
       // Render error distribution chart
       this.renderErrorChart(errors4xx, errors5xx);
       
@@ -1785,6 +2293,20 @@ export class DevToolsPanel {
   
   renderErrorItem(err, type) {
     const typeClass = type === 'client' ? 'error-client' : 'error-server';
+    const domain = err.domain || 'N/A';
+    const pageUrl = err.page_url || 'N/A';
+    
+    // Extract path from page URL for display
+    let pageDisplay = pageUrl;
+    if (pageUrl !== 'N/A') {
+      try {
+        const url = new URL(pageUrl);
+        pageDisplay = url.pathname + url.search || '/';
+      } catch (e) {
+        pageDisplay = pageUrl;
+      }
+    }
+    
     return `
       <div class="error-item ${typeClass}">
         <div class="error-header">
@@ -1795,7 +2317,17 @@ export class DevToolsPanel {
         <div class="error-details">
           <span><i class="fas fa-code"></i> ${err.method || 'GET'}</span>
           <span><i class="fas fa-tag"></i> ${err.type || 'unknown'}</span>
+          <span><i class="fas fa-globe"></i> ${domain}</span>
+          <span title="${pageUrl}"><i class="fas fa-file"></i> ${this.truncateUrl(pageDisplay, 30)}</span>
           ${err.error ? `<span class="error-message"><i class="fas fa-info-circle"></i> ${err.error}</span>` : ''}
+        </div>
+        <div class="error-actions">
+          <button class="btn-icon btn-error-details" data-request-id="${err.id}" title="View details">
+            <i class="fas fa-info-circle"></i>
+          </button>
+          <button class="btn-icon btn-error-curl" data-request-id="${err.id}" title="Copy as cURL">
+            <i class="fas fa-terminal"></i>
+          </button>
         </div>
       </div>
     `;
@@ -1853,8 +2385,51 @@ export class DevToolsPanel {
 
   // Search requests
   searchRequests(query) {
-    // Implement search filtering
-    console.log('Searching for:', query);
+    const tbody = document.getElementById('requestsTableBody');
+    if (!tbody) {
+      console.warn('requestsTableBody not found');
+      return;
+    }
+    
+    const rows = tbody.querySelectorAll('tr');
+    const searchLower = query.toLowerCase().trim();
+    
+    console.log(`Searching for: "${query}" in ${rows.length} rows`);
+    
+    let matchCount = 0;
+    let totalDataRows = 0;
+    
+    // Filter rows based on search query
+    rows.forEach(row => {
+      // Skip no-data-row
+      if (row.classList.contains('no-data-row')) {
+        return;
+      }
+      
+      totalDataRows++;
+      
+      if (!searchLower) {
+        // Show all rows if search is empty
+        row.style.display = '';
+        matchCount++;
+        return;
+      }
+      
+      const cells = row.querySelectorAll('td');
+      let found = false;
+      
+      cells.forEach(cell => {
+        const text = cell.textContent.toLowerCase();
+        if (text.includes(searchLower)) {
+          found = true;
+        }
+      });
+      
+      row.style.display = found ? '' : 'none';
+      if (found) matchCount++;
+    });
+    
+    console.log(`Search: "${query}" - ${matchCount} matches out of ${totalDataRows} total rows`);
   }
 
   // Get active filters

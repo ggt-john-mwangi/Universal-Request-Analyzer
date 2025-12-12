@@ -186,19 +186,19 @@
         <i class="fas fa-search"></i> QA Quick View
       </div>
       <div class="site-selector">
-        <label for="siteSelect">Select Site:</label>
+        <label for="siteSelect">Filter by Domain:</label>
         <select id="siteSelect">
-          <option value="">Current Page</option>
+          <option value="">All Domains</option>
         </select>
       </div>
-      <div class="qa-navigation">
-        <button class="qa-nav-btn" id="viewRequests">
-          <i class="fas fa-list"></i> View Requests
+      <div class="qa-actions">
+        <button class="qa-action-btn" id="navigateToSite" disabled title="Navigate to selected domain">
+          <i class="fas fa-external-link-alt"></i> Visit
         </button>
-        <button class="qa-nav-btn" id="viewAnalytics">
-          <i class="fas fa-chart-bar"></i> Analytics
+        <button class="qa-action-btn" id="viewDetailsBtn" title="View detailed analytics">
+          <i class="fas fa-chart-line"></i> Details
         </button>
-        <button class="qa-nav-btn" id="exportData">
+        <button class="qa-action-btn" id="exportDomainData" disabled title="Export data for selected domain">
           <i class="fas fa-download"></i> Export
         </button>
       </div>
