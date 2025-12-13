@@ -1245,7 +1245,7 @@ function escapeShellArg(arg) {
   const str = String(arg);
   // Reject arguments containing null bytes (security)
   if (str.includes('\0')) {
-    throw new Error('Invalid argument: contains null byte');
+    throw new Error('Security violation: null byte detected in input');
   }
   // Replace single quotes with '\'' to escape properly in shell
   return `'${str.replace(/'/g, "'\\''")}'`;
@@ -1262,10 +1262,10 @@ function copyAsCurl(request) {
     if (request.headers) {
       const headers = parseAndCleanHeaders(request.headers);
       Object.entries(headers).forEach(([key, value]) => {
-        // Escape both key and value for security
-        const escapedKey = escapeShellArg(key);
-        const escapedValue = escapeShellArg(value);
-        curl += ` \\\n  -H ${escapedKey}: ${escapedValue}`;
+        // Escape for shell and format as "Key: Value" for cURL
+        const header = `${key}: ${value}`;
+        const escapedHeader = escapeShellArg(header);
+        curl += ` \\\n  -H ${escapedHeader}`;
       });
     }
     
@@ -1288,7 +1288,8 @@ function copyAsCurl(request) {
 function copyAsFetch(request) {
   try {
     const method = request.method || 'GET';
-    let fetchCode = `fetch(${JSON.stringify(request.url)}, {\n  method: ${JSON.stringify(method)}`;
+    const url = request.url;
+    let fetchCode = `fetch('${url}', {\n  method: '${method}'`;
     
     // Add headers if available
     if (request.headers) {
@@ -1836,10 +1837,15 @@ function showQuickHelp() {
   showModal();
   
   // Add event listener for full help link
-  document.getElementById('openFullHelp')?.addEventListener('click', (e) => {
+  document.getElementById('openFullHelp')?.addEventListener('click', async (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html') });
-    closeModal();
+    try {
+      await chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html') });
+      closeModal();
+    } catch (error) {
+      console.error('Failed to open help page:', error);
+      showNotification('Could not open help page', true);
+    }
   });
 }
 
