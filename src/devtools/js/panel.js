@@ -322,7 +322,7 @@ export class DevToolsPanel {
               <div class="history-controls" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                 <div class="filter-group" id="typeFilterGroup">
                   <label><i class="fas fa-filter"></i> Type Filter:</label>
-                  <select id="requestTypeFilter" class="filter-select">
+                  <select id="endpointTypeFilter" class="filter-select">
                     <option value="">All Types</option>
                     <option value="fetch">Fetch</option>
                     <option value="xmlhttprequest">XHR/AJAX</option>
@@ -1687,6 +1687,17 @@ export class DevToolsPanel {
   async loadPerformanceData() {
     try {
       const filters = this.getActiveFilters();
+      
+      // Get detailed requests for slow requests list
+      // Note: getDetailedRequests and getFilteredStats return different data structures
+      // and serve different purposes, so they cannot easily be combined
+      const detailedResponse = await chrome.runtime.sendMessage({
+        action: "getDetailedRequests",
+        filters,
+        limit: 100, // Get more to sort and filter
+        offset: 0,
+      });
+
       const response = await chrome.runtime.sendMessage({
         action: "getFilteredStats",
         filters,
@@ -1701,6 +1712,7 @@ export class DevToolsPanel {
           '<p class="no-data">No performance data available</p>';
         document.getElementById("slowRequestsList").innerHTML =
           '<p class="no-data">No requests available</p>';
+        this.updatePerformanceBudgets({});
         return;
       }
 
@@ -1710,6 +1722,8 @@ export class DevToolsPanel {
         response.responseTimes.length;
       const maxTime = Math.max(...response.responseTimes);
       const minTime = Math.min(...response.responseTimes);
+      const totalSize = response.totalBytes || 0;
+      const totalRequests = response.totalRequests || 0;
 
       document.getElementById("timingBreakdown").innerHTML = `
         <div class="timing-stats">
@@ -1735,18 +1749,138 @@ export class DevToolsPanel {
         </div>
       `;
 
-      // Show slow requests placeholder
-      document.getElementById("slowRequestsList").innerHTML = `
-        <p class="info-message">
-          <i class="fas fa-info-circle"></i> 
-          Top ${Math.min(
-            10,
-            response.responseTimes.length
-          )} slowest requests will be displayed here.
-        </p>
-      `;
+      // Update performance budgets with actual data
+      this.updatePerformanceBudgets({
+        avgResponseTime: avgTime,
+        maxResponseTime: maxTime,
+        totalSize,
+        totalRequests,
+      });
+
+      // Show slowest requests
+      if (detailedResponse.success && detailedResponse.requests && detailedResponse.requests.length > 0) {
+        // Sort by duration descending and take top 10
+        const slowestRequests = detailedResponse.requests
+          .filter(req => req.duration > 0)
+          .sort((a, b) => (b.duration || 0) - (a.duration || 0))
+          .slice(0, 10);
+
+        if (slowestRequests.length > 0) {
+          let html = '<div class="slow-requests-list">';
+          slowestRequests.forEach((req, index) => {
+            const statusClass = req.status >= 400 ? 'status-error' : req.status >= 300 ? 'status-warning' : 'status-success';
+            html += `
+              <div class="slow-request-item">
+                <div class="slow-request-rank">#${index + 1}</div>
+                <div class="slow-request-details">
+                  <div class="slow-request-url" title="${req.url}">
+                    <span class="method-badge method-${req.method?.toLowerCase() || 'get'}">${req.method || 'GET'}</span>
+                    ${this.truncateUrl(req.url, 50)}
+                  </div>
+                  <div class="slow-request-meta">
+                    <span class="status-badge ${statusClass}">${req.status || 'N/A'}</span>
+                    <span class="request-type">${req.type || 'N/A'}</span>
+                    ${req.size_bytes ? `<span class="request-size">${this.formatBytes(req.size_bytes)}</span>` : ''}
+                  </div>
+                </div>
+                <div class="slow-request-time">${Math.round(req.duration)}ms</div>
+              </div>
+            `;
+          });
+          html += '</div>';
+          document.getElementById("slowRequestsList").innerHTML = html;
+        } else {
+          document.getElementById("slowRequestsList").innerHTML =
+            '<p class="no-data">No slow requests found</p>';
+        }
+      } else {
+        document.getElementById("slowRequestsList").innerHTML =
+          '<p class="no-data">No detailed request data available</p>';
+      }
     } catch (error) {
       console.error("Failed to load performance data:", error);
+      document.getElementById("timingBreakdown").innerHTML =
+        '<p class="error-message">Error loading performance data</p>';
+      document.getElementById("slowRequestsList").innerHTML =
+        '<p class="error-message">Error loading slowest requests</p>';
+    }
+  }
+
+  // Update performance budgets and show status
+  updatePerformanceBudgets(data) {
+    // Store current data for budget recalculation
+    this.currentPerformanceData = data;
+
+    const budgetResponseTime = parseInt(document.getElementById("budgetResponseTime")?.value || 1000);
+    const budgetTotalSize = parseFloat(document.getElementById("budgetTotalSize")?.value || 5);
+    const budgetRequestCount = parseInt(document.getElementById("budgetRequestCount")?.value || 100);
+
+    const avgResponseTime = data.avgResponseTime || 0;
+    const maxResponseTime = data.maxResponseTime || 0;
+    const totalSize = data.totalSize || 0;
+    const totalRequests = data.totalRequests || 0;
+
+    const totalSizeMB = totalSize / (1024 * 1024);
+
+    // Response time status
+    const responseStatus = document.getElementById("budgetResponseStatus");
+    if (responseStatus) {
+      if (maxResponseTime > budgetResponseTime) {
+        responseStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (Max: ${Math.round(maxResponseTime)}ms)</span>`;
+        responseStatus.className = "budget-status fail";
+      } else if (avgResponseTime > budgetResponseTime * 0.8) {
+        responseStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (Avg: ${Math.round(avgResponseTime)}ms)</span>`;
+        responseStatus.className = "budget-status warning";
+      } else {
+        responseStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (Max: ${Math.round(maxResponseTime)}ms)</span>`;
+        responseStatus.className = "budget-status pass";
+      }
+    }
+
+    // Total size status
+    const sizeStatus = document.getElementById("budgetSizeStatus");
+    if (sizeStatus) {
+      if (totalSizeMB > budgetTotalSize) {
+        sizeStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (${totalSizeMB.toFixed(2)}MB)</span>`;
+        sizeStatus.className = "budget-status fail";
+      } else if (totalSizeMB > budgetTotalSize * 0.8) {
+        sizeStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (${totalSizeMB.toFixed(2)}MB)</span>`;
+        sizeStatus.className = "budget-status warning";
+      } else {
+        sizeStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (${totalSizeMB.toFixed(2)}MB)</span>`;
+        sizeStatus.className = "budget-status pass";
+      }
+    }
+
+    // Request count status
+    const countStatus = document.getElementById("budgetCountStatus");
+    if (countStatus) {
+      if (totalRequests > budgetRequestCount) {
+        countStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (${totalRequests} requests)</span>`;
+        countStatus.className = "budget-status fail";
+      } else if (totalRequests > budgetRequestCount * 0.8) {
+        countStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (${totalRequests} requests)</span>`;
+        countStatus.className = "budget-status warning";
+      } else {
+        countStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (${totalRequests} requests)</span>`;
+        countStatus.className = "budget-status pass";
+      }
+    }
+
+    // Add event listeners to budget inputs to recalculate on change
+    if (!this.budgetListenersAdded) {
+      ["budgetResponseTime", "budgetTotalSize", "budgetRequestCount"].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.addEventListener("change", () => {
+            // Use stored current data for recalculation
+            if (this.currentPerformanceData) {
+              this.updatePerformanceBudgets(this.currentPerformanceData);
+            }
+          });
+        }
+      });
+      this.budgetListenersAdded = true;
     }
   }
 
@@ -1868,7 +2002,7 @@ export class DevToolsPanel {
 
         // Request Type Filter change listener - show endpoint input when a specific type is selected
         document
-          .getElementById("requestTypeFilter")
+          .getElementById("endpointTypeFilter")
           ?.addEventListener("change", (e) => {
             const selectedType = e.target.value;
             // Show endpoint pattern input when a specific type is selected in types mode
@@ -1941,7 +2075,7 @@ export class DevToolsPanel {
       );
       const mode = this.performanceViewMode || "types";
       const typeFilter =
-        document.getElementById("requestTypeFilter")?.value || "";
+        document.getElementById("endpointTypeFilter")?.value || "";
 
       const startTime = Date.now() - timeRangeMs;
       const endTime = Date.now();
@@ -2051,7 +2185,7 @@ export class DevToolsPanel {
 
     // Get current filter selections
     const selectedType =
-      document.getElementById("requestTypeFilter")?.value || "";
+      document.getElementById("endpointTypeFilter")?.value || "";
     const endpointPattern =
       document.getElementById("endpointFilterPattern")?.value || "";
     const mode = this.performanceViewMode || "types";

@@ -1,10 +1,10 @@
 // Popup Export Functions - Handle data export operations
 
-import { runtime, tabs } from "../../background/compat/browser-compat.js";
-import { showNotification } from "./popup-utils.js";
+import { runtime, tabs } from '../../background/compat/browser-compat.js';
+import { showNotification } from './popup-utils.js';
 
 // Current quick filter state
-export let currentQuickFilter = "all";
+export let currentQuickFilter = 'all';
 
 /**
  * Set current quick filter
@@ -21,34 +21,34 @@ export function setCurrentQuickFilter(filterType) {
 export async function exportDomainData(domain) {
   try {
     const response = await runtime.sendMessage({
-      action: "exportFilteredData",
+      action: 'exportFilteredData',
       filters: { domain: domain },
-      format: "json",
+      format: 'json',
     });
 
     if (response.success && response.data) {
       const exportData = JSON.stringify(response.data, null, 2);
-      const blob = new Blob([exportData], { type: "application/json" });
+      const blob = new Blob([exportData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
 
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = response.filename || `${domain}-export-${Date.now()}.json`;
       a.click();
 
       URL.revokeObjectURL(url);
-      showNotification("Export successful!");
+      showNotification('Export successful!');
       return true;
     } else {
       showNotification(
-        "Export failed: " + (response.error || "Unknown error"),
+        'Export failed: ' + (response.error || 'Unknown error'),
         true
       );
       return false;
     }
   } catch (error) {
-    console.error("Export error:", error);
-    showNotification("Export failed", true);
+    console.error('Export error:', error);
+    showNotification('Export failed', true);
     return false;
   }
 }
@@ -65,39 +65,39 @@ export async function exportPageData() {
     const currentTab = currentTabs[0];
 
     if (!currentTab || !currentTab.url) {
-      showNotification("No active tab found", true);
+      showNotification('No active tab found', true);
       return false;
     }
 
     const response = await runtime.sendMessage({
-      action: "exportFilteredData",
+      action: 'exportFilteredData',
       filters: { pageUrl: currentTab.url },
-      format: "json",
+      format: 'json',
     });
 
     if (response.success && response.data) {
       const exportData = JSON.stringify(response.data, null, 2);
-      const blob = new Blob([exportData], { type: "application/json" });
+      const blob = new Blob([exportData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
 
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = response.filename || `export-${Date.now()}.json`;
       a.click();
 
       URL.revokeObjectURL(url);
-      showNotification("Export successful!");
+      showNotification('Export successful!');
       return true;
     } else {
       showNotification(
-        "Export failed: " + (response.error || "Unknown error"),
+        'Export failed: ' + (response.error || 'Unknown error'),
         true
       );
       return false;
     }
   } catch (error) {
-    console.error("Export error:", error);
-    showNotification("Export failed", true);
+    console.error('Export error:', error);
+    showNotification('Export failed', true);
     return false;
   }
 }
@@ -111,7 +111,7 @@ export async function exportAsHAR() {
     const currentTab = currentTabs[0];
 
     if (!currentTab || !currentTab.url) {
-      showNotification("No active tab found", true);
+      showNotification('No active tab found', true);
       return false;
     }
 
@@ -120,7 +120,7 @@ export async function exportAsHAR() {
 
     // Request HAR export from background
     const response = await runtime.sendMessage({
-      action: "exportAsHAR",
+      action: 'exportAsHAR',
       filters: {
         domain: domain,
         quickFilter: currentQuickFilter,
@@ -130,27 +130,27 @@ export async function exportAsHAR() {
     if (response && response.success && response.har) {
       // Create and download HAR file
       const harData = JSON.stringify(response.har, null, 2);
-      const blob = new Blob([harData], { type: "application/json" });
+      const blob = new Blob([harData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
 
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
       a.download = `requests-${domain}-${Date.now()}.har`;
       a.click();
 
       URL.revokeObjectURL(url);
-      showNotification("HAR exported successfully!");
+      showNotification('HAR exported successfully!');
       return true;
     } else {
       showNotification(
-        "HAR export failed: " + (response?.error || "Unknown error"),
+        'HAR export failed: ' + (response?.error || 'Unknown error'),
         true
       );
       return false;
     }
   } catch (error) {
-    console.error("HAR export error:", error);
-    showNotification("HAR export failed", true);
+    console.error('HAR export error:', error);
+    showNotification('HAR export failed', true);
     return false;
   }
 }
