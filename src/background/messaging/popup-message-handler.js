@@ -8,7 +8,7 @@ let dbManager = null;
 export function initializePopupMessageHandler(auth, database) {
   localAuthManager = auth;
   dbManager = database;
-  console.log("Popup message handler initialized");
+  console.log('Popup message handler initialized');
 
   // Return the handler function to be used by central listener
   return handleMessage;
@@ -20,128 +20,128 @@ async function handleMessage(message, sender) {
 
   try {
     switch (action) {
-      case "register":
+      case 'register':
         return await handleRegister(data);
 
-      case "login":
+      case 'login':
         return await handleLogin(data);
 
-      case "logout":
+      case 'logout':
         return await handleLogout();
 
-      case "getPageStats":
+      case 'getPageStats':
         return await handleGetPageStats(data);
 
-      case "getFilteredStats":
+      case 'getFilteredStats':
         return await handleGetFilteredStats(filters);
 
-      case "exportFilteredData":
+      case 'exportFilteredData':
         return await handleExportFilteredData(filters, message.format);
 
-      case "getDashboardStats":
+      case 'getDashboardStats':
         return await handleGetDashboardStats(message.timeRange);
 
-      case "getMetrics":
+      case 'getMetrics':
         return await handleGetMetrics(message.timeRange);
 
-      case "query":
+      case 'query':
         return await handleQuery(message.query, message.params);
 
-      case "getDomains":
+      case 'getDomains':
         return await handleGetDomains(message.timeRange);
 
-      case "getPagesByDomain":
+      case 'getPagesByDomain':
         return await handleGetPagesByDomain(message.domain, message.timeRange);
 
-      case "getWebVitals":
+      case 'getWebVitals':
         return await handleGetWebVitals(message.filters);
 
-      case "getSessionMetrics":
+      case 'getSessionMetrics':
         return await handleGetSessionMetrics(message.filters);
 
-      case "saveSettingToDb":
+      case 'saveSettingToDb':
         return await handleSaveSettingToDb(message.key, message.value);
 
-      case "loadSettingsFromDb":
+      case 'loadSettingsFromDb':
         return await handleLoadSettingsFromDb();
 
-      case "syncSettingsToStorage":
+      case 'syncSettingsToStorage':
         return await handleSyncSettingsToStorage();
 
-      case "getRequestTypes":
+      case 'getRequestTypes':
         return await handleGetRequestTypes();
 
-      case "getDetailedRequests":
+      case 'getDetailedRequests':
         return await handleGetDetailedRequests(
           message.filters,
           message.limit,
           message.offset
         );
 
-      case "getHistoricalData":
+      case 'getHistoricalData':
         return await handleGetHistoricalData(message.filters, message.groupBy);
 
-      case "getEndpointAnalysis":
+      case 'getEndpointAnalysis':
         return await handleGetEndpointAnalysis(message.filters);
 
-      case "getEndpointPerformanceHistory":
+      case 'getEndpointPerformanceHistory':
         return await handleGetEndpointPerformanceHistory(message.filters);
 
-      case "getRequestTypePerformanceHistory":
+      case 'getRequestTypePerformanceHistory':
         return await handleGetRequestTypePerformanceHistory(message.filters);
 
-      case "getApiEndpointPerformanceHistory":
+      case 'getApiEndpointPerformanceHistory':
         return await handleGetApiEndpointPerformanceHistory(message.filters);
 
-      case "getResourceSizeBreakdown":
+      case 'getResourceSizeBreakdown':
         return await handleGetResourceSizeBreakdown(message.filters);
 
-      case "getWaterfallData":
+      case 'getWaterfallData':
         return await handleGetWaterfallData(message.filters, message.limit);
 
-      case "getPercentilesAnalysis":
+      case 'getPercentilesAnalysis':
         return await handleGetPercentilesAnalysis(message.filters);
 
-      case "getAnomalyDetection":
+      case 'getAnomalyDetection':
         return await handleGetAnomalyDetection(message.filters);
 
-      case "getTrendAnalysis":
+      case 'getTrendAnalysis':
         return await handleGetTrendAnalysis(
           message.filters,
           message.compareType
         );
 
-      case "getAlertRules":
+      case 'getAlertRules':
         return await handleGetAlertRules();
 
-      case "saveAlertRule":
+      case 'saveAlertRule':
         return await handleSaveAlertRule(message.rule);
 
-      case "deleteAlertRule":
+      case 'deleteAlertRule':
         return await handleDeleteAlertRule(message.ruleId);
 
-      case "getAlertHistory":
+      case 'getAlertHistory':
         return await handleGetAlertHistory(message.limit);
 
-      case "getHeatmapData":
+      case 'getHeatmapData':
         return await handleGetHeatmapData(message.filters);
 
-      case "getMultiDomainComparison":
+      case 'getMultiDomainComparison':
         return await handleGetMultiDomainComparison(
           message.domains,
           message.filters
         );
 
-      case "getPerformanceInsights":
+      case 'getPerformanceInsights':
         return await handleGetPerformanceInsights(message.filters);
 
-      case "exportAsHAR":
+      case 'exportAsHAR':
         return await handleExportAsHAR(message.filters);
 
-      case "getRecentErrors":
+      case 'getRecentErrors':
         return await handleGetRecentErrors(data);
 
-      case "getRecentRequests":
+      case 'getRecentRequests':
         return await handleGetRecentRequests(data);
 
       default:
@@ -149,7 +149,7 @@ async function handleMessage(message, sender) {
         return null;
     }
   } catch (error) {
-    console.error("Message handler error:", error);
+    console.error('Message handler error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -158,7 +158,7 @@ async function handleMessage(message, sender) {
 async function handleRegister(data) {
   try {
     if (!localAuthManager) {
-      return { success: false, error: "Auth manager not initialized" };
+      return { success: false, error: 'Auth manager not initialized' };
     }
 
     const { email, password, name } = data;
@@ -166,7 +166,7 @@ async function handleRegister(data) {
 
     return result;
   } catch (error) {
-    console.error("Registration handler error:", error);
+    console.error('Registration handler error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -175,7 +175,7 @@ async function handleRegister(data) {
 async function handleLogin(data) {
   try {
     if (!localAuthManager) {
-      return { success: false, error: "Auth manager not initialized" };
+      return { success: false, error: 'Auth manager not initialized' };
     }
 
     const { email, password } = data;
@@ -183,7 +183,7 @@ async function handleLogin(data) {
 
     return result;
   } catch (error) {
-    console.error("Login handler error:", error);
+    console.error('Login handler error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -192,13 +192,13 @@ async function handleLogin(data) {
 async function handleLogout() {
   try {
     if (!localAuthManager) {
-      return { success: false, error: "Auth manager not initialized" };
+      return { success: false, error: 'Auth manager not initialized' };
     }
 
     const result = await localAuthManager.logout();
     return result;
   } catch (error) {
-    console.error("Logout handler error:", error);
+    console.error('Logout handler error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -209,7 +209,7 @@ async function handleGetPageStats(data) {
     const { tabId, url, requestType } = data;
 
     if (!url) {
-      return { success: false, error: "URL required" };
+      return { success: false, error: 'URL required' };
     }
 
     // Extract domain from URL
@@ -234,7 +234,7 @@ async function handleGetPageStats(data) {
       if (dbManager && dbManager.db) {
         // Escape SQL strings
         const escapeStr = (val) => {
-          if (val === undefined || val === null) return "NULL";
+          if (val === undefined || val === null) return 'NULL';
           return `'${String(val).replace(/'/g, "''")}'`;
         };
 
@@ -243,7 +243,7 @@ async function handleGetPageStats(data) {
           domain
         )} AND created_at > ${fiveMinutesAgo}`;
 
-        if (requestType && requestType !== "") {
+        if (requestType && requestType !== '') {
           whereClause += ` AND type = ${escapeStr(requestType)}`;
         }
 
@@ -307,16 +307,16 @@ async function handleGetPageStats(data) {
           `Page stats for ${domain} (all pages): ${stats.totalRequests} requests`
         );
       } else {
-        console.warn("Database manager not available");
+        console.warn('Database manager not available');
       }
     } catch (queryError) {
-      console.error("Query error:", queryError);
+      console.error('Query error:', queryError);
       // Return default stats if query fails
     }
 
     return { success: true, stats };
   } catch (error) {
-    console.error("Get page stats error:", error);
+    console.error('Get page stats error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -325,16 +325,16 @@ async function handleGetPageStats(data) {
 // Supports domain → page → request type filtering hierarchy
 async function handleGetFilteredStats(filters) {
   try {
-    console.log("handleGetFilteredStats called with filters:", filters);
-    console.log("dbManager available:", !!dbManager);
+    console.log('handleGetFilteredStats called with filters:', filters);
+    console.log('dbManager available:', !!dbManager);
 
     if (!dbManager || !dbManager.executeQuery) {
       console.error(
-        "Database manager not initialized or missing executeQuery method"
+        'Database manager not initialized or missing executeQuery method'
       );
       return {
         success: false,
-        error: "Database not initialized",
+        error: 'Database not initialized',
         totalRequests: 0,
         timestamps: [],
         responseTimes: [],
@@ -351,7 +351,7 @@ async function handleGetFilteredStats(filters) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -363,68 +363,68 @@ async function handleGetFilteredStats(filters) {
     `;
 
     // Filter by domain (if specified)
-    if (domain && domain !== "all") {
+    if (domain && domain !== 'all') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
     // Filter by page URL (if specified) - takes precedence if both domain and pageUrl provided
     // If pageUrl is specified, filter to that specific page
     // If only domain is specified, aggregate across all pages for that domain
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       // Extract domain from pageUrl to ensure consistency
       try {
         const url = new URL(pageUrl);
         query += ` AND page_url = ${escapeStr(pageUrl)}`;
 
         // Also ensure domain matches for safety
-        if (!domain || domain === "all") {
+        if (!domain || domain === 'all') {
           query += ` AND domain = ${escapeStr(url.hostname)}`;
         }
       } catch (urlError) {
         // If pageUrl is just a domain, treat it as domain filter
-        const domainFromUrl = pageUrl.replace(/^https?:\/\//, "").split("/")[0];
+        const domainFromUrl = pageUrl.replace(/^https?:\/\//, '').split('/')[0];
         query += ` AND domain = ${escapeStr(domainFromUrl)}`;
       }
     }
 
     // Add request type filter
-    if (type && type !== "") {
+    if (type && type !== '') {
       query += ` AND type = ${escapeStr(type)}`;
     }
 
     // Add status filter
     if (statusPrefix) {
-      if (statusPrefix === "3xx") {
-        query += " AND status >= 300 AND status < 400";
-      } else if (statusPrefix === "4xx") {
-        query += " AND status >= 400 AND status < 500";
-      } else if (statusPrefix === "5xx") {
-        query += " AND status >= 500 AND status < 600";
-      } else if (statusPrefix === "200") {
-        query += " AND status >= 200 AND status < 300";
+      if (statusPrefix === '3xx') {
+        query += ' AND status >= 300 AND status < 400';
+      } else if (statusPrefix === '4xx') {
+        query += ' AND status >= 400 AND status < 500';
+      } else if (statusPrefix === '5xx') {
+        query += ' AND status >= 500 AND status < 600';
+      } else if (statusPrefix === '200') {
+        query += ' AND status >= 200 AND status < 300';
       } else {
         query += ` AND status = ${parseInt(statusPrefix)}`;
       }
     }
 
-    query += " ORDER BY timestamp DESC LIMIT 1000";
+    query += ' ORDER BY timestamp DESC LIMIT 1000';
 
-    console.log("Executing query:", query);
+    console.log('Executing query:', query);
 
     let requests = [];
 
     try {
       const result = dbManager.db.exec(query);
-      console.log("Query result:", result);
+      console.log('Query result:', result);
 
       if (result && result[0]) {
         requests = mapResultToArray(result[0]);
-        console.log("Mapped requests count:", requests.length);
+        console.log('Mapped requests count:', requests.length);
       } else {
-        console.log("No results from query");
+        console.log('No results from query');
       }
     } catch (queryError) {
-      console.error("Filtered stats query error:", queryError);
+      console.error('Filtered stats query error:', queryError);
       return {
         success: false,
         error: queryError.message,
@@ -470,13 +470,13 @@ async function handleGetFilteredStats(filters) {
       totalRequests: requests.length,
       // Include metadata about what was filtered
       filterApplied: {
-        domain: domain || "all",
-        page: pageUrl || "all",
-        requestType: type || "all",
+        domain: domain || 'all',
+        page: pageUrl || 'all',
+        requestType: type || 'all',
       },
     };
   } catch (error) {
-    console.error("Get filtered stats error:", error);
+    console.error('Get filtered stats error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -495,11 +495,11 @@ async function handleExportFilteredData(filters, format) {
     return {
       success: true,
       data: statsResult,
-      format: format || "json",
-      filename: `request-analyzer-export-${Date.now()}.${format || "json"}`,
+      format: format || 'json',
+      filename: `request-analyzer-export-${Date.now()}.${format || 'json'}`,
     };
   } catch (error) {
-    console.error("Export error:", error);
+    console.error('Export error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -580,7 +580,7 @@ async function handleGetDashboardStats(timeRange = 86400) {
         const statusResult = dbManager.executeQuery(statusQuery, [startTime]);
 
         if (statusResult && statusResult[0]?.values) {
-          const statusMap = { "2xx": 0, "3xx": 1, "4xx": 2, "5xx": 3 };
+          const statusMap = { '2xx': 0, '3xx': 1, '4xx': 2, '5xx': 3 };
           statusResult[0].values.forEach(([group, count]) => {
             if (group && statusMap[group] !== undefined) {
               stats.statusDistribution[statusMap[group]] = count;
@@ -654,9 +654,9 @@ async function handleGetDashboardStats(timeRange = 86400) {
 
         // Get layer counts
         const layerQueries = {
-          bronze: "SELECT COUNT(*) FROM bronze_requests",
-          silver: "SELECT COUNT(*) FROM silver_requests",
-          gold: "SELECT COUNT(*) FROM gold_daily_analytics",
+          bronze: 'SELECT COUNT(*) FROM bronze_requests',
+          silver: 'SELECT COUNT(*) FROM silver_requests',
+          gold: 'SELECT COUNT(*) FROM gold_daily_analytics',
         };
 
         for (const [layer, query] of Object.entries(layerQueries)) {
@@ -671,12 +671,12 @@ async function handleGetDashboardStats(timeRange = 86400) {
         }
       }
     } catch (queryError) {
-      console.error("Dashboard stats query error:", queryError);
+      console.error('Dashboard stats query error:', queryError);
     }
 
     return { success: true, stats };
   } catch (error) {
-    console.error("Get dashboard stats error:", error);
+    console.error('Get dashboard stats error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -688,7 +688,7 @@ async function handleGetMetrics(timeRange = 86400) {
     const result = await handleGetDashboardStats(timeRange);
     return result;
   } catch (error) {
-    console.error("Get metrics error:", error);
+    console.error('Get metrics error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -697,7 +697,7 @@ async function handleGetMetrics(timeRange = 86400) {
 async function handleQuery(query, params = []) {
   try {
     if (!dbManager || !dbManager.db) {
-      return { success: false, error: "Database not initialized" };
+      return { success: false, error: 'Database not initialized' };
     }
 
     // Execute query
@@ -721,7 +721,7 @@ async function handleQuery(query, params = []) {
 
     return { success: true, data };
   } catch (error) {
-    console.error("Query handler error:", error);
+    console.error('Query handler error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -753,12 +753,12 @@ async function handleGetDomains(timeRange = 604800) {
         }
       }
     } catch (queryError) {
-      console.error("Get domains query error:", queryError);
+      console.error('Get domains query error:', queryError);
     }
 
     return { success: true, domains };
   } catch (error) {
-    console.error("Get domains error:", error);
+    console.error('Get domains error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -767,7 +767,7 @@ async function handleGetDomains(timeRange = 604800) {
 async function handleGetPagesByDomain(domain, timeRange = 604800) {
   try {
     if (!domain) {
-      return { success: false, error: "Domain is required" };
+      return { success: false, error: 'Domain is required' };
     }
 
     const timeRangeMs = parseInt(timeRange) * 1000;
@@ -775,7 +775,7 @@ async function handleGetPagesByDomain(domain, timeRange = 604800) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -783,8 +783,8 @@ async function handleGetPagesByDomain(domain, timeRange = 604800) {
       SELECT DISTINCT page_url, COUNT(*) as request_count
       FROM bronze_requests
       WHERE domain = ${escapeStr(
-        domain
-      )} AND page_url IS NOT NULL AND page_url != '' AND timestamp > ${startTime}
+    domain
+  )} AND page_url IS NOT NULL AND page_url != '' AND timestamp > ${startTime}
       GROUP BY page_url
       ORDER BY request_count DESC
     `;
@@ -802,12 +802,12 @@ async function handleGetPagesByDomain(domain, timeRange = 604800) {
         }
       }
     } catch (queryError) {
-      console.error("Get pages query error:", queryError);
+      console.error('Get pages query error:', queryError);
     }
 
     return { success: true, pages };
   } catch (error) {
-    console.error("Get pages by domain error:", error);
+    console.error('Get pages by domain error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -832,7 +832,7 @@ async function handleGetWebVitals(filters = {}) {
 
     // Helper function to escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -842,24 +842,24 @@ async function handleGetWebVitals(filters = {}) {
     if (filters.domain) {
       const escapedDomain = String(filters.domain)
         .replace(/'/g, "''")
-        .replace(/%/g, "");
+        .replace(/%/g, '');
       whereConditions.push(`metrics LIKE '%${escapedDomain}%'`);
     }
 
     if (filters.pageUrl) {
       const escapedUrl = String(filters.pageUrl)
         .replace(/'/g, "''")
-        .replace(/%/g, "");
+        .replace(/%/g, '');
       whereConditions.push(`metrics LIKE '%${escapedUrl}%'`);
     }
 
     const whereClause =
       whereConditions.length > 0
-        ? `WHERE ${whereConditions.join(" AND ")}`
-        : "";
+        ? `WHERE ${whereConditions.join(' AND ')}`
+        : '';
 
     // First, check if table exists and has data
-    console.log("[WebVitals] Checking for performance data...");
+    console.log('[WebVitals] Checking for performance data...');
     try {
       if (dbManager?.db) {
         const checkQuery = `SELECT COUNT(*) as count FROM bronze_performance_entries WHERE entry_type = 'web-vital'`;
@@ -872,19 +872,19 @@ async function handleGetWebVitals(filters = {}) {
         }
       }
     } catch (e) {
-      console.error("[WebVitals] Error checking table:", e);
+      console.error('[WebVitals] Error checking table:', e);
     }
 
     // Query each Web Vital metric
     for (const metric of [
-      "LCP",
-      "FID",
-      "CLS",
-      "FCP",
-      "TTFB",
-      "TTI",
-      "DCL",
-      "Load",
+      'LCP',
+      'FID',
+      'CLS',
+      'FCP',
+      'TTFB',
+      'TTI',
+      'DCL',
+      'Load',
     ]) {
       const query = `
         SELECT 
@@ -892,8 +892,8 @@ async function handleGetWebVitals(filters = {}) {
           metrics
         FROM bronze_performance_entries
         ${whereClause} AND entry_type = 'web-vital' AND name = ${escapeStr(
-        metric
-      )}
+  metric
+)}
         LIMIT 1
       `;
 
@@ -910,68 +910,68 @@ async function handleGetWebVitals(filters = {}) {
 
             if (avgValue !== null) {
               // Parse metrics to get rating
-              let rating = "good";
+              let rating = 'good';
               try {
                 const metricsData = JSON.parse(metricsJson);
-                rating = metricsData.rating || "good";
+                rating = metricsData.rating || 'good';
               } catch (e) {
                 // Calculate rating based on thresholds
-                if (metric === "LCP") {
+                if (metric === 'LCP') {
                   rating =
                     avgValue < 2500
-                      ? "good"
+                      ? 'good'
                       : avgValue < 4000
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "FID") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'FID') {
                   rating =
                     avgValue < 100
-                      ? "good"
+                      ? 'good'
                       : avgValue < 300
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "CLS") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'CLS') {
                   rating =
                     avgValue < 0.1
-                      ? "good"
+                      ? 'good'
                       : avgValue < 0.25
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "FCP") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'FCP') {
                   rating =
                     avgValue < 1800
-                      ? "good"
+                      ? 'good'
                       : avgValue < 3000
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "TTFB") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'TTFB') {
                   rating =
                     avgValue < 800
-                      ? "good"
+                      ? 'good'
                       : avgValue < 1800
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "TTI") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'TTI') {
                   rating =
                     avgValue < 3800
-                      ? "good"
+                      ? 'good'
                       : avgValue < 7300
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "DCL") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'DCL') {
                   rating =
                     avgValue < 1500
-                      ? "good"
+                      ? 'good'
                       : avgValue < 2500
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "Load") {
+                        ? 'needs-improvement'
+                        : 'poor';
+                } else if (metric === 'Load') {
                   rating =
                     avgValue < 2500
-                      ? "good"
+                      ? 'good'
                       : avgValue < 4000
-                      ? "needs-improvement"
-                      : "poor";
+                        ? 'needs-improvement'
+                        : 'poor';
                 }
               }
 
@@ -990,10 +990,10 @@ async function handleGetWebVitals(filters = {}) {
       }
     }
 
-    console.log("[WebVitals] Final vitals object:", vitals);
+    console.log('[WebVitals] Final vitals object:', vitals);
     return { success: true, vitals };
   } catch (error) {
-    console.error("Get Web Vitals error:", error);
+    console.error('Get Web Vitals error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1035,12 +1035,12 @@ async function handleGetSessionMetrics(filters = {}) {
         }
       }
     } catch (queryError) {
-      console.error("Session metrics query error:", queryError);
+      console.error('Session metrics query error:', queryError);
     }
 
     return { success: true, metrics };
   } catch (error) {
-    console.error("Get session metrics error:", error);
+    console.error('Get session metrics error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1069,12 +1069,12 @@ async function handleGetRequestTypes() {
         }
       }
     } catch (queryError) {
-      console.error("Get request types query error:", queryError);
+      console.error('Get request types query error:', queryError);
     }
 
     return { success: true, requestTypes };
   } catch (error) {
-    console.error("Get request types error:", error);
+    console.error('Get request types error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1089,7 +1089,7 @@ async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -1103,36 +1103,36 @@ async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
     `;
 
     // Apply filters (same as handleGetFilteredStats)
-    if (domain && domain !== "all") {
+    if (domain && domain !== 'all') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       try {
         const url = new URL(pageUrl);
         query += ` AND page_url = ${escapeStr(pageUrl)}`;
-        if (!domain || domain === "all") {
+        if (!domain || domain === 'all') {
           query += ` AND domain = ${escapeStr(url.hostname)}`;
         }
       } catch (urlError) {
-        const domainFromUrl = pageUrl.replace(/^https?:\/\//, "").split("/")[0];
+        const domainFromUrl = pageUrl.replace(/^https?:\/\//, '').split('/')[0];
         query += ` AND domain = ${escapeStr(domainFromUrl)}`;
       }
     }
 
-    if (type && type !== "") {
+    if (type && type !== '') {
       query += ` AND type = ${escapeStr(type)}`;
     }
 
     if (statusPrefix) {
-      if (statusPrefix === "3xx") {
-        query += " AND status >= 300 AND status < 400";
-      } else if (statusPrefix === "4xx") {
-        query += " AND status >= 400 AND status < 500";
-      } else if (statusPrefix === "5xx") {
-        query += " AND status >= 500 AND status < 600";
-      } else if (statusPrefix === "200") {
-        query += " AND status >= 200 AND status < 300";
+      if (statusPrefix === '3xx') {
+        query += ' AND status >= 300 AND status < 400';
+      } else if (statusPrefix === '4xx') {
+        query += ' AND status >= 400 AND status < 500';
+      } else if (statusPrefix === '5xx') {
+        query += ' AND status >= 500 AND status < 600';
+      } else if (statusPrefix === '200') {
+        query += ' AND status >= 200 AND status < 300';
       } else {
         query += ` AND status = ${parseInt(statusPrefix)}`;
       }
@@ -1155,38 +1155,38 @@ async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
         `;
 
         // Apply same filters to count query
-        if (domain && domain !== "all") {
+        if (domain && domain !== 'all') {
           countQuery += ` AND domain = ${escapeStr(domain)}`;
         }
 
-        if (pageUrl && pageUrl !== "") {
+        if (pageUrl && pageUrl !== '') {
           try {
             const url = new URL(pageUrl);
             countQuery += ` AND page_url = ${escapeStr(pageUrl)}`;
-            if (!domain || domain === "all") {
+            if (!domain || domain === 'all') {
               countQuery += ` AND domain = ${escapeStr(url.hostname)}`;
             }
           } catch (urlError) {
             const domainFromUrl = pageUrl
-              .replace(/^https?:\/\//, "")
-              .split("/")[0];
+              .replace(/^https?:\/\//, '')
+              .split('/')[0];
             countQuery += ` AND domain = ${escapeStr(domainFromUrl)}`;
           }
         }
 
-        if (type && type !== "") {
+        if (type && type !== '') {
           countQuery += ` AND type = ${escapeStr(type)}`;
         }
 
         if (statusPrefix) {
-          if (statusPrefix === "3xx") {
-            countQuery += " AND status >= 300 AND status < 400";
-          } else if (statusPrefix === "4xx") {
-            countQuery += " AND status >= 400 AND status < 500";
-          } else if (statusPrefix === "5xx") {
-            countQuery += " AND status >= 500 AND status < 600";
-          } else if (statusPrefix === "200") {
-            countQuery += " AND status >= 200 AND status < 300";
+          if (statusPrefix === '3xx') {
+            countQuery += ' AND status >= 300 AND status < 400';
+          } else if (statusPrefix === '4xx') {
+            countQuery += ' AND status >= 400 AND status < 500';
+          } else if (statusPrefix === '5xx') {
+            countQuery += ' AND status >= 500 AND status < 600';
+          } else if (statusPrefix === '200') {
+            countQuery += ' AND status >= 200 AND status < 300';
           } else {
             countQuery += ` AND status = ${parseInt(statusPrefix)}`;
           }
@@ -1204,7 +1204,7 @@ async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
         }
       }
     } catch (queryError) {
-      console.error("Get detailed requests query error:", queryError);
+      console.error('Get detailed requests query error:', queryError);
     }
 
     return {
@@ -1215,13 +1215,13 @@ async function handleGetDetailedRequests(filters, limit = 100, offset = 0) {
       offset,
     };
   } catch (error) {
-    console.error("Get detailed requests error:", error);
+    console.error('Get detailed requests error:', error);
     return { success: false, error: error.message };
   }
 }
 
 // Handle get historical data - returns aggregated data grouped by time period
-async function handleGetHistoricalData(filters, groupBy = "hour") {
+async function handleGetHistoricalData(filters, groupBy = 'hour') {
   try {
     const { domain, pageUrl, type, timeRange } = filters || {};
 
@@ -1233,17 +1233,17 @@ async function handleGetHistoricalData(filters, groupBy = "hour") {
     // Determine grouping format based on groupBy parameter
     let timeFormat;
     switch (groupBy) {
-      case "minute":
-        timeFormat = "%Y-%m-%d %H:%M";
+      case 'minute':
+        timeFormat = '%Y-%m-%d %H:%M';
         break;
-      case "hour":
-        timeFormat = "%Y-%m-%d %H:00";
+      case 'hour':
+        timeFormat = '%Y-%m-%d %H:00';
         break;
-      case "day":
-        timeFormat = "%Y-%m-%d";
+      case 'day':
+        timeFormat = '%Y-%m-%d';
         break;
       default:
-        timeFormat = "%Y-%m-%d %H:00";
+        timeFormat = '%Y-%m-%d %H:00';
     }
 
     let query = `
@@ -1262,22 +1262,22 @@ async function handleGetHistoricalData(filters, groupBy = "hour") {
     const params = [startTime];
 
     // Apply filters
-    if (domain && domain !== "all") {
-      query += " AND domain = ?";
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
       params.push(domain);
     }
 
-    if (pageUrl && pageUrl !== "") {
-      query += " AND page_url = ?";
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
       params.push(pageUrl);
     }
 
-    if (type && type !== "") {
-      query += " AND type = ?";
+    if (type && type !== '') {
+      query += ' AND type = ?';
       params.push(type);
     }
 
-    query += " GROUP BY time_bucket ORDER BY time_bucket ASC";
+    query += ' GROUP BY time_bucket ORDER BY time_bucket ASC';
 
     let historicalData = [];
 
@@ -1297,7 +1297,7 @@ async function handleGetHistoricalData(filters, groupBy = "hour") {
         }
       }
     } catch (queryError) {
-      console.error("Get historical data query error:", queryError);
+      console.error('Get historical data query error:', queryError);
     }
 
     return {
@@ -1307,7 +1307,7 @@ async function handleGetHistoricalData(filters, groupBy = "hour") {
       timeRange,
     };
   } catch (error) {
-    console.error("Get historical data error:", error);
+    console.error('Get historical data error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1323,7 +1323,7 @@ async function handleGetEndpointAnalysis(filters) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -1340,19 +1340,19 @@ async function handleGetEndpointAnalysis(filters) {
       WHERE timestamp > ${startTime} AND url IS NOT NULL
     `;
 
-    if (domain && domain !== "all") {
+    if (domain && domain !== 'all') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       query += ` AND page_url = ${escapeStr(pageUrl)}`;
     }
 
-    if (type && type !== "") {
+    if (type && type !== '') {
       query += ` AND type = ${escapeStr(type)}`;
     }
 
-    query += " GROUP BY url ORDER BY call_count DESC LIMIT 50";
+    query += ' GROUP BY url ORDER BY call_count DESC LIMIT 50';
 
     let endpoints = [];
 
@@ -1368,8 +1368,8 @@ async function handleGetEndpointAnalysis(filters) {
               const urlObj = new URL(url);
               endpoint = urlObj.pathname;
               // Simple pattern matching: replace IDs with placeholders
-              endpoint = endpoint.replace(/\/\d+/g, "/:id");
-              endpoint = endpoint.replace(/\/[0-9a-f]{8,}/gi, "/:hash");
+              endpoint = endpoint.replace(/\/\d+/g, '/:id');
+              endpoint = endpoint.replace(/\/[0-9a-f]{8,}/gi, '/:hash');
             } catch (e) {
               // Keep original if URL parsing fails
             }
@@ -1390,12 +1390,12 @@ async function handleGetEndpointAnalysis(filters) {
         }
       }
     } catch (queryError) {
-      console.error("Get endpoint analysis query error:", queryError);
+      console.error('Get endpoint analysis query error:', queryError);
     }
 
     return { success: true, endpoints };
   } catch (error) {
-    console.error("Get endpoint analysis error:", error);
+    console.error('Get endpoint analysis error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1410,7 +1410,7 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       pageUrl,
       endpoint,
       type,
-      timeBucket = "hourly",
+      timeBucket = 'hourly',
       startTime,
       endTime,
     } = filters;
@@ -1421,14 +1421,14 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
     // Time bucket SQL expression
     // hourly: round to hour, daily: round to day
     let timeBucketExpr;
-    if (timeBucket === "daily") {
+    if (timeBucket === 'daily') {
       // Group by date (YYYY-MM-DD)
       timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
     } else {
@@ -1453,19 +1453,19 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       AND timestamp <= ${actualEndTime}
     `;
 
-    if (domain && domain !== "") {
+    if (domain && domain !== '') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       query += ` AND page_url = ${escapeStr(pageUrl)}`;
     }
 
-    if (type && type !== "") {
+    if (type && type !== '') {
       query += ` AND type = ${escapeStr(type)}`;
     }
 
-    if (endpoint && endpoint !== "") {
+    if (endpoint && endpoint !== '') {
       // Match endpoint pattern - support both exact match and pattern with :id/:hash
       query += ` AND (url LIKE ${escapeStr(
         `%${endpoint}%`
@@ -1488,10 +1488,10 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
               const urlObj = new URL(url);
               endpointPattern = urlObj.pathname;
               // Replace IDs and hashes with placeholders for pattern matching
-              endpointPattern = endpointPattern.replace(/\/\d+/g, "/:id");
+              endpointPattern = endpointPattern.replace(/\/\d+/g, '/:id');
               endpointPattern = endpointPattern.replace(
                 /\/[0-9a-f]{8,}/gi,
-                "/:hash"
+                '/:hash'
               );
             } catch (e) {
               // Keep original if URL parsing fails
@@ -1519,9 +1519,9 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
               successRate:
                 requestCount > 0
                   ? (
-                      ((requestCount - errorCount) / requestCount) *
+                    ((requestCount - errorCount) / requestCount) *
                       100
-                    ).toFixed(2)
+                  ).toFixed(2)
                   : 100,
             };
           });
@@ -1529,7 +1529,7 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       }
     } catch (queryError) {
       console.error(
-        "Get endpoint performance history query error:",
+        'Get endpoint performance history query error:',
         queryError
       );
     }
@@ -1552,7 +1552,7 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       endTime: actualEndTime,
     };
   } catch (error) {
-    console.error("Get endpoint performance history error:", error);
+    console.error('Get endpoint performance history error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1564,7 +1564,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
       domain,
       pageUrl,
       type,
-      timeBucket = "hourly",
+      timeBucket = 'hourly',
       startTime,
       endTime,
     } = filters;
@@ -1575,13 +1575,13 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
     // Time bucket SQL expression
     let timeBucketExpr;
-    if (timeBucket === "daily") {
+    if (timeBucket === 'daily') {
       timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
     } else {
       timeBucketExpr = `strftime('%Y-%m-%d %H:00:00', timestamp / 1000, 'unixepoch')`;
@@ -1605,25 +1605,25 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
       AND type IS NOT NULL AND type != ''
     `;
 
-    if (domain && domain !== "") {
+    if (domain && domain !== '') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       query += ` AND page_url = ${escapeStr(pageUrl)}`;
     }
 
-    if (type && type !== "") {
+    if (type && type !== '') {
       query += ` AND type = ${escapeStr(type)}`;
     }
 
     query += ` GROUP BY time_bucket, type ORDER BY time_bucket DESC, request_count DESC`;
 
-    console.log("Request Type Performance Query:", query);
+    console.log('Request Type Performance Query:', query);
 
     // First, let's check if there's ANY data with type field
     let checkQuery = `SELECT COUNT(*) as total, COUNT(CASE WHEN type IS NOT NULL AND type != '' THEN 1 END) as with_type FROM bronze_requests WHERE timestamp >= ${actualStartTime} AND timestamp <= ${actualEndTime}`;
-    if (domain && domain !== "") {
+    if (domain && domain !== '') {
       checkQuery += ` AND domain = ${escapeStr(domain)}`;
     }
 
@@ -1631,7 +1631,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
       if (dbManager?.db) {
         const checkResult = dbManager.db.exec(checkQuery);
         if (checkResult && checkResult[0]?.values) {
-          console.log("Data availability check:", {
+          console.log('Data availability check:', {
             total: checkResult[0].values[0][0],
             withType: checkResult[0].values[0][1],
             startTime: new Date(actualStartTime).toISOString(),
@@ -1640,7 +1640,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
         }
       }
     } catch (checkError) {
-      console.error("Check query error:", checkError);
+      console.error('Check query error:', checkError);
     }
 
     let history = [];
@@ -1648,7 +1648,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
     try {
       if (dbManager?.db) {
         const result = dbManager.db.exec(query);
-        console.log("Query result:", {
+        console.log('Query result:', {
           hasResult: !!result,
           hasValues: !!(result && result[0]?.values),
           valueCount: result?.[0]?.values?.length,
@@ -1660,7 +1660,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
 
             return {
               timeBucket: row[0],
-              type: row[1] || "unknown",
+              type: row[1] || 'unknown',
               requestCount,
               avgDuration: Math.round(row[3] || 0),
               minDuration: Math.round(row[4] || 0),
@@ -1676,9 +1676,9 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
               successRate:
                 requestCount > 0
                   ? (
-                      ((requestCount - errorCount) / requestCount) *
+                    ((requestCount - errorCount) / requestCount) *
                       100
-                    ).toFixed(2)
+                  ).toFixed(2)
                   : 100,
             };
           });
@@ -1686,7 +1686,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
       }
     } catch (queryError) {
       console.error(
-        "Get request type performance history query error:",
+        'Get request type performance history query error:',
         queryError
       );
     }
@@ -1700,7 +1700,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
       groupedHistory[record.type].push(record);
     });
 
-    console.log("Request Type Performance Result:", {
+    console.log('Request Type Performance Result:', {
       historyCount: history.length,
       groupedTypes: Object.keys(groupedHistory),
       timeBucket,
@@ -1715,12 +1715,12 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
         const typesResult = dbManager.db.exec(typesQuery);
         if (typesResult && typesResult[0]?.values) {
           console.log(
-            "Available request types in database:",
+            'Available request types in database:',
             typesResult[0].values
           );
         }
       } catch (typesError) {
-        console.error("Error checking available types:", typesError);
+        console.error('Error checking available types:', typesError);
       }
     }
 
@@ -1733,7 +1733,7 @@ async function handleGetRequestTypePerformanceHistory(filters = {}) {
       endTime: actualEndTime,
     };
   } catch (error) {
-    console.error("Get request type performance history error:", error);
+    console.error('Get request type performance history error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1744,7 +1744,7 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
     const {
       domain,
       pageUrl,
-      timeBucket = "hourly",
+      timeBucket = 'hourly',
       startTime,
       endTime,
     } = filters;
@@ -1753,12 +1753,12 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
     const actualEndTime = endTime || Date.now();
 
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
     let timeBucketExpr;
-    if (timeBucket === "daily") {
+    if (timeBucket === 'daily') {
       timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
     } else {
       timeBucketExpr = `strftime('%Y-%m-%d %H:00:00', timestamp / 1000, 'unixepoch')`;
@@ -1785,17 +1785,17 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
       AND (type = 'fetch' OR type = 'xmlhttprequest' OR type = 'xhr')
     `;
 
-    if (domain && domain !== "") {
+    if (domain && domain !== '') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       query += ` AND page_url = ${escapeStr(pageUrl)}`;
     }
 
     query += ` GROUP BY time_bucket, url, method ORDER BY time_bucket DESC, request_count DESC`;
 
-    console.log("API Endpoint Performance Query:", query);
+    console.log('API Endpoint Performance Query:', query);
 
     let history = [];
 
@@ -1805,7 +1805,7 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
         if (result && result[0]?.values) {
           history = result[0].values.map((row) => {
             const url = row[1];
-            const method = row[2] || "GET";
+            const method = row[2] || 'GET';
 
             // Extract endpoint pattern from URL
             let endpointPattern = url;
@@ -1813,10 +1813,10 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
               const urlObj = new URL(url);
               endpointPattern = urlObj.pathname;
               // Replace IDs and hashes with placeholders
-              endpointPattern = endpointPattern.replace(/\/\d+/g, "/:id");
+              endpointPattern = endpointPattern.replace(/\/\d+/g, '/:id');
               endpointPattern = endpointPattern.replace(
                 /\/[0-9a-f]{8,}/gi,
-                "/:hash"
+                '/:hash'
               );
             } catch (e) {
               // Keep original if URL parsing fails
@@ -1846,16 +1846,16 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
               successRate:
                 requestCount > 0
                   ? (
-                      ((requestCount - errorCount) / requestCount) *
+                    ((requestCount - errorCount) / requestCount) *
                       100
-                    ).toFixed(2)
+                  ).toFixed(2)
                   : 100,
             };
           });
         }
       }
     } catch (queryError) {
-      console.error("Get API endpoint performance query error:", queryError);
+      console.error('Get API endpoint performance query error:', queryError);
     }
 
     // Group by endpoint pattern (METHOD + path)
@@ -1867,7 +1867,7 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
       groupedHistory[record.endpoint].push(record);
     });
 
-    console.log("API Endpoint Performance Result:", {
+    console.log('API Endpoint Performance Result:', {
       historyCount: history.length,
       groupedEndpoints: Object.keys(groupedHistory),
       timeBucket,
@@ -1882,7 +1882,7 @@ async function handleGetApiEndpointPerformanceHistory(filters = {}) {
       endTime: actualEndTime,
     };
   } catch (error) {
-    console.error("Get API endpoint performance error:", error);
+    console.error('Get API endpoint performance error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1909,17 +1909,17 @@ async function handleGetResourceSizeBreakdown(filters) {
 
     const params = [startTime];
 
-    if (domain && domain !== "all") {
-      query += " AND domain = ?";
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
       params.push(domain);
     }
 
-    if (pageUrl && pageUrl !== "") {
-      query += " AND page_url = ?";
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
       params.push(pageUrl);
     }
 
-    query += " GROUP BY type ORDER BY total_bytes DESC";
+    query += ' GROUP BY type ORDER BY total_bytes DESC';
 
     let breakdown = [];
     let totalSize = 0;
@@ -1949,12 +1949,12 @@ async function handleGetResourceSizeBreakdown(filters) {
         }
       }
     } catch (queryError) {
-      console.error("Get resource size breakdown query error:", queryError);
+      console.error('Get resource size breakdown query error:', queryError);
     }
 
     return { success: true, breakdown, totalSize };
   } catch (error) {
-    console.error("Get resource size breakdown error:", error);
+    console.error('Get resource size breakdown error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -1968,7 +1968,7 @@ async function handleGetWaterfallData(filters, limit = 50) {
 
     // Escape SQL strings
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -1980,15 +1980,15 @@ async function handleGetWaterfallData(filters, limit = 50) {
       WHERE timestamp > ${startTime}
     `;
 
-    if (domain && domain !== "all") {
+    if (domain && domain !== 'all') {
       query += ` AND domain = ${escapeStr(domain)}`;
     }
 
-    if (pageUrl && pageUrl !== "") {
+    if (pageUrl && pageUrl !== '') {
       query += ` AND page_url = ${escapeStr(pageUrl)}`;
     }
 
-    if (type && type !== "") {
+    if (type && type !== '') {
       query += ` AND type = ${escapeStr(type)}`;
     }
 
@@ -2022,12 +2022,12 @@ async function handleGetWaterfallData(filters, limit = 50) {
         }
       }
     } catch (queryError) {
-      console.error("Get waterfall data query error:", queryError);
+      console.error('Get waterfall data query error:', queryError);
     }
 
     return { success: true, requests };
   } catch (error) {
-    console.error("Get waterfall data error:", error);
+    console.error('Get waterfall data error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2046,22 +2046,22 @@ async function handleGetPercentilesAnalysis(filters) {
     `;
     const params = [startTime];
 
-    if (domain && domain !== "all") {
-      query += " AND domain = ?";
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
       params.push(domain);
     }
 
-    if (pageUrl && pageUrl !== "") {
-      query += " AND page_url = ?";
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
       params.push(pageUrl);
     }
 
-    if (type && type !== "") {
-      query += " AND type = ?";
+    if (type && type !== '') {
+      query += ' AND type = ?';
       params.push(type);
     }
 
-    query += " ORDER BY duration ASC";
+    query += ' ORDER BY duration ASC';
 
     let durations = [];
 
@@ -2073,7 +2073,7 @@ async function handleGetPercentilesAnalysis(filters) {
         }
       }
     } catch (queryError) {
-      console.error("Percentiles query error:", queryError);
+      console.error('Percentiles query error:', queryError);
     }
 
     // Calculate percentiles
@@ -2091,7 +2091,7 @@ async function handleGetPercentilesAnalysis(filters) {
 
     return { success: true, percentiles };
   } catch (error) {
-    console.error("Get percentiles analysis error:", error);
+    console.error('Get percentiles analysis error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2120,17 +2120,17 @@ async function handleGetAnomalyDetection(filters) {
     `;
     const params = [startTime];
 
-    if (domain && domain !== "all") {
-      query += " AND domain = ?";
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
       params.push(domain);
     }
 
-    if (pageUrl && pageUrl !== "") {
-      query += " AND page_url = ?";
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
       params.push(pageUrl);
     }
 
-    query += " GROUP BY hour ORDER BY hour";
+    query += ' GROUP BY hour ORDER BY hour';
 
     let hourlyData = [];
 
@@ -2142,7 +2142,7 @@ async function handleGetAnomalyDetection(filters) {
         }
       }
     } catch (queryError) {
-      console.error("Anomaly detection query error:", queryError);
+      console.error('Anomaly detection query error:', queryError);
     }
 
     // Simple anomaly detection: find outliers (values > 2 std deviations from mean)
@@ -2181,14 +2181,14 @@ async function handleGetAnomalyDetection(filters) {
             hour: data.hour,
             type:
               countZScore > 2
-                ? "traffic_spike"
+                ? 'traffic_spike'
                 : durationZScore > 2
-                ? "slow_response"
-                : "high_errors",
+                  ? 'slow_response'
+                  : 'high_errors',
             severity:
               countZScore > 3 || durationZScore > 3 || errorRates[index] > 20
-                ? "high"
-                : "medium",
+                ? 'high'
+                : 'medium',
             value: data.count,
             avgDuration: Math.round(data.avgDuration),
             errorRate: errorRates[index].toFixed(2),
@@ -2199,34 +2199,34 @@ async function handleGetAnomalyDetection(filters) {
 
     return { success: true, anomalies, hourlyData };
   } catch (error) {
-    console.error("Get anomaly detection error:", error);
+    console.error('Get anomaly detection error:', error);
     return { success: false, error: error.message };
   }
 }
 
 // Handle trend analysis - compare week-over-week or month-over-month
-async function handleGetTrendAnalysis(filters, compareType = "week") {
+async function handleGetTrendAnalysis(filters, compareType = 'week') {
   try {
     const { domain, pageUrl, type } = filters || {};
 
     // Define time ranges for comparison
     const now = Date.now();
     const ranges =
-      compareType === "week"
+      compareType === 'week'
         ? {
-            current: { start: now - 7 * 24 * 60 * 60 * 1000, end: now },
-            previous: {
-              start: now - 14 * 24 * 60 * 60 * 1000,
-              end: now - 7 * 24 * 60 * 60 * 1000,
-            },
-          }
+          current: { start: now - 7 * 24 * 60 * 60 * 1000, end: now },
+          previous: {
+            start: now - 14 * 24 * 60 * 60 * 1000,
+            end: now - 7 * 24 * 60 * 60 * 1000,
+          },
+        }
         : {
-            current: { start: now - 30 * 24 * 60 * 60 * 1000, end: now },
-            previous: {
-              start: now - 60 * 24 * 60 * 60 * 1000,
-              end: now - 30 * 24 * 60 * 60 * 1000,
-            },
-          };
+          current: { start: now - 30 * 24 * 60 * 60 * 1000, end: now },
+          previous: {
+            start: now - 60 * 24 * 60 * 60 * 1000,
+            end: now - 30 * 24 * 60 * 60 * 1000,
+          },
+        };
 
     const getMetrics = async (startTime, endTime) => {
       let query = `
@@ -2240,18 +2240,18 @@ async function handleGetTrendAnalysis(filters, compareType = "week") {
       `;
       const params = [startTime, endTime];
 
-      if (domain && domain !== "all") {
-        query += " AND domain = ?";
+      if (domain && domain !== 'all') {
+        query += ' AND domain = ?';
         params.push(domain);
       }
 
-      if (pageUrl && pageUrl !== "") {
-        query += " AND page_url = ?";
+      if (pageUrl && pageUrl !== '') {
+        query += ' AND page_url = ?';
         params.push(pageUrl);
       }
 
-      if (type && type !== "") {
-        query += " AND type = ?";
+      if (type && type !== '') {
+        query += ' AND type = ?';
         params.push(type);
       }
 
@@ -2310,7 +2310,7 @@ async function handleGetTrendAnalysis(filters, compareType = "week") {
 
     return { success: true, trends };
   } catch (error) {
-    console.error("Get trend analysis error:", error);
+    console.error('Get trend analysis error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2335,7 +2335,7 @@ async function handleGetAlertRules() {
     if (dbManager?.executeQuery) {
       await dbManager.executeQuery(createTableQuery);
 
-      const query = "SELECT * FROM alert_rules ORDER BY created_at DESC";
+      const query = 'SELECT * FROM alert_rules ORDER BY created_at DESC';
       const result = await dbManager.executeQuery(query);
 
       const rules = result && result[0] ? mapResultToArray(result[0]) : [];
@@ -2344,7 +2344,7 @@ async function handleGetAlertRules() {
 
     return { success: true, rules: [] };
   } catch (error) {
-    console.error("Get alert rules error:", error);
+    console.error('Get alert rules error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2359,14 +2359,14 @@ async function handleSaveAlertRule(rule) {
       !rule.condition ||
       rule.threshold === undefined
     ) {
-      return { success: false, error: "Invalid rule data" };
+      return { success: false, error: 'Invalid rule data' };
     }
 
     // Ensure table exists
     await handleGetAlertRules();
 
     if (!dbManager?.executeQuery) {
-      return { success: false, error: "Database not available" };
+      return { success: false, error: 'Database not available' };
     }
 
     // Check for duplicate rule with same name and metric
@@ -2403,7 +2403,7 @@ async function handleSaveAlertRule(rule) {
         existingId,
       ]);
 
-      return { success: true, message: "Alert rule updated successfully" };
+      return { success: true, message: 'Alert rule updated successfully' };
     }
 
     // Insert new rule
@@ -2423,9 +2423,9 @@ async function handleSaveAlertRule(rule) {
     ];
 
     await dbManager.executeQuery(insertQuery, params);
-    return { success: true, message: "Alert rule saved successfully" };
+    return { success: true, message: 'Alert rule saved successfully' };
   } catch (error) {
-    console.error("Save alert rule error:", error);
+    console.error('Save alert rule error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2434,19 +2434,19 @@ async function handleSaveAlertRule(rule) {
 async function handleDeleteAlertRule(ruleId) {
   try {
     if (!ruleId) {
-      return { success: false, error: "Rule ID required" };
+      return { success: false, error: 'Rule ID required' };
     }
 
-    const query = "DELETE FROM alert_rules WHERE id = ?";
+    const query = 'DELETE FROM alert_rules WHERE id = ?';
 
     if (dbManager?.executeQuery) {
       await dbManager.executeQuery(query, [ruleId]);
-      return { success: true, message: "Alert rule deleted successfully" };
+      return { success: true, message: 'Alert rule deleted successfully' };
     }
 
-    return { success: false, error: "Database not available" };
+    return { success: false, error: 'Database not available' };
   } catch (error) {
-    console.error("Delete alert rule error:", error);
+    console.error('Delete alert rule error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2483,7 +2483,7 @@ async function handleGetAlertHistory(limit = 100) {
 
     return { success: true, history: [] };
   } catch (error) {
-    console.error("Get alert history error:", error);
+    console.error('Get alert history error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2508,17 +2508,17 @@ async function handleGetHeatmapData(filters) {
     `;
     const params = [startTime];
 
-    if (domain && domain !== "all") {
-      query += " AND domain = ?";
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
       params.push(domain);
     }
 
-    if (pageUrl && pageUrl !== "") {
-      query += " AND page_url = ?";
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
       params.push(pageUrl);
     }
 
-    query += " GROUP BY dayOfWeek, hour ORDER BY dayOfWeek, hour";
+    query += ' GROUP BY dayOfWeek, hour ORDER BY dayOfWeek, hour';
 
     let heatmapData = [];
 
@@ -2530,18 +2530,18 @@ async function handleGetHeatmapData(filters) {
         }
       }
     } catch (queryError) {
-      console.error("Heatmap query error:", queryError);
+      console.error('Heatmap query error:', queryError);
     }
 
     // Format for heatmap visualization
     const dayNames = [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
     ];
     const matrix = Array(7)
       .fill(null)
@@ -2567,7 +2567,7 @@ async function handleGetHeatmapData(filters) {
       },
     };
   } catch (error) {
-    console.error("Get heatmap data error:", error);
+    console.error('Get heatmap data error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2576,7 +2576,7 @@ async function handleGetHeatmapData(filters) {
 async function handleGetMultiDomainComparison(domains, filters) {
   try {
     if (!domains || domains.length === 0) {
-      return { success: false, error: "Domains array required" };
+      return { success: false, error: 'Domains array required' };
     }
 
     const { timeRange } = filters || {};
@@ -2619,7 +2619,7 @@ async function handleGetMultiDomainComparison(domains, filters) {
 
     return { success: true, comparison: results };
   } catch (error) {
-    console.error("Multi-domain comparison error:", error);
+    console.error('Multi-domain comparison error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2647,17 +2647,17 @@ async function handleGetPerformanceInsights(filters) {
     `;
     const params = [startTime];
 
-    if (domain && domain !== "all") {
-      query += " AND domain = ?";
+    if (domain && domain !== 'all') {
+      query += ' AND domain = ?';
       params.push(domain);
     }
 
-    if (pageUrl && pageUrl !== "") {
-      query += " AND page_url = ?";
+    if (pageUrl && pageUrl !== '') {
+      query += ' AND page_url = ?';
       params.push(pageUrl);
     }
 
-    query += " GROUP BY type";
+    query += ' GROUP BY type';
 
     try {
       if (dbManager?.executeQuery) {
@@ -2669,29 +2669,29 @@ async function handleGetPerformanceInsights(filters) {
             // Slow requests insight
             if (stat.avgDuration > 1000) {
               insights.push({
-                type: "performance",
-                severity: stat.avgDuration > 3000 ? "high" : "medium",
+                type: 'performance',
+                severity: stat.avgDuration > 3000 ? 'high' : 'medium',
                 category: stat.type,
                 message: `${stat.type} requests averaging ${Math.round(
                   stat.avgDuration
                 )}ms - consider optimization`,
                 recommendation:
-                  "Optimize server response time, implement caching, or reduce payload size",
+                  'Optimize server response time, implement caching, or reduce payload size',
               });
             }
 
             // Low cache hit rate
             const cacheRate = (stat.cachedRequests / stat.totalRequests) * 100;
-            if (cacheRate < 30 && stat.type !== "xhr") {
+            if (cacheRate < 30 && stat.type !== 'xhr') {
               insights.push({
-                type: "caching",
-                severity: "medium",
+                type: 'caching',
+                severity: 'medium',
                 category: stat.type,
                 message: `Only ${cacheRate.toFixed(1)}% of ${
                   stat.type
                 } requests cached`,
                 recommendation:
-                  "Implement browser caching with proper Cache-Control headers",
+                  'Implement browser caching with proper Cache-Control headers',
               });
             }
 
@@ -2699,14 +2699,14 @@ async function handleGetPerformanceInsights(filters) {
             const errorRate = (stat.errors / stat.totalRequests) * 100;
             if (errorRate > 5) {
               insights.push({
-                type: "reliability",
-                severity: errorRate > 15 ? "high" : "medium",
+                type: 'reliability',
+                severity: errorRate > 15 ? 'high' : 'medium',
                 category: stat.type,
                 message: `${errorRate.toFixed(1)}% error rate for ${
                   stat.type
                 } requests`,
                 recommendation:
-                  "Investigate failed requests and implement better error handling",
+                  'Investigate failed requests and implement better error handling',
               });
             }
 
@@ -2714,24 +2714,24 @@ async function handleGetPerformanceInsights(filters) {
             const avgSize = stat.totalBytes / stat.totalRequests;
             if (
               avgSize > 500000 &&
-              (stat.type === "script" || stat.type === "stylesheet")
+              (stat.type === 'script' || stat.type === 'stylesheet')
             ) {
               insights.push({
-                type: "optimization",
-                severity: "medium",
+                type: 'optimization',
+                severity: 'medium',
                 category: stat.type,
                 message: `Average ${stat.type} size is ${(
                   avgSize / 1024
                 ).toFixed(0)}KB`,
                 recommendation:
-                  "Minify and compress assets, consider code splitting",
+                  'Minify and compress assets, consider code splitting',
               });
             }
           });
         }
       }
     } catch (queryError) {
-      console.error("Performance insights query error:", queryError);
+      console.error('Performance insights query error:', queryError);
     }
 
     // Sort by severity
@@ -2742,7 +2742,7 @@ async function handleGetPerformanceInsights(filters) {
 
     return { success: true, insights };
   } catch (error) {
-    console.error("Get performance insights error:", error);
+    console.error('Get performance insights error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2751,7 +2751,7 @@ async function handleGetPerformanceInsights(filters) {
 async function handleSaveSettingToDb(key, value) {
   try {
     if (!dbManager?.executeQuery) {
-      return { success: false, error: "Database not available" };
+      return { success: false, error: 'Database not available' };
     }
 
     const valueJson = JSON.stringify(value);
@@ -2768,7 +2768,7 @@ async function handleSaveSettingToDb(key, value) {
     console.log(`[Settings] Saved ${key} to database`);
     return { success: true };
   } catch (error) {
-    console.error("Save setting to DB error:", error);
+    console.error('Save setting to DB error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2777,7 +2777,7 @@ async function handleSaveSettingToDb(key, value) {
 async function handleLoadSettingsFromDb() {
   try {
     if (!dbManager?.executeQuery) {
-      return { success: false, error: "Database not available" };
+      return { success: false, error: 'Database not available' };
     }
 
     const query = `
@@ -2800,10 +2800,10 @@ async function handleLoadSettingsFromDb() {
       }
     }
 
-    console.log("[Settings] Loaded from database:", Object.keys(settings));
+    console.log('[Settings] Loaded from database:', Object.keys(settings));
     return { success: true, settings };
   } catch (error) {
-    console.error("Load settings from DB error:", error);
+    console.error('Load settings from DB error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2824,7 +2824,7 @@ async function handleSyncSettingsToStorage() {
     if (Object.keys(settings).length > 0) {
       await chrome.storage.sync.set(settings);
       console.log(
-        "[Settings] Synced to chrome.storage.sync:",
+        '[Settings] Synced to chrome.storage.sync:',
         Object.keys(settings)
       );
     }
@@ -2832,7 +2832,7 @@ async function handleSyncSettingsToStorage() {
     // Also sync to local storage
     await chrome.storage.local.set(settings);
     console.log(
-      "[Settings] Synced to chrome.storage.local:",
+      '[Settings] Synced to chrome.storage.local:',
       Object.keys(settings)
     );
 
@@ -2844,7 +2844,7 @@ async function handleSyncSettingsToStorage() {
       settings: settings,
     };
   } catch (error) {
-    console.error("Sync settings to storage error:", error);
+    console.error('Sync settings to storage error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -2853,7 +2853,7 @@ async function handleSyncSettingsToStorage() {
 async function handleExportAsHAR(filters) {
   try {
     if (!dbManager) {
-      return { success: false, error: "Database manager not initialized" };
+      return { success: false, error: 'Database manager not initialized' };
     }
 
     // Build query to get requests based on filters
@@ -2882,14 +2882,14 @@ async function handleExportAsHAR(filters) {
     }
 
     // Apply quick filter
-    if (filters.quickFilter && filters.quickFilter !== "all") {
-      if (filters.quickFilter === "2xx") {
+    if (filters.quickFilter && filters.quickFilter !== 'all') {
+      if (filters.quickFilter === '2xx') {
         query += ` AND status >= 200 AND status < 300`;
-      } else if (filters.quickFilter === "4xx") {
+      } else if (filters.quickFilter === '4xx') {
         query += ` AND status >= 400 AND status < 500`;
-      } else if (filters.quickFilter === "5xx") {
+      } else if (filters.quickFilter === '5xx') {
         query += ` AND status >= 500 AND status < 600`;
-      } else if (filters.quickFilter === "xhr") {
+      } else if (filters.quickFilter === 'xhr') {
         query += ` AND type = 'xmlhttprequest'`;
       }
     }
@@ -2907,26 +2907,26 @@ async function handleExportAsHAR(filters) {
       data:
         result && result[0] && result[0].values
           ? result[0].values.map((row) => {
-              const obj = {};
-              result[0].columns.forEach((col, idx) => {
-                obj[col] = row[idx];
-              });
-              return obj;
-            })
+            const obj = {};
+            result[0].columns.forEach((col, idx) => {
+              obj[col] = row[idx];
+            });
+            return obj;
+          })
           : [],
     };
 
     if (!parsedResult.success || !parsedResult.data) {
-      return { success: false, error: "Failed to fetch requests" };
+      return { success: false, error: 'Failed to fetch requests' };
     }
 
     // Build HAR 1.2 format
     const har = {
       log: {
-        version: "1.2",
+        version: '1.2',
         creator: {
-          name: "Universal Request Analyzer",
-          version: "1.0.0",
+          name: 'Universal Request Analyzer',
+          version: '1.0.0',
         },
         entries: [],
       },
@@ -2940,9 +2940,9 @@ async function handleExportAsHAR(filters) {
         startedDateTime: new Date(req.timestamp).toISOString(),
         time: req.duration || 0,
         request: {
-          method: req.method || "GET",
-          url: req.url || "",
-          httpVersion: "HTTP/1.1",
+          method: req.method || 'GET',
+          url: req.url || '',
+          httpVersion: 'HTTP/1.1',
           cookies: [],
           headers: [], // Headers stored in separate table
           queryString: parseQueryString(req.url),
@@ -2952,15 +2952,15 @@ async function handleExportAsHAR(filters) {
         response: {
           status: req.status || 0,
           statusText: getStatusText(req.status),
-          httpVersion: "HTTP/1.1",
+          httpVersion: 'HTTP/1.1',
           cookies: [],
           headers: [], // Headers stored in separate table
           content: {
             size: req.size_bytes || 0,
             mimeType: getMimeType(req.type),
-            text: "",
+            text: '',
           },
-          redirectURL: "",
+          redirectURL: '',
           headersSize: -1,
           bodySize: req.size_bytes || 0,
         },
@@ -2988,7 +2988,7 @@ async function handleExportAsHAR(filters) {
       count: har.log.entries.length,
     };
   } catch (error) {
-    console.error("Export HAR error:", error);
+    console.error('Export HAR error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -3025,54 +3025,54 @@ function parseQueryString(url) {
 // Helper: Get HTTP status text
 function getStatusText(status) {
   const statusTexts = {
-    200: "OK",
-    201: "Created",
-    204: "No Content",
-    301: "Moved Permanently",
-    302: "Found",
-    304: "Not Modified",
-    400: "Bad Request",
-    401: "Unauthorized",
-    403: "Forbidden",
-    404: "Not Found",
-    500: "Internal Server Error",
-    502: "Bad Gateway",
-    503: "Service Unavailable",
+    200: 'OK',
+    201: 'Created',
+    204: 'No Content',
+    301: 'Moved Permanently',
+    302: 'Found',
+    304: 'Not Modified',
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    500: 'Internal Server Error',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable',
   };
-  return statusTexts[status] || "";
+  return statusTexts[status] || '';
 }
 
 // Helper: Get MIME type from resource type
 function getMimeType(type) {
   const mimeTypes = {
-    script: "application/javascript",
-    stylesheet: "text/css",
-    image: "image/*",
-    font: "font/*",
-    document: "text/html",
-    xmlhttprequest: "application/json",
-    fetch: "application/json",
+    script: 'application/javascript',
+    stylesheet: 'text/css',
+    image: 'image/*',
+    font: 'font/*',
+    document: 'text/html',
+    xmlhttprequest: 'application/json',
+    fetch: 'application/json',
   };
-  return mimeTypes[type] || "application/octet-stream";
+  return mimeTypes[type] || 'application/octet-stream';
 }
 
 // Handle Get Recent Errors
 async function handleGetRecentErrors(data) {
   try {
     if (!dbManager) {
-      return { success: false, error: "Database manager not initialized" };
+      return { success: false, error: 'Database manager not initialized' };
     }
 
     const { url, timeRange } = data;
     const timestampCutoff = Date.now() - (timeRange || 300000); // Default 5 minutes
 
     // Get domain from URL
-    let domain = "";
+    let domain = '';
     try {
       const urlObj = new URL(url);
       domain = urlObj.hostname;
     } catch {
-      return { success: false, error: "Invalid URL" };
+      return { success: false, error: 'Invalid URL' };
     }
 
     // Query for recent errors from current domain
@@ -3101,12 +3101,12 @@ async function handleGetRecentErrors(data) {
     const errors =
       queryResult && queryResult[0] && queryResult[0].values
         ? queryResult[0].values.map((row) => {
-            const obj = {};
-            queryResult[0].columns.forEach((col, idx) => {
-              obj[col] = row[idx];
-            });
-            return obj;
-          })
+          const obj = {};
+          queryResult[0].columns.forEach((col, idx) => {
+            obj[col] = row[idx];
+          });
+          return obj;
+        })
         : [];
 
     return {
@@ -3114,7 +3114,7 @@ async function handleGetRecentErrors(data) {
       errors: errors,
     };
   } catch (error) {
-    console.error("Get recent errors error:", error);
+    console.error('Get recent errors error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -3123,13 +3123,13 @@ async function handleGetRecentErrors(data) {
 async function handleGetRecentRequests(data) {
   try {
     if (!dbManager || !dbManager.db) {
-      return { success: false, error: "Database not available" };
+      return { success: false, error: 'Database not available' };
     }
 
     const limit = data?.limit || 10;
 
     const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
+      if (val === undefined || val === null) return 'NULL';
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -3142,9 +3142,11 @@ async function handleGetRecentRequests(data) {
         status,
         duration,
         timestamp,
-        request_headers as headers,
-        request_body as body,
-        response_size as size
+        type,
+        domain,
+        page_url,
+        size_bytes as size,
+        status_text
       FROM silver_requests
       ORDER BY timestamp DESC
       LIMIT ${parseInt(limit)}
@@ -3155,30 +3157,12 @@ async function handleGetRecentRequests(data) {
     const requests =
       queryResult.length > 0 && queryResult[0].values
         ? queryResult[0].values.map((row) => {
-            const obj = {};
-            queryResult[0].columns.forEach((col, idx) => {
-              obj[col] = row[idx];
-            });
-            
-            // Parse headers and body if they're JSON strings
-            if (obj.headers && typeof obj.headers === 'string') {
-              try {
-                obj.headers = JSON.parse(obj.headers);
-              } catch (e) {
-                // Keep as string if not valid JSON
-              }
-            }
-            
-            if (obj.body && typeof obj.body === 'string') {
-              try {
-                obj.body = JSON.parse(obj.body);
-              } catch (e) {
-                // Keep as string if not valid JSON
-              }
-            }
-            
-            return obj;
-          })
+          const obj = {};
+          queryResult[0].columns.forEach((col, idx) => {
+            obj[col] = row[idx];
+          });
+          return obj;
+        })
         : [];
 
     return {
@@ -3186,7 +3170,7 @@ async function handleGetRecentRequests(data) {
       requests: requests,
     };
   } catch (error) {
-    console.error("Get recent requests error:", error);
+    console.error('Get recent requests error:', error);
     return { success: false, error: error.message };
   }
 }

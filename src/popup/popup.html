@@ -12,45 +12,88 @@
   </head>
   <body>
     <!-- Welcome Screen Overlay (First Time Only) -->
-    <div id="welcomeOverlay" class="welcome-overlay" style="display: none;">
+    <div id="welcomeOverlay" class="welcome-overlay" style="display: none">
       <div class="welcome-content">
-        <div class="welcome-icon">
-          <i class="fas fa-network-wired"></i>
+        <div class="welcome-header">
+          <div class="welcome-icon">
+            <i class="fas fa-network-wired"></i>
+          </div>
+          <h2>Welcome to Universal Request Analyzer</h2>
+          <p class="welcome-subtitle">
+            A powerful network debugging and performance monitoring tool
+          </p>
         </div>
-        <h2>Welcome to Universal Request Analyzer!</h2>
-        <p class="welcome-subtitle">Your network requests are being captured automatically.</p>
-        
+
         <div class="welcome-features">
           <div class="welcome-feature">
-            <div class="feature-icon">
+            <div class="feature-icon feature-icon-green">
               <i class="fas fa-history"></i>
             </div>
-            <h3>Never Lose Data</h3>
-            <p>Unlike DevTools, your data persists across sessions</p>
+            <div class="feature-content">
+              <h3>Persistent Data Storage</h3>
+              <p>
+                Never lose your network data—requests persist across browser
+                sessions unlike DevTools
+              </p>
+            </div>
           </div>
           <div class="welcome-feature">
-            <div class="feature-icon">
+            <div class="feature-icon feature-icon-blue">
               <i class="fas fa-chart-line"></i>
             </div>
-            <h3>Performance Tracking</h3>
-            <p>Track API performance over time</p>
+            <div class="feature-content">
+              <h3>Real-time Analytics</h3>
+              <p>
+                Track API performance trends with detailed metrics and
+                visualizations over time
+              </p>
+            </div>
           </div>
           <div class="welcome-feature">
-            <div class="feature-icon">
+            <div class="feature-icon feature-icon-purple">
+              <i class="fas fa-filter"></i>
+            </div>
+            <div class="feature-content">
+              <h3>Advanced Filtering</h3>
+              <p>
+                Filter by domain, status, method, or request type to focus on
+                what matters
+              </p>
+            </div>
+          </div>
+          <div class="welcome-feature">
+            <div class="feature-icon feature-icon-orange">
               <i class="fas fa-download"></i>
             </div>
-            <h3>Easy Export</h3>
-            <p>Export as HAR, JSON, or CSV</p>
+            <div class="feature-content">
+              <h3>Multi-format Export</h3>
+              <p>
+                Export your data in HAR, JSON, CSV, or copy individual requests
+                as cURL
+              </p>
+            </div>
           </div>
         </div>
-        
-        <button class="welcome-btn" id="getStartedBtn">
-          <i class="fas fa-rocket"></i> Get Started
-        </button>
-        <label class="welcome-checkbox">
-          <input type="checkbox" id="dontShowAgain">
-          <span>Don't show this again</span>
-        </label>
+
+        <div class="welcome-actions">
+          <button class="welcome-btn-primary" id="getStartedBtn">
+            <i class="fas fa-rocket"></i>
+            <span>Get Started</span>
+          </button>
+          <label class="welcome-checkbox">
+            <input type="checkbox" id="dontShowAgain" />
+            <span>Don't show this welcome screen again</span>
+          </label>
+        </div>
+
+        <div class="welcome-footer">
+          <a href="#" class="welcome-link" id="viewDocsLink">
+            <i class="fas fa-book"></i> View Documentation
+          </a>
+          <a href="#" class="welcome-link" id="openSettingsLink">
+            <i class="fas fa-cog"></i> Settings
+          </a>
+        </div>
       </div>
     </div>
 
@@ -88,9 +131,11 @@
       </div>
 
       <!-- Contextual Tips Banner -->
-      <div id="tipBanner" class="tip-banner" style="display: none;">
+      <div id="tipBanner" class="tip-banner" style="display: none">
         <i class="fas fa-lightbulb"></i>
-        <span id="tipText">Tip: Click any status code chip to filter requests</span>
+        <span id="tipText"
+          >Tip: Click any status code chip to filter requests</span
+        >
         <button id="closeTipBtn" class="close-tip" title="Dismiss tip">
           <i class="fas fa-times"></i>
         </button>
@@ -174,12 +219,14 @@
       </details>
 
       <!-- Empty State (shown when no data) -->
-      <div id="emptyState" class="empty-state" style="display: none;">
+      <div id="emptyState" class="empty-state" style="display: none">
         <div class="empty-icon">
           <i class="fas fa-inbox"></i>
         </div>
         <h3>No requests captured yet</h3>
-        <p>Browse to any website and come back to see your network data here.</p>
+        <p>
+          Browse to any website and come back to see your network data here.
+        </p>
         <div class="empty-actions">
           <button id="viewSampleBtn" class="secondary-btn">
             <i class="fas fa-eye"></i> View Sample Data
@@ -278,7 +325,9 @@
             </button>
           </div>
           <div class="requests-list" id="recentRequestsList">
-            <p class="placeholder">No requests captured yet. Browse a website to see requests here.</p>
+            <p class="placeholder">
+              No requests captured yet. Browse a website to see requests here.
+            </p>
           </div>
           <div class="requests-actions">
             <button id="viewAllRequestsBtn" class="secondary-btn">

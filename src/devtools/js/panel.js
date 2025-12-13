@@ -1,5 +1,10 @@
 import Chart from "../../lib/chart.min.js";
 
+// Global initialization function that can be called from devtools.js
+window.initializePanel = function () {
+  console.log("Panel initialization requested");
+};
+
 export class DevToolsPanel {
   constructor() {
     this.charts = {};
@@ -1232,13 +1237,19 @@ export class DevToolsPanel {
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.classList.remove("active");
     });
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active");
+    const tabBtn = document.querySelector(`[data-tab="${tabName}"]`);
+    if (tabBtn) {
+      tabBtn.classList.add("active");
+    }
 
     // Update tab content
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.remove("active");
     });
-    document.getElementById(`${tabName}Tab`).classList.add("active");
+    const tabContent = document.getElementById(`${tabName}Tab`);
+    if (tabContent) {
+      tabContent.classList.add("active");
+    }
 
     // Load tab-specific data
     this.loadTabData(tabName);
@@ -1687,7 +1698,7 @@ export class DevToolsPanel {
   async loadPerformanceData() {
     try {
       const filters = this.getActiveFilters();
-      
+
       // Get detailed requests for slow requests list
       // Note: getDetailedRequests and getFilteredStats return different data structures
       // and serve different purposes, so they cannot easily be combined
@@ -1758,36 +1769,57 @@ export class DevToolsPanel {
       });
 
       // Show slowest requests
-      if (detailedResponse.success && detailedResponse.requests && detailedResponse.requests.length > 0) {
+      if (
+        detailedResponse.success &&
+        detailedResponse.requests &&
+        detailedResponse.requests.length > 0
+      ) {
         // Sort by duration descending and take top 10
         const slowestRequests = detailedResponse.requests
-          .filter(req => req.duration > 0)
+          .filter((req) => req.duration > 0)
           .sort((a, b) => (b.duration || 0) - (a.duration || 0))
           .slice(0, 10);
 
         if (slowestRequests.length > 0) {
           let html = '<div class="slow-requests-list">';
           slowestRequests.forEach((req, index) => {
-            const statusClass = req.status >= 400 ? 'status-error' : req.status >= 300 ? 'status-warning' : 'status-success';
+            const statusClass =
+              req.status >= 400
+                ? "status-error"
+                : req.status >= 300
+                ? "status-warning"
+                : "status-success";
             html += `
               <div class="slow-request-item">
                 <div class="slow-request-rank">#${index + 1}</div>
                 <div class="slow-request-details">
                   <div class="slow-request-url" title="${req.url}">
-                    <span class="method-badge method-${req.method?.toLowerCase() || 'get'}">${req.method || 'GET'}</span>
+                    <span class="method-badge method-${
+                      req.method?.toLowerCase() || "get"
+                    }">${req.method || "GET"}</span>
                     ${this.truncateUrl(req.url, 50)}
                   </div>
                   <div class="slow-request-meta">
-                    <span class="status-badge ${statusClass}">${req.status || 'N/A'}</span>
-                    <span class="request-type">${req.type || 'N/A'}</span>
-                    ${req.size_bytes ? `<span class="request-size">${this.formatBytes(req.size_bytes)}</span>` : ''}
+                    <span class="status-badge ${statusClass}">${
+              req.status || "N/A"
+            }</span>
+                    <span class="request-type">${req.type || "N/A"}</span>
+                    ${
+                      req.size_bytes
+                        ? `<span class="request-size">${this.formatBytes(
+                            req.size_bytes
+                          )}</span>`
+                        : ""
+                    }
                   </div>
                 </div>
-                <div class="slow-request-time">${Math.round(req.duration)}ms</div>
+                <div class="slow-request-time">${Math.round(
+                  req.duration
+                )}ms</div>
               </div>
             `;
           });
-          html += '</div>';
+          html += "</div>";
           document.getElementById("slowRequestsList").innerHTML = html;
         } else {
           document.getElementById("slowRequestsList").innerHTML =
@@ -1811,9 +1843,15 @@ export class DevToolsPanel {
     // Store current data for budget recalculation
     this.currentPerformanceData = data;
 
-    const budgetResponseTime = parseInt(document.getElementById("budgetResponseTime")?.value || 1000);
-    const budgetTotalSize = parseFloat(document.getElementById("budgetTotalSize")?.value || 5);
-    const budgetRequestCount = parseInt(document.getElementById("budgetRequestCount")?.value || 100);
+    const budgetResponseTime = parseInt(
+      document.getElementById("budgetResponseTime")?.value || 1000
+    );
+    const budgetTotalSize = parseFloat(
+      document.getElementById("budgetTotalSize")?.value || 5
+    );
+    const budgetRequestCount = parseInt(
+      document.getElementById("budgetRequestCount")?.value || 100
+    );
 
     const avgResponseTime = data.avgResponseTime || 0;
     const maxResponseTime = data.maxResponseTime || 0;
@@ -1826,13 +1864,19 @@ export class DevToolsPanel {
     const responseStatus = document.getElementById("budgetResponseStatus");
     if (responseStatus) {
       if (maxResponseTime > budgetResponseTime) {
-        responseStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (Max: ${Math.round(maxResponseTime)}ms)</span>`;
+        responseStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (Max: ${Math.round(
+          maxResponseTime
+        )}ms)</span>`;
         responseStatus.className = "budget-status fail";
       } else if (avgResponseTime > budgetResponseTime * 0.8) {
-        responseStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (Avg: ${Math.round(avgResponseTime)}ms)</span>`;
+        responseStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (Avg: ${Math.round(
+          avgResponseTime
+        )}ms)</span>`;
         responseStatus.className = "budget-status warning";
       } else {
-        responseStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (Max: ${Math.round(maxResponseTime)}ms)</span>`;
+        responseStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (Max: ${Math.round(
+          maxResponseTime
+        )}ms)</span>`;
         responseStatus.className = "budget-status pass";
       }
     }
@@ -1841,13 +1885,19 @@ export class DevToolsPanel {
     const sizeStatus = document.getElementById("budgetSizeStatus");
     if (sizeStatus) {
       if (totalSizeMB > budgetTotalSize) {
-        sizeStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (${totalSizeMB.toFixed(2)}MB)</span>`;
+        sizeStatus.innerHTML = `<span class="budget-fail"><i class="fas fa-times-circle"></i> Failed (${totalSizeMB.toFixed(
+          2
+        )}MB)</span>`;
         sizeStatus.className = "budget-status fail";
       } else if (totalSizeMB > budgetTotalSize * 0.8) {
-        sizeStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (${totalSizeMB.toFixed(2)}MB)</span>`;
+        sizeStatus.innerHTML = `<span class="budget-warning"><i class="fas fa-exclamation-triangle"></i> Warning (${totalSizeMB.toFixed(
+          2
+        )}MB)</span>`;
         sizeStatus.className = "budget-status warning";
       } else {
-        sizeStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (${totalSizeMB.toFixed(2)}MB)</span>`;
+        sizeStatus.innerHTML = `<span class="budget-pass"><i class="fas fa-check-circle"></i> Pass (${totalSizeMB.toFixed(
+          2
+        )}MB)</span>`;
         sizeStatus.className = "budget-status pass";
       }
     }
@@ -1869,17 +1919,19 @@ export class DevToolsPanel {
 
     // Add event listeners to budget inputs to recalculate on change
     if (!this.budgetListenersAdded) {
-      ["budgetResponseTime", "budgetTotalSize", "budgetRequestCount"].forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-          element.addEventListener("change", () => {
-            // Use stored current data for recalculation
-            if (this.currentPerformanceData) {
-              this.updatePerformanceBudgets(this.currentPerformanceData);
-            }
-          });
+      ["budgetResponseTime", "budgetTotalSize", "budgetRequestCount"].forEach(
+        (id) => {
+          const element = document.getElementById(id);
+          if (element) {
+            element.addEventListener("change", () => {
+              // Use stored current data for recalculation
+              if (this.currentPerformanceData) {
+                this.updatePerformanceBudgets(this.currentPerformanceData);
+              }
+            });
+          }
         }
-      });
+      );
       this.budgetListenersAdded = true;
     }
   }
