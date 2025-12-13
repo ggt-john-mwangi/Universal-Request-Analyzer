@@ -1787,7 +1787,7 @@ export class DevToolsPanel {
       const response4xx = await chrome.runtime.sendMessage({
         action: 'getDetailedRequests',
         filters: filters4xx,
-        limit: 50
+        limit: 100
       });
       
       // Get 5xx errors
@@ -1795,7 +1795,7 @@ export class DevToolsPanel {
       const response5xx = await chrome.runtime.sendMessage({
         action: 'getDetailedRequests',
         filters: filters5xx,
-        limit: 50
+        limit: 100
       });
       
       const errorsList = document.getElementById('errorsList');
@@ -1806,53 +1806,137 @@ export class DevToolsPanel {
       const totalErrors = errors4xx.length + errors5xx.length;
       
       if (totalErrors === 0) {
-        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters</p>';
+        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters. This is good! ✓</p>';
         errorCategories.innerHTML = '';
+        // Clear chart
+        const canvas = document.getElementById('errorsChart');
+        if (canvas && this.errorChart) {
+          this.errorChart.destroy();
+          this.errorChart = null;
+        }
         return;
       }
       
-      // Render error categories
+      // Group errors by status code for better analysis
+      const statusGroups = {};
+      [...errors4xx, ...errors5xx].forEach(err => {
+        if (!statusGroups[err.status]) {
+          statusGroups[err.status] = [];
+        }
+        statusGroups[err.status].push(err);
+      });
+      
+      // Count by specific status codes
+      const status404 = statusGroups[404] ? statusGroups[404].length : 0;
+      const status403 = statusGroups[403] ? statusGroups[403].length : 0;
+      const status500 = statusGroups[500] ? statusGroups[500].length : 0;
+      const status502 = statusGroups[502] ? statusGroups[502].length : 0;
+      const status503 = statusGroups[503] ? statusGroups[503].length : 0;
+      
+      // Render enhanced error categories with breakdown
       let categoriesHtml = `
         <div class="error-category-stats">
           <div class="category-card client-error">
-            <h5>4xx Client Errors</h5>
+            <h5><i class="fas fa-exclamation-triangle"></i> 4xx Client Errors</h5>
             <div class="category-count">${errors4xx.length}</div>
-            <p>Issues with the request</p>
+            <p>Request-related issues</p>
+            <div class="category-details">
+              ${status404 > 0 ? `<div class="detail-item">404 Not Found: <strong>${status404}</strong></div>` : ''}
+              ${status403 > 0 ? `<div class="detail-item">403 Forbidden: <strong>${status403}</strong></div>` : ''}
+            </div>
           </div>
           <div class="category-card server-error">
-            <h5>5xx Server Errors</h5>
+            <h5><i class="fas fa-times-circle"></i> 5xx Server Errors</h5>
             <div class="category-count">${errors5xx.length}</div>
             <p>Server-side failures</p>
+            <div class="category-details">
+              ${status500 > 0 ? `<div class="detail-item">500 Internal: <strong>${status500}</strong></div>` : ''}
+              ${status502 > 0 ? `<div class="detail-item">502 Bad Gateway: <strong>${status502}</strong></div>` : ''}
+              ${status503 > 0 ? `<div class="detail-item">503 Unavailable: <strong>${status503}</strong></div>` : ''}
+            </div>
           </div>
         </div>
       `;
       errorCategories.innerHTML = categoriesHtml;
       
-      // Render detailed error list
-      let listHtml = `<div class="errors-list-content">`;
+      // Group errors by URL pattern for better display
+      const errorsByUrl = {};
+      [...errors4xx, ...errors5xx].forEach(err => {
+        // Simplify URL by removing query params and normalizing IDs
+        let urlKey = err.url;
+        try {
+          const urlObj = new URL(err.url);
+          urlKey = urlObj.pathname.replace(/\/\d+/g, '/:id').replace(/\/[0-9a-f]{8,}/gi, '/:hash');
+        } catch (e) {
+          urlKey = err.url.split('?')[0];
+        }
+        
+        if (!errorsByUrl[urlKey]) {
+          errorsByUrl[urlKey] = [];
+        }
+        errorsByUrl[urlKey].push(err);
+      });
       
-      if (errors4xx.length > 0) {
-        listHtml += '<h5><i class="fas fa-exclamation-triangle"></i> Client Errors (4xx)</h5>';
-        errors4xx.forEach(err => {
-          listHtml += this.renderErrorItem(err, 'client');
-        });
-      }
+      // Sort by frequency
+      const sortedUrls = Object.entries(errorsByUrl).sort((a, b) => b[1].length - a[1].length);
       
-      if (errors5xx.length > 0) {
-        listHtml += '<h5><i class="fas fa-times-circle"></i> Server Errors (5xx)</h5>';
-        errors5xx.forEach(err => {
-          listHtml += this.renderErrorItem(err, 'server');
-        });
+      // Render detailed error list grouped by URL pattern
+      let listHtml = `
+        <div class="errors-list-content">
+          <div class="errors-summary">
+            <p><strong>${totalErrors}</strong> errors found. ${Object.keys(errorsByUrl).length} unique endpoint(s) affected.</p>
+          </div>
+      `;
+      
+      sortedUrls.slice(0, 20).forEach(([urlPattern, errs]) => {
+        const firstError = errs[0];
+        const errorTypeClass = firstError.status >= 500 ? 'error-server' : 'error-client';
+        
+        listHtml += `
+          <div class="error-group ${errorTypeClass}">
+            <div class="error-group-header">
+              <span class="status-badge status-error">${firstError.status}</span>
+              <code class="error-url-pattern" title="${firstError.url}">${urlPattern}</code>
+              ${errs.length > 1 ? `<span class="error-count-badge">${errs.length}x</span>` : ''}
+            </div>
+            <div class="error-group-details">
+              <span class="error-method"><i class="fas fa-code"></i> ${firstError.method || 'GET'}</span>
+              <span class="error-type"><i class="fas fa-tag"></i> ${firstError.type || 'unknown'}</span>
+              <span class="error-time"><i class="fas fa-clock"></i> ${new Date(firstError.timestamp).toLocaleString()}</span>
+            </div>
+            ${errs.length > 1 ? `
+              <div class="error-occurrences">
+                <button class="toggle-occurrences" onclick="this.parentElement.querySelector('.occurrences-list').classList.toggle('hidden')">
+                  <i class="fas fa-chevron-down"></i> Show all ${errs.length} occurrences
+                </button>
+                <div class="occurrences-list hidden">
+                  ${errs.slice(0, 10).map(err => `
+                    <div class="occurrence-item">
+                      <span>${new Date(err.timestamp).toLocaleTimeString()}</span>
+                      <code class="occurrence-url">${this.truncateUrl(err.url, 50)}</code>
+                    </div>
+                  `).join('')}
+                  ${errs.length > 10 ? `<p class="more-text">...and ${errs.length - 10} more</p>` : ''}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+      
+      if (sortedUrls.length > 20) {
+        listHtml += `<p class="hint">Showing top 20 of ${sortedUrls.length} error patterns</p>`;
       }
       
       listHtml += '</div>';
       errorsList.innerHTML = listHtml;
       
-      // Render error distribution chart
-      this.renderErrorChart(errors4xx, errors5xx);
+      // Render enhanced error distribution chart
+      this.renderErrorChart(statusGroups, errors4xx.length, errors5xx.length);
       
     } catch (error) {
       console.error('Failed to load errors data:', error);
+      document.getElementById('errorsList').innerHTML = '<p class="error-message">Error loading error data</p>';
     }
   }
   
@@ -1874,21 +1958,27 @@ export class DevToolsPanel {
     `;
   }
   
-  renderErrorChart(errors4xx, errors5xx) {
-    const ctx = document.getElementById('errorsChart').getContext('2d');
+  renderErrorChart(statusGroups, total4xx, total5xx) {
+    const canvas = document.getElementById('errorsChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
     
     if (this.errorChart) {
       this.errorChart.destroy();
     }
     
-    // Group by status code
-    const statusCounts = {};
-    [...errors4xx, ...errors5xx].forEach(err => {
-      statusCounts[err.status] = (statusCounts[err.status] || 0) + 1;
-    });
+    const labels = Object.keys(statusGroups).sort((a, b) => parseInt(a) - parseInt(b));
+    const data = labels.map(status => statusGroups[status].length);
     
-    const labels = Object.keys(statusCounts).sort();
-    const data = labels.map(status => statusCounts[status]);
+    // Color code: 4xx = warning orange, 5xx = error red
+    const backgroundColors = labels.map(s => {
+      const status = parseInt(s);
+      if (status >= 500) return '#F44336';  // Red for 5xx
+      if (status === 404) return '#FF9800';  // Orange for 404
+      if (status === 403) return '#FFA726';  // Light orange for 403
+      return '#FFB74D';  // Light orange for other 4xx
+    });
     
     this.errorChart = new Chart(ctx, {
       type: 'bar',
@@ -1897,26 +1987,64 @@ export class DevToolsPanel {
         datasets: [{
           label: 'Error Count',
           data,
-          backgroundColor: labels.map(s => parseInt(s) >= 500 ? '#F44336' : '#FF9800')
+          backgroundColor: backgroundColors,
+          borderColor: backgroundColors.map(c => c),
+          borderWidth: 1
         }]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: true,
         plugins: {
           legend: {
             display: false
           },
           title: {
             display: true,
-            text: 'Errors by Status Code'
+            text: `Error Distribution (4xx: ${total4xx}, 5xx: ${total5xx})`,
+            font: {
+              size: 14,
+              weight: 'bold'
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const status = context.label;
+                const count = context.parsed.y;
+                const statusText = {
+                  '400': 'Bad Request',
+                  '401': 'Unauthorized',
+                  '403': 'Forbidden',
+                  '404': 'Not Found',
+                  '405': 'Method Not Allowed',
+                  '408': 'Request Timeout',
+                  '429': 'Too Many Requests',
+                  '500': 'Internal Server Error',
+                  '502': 'Bad Gateway',
+                  '503': 'Service Unavailable',
+                  '504': 'Gateway Timeout'
+                }[status] || '';
+                return `${status} ${statusText}: ${count} error(s)`;
+              }
+            }
           }
         },
         scales: {
           y: {
             beginAtZero: true,
+            ticks: {
+              stepSize: 1
+            },
             title: {
               display: true,
-              text: 'Count'
+              text: 'Number of Errors'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'HTTP Status Code'
             }
           }
         }
@@ -2606,10 +2734,12 @@ export class DevToolsPanel {
   startRealtimeFeed() {
     this.realtimeMessages = this.realtimeMessages || [];
     this.realtimePaused = false;
+    this.lastRealtimeUpdate = Date.now();
     
     // Setup event listeners
     const clearBtn = document.getElementById('clearRealtimeBtn');
     const pauseBtn = document.getElementById('pauseRealtimeBtn');
+    const autoScrollCheckbox = document.getElementById('autoScrollCheckbox');
     
     if (clearBtn) {
       // Remove existing listener if any
