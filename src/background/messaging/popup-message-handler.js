@@ -141,6 +141,9 @@ async function handleMessage(message, sender) {
       case "getRecentErrors":
         return await handleGetRecentErrors(data);
 
+      case "getRecentRequests":
+        return await handleGetRecentRequests(data);
+
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -3112,6 +3115,78 @@ async function handleGetRecentErrors(data) {
     };
   } catch (error) {
     console.error("Get recent errors error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get recent requests
+async function handleGetRecentRequests(data) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const limit = data?.limit || 10;
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    // Get recent requests from silver_requests
+    const query = `
+      SELECT 
+        id,
+        url,
+        method,
+        status,
+        duration,
+        timestamp,
+        request_headers as headers,
+        request_body as body,
+        response_size as size
+      FROM silver_requests
+      ORDER BY timestamp DESC
+      LIMIT ${parseInt(limit)}
+    `;
+
+    const queryResult = dbManager.db.exec(query);
+    
+    const requests =
+      queryResult.length > 0 && queryResult[0].values
+        ? queryResult[0].values.map((row) => {
+            const obj = {};
+            queryResult[0].columns.forEach((col, idx) => {
+              obj[col] = row[idx];
+            });
+            
+            // Parse headers and body if they're JSON strings
+            if (obj.headers && typeof obj.headers === 'string') {
+              try {
+                obj.headers = JSON.parse(obj.headers);
+              } catch (e) {
+                // Keep as string if not valid JSON
+              }
+            }
+            
+            if (obj.body && typeof obj.body === 'string') {
+              try {
+                obj.body = JSON.parse(obj.body);
+              } catch (e) {
+                // Keep as string if not valid JSON
+              }
+            }
+            
+            return obj;
+          })
+        : [];
+
+    return {
+      success: true,
+      requests: requests,
+    };
+  } catch (error) {
+    console.error("Get recent requests error:", error);
     return { success: false, error: error.message };
   }
 }

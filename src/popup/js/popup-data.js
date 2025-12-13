@@ -7,6 +7,7 @@ import {
   updateRecentErrorsDisplay,
 } from "./popup-ui.js";
 import { showNotification } from "./popup-utils.js";
+import { shouldShowEmptyState, showEmptyState, hideEmptyState } from "./popup-empty-state.js";
 
 let refreshInterval = null;
 
@@ -69,8 +70,14 @@ export async function loadPageSummary() {
     console.log("Page stats response:", response);
 
     if (response && response.success && response.stats) {
-      updatePageSummary(response.stats);
-      updateDetailedViews(response.stats);
+      // Check if we should show empty state
+      if (shouldShowEmptyState(response.stats)) {
+        showEmptyState();
+      } else {
+        hideEmptyState();
+        updatePageSummary(response.stats);
+        updateDetailedViews(response.stats);
+      }
 
       // Start auto-refresh only on first successful load
       if (!refreshInterval) {
@@ -78,15 +85,8 @@ export async function loadPageSummary() {
       }
     } else {
       console.warn("No stats available, showing defaults");
-      // Show default values
-      updatePageSummary({
-        totalRequests: 0,
-        timestamps: [],
-        responseTimes: [],
-        requestTypes: {},
-        statusCodes: {},
-        totalBytes: 0,
-      });
+      // Show empty state
+      showEmptyState();
     }
   } catch (error) {
     // Stop refresh loop on extension context invalidation
