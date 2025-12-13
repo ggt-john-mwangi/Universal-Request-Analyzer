@@ -72,6 +72,12 @@
       <button id="exportHARBtn" class="export-btn" title="Export as HAR (HTTP Archive)">
         <i class="fas fa-download"></i> Export HAR
       </button>
+      <button id="exportJSONBtn" class="export-btn" title="Export as JSON">
+        <i class="fas fa-file-code"></i> JSON
+      </button>
+      <button id="exportCSVBtn" class="export-btn" title="Export as CSV">
+        <i class="fas fa-file-csv"></i> CSV
+      </button>
     </div>
 
     <!-- Filters Section - Collapsible -->
@@ -176,6 +182,29 @@
         </div>
         <div class="errors-list" id="recentErrorsList">
           <p class="placeholder">No errors in the last 5 minutes</p>
+        </div>
+      </div>
+
+      <!-- Recent Requests List -->
+      <div class="recent-requests">
+        <div class="breakdown-title">
+          <i class="fas fa-list"></i> Recent Requests (Last 10)
+          <button id="clearRecentBtn" class="clear-btn" title="Clear requests">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+        <div class="requests-list" id="recentRequestsList">
+          <p class="placeholder">No requests captured yet</p>
+        </div>
+      </div>
+
+      <!-- Performance Insights -->
+      <div class="performance-insights">
+        <div class="breakdown-title">
+          <i class="fas fa-lightbulb"></i> Performance Insights
+        </div>
+        <div class="insights-list" id="insightsList">
+          <p class="placeholder">Analyzing performance...</p>
         </div>
       </div>
     </div>

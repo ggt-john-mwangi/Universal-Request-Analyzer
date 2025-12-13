@@ -201,8 +201,34 @@ function setupEventListeners() {
     await exportAsHAR();
   });
 
+  // JSON Export button
+  document.getElementById('exportJSONBtn')?.addEventListener('click', async () => {
+    await exportAsJSON();
+  });
+
+  // CSV Export button
+  document.getElementById('exportCSVBtn')?.addEventListener('click', async () => {
+    await exportAsCSV();
+  });
+
+  // Clear recent requests
+  document.getElementById('clearRecentBtn')?.addEventListener('click', async () => {
+    if (confirm('Clear all captured requests?')) {
+      await clearRequests();
+    }
+  });
+
   // Load tracked sites for QA selector
   loadTrackedSites();
+
+  // Load recent requests
+  loadRecentRequests();
+
+  // Setup keyboard shortcuts
+  setupKeyboardShortcuts();
+
+  // Show welcome banner for first-time users
+  showWelcomeBannerIfNeeded();
 }
 
 // Apply quick filter
@@ -896,5 +922,426 @@ async function loadResourceUsage() {
     }
   } catch (error) {
     console.error('Failed to load resource usage:', error);
+  }
+}
+
+// Export as JSON
+async function exportAsJSON() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) {
+      showNotification('No active tab found', true);
+      return;
+    }
+    
+    const domain = new URL(currentTab.url).hostname;
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'exportFilteredData',
+      filters: { 
+        domain: domain,
+        quickFilter: currentQuickFilter
+      },
+      format: 'json'
+    });
+    
+    if (response && response.success && response.data) {
+      const exportData = JSON.stringify(response.data, null, 2);
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `requests-${domain}-${Date.now()}.json`;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      showNotification('JSON exported successfully!');
+    } else {
+      showNotification('JSON export failed: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('JSON export error:', error);
+    showNotification('JSON export failed', true);
+  }
+}
+
+// Export as CSV
+async function exportAsCSV() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) {
+      showNotification('No active tab found', true);
+      return;
+    }
+    
+    const domain = new URL(currentTab.url).hostname;
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'exportFilteredData',
+      filters: { 
+        domain: domain,
+        quickFilter: currentQuickFilter
+      },
+      format: 'csv'
+    });
+    
+    if (response && response.success && response.data) {
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `requests-${domain}-${Date.now()}.csv`;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      showNotification('CSV exported successfully!');
+    } else {
+      showNotification('CSV export failed: ' + (response?.error || 'Unknown error'), true);
+    }
+  } catch (error) {
+    console.error('CSV export error:', error);
+    showNotification('CSV export failed', true);
+  }
+}
+
+// Clear all requests
+async function clearRequests() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'clearAllRequests'
+    });
+    
+    if (response && response.success) {
+      showNotification('All requests cleared successfully!');
+      await loadPageSummary();
+      await loadRecentRequests();
+    } else {
+      showNotification('Failed to clear requests', true);
+    }
+  } catch (error) {
+    console.error('Clear requests error:', error);
+    showNotification('Failed to clear requests', true);
+  }
+}
+
+// Load recent requests
+async function loadRecentRequests() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) return;
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'getRecentRequests',
+      data: { 
+        url: currentTab.url,
+        limit: 10
+      }
+    });
+    
+    const container = document.getElementById('recentRequestsList');
+    if (!container) return;
+    
+    if (response && response.success && response.requests && response.requests.length > 0) {
+      let html = '';
+      response.requests.forEach(request => {
+        const statusClass = request.status >= 200 && request.status < 300 ? 'success' : 'error';
+        const timeDisplay = request.duration ? `${Math.round(request.duration)}ms` : 'N/A';
+        const urlDisplay = truncateUrl(request.url, 30);
+        
+        html += `
+          <div class="request-item">
+            <span class="request-status ${statusClass}">${request.status || '?'}</span>
+            <span class="request-method">${request.method || 'GET'}</span>
+            <span class="request-url" title="${request.url}">${urlDisplay}</span>
+            <span class="request-time">${timeDisplay}</span>
+            <div class="request-actions">
+              <button class="copy-curl" data-request-id="${request.id}" title="Copy as cURL">
+                <i class="fas fa-terminal"></i>
+              </button>
+              <button class="copy-fetch" data-request-id="${request.id}" title="Copy as Fetch">
+                <i class="fas fa-code"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+      
+      // Add event listeners for copy buttons
+      container.querySelectorAll('.copy-curl').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const requestId = e.currentTarget.dataset.requestId;
+          const request = response.requests.find(r => r.id == requestId);
+          if (request) copyAsCurl(request);
+        });
+      });
+      
+      container.querySelectorAll('.copy-fetch').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const requestId = e.currentTarget.dataset.requestId;
+          const request = response.requests.find(r => r.id == requestId);
+          if (request) copyAsFetch(request);
+        });
+      });
+    } else {
+      container.innerHTML = '<p class="placeholder">No requests captured yet</p>';
+    }
+    
+    // Generate performance insights
+    generatePerformanceInsights(response.requests || []);
+  } catch (error) {
+    console.error('Failed to load recent requests:', error);
+  }
+}
+
+// Copy request as cURL
+function copyAsCurl(request) {
+  try {
+    let curl = `curl -X ${request.method || 'GET'} '${request.url}'`;
+    
+    // Add headers if available
+    if (request.headers) {
+      const headers = typeof request.headers === 'string' ? JSON.parse(request.headers) : request.headers;
+      Object.entries(headers).forEach(([key, value]) => {
+        if (!key.toLowerCase().startsWith(':')) {
+          curl += ` \\\n  -H '${key}: ${value}'`;
+        }
+      });
+    }
+    
+    // Add body if available
+    if (request.body && request.method !== 'GET') {
+      curl += ` \\\n  --data '${request.body}'`;
+    }
+    
+    navigator.clipboard.writeText(curl).then(() => {
+      showNotification('cURL command copied to clipboard!');
+    });
+  } catch (error) {
+    console.error('Copy as cURL error:', error);
+    showNotification('Failed to copy cURL', true);
+  }
+}
+
+// Copy request as Fetch
+function copyAsFetch(request) {
+  try {
+    let fetchCode = `fetch('${request.url}', {\n  method: '${request.method || 'GET'}'`;
+    
+    // Add headers if available
+    if (request.headers) {
+      const headers = typeof request.headers === 'string' ? JSON.parse(request.headers) : request.headers;
+      const cleanHeaders = {};
+      Object.entries(headers).forEach(([key, value]) => {
+        if (!key.toLowerCase().startsWith(':')) {
+          cleanHeaders[key] = value;
+        }
+      });
+      fetchCode += `,\n  headers: ${JSON.stringify(cleanHeaders, null, 2)}`;
+    }
+    
+    // Add body if available
+    if (request.body && request.method !== 'GET') {
+      fetchCode += `,\n  body: ${JSON.stringify(request.body)}`;
+    }
+    
+    fetchCode += '\n})';
+    
+    navigator.clipboard.writeText(fetchCode).then(() => {
+      showNotification('Fetch code copied to clipboard!');
+    });
+  } catch (error) {
+    console.error('Copy as Fetch error:', error);
+    showNotification('Failed to copy Fetch code', true);
+  }
+}
+
+// Generate performance insights
+function generatePerformanceInsights(requests) {
+  const container = document.getElementById('insightsList');
+  if (!container || !requests || requests.length === 0) {
+    if (container) {
+      container.innerHTML = '<p class="placeholder">No insights available yet</p>';
+    }
+    return;
+  }
+  
+  const insights = [];
+  
+  // Calculate average response time
+  const responseTimes = requests.filter(r => r.duration).map(r => r.duration);
+  if (responseTimes.length > 0) {
+    const avgTime = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+    
+    if (avgTime > 1000) {
+      insights.push({
+        type: 'warning',
+        icon: 'fa-exclamation-triangle',
+        title: 'Slow average response time',
+        description: `Average response time is ${Math.round(avgTime)}ms. Consider optimizing your API calls.`
+      });
+    } else if (avgTime < 200) {
+      insights.push({
+        type: 'success',
+        icon: 'fa-check-circle',
+        title: 'Great performance!',
+        description: `Average response time is ${Math.round(avgTime)}ms. Your API is performing well.`
+      });
+    }
+  }
+  
+  // Check for errors
+  const errorCount = requests.filter(r => r.status >= 400).length;
+  const errorRate = requests.length > 0 ? (errorCount / requests.length) * 100 : 0;
+  
+  if (errorRate > 20) {
+    insights.push({
+      type: 'error',
+      icon: 'fa-times-circle',
+      title: 'High error rate detected',
+      description: `${errorRate.toFixed(1)}% of requests failed. Check your error logs.`
+    });
+  } else if (errorCount === 0 && requests.length > 5) {
+    insights.push({
+      type: 'success',
+      icon: 'fa-check-circle',
+      title: 'No errors detected',
+      description: 'All requests completed successfully!'
+    });
+  }
+  
+  // Check for large payloads
+  const largeRequests = requests.filter(r => r.size && r.size > 1024 * 1024); // > 1MB
+  if (largeRequests.length > 0) {
+    insights.push({
+      type: 'warning',
+      icon: 'fa-exclamation-circle',
+      title: 'Large payloads detected',
+      description: `${largeRequests.length} request(s) exceeded 1MB. Consider pagination or data optimization.`
+    });
+  }
+  
+  // Check request volume
+  if (requests.length > 50) {
+    insights.push({
+      type: 'warning',
+      icon: 'fa-info-circle',
+      title: 'High request volume',
+      description: `${requests.length} requests captured recently. Consider implementing request batching.`
+    });
+  }
+  
+  // Render insights
+  if (insights.length > 0) {
+    let html = '';
+    insights.slice(0, 3).forEach(insight => {
+      html += `
+        <div class="insight-item ${insight.type}">
+          <i class="fas ${insight.icon} insight-icon"></i>
+          <div class="insight-content">
+            <div class="insight-title">${insight.title}</div>
+            <div class="insight-description">${insight.description}</div>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  } else {
+    container.innerHTML = '<p class="placeholder">No performance issues detected</p>';
+  }
+}
+
+// Setup keyboard shortcuts
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ctrl/Cmd + E - Export HAR
+    if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+      e.preventDefault();
+      document.getElementById('exportHARBtn')?.click();
+    }
+    
+    // Ctrl/Cmd + R - Refresh
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+      e.preventDefault();
+      loadPageSummary();
+      loadRecentRequests();
+    }
+    
+    // Ctrl/Cmd + K - Clear requests
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      document.getElementById('clearRecentBtn')?.click();
+    }
+    
+    // ? - Show keyboard shortcuts
+    if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+      showKeyboardShortcuts();
+    }
+  });
+}
+
+// Show keyboard shortcuts
+function showKeyboardShortcuts() {
+  const shortcuts = [
+    { keys: 'Ctrl+E / Cmd+E', action: 'Export HAR' },
+    { keys: 'Ctrl+R / Cmd+R', action: 'Refresh data' },
+    { keys: 'Ctrl+K / Cmd+K', action: 'Clear requests' },
+    { keys: '?', action: 'Show shortcuts' }
+  ];
+  
+  const shortcutsHtml = shortcuts.map(s => 
+    `<div><kbd>${s.keys}</kbd> - ${s.action}</div>`
+  ).join('');
+  
+  // Simple alert for now - could be enhanced with a modal
+  alert('Keyboard Shortcuts:\n\n' + shortcuts.map(s => `${s.keys} - ${s.action}`).join('\n'));
+}
+
+// Show welcome banner for first-time users
+async function showWelcomeBannerIfNeeded() {
+  try {
+    const result = await chrome.storage.local.get(['welcomeBannerShown']);
+    
+    if (!result.welcomeBannerShown) {
+      const banner = document.createElement('div');
+      banner.className = 'welcome-banner';
+      banner.innerHTML = `
+        <div class="banner-title">
+          <i class="fas fa-star"></i>
+          Welcome to Request Analyzer!
+        </div>
+        <div class="banner-description">
+          Track network requests with persistence, analytics, and exports. Your data is automatically saved across browser sessions.
+        </div>
+        <div class="banner-actions">
+          <button id="takeTourBtn">Take a Quick Tour</button>
+          <button id="dismissBannerBtn" class="close-banner">Got it</button>
+        </div>
+      `;
+      
+      const appContainer = document.getElementById('appContainer');
+      if (appContainer) {
+        appContainer.insertBefore(banner, appContainer.firstChild);
+        
+        document.getElementById('dismissBannerBtn')?.addEventListener('click', async () => {
+          banner.remove();
+          await chrome.storage.local.set({ welcomeBannerShown: true });
+        });
+        
+        document.getElementById('takeTourBtn')?.addEventListener('click', () => {
+          chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html') });
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error showing welcome banner:', error);
   }
 }
