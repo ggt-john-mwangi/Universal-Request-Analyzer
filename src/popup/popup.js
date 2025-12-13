@@ -495,6 +495,20 @@ function updatePageSummary(data) {
   updateTrends(data);
 }
 
+// Helper: Calculate average
+function calculateAverage(values) {
+  if (!values || values.length === 0) return 0;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+// Helper: Calculate error count from status codes
+function calculateErrorCount(statusCodes) {
+  return Object.entries(statusCodes || {}).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
+  }, 0);
+}
+
 // Update trend indicators
 let previousStats = null;
 
@@ -503,26 +517,16 @@ function updateTrends(currentData) {
     // First load, store current as previous
     previousStats = {
       totalRequests: currentData.totalRequests || 0,
-      avgResponse: currentData.responseTimes?.length > 0 
-        ? currentData.responseTimes.reduce((a, b) => a + b, 0) / currentData.responseTimes.length 
-        : 0,
-      errorCount: Object.entries(currentData.statusCodes || {}).reduce((sum, [code, count]) => {
-        const statusCode = parseInt(code);
-        return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
-      }, 0),
+      avgResponse: calculateAverage(currentData.responseTimes),
+      errorCount: calculateErrorCount(currentData.statusCodes),
       totalBytes: currentData.totalBytes || 0
     };
     return;
   }
   
   const currentRequests = currentData.totalRequests || 0;
-  const currentAvgResponse = currentData.responseTimes?.length > 0 
-    ? currentData.responseTimes.reduce((a, b) => a + b, 0) / currentData.responseTimes.length 
-    : 0;
-  const currentErrors = Object.entries(currentData.statusCodes || {}).reduce((sum, [code, count]) => {
-    const statusCode = parseInt(code);
-    return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
-  }, 0);
+  const currentAvgResponse = calculateAverage(currentData.responseTimes);
+  const currentErrors = calculateErrorCount(currentData.statusCodes);
   const currentBytes = currentData.totalBytes || 0;
   
   // Update requests trend
@@ -1199,7 +1203,7 @@ async function loadRecentRequests() {
       container.querySelectorAll('.copy-curl').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const requestId = e.currentTarget.dataset.requestId;
-          const request = response.requests.find(r => r.id == requestId);
+          const request = response.requests.find(r => String(r.id) === String(requestId));
           if (request) copyAsCurl(request);
         });
       });
@@ -1207,7 +1211,7 @@ async function loadRecentRequests() {
       container.querySelectorAll('.copy-fetch').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const requestId = e.currentTarget.dataset.requestId;
-          const request = response.requests.find(r => r.id == requestId);
+          const request = response.requests.find(r => String(r.id) === String(requestId));
           if (request) copyAsFetch(request);
         });
       });
@@ -1222,24 +1226,48 @@ async function loadRecentRequests() {
   }
 }
 
+// Parse and clean headers (shared utility)
+function parseAndCleanHeaders(headers) {
+  const parsed = typeof headers === 'string' ? JSON.parse(headers) : headers;
+  const cleaned = {};
+  Object.entries(parsed).forEach(([key, value]) => {
+    // Skip pseudo-headers (HTTP/2)
+    if (!key.toLowerCase().startsWith(':')) {
+      cleaned[key] = value;
+    }
+  });
+  return cleaned;
+}
+
+// Escape string for shell command (security fix)
+function escapeShellArg(arg) {
+  if (!arg) return "''";
+  // Replace single quotes with '\'' to escape properly in shell
+  return `'${String(arg).replace(/'/g, "'\\''")}'`;
+}
+
 // Copy request as cURL
 function copyAsCurl(request) {
   try {
-    let curl = `curl -X ${request.method || 'GET'} '${request.url}'`;
+    const method = request.method || 'GET';
+    const url = escapeShellArg(request.url);
+    let curl = `curl -X ${method} ${url}`;
     
     // Add headers if available
     if (request.headers) {
-      const headers = typeof request.headers === 'string' ? JSON.parse(request.headers) : request.headers;
+      const headers = parseAndCleanHeaders(request.headers);
       Object.entries(headers).forEach(([key, value]) => {
-        if (!key.toLowerCase().startsWith(':')) {
-          curl += ` \\\n  -H '${key}: ${value}'`;
-        }
+        // Escape both key and value for security
+        const escapedKey = escapeShellArg(key);
+        const escapedValue = escapeShellArg(value);
+        curl += ` \\\n  -H ${escapedKey}: ${escapedValue}`;
       });
     }
     
     // Add body if available
-    if (request.body && request.method !== 'GET') {
-      curl += ` \\\n  --data '${request.body}'`;
+    if (request.body && method !== 'GET') {
+      const escapedBody = escapeShellArg(request.body);
+      curl += ` \\\n  --data ${escapedBody}`;
     }
     
     navigator.clipboard.writeText(curl).then(() => {
@@ -1254,22 +1282,17 @@ function copyAsCurl(request) {
 // Copy request as Fetch
 function copyAsFetch(request) {
   try {
-    let fetchCode = `fetch('${request.url}', {\n  method: '${request.method || 'GET'}'`;
+    const method = request.method || 'GET';
+    let fetchCode = `fetch(${JSON.stringify(request.url)}, {\n  method: ${JSON.stringify(method)}`;
     
     // Add headers if available
     if (request.headers) {
-      const headers = typeof request.headers === 'string' ? JSON.parse(request.headers) : request.headers;
-      const cleanHeaders = {};
-      Object.entries(headers).forEach(([key, value]) => {
-        if (!key.toLowerCase().startsWith(':')) {
-          cleanHeaders[key] = value;
-        }
-      });
+      const cleanHeaders = parseAndCleanHeaders(request.headers);
       fetchCode += `,\n  headers: ${JSON.stringify(cleanHeaders, null, 2)}`;
     }
     
     // Add body if available
-    if (request.body && request.method !== 'GET') {
+    if (request.body && method !== 'GET') {
       fetchCode += `,\n  body: ${JSON.stringify(request.body)}`;
     }
     
@@ -1410,19 +1433,44 @@ function setupKeyboardShortcuts() {
 
 // Show keyboard shortcuts
 function showKeyboardShortcuts() {
-  const shortcuts = [
-    { keys: 'Ctrl+E / Cmd+E', action: 'Export HAR' },
-    { keys: 'Ctrl+R / Cmd+R', action: 'Refresh data' },
-    { keys: 'Ctrl+K / Cmd+K', action: 'Clear requests' },
-    { keys: '?', action: 'Show shortcuts' }
-  ];
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalActionBtn = document.getElementById('modalActionBtn');
   
-  const shortcutsHtml = shortcuts.map(s => 
-    `<div><kbd>${s.keys}</kbd> - ${s.action}</div>`
-  ).join('');
+  if (!modalTitle || !modalBody) return;
   
-  // Simple alert for now - could be enhanced with a modal
-  alert('Keyboard Shortcuts:\n\n' + shortcuts.map(s => `${s.keys} - ${s.action}`).join('\n'));
+  modalTitle.textContent = '⌨️ Keyboard Shortcuts';
+  modalBody.innerHTML = `
+    <div style="display: grid; gap: 12px;">
+      <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--surface-color); border-radius: 6px;">
+        <span><kbd>Ctrl/Cmd + E</kbd></span>
+        <span>Export HAR</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--surface-color); border-radius: 6px;">
+        <span><kbd>Ctrl/Cmd + R</kbd></span>
+        <span>Refresh data</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--surface-color); border-radius: 6px;">
+        <span><kbd>Ctrl/Cmd + K</kbd></span>
+        <span>Clear requests</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--surface-color); border-radius: 6px;">
+        <span><kbd>Ctrl/Cmd + F</kbd></span>
+        <span>Focus search</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--surface-color); border-radius: 6px;">
+        <span><kbd>ESC</kbd></span>
+        <span>Clear search / Close modal</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--surface-color); border-radius: 6px;">
+        <span><kbd>?</kbd></span>
+        <span>Show shortcuts</span>
+      </div>
+    </div>
+  `;
+  
+  modalActionBtn.textContent = 'Got it!';
+  showModal();
 }
 
 // Show welcome banner for first-time users
@@ -1468,7 +1516,6 @@ async function showWelcomeBannerIfNeeded() {
 
 // Setup search functionality
 let searchTimeout = null;
-let allRequests = [];
 
 function setupSearch() {
   const searchInput = document.getElementById('searchInput');
