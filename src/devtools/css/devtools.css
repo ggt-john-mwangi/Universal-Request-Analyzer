@@ -1805,3 +1805,151 @@ body {
   color: var(--text-secondary);
   font-style: italic;
 }
+
+/* Performance Tab - Slowest Requests */
+.slow-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.slow-request-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.slow-request-item:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.slow-request-rank {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 35px;
+  text-align: center;
+}
+
+.slow-request-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slow-request-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slow-request-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.slow-request-time {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--warning);
+  min-width: 80px;
+  text-align: right;
+}
+
+.request-type {
+  padding: 2px 8px;
+  background: var(--surface-alt-color);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.request-size {
+  padding: 2px 8px;
+  background: var(--info-bg);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--info);
+}
+
+/* Performance Budgets */
+.budget-status {
+  display: inline-block;
+  margin-left: 12px;
+  font-size: 13px;
+}
+
+.budget-status.pass {
+  color: var(--success);
+}
+
+.budget-status.warning {
+  color: var(--warning);
+}
+
+.budget-status.fail {
+  color: var(--error);
+}
+
+.budget-pass,
+.budget-warning,
+.budget-fail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.budget-pass i {
+  color: var(--success);
+}
+
+.budget-warning i {
+  color: var(--warning);
+}
+
+.budget-fail i {
+  color: var(--error);
+}
+
+/* Method badges for different HTTP methods */
+.method-badge.method-get {
+  background: var(--success);
+  color: white;
+}
+
+.method-badge.method-post {
+  background: var(--info);
+  color: white;
+}
+
+.method-badge.method-put {
+  background: var(--warning);
+  color: white;
+}
+
+.method-badge.method-delete {
+  background: var(--error);
+  color: white;
+}
+
+.method-badge.method-patch {
+  background: #9C27B0;
+  color: white;
+}
