@@ -3,6 +3,7 @@
 
 import { showNotification } from './popup-utils.js';
 import { updatePageSummary, updateDetailedViews } from './popup-ui.js';
+import { tabs } from '../../background/compat/browser-compat.js';
 
 /**
  * Show empty state when no requests are available
@@ -88,7 +89,7 @@ function showSampleData() {
   // Show banner indicating this is sample data
   showSampleBanner();
   
-  showNotification('Showing sample data for demonstration', 'info');
+  showNotification('Showing sample data for demonstration', false);
 }
 
 /**
@@ -176,8 +177,8 @@ function showSampleBanner() {
  * Open help page in new tab
  */
 function openHelpPage() {
-  chrome.tabs.create({
-    url: chrome.runtime.getURL('help/help.html')
+  tabs.create({
+    url: 'help/help.html'
   });
 }
 

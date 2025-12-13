@@ -154,10 +154,10 @@ async function copyAsCurl(request) {
   
   try {
     await navigator.clipboard.writeText(curlCommand);
-    showNotification('Copied as cURL!', 'success');
+    showNotification('Copied as cURL!', false);
   } catch (error) {
     console.error('Failed to copy:', error);
-    showNotification('Failed to copy to clipboard', 'error');
+    showNotification('Failed to copy to clipboard', true);
   }
 }
 
@@ -204,10 +204,10 @@ async function copyAsFetch(request) {
   
   try {
     await navigator.clipboard.writeText(fetchCode);
-    showNotification('Copied as Fetch!', 'success');
+    showNotification('Copied as Fetch!', false);
   } catch (error) {
     console.error('Failed to copy:', error);
-    showNotification('Failed to copy to clipboard', 'error');
+    showNotification('Failed to copy to clipboard', true);
   }
 }
 
@@ -250,23 +250,14 @@ function generateFetchCode(request) {
  * @param {Object} request - Request object
  */
 function openDevToolsForRequest(request) {
-  // Open DevTools panel
-  chrome.devtools?.panels?.create(
-    'Request Analyzer',
-    '../assets/icons/icon16.png',
-    '../devtools/panel.html',
-    (_panel) => {
-      // Panel created
-    }
-  );
-  
-  // Alternative: send message to open DevTools
+  // Send message to open DevTools panel
+  // Note: chrome.devtools API is only available in DevTools context, not popup
   runtime.sendMessage({
     action: 'openDevTools',
     data: { requestId: request.id }
   });
   
-  showNotification('Opening in DevTools panel...', 'info');
+  showNotification('Opening in DevTools panel...', false);
 }
 
 /**
@@ -287,5 +278,5 @@ export function clearRequestsList() {
   if (listContainer) {
     listContainer.innerHTML = '<p class="placeholder">List cleared. New requests will appear here.</p>';
   }
-  showNotification('Request list cleared', 'info');
+  showNotification('Request list cleared', false);
 }
