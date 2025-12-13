@@ -4,21 +4,21 @@ import {
   storage,
   runtime,
   tabs,
-} from "../../background/compat/browser-compat.js";
-import { setViewMode } from "./popup-ui.js";
+} from '../../background/compat/browser-compat.js';
+import { setViewMode } from './popup-ui.js';
 import {
   loadPageSummary,
   loadPagesForDomain,
   loadTrackedSites,
   loadResourceUsage,
-} from "./popup-data.js";
+} from './popup-data.js';
 import {
   exportDomainData,
   exportPageData,
   exportAsHAR,
   setCurrentQuickFilter,
-} from "./popup-export.js";
-import { showNotification } from "./popup-utils.js";
+} from './popup-export.js';
+import { showNotification } from './popup-utils.js';
 
 /**
  * Setup all event listeners
@@ -40,27 +40,27 @@ export function setupEventListeners() {
  * Setup mode toggle (Simple/Advanced)
  */
 function setupModeToggle() {
-  const simpleModeBtn = document.getElementById("simpleModeBtn");
-  const advancedModeBtn = document.getElementById("advancedModeBtn");
+  const simpleModeBtn = document.getElementById('simpleModeBtn');
+  const advancedModeBtn = document.getElementById('advancedModeBtn');
 
   if (simpleModeBtn && advancedModeBtn) {
     // Load saved mode preference
     storage
-      .get(["viewMode"])
+      .get(['viewMode'])
       .then((result) => {
-        const mode = result.viewMode || "simple";
+        const mode = result.viewMode || 'simple';
         setViewMode(mode);
       })
-      .catch((err) => console.error("Failed to load view mode:", err));
+      .catch((err) => console.error('Failed to load view mode:', err));
 
-    simpleModeBtn.addEventListener("click", () => {
-      setViewMode("simple");
-      storage.set({ viewMode: "simple" });
+    simpleModeBtn.addEventListener('click', () => {
+      setViewMode('simple');
+      storage.set({ viewMode: 'simple' });
     });
 
-    advancedModeBtn.addEventListener("click", () => {
-      setViewMode("advanced");
-      storage.set({ viewMode: "advanced" });
+    advancedModeBtn.addEventListener('click', () => {
+      setViewMode('advanced');
+      storage.set({ viewMode: 'advanced' });
     });
   }
 
@@ -73,37 +73,37 @@ function setupModeToggle() {
  */
 function setupRefreshButton() {
   document
-    .getElementById("refreshSettingsBtn")
-    ?.addEventListener("click", async function () {
+    .getElementById('refreshSettingsBtn')
+    ?.addEventListener('click', async function () {
       const btn = this;
-      const icon = btn.querySelector("i");
+      const icon = btn.querySelector('i');
 
       try {
-        btn.classList.add("syncing");
+        btn.classList.add('syncing');
         btn.disabled = true;
 
         const response = await runtime.sendMessage({
-          action: "syncSettingsToStorage",
+          action: 'syncSettingsToStorage',
         });
 
         if (response && response.success) {
-          icon.className = "fas fa-check";
+          icon.className = 'fas fa-check';
           setTimeout(() => {
-            icon.className = "fas fa-sync-alt";
-            btn.classList.remove("syncing");
+            icon.className = 'fas fa-sync-alt';
+            btn.classList.remove('syncing');
             btn.disabled = false;
           }, 1500);
 
-          console.log("Settings refreshed:", response.message);
+          console.log('Settings refreshed:', response.message);
         } else {
-          throw new Error(response?.error || "Failed to refresh settings");
+          throw new Error(response?.error || 'Failed to refresh settings');
         }
       } catch (error) {
-        console.error("Failed to refresh settings:", error);
-        icon.className = "fas fa-times";
+        console.error('Failed to refresh settings:', error);
+        icon.className = 'fas fa-times';
         setTimeout(() => {
-          icon.className = "fas fa-sync-alt";
-          btn.classList.remove("syncing");
+          icon.className = 'fas fa-sync-alt';
+          btn.classList.remove('syncing');
           btn.disabled = false;
         }, 1500);
       }
@@ -116,21 +116,21 @@ function setupRefreshButton() {
 function setupFilters() {
   // Request Type Filter
   document
-    .getElementById("requestTypeFilter")
-    ?.addEventListener("change", async () => {
+    .getElementById('requestTypeFilter')
+    ?.addEventListener('change', async () => {
       await loadPageSummary();
     });
 
   // Page Filter
   document
-    .getElementById("pageFilter")
-    ?.addEventListener("change", async () => {
+    .getElementById('pageFilter')
+    ?.addEventListener('change', async () => {
       await loadPageSummary();
     });
 
   // Load pages for current domain
   loadPagesForDomain().catch((err) =>
-    console.error("Failed to load pages:", err)
+    console.error('Failed to load pages:', err)
   );
 }
 
@@ -138,16 +138,16 @@ function setupFilters() {
  * Setup quick actions (DevTools, Dashboard, Help)
  */
 function setupQuickActions() {
-  document.getElementById("openDevtools")?.addEventListener("click", () => {
+  document.getElementById('openDevtools')?.addEventListener('click', () => {
     runtime.openOptionsPage();
   });
 
-  document.getElementById("openDashboard")?.addEventListener("click", () => {
+  document.getElementById('openDashboard')?.addEventListener('click', () => {
     runtime.openOptionsPage();
   });
 
-  document.getElementById("openHelp")?.addEventListener("click", () => {
-    tabs.create({ url: runtime.getURL("help/help.html") });
+  document.getElementById('openHelp')?.addEventListener('click', () => {
+    tabs.create({ url: runtime.getURL('help/help.html') });
   });
 }
 
@@ -155,17 +155,17 @@ function setupQuickActions() {
  * Setup footer links (Privacy, Report Issue)
  */
 function setupFooterLinks() {
-  document.getElementById("viewPrivacy")?.addEventListener("click", (e) => {
+  document.getElementById('viewPrivacy')?.addEventListener('click', (e) => {
     e.preventDefault();
     tabs.create({
-      url: "https://github.com/ModernaCyber/Universal-Request-Analyzer",
+      url: 'https://github.com/ModernaCyber/Universal-Request-Analyzer',
     });
   });
 
-  document.getElementById("reportIssue")?.addEventListener("click", (e) => {
+  document.getElementById('reportIssue')?.addEventListener('click', (e) => {
     e.preventDefault();
     tabs.create({
-      url: "https://github.com/ModernaCyber/Universal-Request-Analyzer/issues",
+      url: 'https://github.com/ModernaCyber/Universal-Request-Analyzer/issues',
     });
   });
 }
@@ -176,18 +176,18 @@ function setupFooterLinks() {
 function setupQAQuickView() {
   // Domain selector
   document
-    .getElementById("siteSelect")
-    ?.addEventListener("change", async (e) => {
+    .getElementById('siteSelect')
+    ?.addEventListener('change', async (e) => {
       const selectedDomain = e.target.value;
-      const navigateBtn = document.getElementById("navigateToSite");
-      const exportBtn = document.getElementById("exportDomainData");
+      const navigateBtn = document.getElementById('navigateToSite');
+      const exportBtn = document.getElementById('exportDomainData');
 
       if (selectedDomain) {
-        navigateBtn?.removeAttribute("disabled");
-        exportBtn?.removeAttribute("disabled");
+        navigateBtn?.removeAttribute('disabled');
+        exportBtn?.removeAttribute('disabled');
       } else {
-        navigateBtn?.setAttribute("disabled", "true");
-        exportBtn?.setAttribute("disabled", "true");
+        navigateBtn?.setAttribute('disabled', 'true');
+        exportBtn?.setAttribute('disabled', 'true');
       }
 
       await loadPageSummary();
@@ -195,9 +195,9 @@ function setupQAQuickView() {
 
   // Navigate to selected domain
   document
-    .getElementById("navigateToSite")
-    ?.addEventListener("click", async () => {
-      const siteSelect = document.getElementById("siteSelect");
+    .getElementById('navigateToSite')
+    ?.addEventListener('click', async () => {
+      const siteSelect = document.getElementById('siteSelect');
       const selectedDomain = siteSelect?.value;
 
       if (selectedDomain) {
@@ -212,19 +212,19 @@ function setupQAQuickView() {
     });
 
   // View details button
-  document.getElementById("viewDetailsBtn")?.addEventListener("click", () => {
+  document.getElementById('viewDetailsBtn')?.addEventListener('click', () => {
     runtime.openOptionsPage();
   });
 
   // Export domain data
   document
-    .getElementById("exportDomainData")
-    ?.addEventListener("click", async () => {
-      const siteSelect = document.getElementById("siteSelect");
+    .getElementById('exportDomainData')
+    ?.addEventListener('click', async () => {
+      const siteSelect = document.getElementById('siteSelect');
       const selectedDomain = siteSelect?.value;
 
       if (!selectedDomain) {
-        showNotification("Please select a domain first", true);
+        showNotification('Please select a domain first', true);
         return;
       }
 
@@ -239,8 +239,8 @@ function setupQAQuickView() {
 
         await exportDomainData(domain);
       } catch (error) {
-        console.error("Export error:", error);
-        showNotification("Export failed", true);
+        console.error('Export error:', error);
+        showNotification('Export failed', true);
       }
     });
 }
@@ -249,15 +249,15 @@ function setupQAQuickView() {
  * Setup legacy buttons
  */
 function setupLegacyButtons() {
-  document.getElementById("viewRequests")?.addEventListener("click", () => {
+  document.getElementById('viewRequests')?.addEventListener('click', () => {
     runtime.openOptionsPage();
   });
 
-  document.getElementById("viewAnalytics")?.addEventListener("click", () => {
+  document.getElementById('viewAnalytics')?.addEventListener('click', () => {
     runtime.openOptionsPage();
   });
 
-  document.getElementById("exportData")?.addEventListener("click", async () => {
+  document.getElementById('exportData')?.addEventListener('click', async () => {
     await exportPageData();
   });
 }
@@ -266,13 +266,13 @@ function setupLegacyButtons() {
  * Setup quick filter chips
  */
 function setupQuickFilterChips() {
-  document.querySelectorAll(".filter-chip").forEach((chip) => {
-    chip.addEventListener("click", async function () {
+  document.querySelectorAll('.filter-chip').forEach((chip) => {
+    chip.addEventListener('click', async function () {
       // Toggle active state
       document
-        .querySelectorAll(".filter-chip")
-        .forEach((c) => c.classList.remove("active"));
-      this.classList.add("active");
+        .querySelectorAll('.filter-chip')
+        .forEach((c) => c.classList.remove('active'));
+      this.classList.add('active');
 
       // Apply filter
       const filterType = this.dataset.filter;
@@ -289,12 +289,12 @@ async function applyQuickFilter(filterType) {
   setCurrentQuickFilter(filterType);
 
   // Update the advanced filter based on quick filter
-  const requestTypeFilter = document.getElementById("requestTypeFilter");
+  const requestTypeFilter = document.getElementById('requestTypeFilter');
 
-  if (filterType === "all") {
-    if (requestTypeFilter) requestTypeFilter.value = "";
-  } else if (filterType === "xhr") {
-    if (requestTypeFilter) requestTypeFilter.value = "xmlhttprequest";
+  if (filterType === 'all') {
+    if (requestTypeFilter) requestTypeFilter.value = '';
+  } else if (filterType === 'xhr') {
+    if (requestTypeFilter) requestTypeFilter.value = 'xmlhttprequest';
   }
 
   await loadPageSummary();
@@ -305,8 +305,8 @@ async function applyQuickFilter(filterType) {
  */
 function setupHARExport() {
   document
-    .getElementById("exportHARBtn")
-    ?.addEventListener("click", async () => {
+    .getElementById('exportHARBtn')
+    ?.addEventListener('click', async () => {
       await exportAsHAR();
     });
 }

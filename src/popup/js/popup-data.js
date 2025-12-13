@@ -1,13 +1,13 @@
 // Popup Data Functions - Handle data loading and communication with background
 
-import { runtime, tabs } from "../../background/compat/browser-compat.js";
+import { runtime, tabs } from '../../background/compat/browser-compat.js';
 import {
   updatePageSummary,
   updateDetailedViews,
   updateRecentErrorsDisplay,
-} from "./popup-ui.js";
-import { showNotification } from "./popup-utils.js";
-import { shouldShowEmptyState, showEmptyState, hideEmptyState } from "./popup-empty-state.js";
+} from './popup-ui.js';
+import { showNotification } from './popup-utils.js';
+import { shouldShowEmptyState, showEmptyState, hideEmptyState } from './popup-empty-state.js';
 
 let refreshInterval = null;
 
@@ -15,12 +15,12 @@ let refreshInterval = null;
  * Load page summary statistics
  */
 export async function loadPageSummary() {
-  const summarySection = document.querySelector(".page-summary");
+  const summarySection = document.querySelector('.page-summary');
 
   try {
     // Show loading state
     if (summarySection) {
-      summarySection.classList.add("loading");
+      summarySection.classList.add('loading');
     }
 
     // Get current tab
@@ -28,22 +28,22 @@ export async function loadPageSummary() {
     const currentTab = currentTabs[0];
 
     if (!currentTab || !currentTab.url) {
-      console.log("No current tab or URL");
+      console.log('No current tab or URL');
       return;
     }
 
-    console.log("Loading page summary for:", currentTab.url);
+    console.log('Loading page summary for:', currentTab.url);
 
     // Get selected filters
-    const requestTypeFilter = document.getElementById("requestTypeFilter");
-    const requestType = requestTypeFilter ? requestTypeFilter.value : "";
+    const requestTypeFilter = document.getElementById('requestTypeFilter');
+    const requestType = requestTypeFilter ? requestTypeFilter.value : '';
 
-    const pageFilter = document.getElementById("pageFilter");
-    const selectedPage = pageFilter ? pageFilter.value : "";
+    const pageFilter = document.getElementById('pageFilter');
+    const selectedPage = pageFilter ? pageFilter.value : '';
 
     // Get domain filter from QA Quick View
-    const siteSelect = document.getElementById("siteSelect");
-    const selectedDomainUrl = siteSelect ? siteSelect.value : "";
+    const siteSelect = document.getElementById('siteSelect');
+    const selectedDomainUrl = siteSelect ? siteSelect.value : '';
     let filterDomain = new URL(currentTab.url).hostname;
 
     // Override domain if QA Quick View has a selection
@@ -58,7 +58,7 @@ export async function loadPageSummary() {
 
     // Get detailed filtered stats from background
     const response = await runtime.sendMessage({
-      action: "getPageStats",
+      action: 'getPageStats',
       data: {
         url: selectedPage || currentTab.url,
         tabId: currentTab.id,
@@ -67,7 +67,7 @@ export async function loadPageSummary() {
       },
     });
 
-    console.log("Page stats response:", response);
+    console.log('Page stats response:', response);
 
     if (response && response.success && response.stats) {
       // Check if we should show empty state
@@ -84,23 +84,23 @@ export async function loadPageSummary() {
         startAutoRefresh();
       }
     } else {
-      console.warn("No stats available, showing defaults");
+      console.warn('No stats available, showing defaults');
       // Show empty state
       showEmptyState();
     }
   } catch (error) {
     // Stop refresh loop on extension context invalidation
-    if (error.message?.includes("Extension context invalidated")) {
-      console.log("Extension context invalidated, stopping refresh");
+    if (error.message?.includes('Extension context invalidated')) {
+      console.log('Extension context invalidated, stopping refresh');
       stopAutoRefresh();
       return;
     }
-    console.error("Failed to load page summary:", error);
-    showNotification("Failed to load statistics. Please try refreshing.", true);
+    console.error('Failed to load page summary:', error);
+    showNotification('Failed to load statistics. Please try refreshing.', true);
   } finally {
     // Hide loading state
     if (summarySection) {
-      summarySection.classList.remove("loading");
+      summarySection.classList.remove('loading');
     }
   }
 }
@@ -119,19 +119,19 @@ export async function loadPagesForDomain() {
     const currentDomain = url.hostname;
 
     // Update domain display
-    const domainDisplay = document.getElementById("currentDomainDisplay");
+    const domainDisplay = document.getElementById('currentDomainDisplay');
     if (domainDisplay) {
       domainDisplay.textContent = currentDomain;
     }
 
     // Get pages for this domain
-    const pageSelect = document.getElementById("pageFilter");
+    const pageSelect = document.getElementById('pageFilter');
     if (!pageSelect) return;
 
     pageSelect.innerHTML = '<option value="">All Pages in Domain</option>';
 
     const response = await runtime.sendMessage({
-      action: "executeDirectQuery",
+      action: 'executeDirectQuery',
       query: `
         SELECT DISTINCT page_url, COUNT(*) as request_count
         FROM bronze_requests
@@ -152,14 +152,14 @@ export async function loadPagesForDomain() {
     ) {
       response.data.forEach((row) => {
         if (row.page_url) {
-          const option = document.createElement("option");
+          const option = document.createElement('option');
           option.value = row.page_url;
 
           try {
             const pageUrl = new URL(row.page_url);
             const path = pageUrl.pathname + pageUrl.search;
             const displayText =
-              path.length > 40 ? path.substring(0, 37) + "..." : path;
+              path.length > 40 ? path.substring(0, 37) + '...' : path;
             option.textContent = `${displayText} (${row.request_count})`;
           } catch {
             option.textContent = row.page_url;
@@ -170,7 +170,7 @@ export async function loadPagesForDomain() {
       });
     }
   } catch (error) {
-    console.error("Failed to load pages for domain:", error);
+    console.error('Failed to load pages for domain:', error);
   }
 }
 
@@ -179,7 +179,7 @@ export async function loadPagesForDomain() {
  */
 export async function loadTrackedSites() {
   try {
-    const siteSelect = document.getElementById("siteSelect");
+    const siteSelect = document.getElementById('siteSelect');
     if (!siteSelect) return;
 
     // Reset dropdown
@@ -189,15 +189,15 @@ export async function loadTrackedSites() {
 
     // First check if there's any data at all
     const checkResponse = await runtime.sendMessage({
-      action: "executeDirectQuery",
+      action: 'executeDirectQuery',
       query: `SELECT COUNT(*) as total FROM bronze_requests`,
     });
 
-    console.log("Total requests in database:", checkResponse);
+    console.log('Total requests in database:', checkResponse);
 
     // Fetch unique domains from database
     const response = await runtime.sendMessage({
-      action: "executeDirectQuery",
+      action: 'executeDirectQuery',
       query: `
         SELECT domain, COUNT(*) as request_count
         FROM bronze_requests 
@@ -210,7 +210,7 @@ export async function loadTrackedSites() {
       `,
     });
 
-    console.log("Site filter response:", response);
+    console.log('Site filter response:', response);
 
     if (response && response.success) {
       if (response.data && response.data.length > 0) {
@@ -221,7 +221,7 @@ export async function loadTrackedSites() {
           const domain = row.domain;
           const count = row.request_count;
           if (domain) {
-            const option = document.createElement("option");
+            const option = document.createElement('option');
             option.value = `https://${domain}`;
             option.textContent = `${domain} (${count} requests)`;
             siteSelect.appendChild(option);
@@ -229,14 +229,14 @@ export async function loadTrackedSites() {
         });
       } else {
         console.warn(
-          "Query successful but no domains found - database may be empty or domains are NULL"
+          'Query successful but no domains found - database may be empty or domains are NULL'
         );
       }
     } else {
-      console.error("Query failed:", response?.error);
+      console.error('Query failed:', response?.error);
     }
   } catch (error) {
-    console.error("Failed to load tracked sites:", error);
+    console.error('Failed to load tracked sites:', error);
   }
 }
 
@@ -246,17 +246,17 @@ export async function loadTrackedSites() {
 export async function loadResourceUsage() {
   try {
     const response = await runtime.sendMessage({
-      action: "getDatabaseSize",
+      action: 'getDatabaseSize',
     });
 
     if (response && response.success) {
       const requestCount = response.records || 0;
       const sizeMB = response.size
         ? (response.size / (1024 * 1024)).toFixed(2)
-        : "0";
+        : '0';
 
-      const requestCountEl = document.getElementById("requestCount");
-      const storageSizeEl = document.getElementById("storageSize");
+      const requestCountEl = document.getElementById('requestCount');
+      const storageSizeEl = document.getElementById('storageSize');
 
       if (requestCountEl) {
         requestCountEl.textContent = `${requestCount.toLocaleString()} / 10,000`;
@@ -266,7 +266,7 @@ export async function loadResourceUsage() {
       }
     }
   } catch (error) {
-    console.error("Failed to load resource usage:", error);
+    console.error('Failed to load resource usage:', error);
   }
 }
 
@@ -282,7 +282,7 @@ export async function updateRecentErrors() {
 
     // Get recent errors from background
     const response = await runtime.sendMessage({
-      action: "getRecentErrors",
+      action: 'getRecentErrors',
       data: {
         url: currentTab.url,
         timeRange: 300000, // Last 5 minutes in milliseconds
@@ -300,8 +300,8 @@ export async function updateRecentErrors() {
       updateRecentErrorsDisplay([]);
     }
   } catch (error) {
-    console.error("Failed to load recent errors:", error);
-    const container = document.getElementById("recentErrorsList");
+    console.error('Failed to load recent errors:', error);
+    const container = document.getElementById('recentErrorsList');
     if (container) {
       container.innerHTML =
         '<p class="placeholder error-text">Failed to load errors</p>';
@@ -318,7 +318,7 @@ export function startAutoRefresh() {
   refreshInterval = setInterval(() => {
     if (runtime.id) {
       loadPageSummary().catch((error) => {
-        if (error.message?.includes("Extension context invalidated")) {
+        if (error.message?.includes('Extension context invalidated')) {
           stopAutoRefresh();
         }
       });

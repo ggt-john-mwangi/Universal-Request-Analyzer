@@ -29,7 +29,7 @@ export function formatTimeAgo(timestamp) {
  * @returns {string} - Truncated URL
  */
 export function truncateUrl(url, maxLength) {
-  if (!url) return "";
+  if (!url) return '';
   if (url.length <= maxLength) return url;
 
   try {
@@ -37,13 +37,13 @@ export function truncateUrl(url, maxLength) {
     const path = urlObj.pathname + urlObj.search;
 
     if (path.length > maxLength - 10) {
-      return path.substring(0, maxLength - 13) + "...";
+      return path.substring(0, maxLength - 13) + '...';
     }
 
     return path;
   } catch {
     // If URL parsing fails, just truncate
-    return url.substring(0, maxLength - 3) + "...";
+    return url.substring(0, maxLength - 3) + '...';
   }
 }
 
@@ -53,7 +53,7 @@ export function truncateUrl(url, maxLength) {
  * @param {boolean} isError - Whether this is an error notification
  */
 export function showNotification(message, isError = false) {
-  console.log(isError ? "Error:" : "Success:", message);
+  console.log(isError ? 'Error:' : 'Success:', message);
   // Could add a toast notification here in the future
 }
 
@@ -63,7 +63,7 @@ export function showNotification(message, isError = false) {
  * @returns {string} - Formatted size string
  */
 export function formatBytes(bytes) {
-  if (bytes === 0) return "0KB";
+  if (bytes === 0) return '0KB';
 
   const kb = bytes / 1024;
   const mb = kb / 1024;

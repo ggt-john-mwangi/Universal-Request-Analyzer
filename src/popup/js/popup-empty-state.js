@@ -1,33 +1,33 @@
 // Empty State Functions
 // Handle empty state display and sample data
 
-import { showNotification } from "./popup-utils.js";
-import { updatePageSummary, updateDetailedViews } from "./popup-ui.js";
+import { showNotification } from './popup-utils.js';
+import { updatePageSummary, updateDetailedViews } from './popup-ui.js';
 
 /**
  * Show empty state when no requests are available
  */
 export function showEmptyState() {
-  const emptyState = document.getElementById("emptyState");
-  const pageSummary = document.querySelector(".page-summary");
-  const qaQuickView = document.querySelector(".qa-quick-view");
-  const quickActions = document.querySelector(".quick-actions");
+  const emptyState = document.getElementById('emptyState');
+  const pageSummary = document.querySelector('.page-summary');
+  const qaQuickView = document.querySelector('.qa-quick-view');
+  const quickActions = document.querySelector('.quick-actions');
   
   if (emptyState) {
-    emptyState.style.display = "block";
+    emptyState.style.display = 'block';
   }
   
   // Hide other sections
   if (pageSummary) {
-    pageSummary.style.display = "none";
+    pageSummary.style.display = 'none';
   }
   if (qaQuickView) {
-    qaQuickView.style.display = "none";
+    qaQuickView.style.display = 'none';
   }
   
   // Keep quick actions visible
   if (quickActions) {
-    quickActions.style.display = "flex";
+    quickActions.style.display = 'flex';
   }
   
   // Setup event listeners
@@ -38,20 +38,20 @@ export function showEmptyState() {
  * Hide empty state and show normal content
  */
 export function hideEmptyState() {
-  const emptyState = document.getElementById("emptyState");
-  const pageSummary = document.querySelector(".page-summary");
-  const qaQuickView = document.querySelector(".qa-quick-view");
+  const emptyState = document.getElementById('emptyState');
+  const pageSummary = document.querySelector('.page-summary');
+  const qaQuickView = document.querySelector('.qa-quick-view');
   
   if (emptyState) {
-    emptyState.style.display = "none";
+    emptyState.style.display = 'none';
   }
   
   if (pageSummary) {
-    pageSummary.style.display = "block";
+    pageSummary.style.display = 'block';
   }
   
   if (qaQuickView) {
-    qaQuickView.style.display = "block";
+    qaQuickView.style.display = 'block';
   }
 }
 
@@ -59,8 +59,8 @@ export function hideEmptyState() {
  * Setup event listeners for empty state buttons
  */
 function setupEmptyStateListeners() {
-  const viewSampleBtn = document.getElementById("viewSampleBtn");
-  const openHelpBtn = document.getElementById("openHelpBtn");
+  const viewSampleBtn = document.getElementById('viewSampleBtn');
+  const openHelpBtn = document.getElementById('openHelpBtn');
   
   if (viewSampleBtn) {
     viewSampleBtn.onclick = showSampleData;
@@ -88,7 +88,7 @@ function showSampleData() {
   // Show banner indicating this is sample data
   showSampleBanner();
   
-  showNotification("Showing sample data for demonstration", "info");
+  showNotification('Showing sample data for demonstration', 'info');
 }
 
 /**
@@ -102,18 +102,18 @@ function generateSampleData() {
     totalRequests: 42,
     responseTimes: [120, 85, 200, 150, 95, 180, 110, 250, 90, 175],
     statusCodes: {
-      "200": 35,
-      "201": 3,
-      "404": 2,
-      "500": 2
+      '200': 35,
+      '201': 3,
+      '404': 2,
+      '500': 2
     },
     requestTypes: {
-      "xmlhttprequest": 15,
-      "fetch": 8,
-      "script": 10,
-      "stylesheet": 5,
-      "image": 3,
-      "font": 1
+      'xmlhttprequest': 15,
+      'fetch': 8,
+      'script': 10,
+      'stylesheet': 5,
+      'image': 3,
+      'font': 1
     },
     totalBytes: 2547890,
     timestamps: [
@@ -123,19 +123,19 @@ function generateSampleData() {
       now - 120000, // 2 min ago
       now - 60000   // 1 min ago
     ],
-    domain: "example.com",
+    domain: 'example.com',
     errors: [
       {
-        url: "https://api.example.com/data",
+        url: 'https://api.example.com/data',
         status: 404,
         timestamp: now - 180000,
-        method: "GET"
+        method: 'GET'
       },
       {
-        url: "https://api.example.com/users",
+        url: 'https://api.example.com/users',
         status: 500,
         timestamp: now - 120000,
-        method: "POST"
+        method: 'POST'
       }
     ]
   };
@@ -145,8 +145,8 @@ function generateSampleData() {
  * Show banner indicating sample data is displayed
  */
 function showSampleBanner() {
-  const banner = document.createElement("div");
-  banner.className = "sample-banner";
+  const banner = document.createElement('div');
+  banner.className = 'sample-banner';
   banner.innerHTML = `
     <i class="fas fa-info-circle"></i>
     <span>This is sample data for demonstration. Real data will appear when you browse websites.</span>
@@ -156,12 +156,12 @@ function showSampleBanner() {
   `;
   
   // Insert banner at top of app container
-  const appContainer = document.getElementById("appContainer");
+  const appContainer = document.getElementById('appContainer');
   if (appContainer) {
     appContainer.insertBefore(banner, appContainer.firstChild);
     
     // Setup close button
-    const clearBtn = document.getElementById("clearSampleBtn");
+    const clearBtn = document.getElementById('clearSampleBtn');
     if (clearBtn) {
       clearBtn.onclick = () => {
         banner.remove();
@@ -177,7 +177,7 @@ function showSampleBanner() {
  */
 function openHelpPage() {
   chrome.tabs.create({
-    url: chrome.runtime.getURL("help/help.html")
+    url: chrome.runtime.getURL('help/help.html')
   });
 }
 

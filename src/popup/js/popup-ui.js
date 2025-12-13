@@ -1,6 +1,6 @@
 // Popup UI Functions - Handle all UI updates and rendering
 
-import { formatBytes, formatTimeAgo, truncateUrl } from "./popup-utils.js";
+import { formatBytes, formatTimeAgo, truncateUrl } from './popup-utils.js';
 
 /**
  * Update page summary display
@@ -24,12 +24,12 @@ export function updatePageSummary(data) {
     0
   );
 
-  document.getElementById("totalRequests").textContent = totalRequests;
-  document.getElementById("avgResponse").textContent = `${Math.round(
+  document.getElementById('totalRequests').textContent = totalRequests;
+  document.getElementById('avgResponse').textContent = `${Math.round(
     avgResponse
   )}ms`;
-  document.getElementById("errorCount").textContent = errorCount;
-  document.getElementById("dataTransferred").textContent = formatBytes(
+  document.getElementById('errorCount').textContent = errorCount;
+  document.getElementById('dataTransferred').textContent = formatBytes(
     data.totalBytes || 0
   );
 }
@@ -69,10 +69,10 @@ export function updateStatusBreakdown(statusCodes) {
     return statusCode >= 500 && statusCode < 600 ? sum + count : sum;
   }, 0);
 
-  document.getElementById("status2xx").textContent = status2xx;
-  document.getElementById("status3xx").textContent = status3xx;
-  document.getElementById("status4xx").textContent = status4xx;
-  document.getElementById("status5xx").textContent = status5xx;
+  document.getElementById('status2xx').textContent = status2xx;
+  document.getElementById('status3xx').textContent = status3xx;
+  document.getElementById('status4xx').textContent = status4xx;
+  document.getElementById('status5xx').textContent = status5xx;
 }
 
 /**
@@ -80,7 +80,7 @@ export function updateStatusBreakdown(statusCodes) {
  * @param {Object} requestTypes - Request types object
  */
 export function updateRequestTypes(requestTypes) {
-  const container = document.getElementById("requestTypesList");
+  const container = document.getElementById('requestTypesList');
   if (!container) return;
 
   const types = Object.entries(requestTypes);
@@ -91,7 +91,7 @@ export function updateRequestTypes(requestTypes) {
 
   const total = types.reduce((sum, [, count]) => sum + count, 0);
 
-  let html = "";
+  let html = '';
   types.forEach(([type, count]) => {
     const percentage = total > 0 ? (count / total) * 100 : 0;
     html += `
@@ -116,15 +116,15 @@ export function updateRequestTypes(requestTypes) {
 let timelineChart = null;
 
 export function updateTimelineChart(timestamps, responseTimes) {
-  const canvas = document.getElementById("requestTimelineChart");
+  const canvas = document.getElementById('requestTimelineChart');
   if (!canvas) {
-    console.warn("Timeline chart canvas not found");
+    console.warn('Timeline chart canvas not found');
     return;
   }
 
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext('2d');
   if (!ctx) {
-    console.warn("Cannot get canvas context");
+    console.warn('Cannot get canvas context');
     return;
   }
 
@@ -145,18 +145,18 @@ export function updateTimelineChart(timestamps, responseTimes) {
 
     // If no data, show empty state
     if (!timestamps || timestamps.length === 0) {
-      ctx.fillStyle = "#999";
-      ctx.font = "12px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("No request data yet", canvas.width / 2, canvas.height / 2);
+      ctx.fillStyle = '#999';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No request data yet', canvas.width / 2, canvas.height / 2);
       return;
     }
 
     // Get theme color
     const primaryColor =
       getComputedStyle(document.documentElement)
-        .getPropertyValue("--primary-color")
-        .trim() || "#667eea";
+        .getPropertyValue('--primary-color')
+        .trim() || '#667eea';
 
     // Limit data points for performance (last 50 points max)
     const maxPoints = 50;
@@ -172,17 +172,17 @@ export function updateTimelineChart(timestamps, responseTimes) {
     const syncedResponseTimes = limitedResponseTimes.slice(0, minLength);
 
     // Create new chart (using simple drawing if Chart.js not available)
-    if (typeof Chart !== "undefined") {
+    if (typeof Chart !== 'undefined') {
       timelineChart = new Chart(ctx, {
-        type: "line",
+        type: 'line',
         data: {
           labels: syncedTimestamps,
           datasets: [
             {
-              label: "Response Time (ms)",
+              label: 'Response Time (ms)',
               data: syncedResponseTimes,
               borderColor: primaryColor,
-              backgroundColor: "transparent",
+              backgroundColor: 'transparent',
               tension: 0.3,
               fill: false,
               pointRadius: 2,
@@ -222,12 +222,12 @@ export function updateTimelineChart(timestamps, responseTimes) {
       drawSimpleChart(ctx, limitedTimestamps, limitedResponseTimes);
     }
   } catch (chartError) {
-    console.error("Chart creation error:", chartError);
+    console.error('Chart creation error:', chartError);
     // Show error state
-    ctx.fillStyle = "#e53e3e";
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("Failed to render chart", canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = '#e53e3e';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Failed to render chart', canvas.width / 2, canvas.height / 2);
   }
 }
 
@@ -246,8 +246,8 @@ function drawSimpleChart(ctx, labels, data) {
 
   const primaryColor =
     getComputedStyle(document.documentElement)
-      .getPropertyValue("--primary-color")
-      .trim() || "#667eea";
+      .getPropertyValue('--primary-color')
+      .trim() || '#667eea';
 
   ctx.clearRect(0, 0, width, height);
 
@@ -276,11 +276,11 @@ function drawSimpleChart(ctx, labels, data) {
  * @param {Array} errors - Array of error objects
  */
 export function updateRecentErrorsDisplay(errors) {
-  const container = document.getElementById("recentErrorsList");
+  const container = document.getElementById('recentErrorsList');
   if (!container) return;
 
   if (errors && errors.length > 0) {
-    let html = "";
+    let html = '';
     // Show up to 5 most recent errors
     errors.slice(0, 5).forEach((error) => {
       const timeAgo = formatTimeAgo(error.timestamp);
@@ -289,8 +289,8 @@ export function updateRecentErrorsDisplay(errors) {
       html += `
         <div class="error-item">
           <span class="error-status status-${Math.floor(
-            error.status / 100
-          )}xx">${error.status}</span>
+    error.status / 100
+  )}xx">${error.status}</span>
           <span class="error-url" title="${error.url}">${truncatedUrl}</span>
           <span class="error-time">${timeAgo}</span>
         </div>
@@ -308,27 +308,27 @@ export function updateRecentErrorsDisplay(errors) {
  * @param {string} mode - View mode ('simple' or 'advanced')
  */
 export function setViewMode(mode) {
-  const simpleModeBtn = document.getElementById("simpleModeBtn");
-  const advancedModeBtn = document.getElementById("advancedModeBtn");
+  const simpleModeBtn = document.getElementById('simpleModeBtn');
+  const advancedModeBtn = document.getElementById('advancedModeBtn');
   const advancedElements = document.querySelectorAll(
-    ".timeline-chart, .request-types, .qa-quick-view, .filters-section"
+    '.timeline-chart, .request-types, .qa-quick-view, .filters-section'
   );
-  const resourceUsage = document.getElementById("resourceUsage");
+  const resourceUsage = document.getElementById('resourceUsage');
 
-  if (mode === "simple") {
-    simpleModeBtn?.classList.add("active");
-    advancedModeBtn?.classList.remove("active");
+  if (mode === 'simple') {
+    simpleModeBtn?.classList.add('active');
+    advancedModeBtn?.classList.remove('active');
     // Hide advanced features
-    advancedElements.forEach((el) => (el.style.display = "none"));
+    advancedElements.forEach((el) => (el.style.display = 'none'));
     // Show resource usage in simple mode
-    if (resourceUsage) resourceUsage.style.display = "flex";
+    if (resourceUsage) resourceUsage.style.display = 'flex';
   } else {
-    simpleModeBtn?.classList.remove("active");
-    advancedModeBtn?.classList.add("active");
+    simpleModeBtn?.classList.remove('active');
+    advancedModeBtn?.classList.add('active');
     // Show advanced features
-    advancedElements.forEach((el) => (el.style.display = ""));
+    advancedElements.forEach((el) => (el.style.display = ''));
     // Hide resource usage in advanced mode
-    if (resourceUsage) resourceUsage.style.display = "none";
+    if (resourceUsage) resourceUsage.style.display = 'none';
   }
 }
 
@@ -336,8 +336,8 @@ export function setViewMode(mode) {
  * Show main app container
  */
 export function showApp() {
-  const appContainer = document.getElementById("appContainer");
+  const appContainer = document.getElementById('appContainer');
   if (appContainer) {
-    appContainer.classList.add("active");
+    appContainer.classList.add('active');
   }
 }
