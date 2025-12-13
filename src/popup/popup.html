@@ -16,23 +16,30 @@
     <!-- Header Bar -->
     <div class="header-bar">
       <div class="header-title">
-        <img src="../assets/icons/icon128.png" alt="Logo" class="header-logo">
+        <img src="../assets/icons/icon128.png" alt="Universal Request Analyzer Logo" class="header-logo">
         <span class="header-text">Request Analyzer</span>
       </div>
       <div class="header-actions">
-        <button id="refreshSettingsBtn" class="action-btn" title="Refresh data">
-          <i class="fas fa-sync-alt"></i>
+        <button id="refreshSettingsBtn" class="action-btn" title="Refresh data (Ctrl+R)" aria-label="Refresh data">
+          <i class="fas fa-sync-alt" aria-hidden="true"></i>
+        </button>
+        <button id="helpBtn" class="action-btn" title="Help & Documentation" aria-label="Open help">
+          <i class="fas fa-question-circle" aria-hidden="true"></i>
         </button>
       </div>
     </div>
 
     <!-- Mode Toggle -->
     <div class="mode-toggle">
-      <button id="simpleModeBtn" class="mode-btn active" data-mode="simple">
-        <i class="fas fa-th-large"></i> Simple
+      <button id="simpleModeBtn" class="mode-btn active" data-mode="simple" aria-label="Switch to simple mode" title="Simple mode shows key metrics">
+        <i class="fas fa-th-large" aria-hidden="true"></i> Simple
       </button>
-      <button id="advancedModeBtn" class="mode-btn" data-mode="advanced">
-        <i class="fas fa-cogs"></i> Advanced
+      <button id="advancedModeBtn" class="mode-btn" data-mode="advanced" aria-label="Switch to advanced mode" title="Advanced mode shows detailed analytics">
+        <i class="fas fa-cogs" aria-hidden="true"></i> Advanced
+      </button>
+      <button id="whatsNewBtn" class="mode-btn whats-new-btn" title="See what's new" aria-label="What's new">
+        <i class="fas fa-star" aria-hidden="true"></i>
+        <span class="new-badge">New</span>
       </button>
     </div>
 
@@ -275,6 +282,24 @@
     <!-- Footer -->
     <div class="footer-info">
       Extension v1.0.0 • <a href="#" id="viewPrivacy">Privacy</a> • <a href="#" id="reportIssue">Report Issue</a>
+    </div>
+  </div>
+
+  <!-- Modal for What's New / Help -->
+  <div id="modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">What's New</h2>
+        <button id="closeModal" class="close-modal-btn" aria-label="Close modal">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Dynamic content -->
+      </div>
+      <div class="modal-footer">
+        <button id="modalActionBtn" class="modal-action-btn">Got it!</button>
+      </div>
     </div>
   </div>
 

@@ -223,6 +223,43 @@ function setupEventListeners() {
     await generateShareableReport();
   });
 
+  // What's New button
+  document.getElementById('whatsNewBtn')?.addEventListener('click', () => {
+    showWhatsNew();
+  });
+
+  // Help button
+  document.getElementById('helpBtn')?.addEventListener('click', () => {
+    showQuickHelp();
+  });
+
+  // Modal close button
+  document.getElementById('closeModal')?.addEventListener('click', () => {
+    closeModal();
+  });
+
+  // Modal action button
+  document.getElementById('modalActionBtn')?.addEventListener('click', () => {
+    closeModal();
+  });
+
+  // Close modal on backdrop click
+  document.getElementById('modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modal') {
+      closeModal();
+    }
+  });
+
+  // ESC key to close modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('modal');
+      if (modal && modal.style.display !== 'none') {
+        closeModal();
+      }
+    }
+  });
+
   // Load tracked sites for QA selector
   loadTrackedSites();
 
@@ -1623,3 +1660,170 @@ function generatePerformanceAnalysisText() {
   
   return text;
 }
+
+// Show What's New modal
+async function showWhatsNew() {
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalActionBtn = document.getElementById('modalActionBtn');
+  
+  if (!modalTitle || !modalBody) return;
+  
+  modalTitle.textContent = "🎉 What's New in Request Analyzer";
+  modalBody.innerHTML = `
+    <div class="feature-highlight">
+      <i class="fas fa-search feature-icon"></i>
+      <div class="feature-content">
+        <h4>Smart Search</h4>
+        <p>Quickly find requests by URL, method, or status code. Press Ctrl+F to start searching!</p>
+      </div>
+    </div>
+    
+    <div class="feature-highlight">
+      <i class="fas fa-chart-line feature-icon"></i>
+      <div class="feature-content">
+        <h4>Trend Indicators</h4>
+        <p>See how your metrics are changing with visual trend arrows and percentages.</p>
+      </div>
+    </div>
+    
+    <div class="feature-highlight">
+      <i class="fas fa-share-alt feature-icon"></i>
+      <div class="feature-content">
+        <h4>Share Reports</h4>
+        <p>Generate and share professional network performance reports with your team.</p>
+      </div>
+    </div>
+    
+    <div class="feature-highlight">
+      <i class="fas fa-terminal feature-icon"></i>
+      <div class="feature-content">
+        <h4>Copy as cURL/Fetch</h4>
+        <p>Instantly copy any request as a cURL command or Fetch API code for testing.</p>
+      </div>
+    </div>
+    
+    <div class="feature-highlight">
+      <i class="fas fa-lightbulb feature-icon"></i>
+      <div class="feature-content">
+        <h4>Performance Insights</h4>
+        <p>Get automatic recommendations based on your network performance patterns.</p>
+      </div>
+    </div>
+    
+    <h3>🚀 Coming Soon</h3>
+    <ul>
+      <li>Request comparison across time periods</li>
+      <li>Advanced filtering and saved filters</li>
+      <li>Custom alerts and notifications</li>
+      <li>Team collaboration features</li>
+    </ul>
+    
+    <p style="margin-top: 20px; padding: 12px; background: var(--surface-color); border-radius: 6px; font-size: 13px;">
+      <strong>💡 Pro Tip:</strong> Press <kbd>?</kbd> anytime to see all keyboard shortcuts!
+    </p>
+  `;
+  
+  modalActionBtn.textContent = 'Awesome!';
+  
+  showModal();
+  
+  // Mark as seen
+  await chrome.storage.local.set({ whatsNewSeen: true });
+  
+  // Hide the "New" badge
+  const newBadge = document.querySelector('.new-badge');
+  if (newBadge) {
+    newBadge.style.display = 'none';
+  }
+}
+
+// Show Quick Help modal
+function showQuickHelp() {
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalActionBtn = document.getElementById('modalActionBtn');
+  
+  if (!modalTitle || !modalBody) return;
+  
+  modalTitle.textContent = '❓ Quick Help';
+  modalBody.innerHTML = `
+    <h3>Getting Started</h3>
+    <p>Universal Request Analyzer automatically captures all network requests from your active tab. Your data is saved persistently across browser sessions.</p>
+    
+    <h3>Keyboard Shortcuts</h3>
+    <ul>
+      <li><kbd>Ctrl/Cmd + F</kbd> - Focus search</li>
+      <li><kbd>Ctrl/Cmd + E</kbd> - Export as HAR</li>
+      <li><kbd>Ctrl/Cmd + R</kbd> - Refresh data</li>
+      <li><kbd>Ctrl/Cmd + K</kbd> - Clear requests</li>
+      <li><kbd>?</kbd> - Show all shortcuts</li>
+      <li><kbd>ESC</kbd> - Clear search or close modal</li>
+    </ul>
+    
+    <h3>Quick Actions</h3>
+    <ul>
+      <li><strong>Export:</strong> Download data as HAR, JSON, or CSV</li>
+      <li><strong>Share:</strong> Generate a professional report to share</li>
+      <li><strong>Copy:</strong> Hover over any request to copy as cURL or Fetch</li>
+      <li><strong>Search:</strong> Filter requests in real-time</li>
+    </ul>
+    
+    <h3>View Modes</h3>
+    <ul>
+      <li><strong>Simple:</strong> Shows key metrics and recent requests</li>
+      <li><strong>Advanced:</strong> Includes charts, analytics, and detailed breakdowns</li>
+    </ul>
+    
+    <h3>Need More Help?</h3>
+    <p>Visit our <a href="#" id="openFullHelp" style="color: var(--primary-color); text-decoration: none;">comprehensive documentation</a> for detailed guides and tutorials.</p>
+  `;
+  
+  modalActionBtn.textContent = 'Got it!';
+  
+  showModal();
+  
+  // Add event listener for full help link
+  document.getElementById('openFullHelp')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html') });
+    closeModal();
+  });
+}
+
+// Show modal
+function showModal() {
+  const modal = document.getElementById('modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    // Focus on modal for accessibility
+    modal.setAttribute('aria-hidden', 'false');
+    document.querySelector('.close-modal-btn')?.focus();
+  }
+}
+
+// Close modal
+function closeModal() {
+  const modal = document.getElementById('modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+// Check if "What's New" should be shown
+async function checkWhatsNewBadge() {
+  try {
+    const result = await chrome.storage.local.get(['whatsNewSeen']);
+    const newBadge = document.querySelector('.new-badge');
+    
+    if (result.whatsNewSeen && newBadge) {
+      newBadge.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Error checking What\'s New status:', error);
+  }
+}
+
+// Initialize What's New badge check
+checkWhatsNewBadge();
