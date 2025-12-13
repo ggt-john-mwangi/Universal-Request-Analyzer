@@ -1296,6 +1296,15 @@ export class DevToolsPanel {
   async loadPerformanceData() {
     try {
       const filters = this.getActiveFilters();
+      
+      // Get detailed requests for slow requests list
+      const detailedResponse = await chrome.runtime.sendMessage({
+        action: 'getDetailedRequests',
+        filters,
+        limit: 100,
+        offset: 0
+      });
+      
       const response = await chrome.runtime.sendMessage({
         action: 'getFilteredStats',
         filters
@@ -1330,18 +1339,56 @@ export class DevToolsPanel {
             <span class="label">P95:</span>
             <span class="value">${this.calculatePercentile(response.responseTimes, 95)}ms</span>
           </div>
+          <div class="timing-stat">
+            <span class="label">P99:</span>
+            <span class="value">${this.calculatePercentile(response.responseTimes, 99)}ms</span>
+          </div>
         </div>
       `;
       
-      // Show slow requests placeholder
-      document.getElementById('slowRequestsList').innerHTML = `
-        <p class="info-message">
-          <i class="fas fa-info-circle"></i> 
-          Top ${Math.min(10, response.responseTimes.length)} slowest requests will be displayed here.
-        </p>
-      `;
+      // Show actual slow requests
+      if (detailedResponse.success && detailedResponse.requests && detailedResponse.requests.length > 0) {
+        // Sort by duration descending and take top 10
+        const slowRequests = detailedResponse.requests
+          .filter(req => req.duration && req.duration > 0)
+          .sort((a, b) => (b.duration || 0) - (a.duration || 0))
+          .slice(0, 10);
+        
+        if (slowRequests.length > 0) {
+          let html = '<table class="data-table compact"><thead><tr><th>Method</th><th>URL</th><th>Status</th><th>Duration</th><th>Size</th></tr></thead><tbody>';
+          
+          slowRequests.forEach(req => {
+            const statusClass = req.status >= 400 ? 'status-error' : req.status >= 300 ? 'status-warning' : 'status-success';
+            const durationClass = req.duration > 2000 ? 'status-error' : req.duration > 1000 ? 'status-warning' : '';
+            const truncatedUrl = this.truncateUrl(req.url, 60);
+            
+            html += `
+              <tr>
+                <td><span class="method-badge method-${req.method?.toLowerCase() || 'get'}">${req.method || 'GET'}</span></td>
+                <td title="${req.url}"><code class="url-code">${truncatedUrl}</code></td>
+                <td><span class="status-badge ${statusClass}">${req.status || 'N/A'}</span></td>
+                <td class="${durationClass}"><strong>${Math.round(req.duration)}ms</strong></td>
+                <td>${this.formatBytes(req.size || 0)}</td>
+              </tr>
+            `;
+          });
+          
+          html += '</tbody></table>';
+          document.getElementById('slowRequestsList').innerHTML = html;
+        } else {
+          document.getElementById('slowRequestsList').innerHTML = '<p class="no-data">No requests with timing data available</p>';
+        }
+      } else {
+        document.getElementById('slowRequestsList').innerHTML = '<p class="no-data">No detailed request data available</p>';
+      }
+      
+      // Update performance budgets
+      this.checkPerformanceBudgets();
+      
     } catch (error) {
       console.error('Failed to load performance data:', error);
+      document.getElementById('timingBreakdown').innerHTML = '<p class="error-message">Error loading performance data</p>';
+      document.getElementById('slowRequestsList').innerHTML = '<p class="error-message">Error loading slow requests</p>';
     }
   }
 
@@ -1357,15 +1404,39 @@ export class DevToolsPanel {
       const table = document.getElementById('endpointsTable');
       
       if (!response.success || !response.endpoints || response.endpoints.length === 0) {
-        table.innerHTML = '<p class="no-data">No API endpoints found for selected filters</p>';
+        table.innerHTML = '<p class="no-data">No API endpoints found for selected filters. Try adjusting your filters or wait for more requests to be captured.</p>';
         return;
       }
       
+      // Build summary statistics
+      const totalCalls = response.endpoints.reduce((sum, ep) => sum + ep.callCount, 0);
+      const totalErrors = response.endpoints.reduce((sum, ep) => sum + ep.errorCount, 0);
+      const avgResponseTime = response.endpoints.reduce((sum, ep) => sum + ep.avgDuration, 0) / response.endpoints.length;
+      
       // Build table with endpoint analysis
       let html = `
+        <div class="endpoints-summary">
+          <div class="summary-stat">
+            <span class="summary-label">Total Endpoints:</span>
+            <span class="summary-value">${response.endpoints.length}</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-label">Total Calls:</span>
+            <span class="summary-value">${totalCalls}</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-label">Avg Response:</span>
+            <span class="summary-value">${Math.round(avgResponseTime)}ms</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-label">Total Errors:</span>
+            <span class="summary-value ${totalErrors > 0 ? 'error-text' : ''}">${totalErrors}</span>
+          </div>
+        </div>
         <table class="data-table">
           <thead>
             <tr>
+              <th>Method</th>
               <th>Endpoint Pattern</th>
               <th>Calls</th>
               <th>Avg Time</th>
@@ -1381,15 +1452,17 @@ export class DevToolsPanel {
       response.endpoints.forEach(ep => {
         const errorClass = ep.errorRate > 10 ? 'status-error' : ep.errorRate > 5 ? 'status-warning' : '';
         const perfClass = ep.avgDuration > 1000 ? 'status-error' : ep.avgDuration > 500 ? 'status-warning' : 'status-success';
+        const methodClass = `method-${(ep.method || 'GET').toLowerCase()}`;
         
         html += `
           <tr>
-            <td title="${ep.url}"><code>${ep.endpoint}</code></td>
-            <td>${ep.callCount}</td>
-            <td class="${perfClass}">${ep.avgDuration}ms</td>
+            <td><span class="method-badge ${methodClass}">${ep.method || 'GET'}</span></td>
+            <td title="${ep.url}"><code class="endpoint-code">${ep.path || ep.endpoint}</code></td>
+            <td><strong>${ep.callCount}</strong></td>
+            <td class="${perfClass}"><strong>${ep.avgDuration}ms</strong></td>
             <td><small>${ep.minDuration}ms / ${ep.maxDuration}ms</small></td>
             <td>${ep.errorCount}</td>
-            <td class="${errorClass}">${ep.errorRate}%</td>
+            <td class="${errorClass}"><strong>${ep.errorRate}%</strong></td>
             <td>${this.formatBytes(ep.avgSize)}</td>
           </tr>
         `;
@@ -1714,7 +1787,7 @@ export class DevToolsPanel {
       const response4xx = await chrome.runtime.sendMessage({
         action: 'getDetailedRequests',
         filters: filters4xx,
-        limit: 50
+        limit: 100
       });
       
       // Get 5xx errors
@@ -1722,7 +1795,7 @@ export class DevToolsPanel {
       const response5xx = await chrome.runtime.sendMessage({
         action: 'getDetailedRequests',
         filters: filters5xx,
-        limit: 50
+        limit: 100
       });
       
       const errorsList = document.getElementById('errorsList');
@@ -1733,53 +1806,137 @@ export class DevToolsPanel {
       const totalErrors = errors4xx.length + errors5xx.length;
       
       if (totalErrors === 0) {
-        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters</p>';
+        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters. This is good! ✓</p>';
         errorCategories.innerHTML = '';
+        // Clear chart
+        const canvas = document.getElementById('errorsChart');
+        if (canvas && this.errorChart) {
+          this.errorChart.destroy();
+          this.errorChart = null;
+        }
         return;
       }
       
-      // Render error categories
+      // Group errors by status code for better analysis
+      const statusGroups = {};
+      [...errors4xx, ...errors5xx].forEach(err => {
+        if (!statusGroups[err.status]) {
+          statusGroups[err.status] = [];
+        }
+        statusGroups[err.status].push(err);
+      });
+      
+      // Count by specific status codes
+      const status404 = statusGroups[404] ? statusGroups[404].length : 0;
+      const status403 = statusGroups[403] ? statusGroups[403].length : 0;
+      const status500 = statusGroups[500] ? statusGroups[500].length : 0;
+      const status502 = statusGroups[502] ? statusGroups[502].length : 0;
+      const status503 = statusGroups[503] ? statusGroups[503].length : 0;
+      
+      // Render enhanced error categories with breakdown
       let categoriesHtml = `
         <div class="error-category-stats">
           <div class="category-card client-error">
-            <h5>4xx Client Errors</h5>
+            <h5><i class="fas fa-exclamation-triangle"></i> 4xx Client Errors</h5>
             <div class="category-count">${errors4xx.length}</div>
-            <p>Issues with the request</p>
+            <p>Request-related issues</p>
+            <div class="category-details">
+              ${status404 > 0 ? `<div class="detail-item">404 Not Found: <strong>${status404}</strong></div>` : ''}
+              ${status403 > 0 ? `<div class="detail-item">403 Forbidden: <strong>${status403}</strong></div>` : ''}
+            </div>
           </div>
           <div class="category-card server-error">
-            <h5>5xx Server Errors</h5>
+            <h5><i class="fas fa-times-circle"></i> 5xx Server Errors</h5>
             <div class="category-count">${errors5xx.length}</div>
             <p>Server-side failures</p>
+            <div class="category-details">
+              ${status500 > 0 ? `<div class="detail-item">500 Internal: <strong>${status500}</strong></div>` : ''}
+              ${status502 > 0 ? `<div class="detail-item">502 Bad Gateway: <strong>${status502}</strong></div>` : ''}
+              ${status503 > 0 ? `<div class="detail-item">503 Unavailable: <strong>${status503}</strong></div>` : ''}
+            </div>
           </div>
         </div>
       `;
       errorCategories.innerHTML = categoriesHtml;
       
-      // Render detailed error list
-      let listHtml = `<div class="errors-list-content">`;
+      // Group errors by URL pattern for better display
+      const errorsByUrl = {};
+      [...errors4xx, ...errors5xx].forEach(err => {
+        // Simplify URL by removing query params and normalizing IDs
+        let urlKey = err.url;
+        try {
+          const urlObj = new URL(err.url);
+          urlKey = urlObj.pathname.replace(/\/\d+/g, '/:id').replace(/\/[0-9a-f]{8,}/gi, '/:hash');
+        } catch (e) {
+          urlKey = err.url.split('?')[0];
+        }
+        
+        if (!errorsByUrl[urlKey]) {
+          errorsByUrl[urlKey] = [];
+        }
+        errorsByUrl[urlKey].push(err);
+      });
       
-      if (errors4xx.length > 0) {
-        listHtml += '<h5><i class="fas fa-exclamation-triangle"></i> Client Errors (4xx)</h5>';
-        errors4xx.forEach(err => {
-          listHtml += this.renderErrorItem(err, 'client');
-        });
-      }
+      // Sort by frequency
+      const sortedUrls = Object.entries(errorsByUrl).sort((a, b) => b[1].length - a[1].length);
       
-      if (errors5xx.length > 0) {
-        listHtml += '<h5><i class="fas fa-times-circle"></i> Server Errors (5xx)</h5>';
-        errors5xx.forEach(err => {
-          listHtml += this.renderErrorItem(err, 'server');
-        });
+      // Render detailed error list grouped by URL pattern
+      let listHtml = `
+        <div class="errors-list-content">
+          <div class="errors-summary">
+            <p><strong>${totalErrors}</strong> errors found. ${Object.keys(errorsByUrl).length} unique endpoint(s) affected.</p>
+          </div>
+      `;
+      
+      sortedUrls.slice(0, 20).forEach(([urlPattern, errs]) => {
+        const firstError = errs[0];
+        const errorTypeClass = firstError.status >= 500 ? 'error-server' : 'error-client';
+        
+        listHtml += `
+          <div class="error-group ${errorTypeClass}">
+            <div class="error-group-header">
+              <span class="status-badge status-error">${firstError.status}</span>
+              <code class="error-url-pattern" title="${firstError.url}">${urlPattern}</code>
+              ${errs.length > 1 ? `<span class="error-count-badge">${errs.length}x</span>` : ''}
+            </div>
+            <div class="error-group-details">
+              <span class="error-method"><i class="fas fa-code"></i> ${firstError.method || 'GET'}</span>
+              <span class="error-type"><i class="fas fa-tag"></i> ${firstError.type || 'unknown'}</span>
+              <span class="error-time"><i class="fas fa-clock"></i> ${new Date(firstError.timestamp).toLocaleString()}</span>
+            </div>
+            ${errs.length > 1 ? `
+              <div class="error-occurrences">
+                <button class="toggle-occurrences" onclick="this.parentElement.querySelector('.occurrences-list').classList.toggle('hidden')">
+                  <i class="fas fa-chevron-down"></i> Show all ${errs.length} occurrences
+                </button>
+                <div class="occurrences-list hidden">
+                  ${errs.slice(0, 10).map(err => `
+                    <div class="occurrence-item">
+                      <span>${new Date(err.timestamp).toLocaleTimeString()}</span>
+                      <code class="occurrence-url">${this.truncateUrl(err.url, 50)}</code>
+                    </div>
+                  `).join('')}
+                  ${errs.length > 10 ? `<p class="more-text">...and ${errs.length - 10} more</p>` : ''}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+      
+      if (sortedUrls.length > 20) {
+        listHtml += `<p class="hint">Showing top 20 of ${sortedUrls.length} error patterns</p>`;
       }
       
       listHtml += '</div>';
       errorsList.innerHTML = listHtml;
       
-      // Render error distribution chart
-      this.renderErrorChart(errors4xx, errors5xx);
+      // Render enhanced error distribution chart
+      this.renderErrorChart(statusGroups, errors4xx.length, errors5xx.length);
       
     } catch (error) {
       console.error('Failed to load errors data:', error);
+      document.getElementById('errorsList').innerHTML = '<p class="error-message">Error loading error data</p>';
     }
   }
   
@@ -1801,21 +1958,27 @@ export class DevToolsPanel {
     `;
   }
   
-  renderErrorChart(errors4xx, errors5xx) {
-    const ctx = document.getElementById('errorsChart').getContext('2d');
+  renderErrorChart(statusGroups, total4xx, total5xx) {
+    const canvas = document.getElementById('errorsChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
     
     if (this.errorChart) {
       this.errorChart.destroy();
     }
     
-    // Group by status code
-    const statusCounts = {};
-    [...errors4xx, ...errors5xx].forEach(err => {
-      statusCounts[err.status] = (statusCounts[err.status] || 0) + 1;
-    });
+    const labels = Object.keys(statusGroups).sort((a, b) => parseInt(a) - parseInt(b));
+    const data = labels.map(status => statusGroups[status].length);
     
-    const labels = Object.keys(statusCounts).sort();
-    const data = labels.map(status => statusCounts[status]);
+    // Color code: 4xx = warning orange, 5xx = error red
+    const backgroundColors = labels.map(s => {
+      const status = parseInt(s);
+      if (status >= 500) return '#F44336';  // Red for 5xx
+      if (status === 404) return '#FF9800';  // Orange for 404
+      if (status === 403) return '#FFA726';  // Light orange for 403
+      return '#FFB74D';  // Light orange for other 4xx
+    });
     
     this.errorChart = new Chart(ctx, {
       type: 'bar',
@@ -1824,26 +1987,64 @@ export class DevToolsPanel {
         datasets: [{
           label: 'Error Count',
           data,
-          backgroundColor: labels.map(s => parseInt(s) >= 500 ? '#F44336' : '#FF9800')
+          backgroundColor: backgroundColors,
+          borderColor: backgroundColors.map(c => c),
+          borderWidth: 1
         }]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: true,
         plugins: {
           legend: {
             display: false
           },
           title: {
             display: true,
-            text: 'Errors by Status Code'
+            text: `Error Distribution (4xx: ${total4xx}, 5xx: ${total5xx})`,
+            font: {
+              size: 14,
+              weight: 'bold'
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const status = context.label;
+                const count = context.parsed.y;
+                const statusText = {
+                  '400': 'Bad Request',
+                  '401': 'Unauthorized',
+                  '403': 'Forbidden',
+                  '404': 'Not Found',
+                  '405': 'Method Not Allowed',
+                  '408': 'Request Timeout',
+                  '429': 'Too Many Requests',
+                  '500': 'Internal Server Error',
+                  '502': 'Bad Gateway',
+                  '503': 'Service Unavailable',
+                  '504': 'Gateway Timeout'
+                }[status] || '';
+                return `${status} ${statusText}: ${count} error(s)`;
+              }
+            }
           }
         },
         scales: {
           y: {
             beginAtZero: true,
+            ticks: {
+              stepSize: 1
+            },
             title: {
               display: true,
-              text: 'Count'
+              text: 'Number of Errors'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'HTTP Status Code'
             }
           }
         }
@@ -2533,10 +2734,12 @@ export class DevToolsPanel {
   startRealtimeFeed() {
     this.realtimeMessages = this.realtimeMessages || [];
     this.realtimePaused = false;
+    this.lastRealtimeUpdate = Date.now();
     
     // Setup event listeners
     const clearBtn = document.getElementById('clearRealtimeBtn');
     const pauseBtn = document.getElementById('pauseRealtimeBtn');
+    const autoScrollCheckbox = document.getElementById('autoScrollCheckbox');
     
     if (clearBtn) {
       // Remove existing listener if any

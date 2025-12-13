@@ -1182,14 +1182,12 @@ async function handleGetEndpointAnalysis(filters) {
     let query = `
       SELECT 
         url,
-        COUNT(*) as call_count,
-        AVG(duration) as avg_duration,
-        MIN(duration) as min_duration,
-        MAX(duration) as max_duration,
-        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
-        AVG(size_bytes) as avg_size
+        method,
+        status,
+        duration,
+        size_bytes
       FROM bronze_requests
-      WHERE timestamp > ? AND url IS NOT NULL
+      WHERE timestamp > ? AND url IS NOT NULL AND duration IS NOT NULL
     `;
     
     let params = [startTime];
@@ -1209,40 +1207,97 @@ async function handleGetEndpointAnalysis(filters) {
       params.push(type);
     }
     
-    query += ' GROUP BY url ORDER BY call_count DESC LIMIT 50';
+    query += ' ORDER BY timestamp DESC LIMIT 1000';
     
     let endpoints = [];
+    const endpointMap = new Map();
     
     try {
       if (dbManager?.executeQuery) {
         const result = dbManager.executeQuery(query, params);
         if (result && result[0]?.values) {
-          endpoints = result[0].values.map(row => {
+          // Process each request and group by endpoint pattern
+          result[0].values.forEach(row => {
             const url = row[0];
+            const method = row[1] || 'GET';
+            const status = row[2];
+            const duration = row[3] || 0;
+            const sizeBytes = row[4] || 0;
+            
             // Extract endpoint pattern
             let endpoint = url;
             try {
               const urlObj = new URL(url);
               endpoint = urlObj.pathname;
-              // Simple pattern matching: replace IDs with placeholders
+              // Replace numeric IDs with :id
               endpoint = endpoint.replace(/\/\d+/g, '/:id');
+              // Replace UUID/hash patterns with :hash
               endpoint = endpoint.replace(/\/[0-9a-f]{8,}/gi, '/:hash');
+              // Replace query strings with placeholder
+              endpoint = endpoint.replace(/\?.*$/, '');
             } catch (e) {
-              // Keep original if URL parsing fails
+              // If URL parsing fails, just use the URL as-is
+              endpoint = url.replace(/\?.*$/, '');
             }
             
+            // Create unique key combining method and endpoint
+            const key = `${method} ${endpoint}`;
+            
+            // Aggregate stats for this endpoint
+            if (!endpointMap.has(key)) {
+              endpointMap.set(key, {
+                endpoint: key,
+                method,
+                path: endpoint,
+                url, // Keep one example URL
+                callCount: 0,
+                durations: [],
+                errorCount: 0,
+                sizes: []
+              });
+            }
+            
+            const endpointData = endpointMap.get(key);
+            endpointData.callCount++;
+            endpointData.durations.push(duration);
+            endpointData.sizes.push(sizeBytes);
+            if (status >= 400) {
+              endpointData.errorCount++;
+            }
+          });
+          
+          // Convert map to array and calculate aggregates
+          endpoints = Array.from(endpointMap.values()).map(ep => {
+            const avgDuration = ep.durations.length > 0 
+              ? ep.durations.reduce((a, b) => a + b, 0) / ep.durations.length 
+              : 0;
+            const minDuration = ep.durations.length > 0 ? Math.min(...ep.durations) : 0;
+            const maxDuration = ep.durations.length > 0 ? Math.max(...ep.durations) : 0;
+            const avgSize = ep.sizes.length > 0 
+              ? ep.sizes.reduce((a, b) => a + b, 0) / ep.sizes.length 
+              : 0;
+            const errorRate = ep.callCount > 0 ? (ep.errorCount / ep.callCount * 100).toFixed(2) : 0;
+            
             return {
-              endpoint,
-              url,
-              callCount: row[1],
-              avgDuration: Math.round(row[2] || 0),
-              minDuration: row[3] || 0,
-              maxDuration: row[4] || 0,
-              errorCount: row[5] || 0,
-              avgSize: Math.round(row[6] || 0),
-              errorRate: row[1] > 0 ? ((row[5] || 0) / row[1] * 100).toFixed(2) : 0
+              endpoint: ep.endpoint,
+              method: ep.method,
+              path: ep.path,
+              url: ep.url,
+              callCount: ep.callCount,
+              avgDuration: Math.round(avgDuration),
+              minDuration: Math.round(minDuration),
+              maxDuration: Math.round(maxDuration),
+              errorCount: ep.errorCount,
+              avgSize: Math.round(avgSize),
+              errorRate: parseFloat(errorRate)
             };
           });
+          
+          // Sort by call count descending
+          endpoints.sort((a, b) => b.callCount - a.callCount);
+          
+          // Limit to top 50
+          endpoints = endpoints.slice(0, 50);
         }
       }
     } catch (queryError) {

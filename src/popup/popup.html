@@ -16,23 +16,30 @@
     <!-- Header Bar -->
     <div class="header-bar">
       <div class="header-title">
-        <img src="../assets/icons/icon128.png" alt="Logo" class="header-logo">
+        <img src="../assets/icons/icon128.png" alt="Universal Request Analyzer extension icon" class="header-logo">
         <span class="header-text">Request Analyzer</span>
       </div>
       <div class="header-actions">
-        <button id="refreshSettingsBtn" class="action-btn" title="Refresh data">
-          <i class="fas fa-sync-alt"></i>
+        <button id="refreshSettingsBtn" class="action-btn" title="Refresh data (Ctrl+R)" aria-label="Refresh data">
+          <i class="fas fa-sync-alt" aria-hidden="true"></i>
+        </button>
+        <button id="helpBtn" class="action-btn" title="Help & Documentation" aria-label="Open help">
+          <i class="fas fa-question-circle" aria-hidden="true"></i>
         </button>
       </div>
     </div>
 
     <!-- Mode Toggle -->
     <div class="mode-toggle">
-      <button id="simpleModeBtn" class="mode-btn active" data-mode="simple">
-        <i class="fas fa-th-large"></i> Simple
+      <button id="simpleModeBtn" class="mode-btn active" data-mode="simple" aria-label="Switch to simple mode" title="Simple mode shows key metrics">
+        <i class="fas fa-th-large" aria-hidden="true"></i> Simple
       </button>
-      <button id="advancedModeBtn" class="mode-btn" data-mode="advanced">
-        <i class="fas fa-cogs"></i> Advanced
+      <button id="advancedModeBtn" class="mode-btn" data-mode="advanced" aria-label="Switch to advanced mode" title="Advanced mode shows detailed analytics">
+        <i class="fas fa-cogs" aria-hidden="true"></i> Advanced
+      </button>
+      <button id="whatsNewBtn" class="mode-btn whats-new-btn" title="See what's new" aria-label="What's new">
+        <i class="fas fa-star" aria-hidden="true"></i>
+        <span class="new-badge">New</span>
       </button>
     </div>
 
@@ -67,10 +74,35 @@
       </button>
     </div>
 
+    <!-- Search Bar -->
+    <div class="search-bar">
+      <div class="search-input-wrapper">
+        <i class="fas fa-search search-icon"></i>
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Search requests by URL, method, or status..."
+          autocomplete="off"
+        />
+        <button id="clearSearchBtn" class="clear-search-btn" title="Clear search">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
     <!-- Export Actions -->
     <div class="export-actions">
       <button id="exportHARBtn" class="export-btn" title="Export as HAR (HTTP Archive)">
         <i class="fas fa-download"></i> Export HAR
+      </button>
+      <button id="exportJSONBtn" class="export-btn" title="Export as JSON">
+        <i class="fas fa-file-code"></i> JSON
+      </button>
+      <button id="exportCSVBtn" class="export-btn" title="Export as CSV">
+        <i class="fas fa-file-csv"></i> CSV
+      </button>
+      <button id="shareReportBtn" class="export-btn share-btn" title="Generate shareable report">
+        <i class="fas fa-share-alt"></i> Share
       </button>
     </div>
 
@@ -113,18 +145,22 @@
         <div class="stat-item">
           <div class="stat-label">Total Requests</div>
           <div class="stat-value" id="totalRequests">0</div>
+          <div class="stat-trend" id="requestsTrend"></div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Avg Response</div>
           <div class="stat-value" id="avgResponse">0ms</div>
+          <div class="stat-trend" id="responseTrend"></div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Errors</div>
           <div class="stat-value" id="errorCount">0</div>
+          <div class="stat-trend" id="errorTrend"></div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Data Transferred</div>
           <div class="stat-value" id="dataTransferred">0KB</div>
+          <div class="stat-trend" id="dataTrend"></div>
         </div>
       </div>
 
@@ -178,6 +214,29 @@
           <p class="placeholder">No errors in the last 5 minutes</p>
         </div>
       </div>
+
+      <!-- Recent Requests List -->
+      <div class="recent-requests">
+        <div class="breakdown-title">
+          <i class="fas fa-list"></i> Recent Requests (Last 10)
+          <button id="clearRecentBtn" class="clear-btn" title="Clear requests">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+        <div class="requests-list" id="recentRequestsList">
+          <p class="placeholder">No requests captured yet</p>
+        </div>
+      </div>
+
+      <!-- Performance Insights -->
+      <div class="performance-insights">
+        <div class="breakdown-title">
+          <i class="fas fa-lightbulb"></i> Performance Insights
+        </div>
+        <div class="insights-list" id="insightsList">
+          <p class="placeholder">Analyzing performance...</p>
+        </div>
+      </div>
     </div>
 
     <!-- QA Quick View -->
@@ -223,6 +282,24 @@
     <!-- Footer -->
     <div class="footer-info">
       Extension v1.0.0 • <a href="#" id="viewPrivacy">Privacy</a> • <a href="#" id="reportIssue">Report Issue</a>
+    </div>
+  </div>
+
+  <!-- Modal for What's New / Help -->
+  <div id="modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">What's New</h2>
+        <button id="closeModal" class="close-modal-btn" aria-label="Close modal">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Dynamic content -->
+      </div>
+      <div class="modal-footer">
+        <button id="modalActionBtn" class="modal-action-btn">Got it!</button>
+      </div>
     </div>
   </div>
 
