@@ -67,6 +67,22 @@
       </button>
     </div>
 
+    <!-- Search Bar -->
+    <div class="search-bar">
+      <div class="search-input-wrapper">
+        <i class="fas fa-search search-icon"></i>
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Search requests by URL, method, or status..."
+          autocomplete="off"
+        />
+        <button id="clearSearchBtn" class="clear-search-btn" title="Clear search">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
     <!-- Export Actions -->
     <div class="export-actions">
       <button id="exportHARBtn" class="export-btn" title="Export as HAR (HTTP Archive)">
@@ -77,6 +93,9 @@
       </button>
       <button id="exportCSVBtn" class="export-btn" title="Export as CSV">
         <i class="fas fa-file-csv"></i> CSV
+      </button>
+      <button id="shareReportBtn" class="export-btn share-btn" title="Generate shareable report">
+        <i class="fas fa-share-alt"></i> Share
       </button>
     </div>
 
@@ -119,18 +138,22 @@
         <div class="stat-item">
           <div class="stat-label">Total Requests</div>
           <div class="stat-value" id="totalRequests">0</div>
+          <div class="stat-trend" id="requestsTrend"></div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Avg Response</div>
           <div class="stat-value" id="avgResponse">0ms</div>
+          <div class="stat-trend" id="responseTrend"></div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Errors</div>
           <div class="stat-value" id="errorCount">0</div>
+          <div class="stat-trend" id="errorTrend"></div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Data Transferred</div>
           <div class="stat-value" id="dataTransferred">0KB</div>
+          <div class="stat-trend" id="dataTrend"></div>
         </div>
       </div>
 

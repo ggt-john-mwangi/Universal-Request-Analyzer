@@ -218,6 +218,11 @@ function setupEventListeners() {
     }
   });
 
+  // Share report button
+  document.getElementById('shareReportBtn')?.addEventListener('click', async () => {
+    await generateShareableReport();
+  });
+
   // Load tracked sites for QA selector
   loadTrackedSites();
 
@@ -229,6 +234,9 @@ function setupEventListeners() {
 
   // Show welcome banner for first-time users
   showWelcomeBannerIfNeeded();
+
+  // Setup search functionality
+  setupSearch();
 }
 
 // Apply quick filter
@@ -445,6 +453,81 @@ function updatePageSummary(data) {
   }
   
   document.getElementById('dataTransferred').textContent = dataDisplay;
+  
+  // Update trends
+  updateTrends(data);
+}
+
+// Update trend indicators
+let previousStats = null;
+
+function updateTrends(currentData) {
+  if (!previousStats) {
+    // First load, store current as previous
+    previousStats = {
+      totalRequests: currentData.totalRequests || 0,
+      avgResponse: currentData.responseTimes?.length > 0 
+        ? currentData.responseTimes.reduce((a, b) => a + b, 0) / currentData.responseTimes.length 
+        : 0,
+      errorCount: Object.entries(currentData.statusCodes || {}).reduce((sum, [code, count]) => {
+        const statusCode = parseInt(code);
+        return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
+      }, 0),
+      totalBytes: currentData.totalBytes || 0
+    };
+    return;
+  }
+  
+  const currentRequests = currentData.totalRequests || 0;
+  const currentAvgResponse = currentData.responseTimes?.length > 0 
+    ? currentData.responseTimes.reduce((a, b) => a + b, 0) / currentData.responseTimes.length 
+    : 0;
+  const currentErrors = Object.entries(currentData.statusCodes || {}).reduce((sum, [code, count]) => {
+    const statusCode = parseInt(code);
+    return (statusCode >= 400 && statusCode < 600) ? sum + count : sum;
+  }, 0);
+  const currentBytes = currentData.totalBytes || 0;
+  
+  // Update requests trend
+  updateTrendElement('requestsTrend', currentRequests, previousStats.totalRequests, true);
+  
+  // Update response time trend (lower is better)
+  updateTrendElement('responseTrend', currentAvgResponse, previousStats.avgResponse, false);
+  
+  // Update error trend (lower is better)
+  updateTrendElement('errorTrend', currentErrors, previousStats.errorCount, false);
+  
+  // Update data trend
+  updateTrendElement('dataTrend', currentBytes, previousStats.totalBytes, true);
+  
+  // Store current as previous
+  previousStats = {
+    totalRequests: currentRequests,
+    avgResponse: currentAvgResponse,
+    errorCount: currentErrors,
+    totalBytes: currentBytes
+  };
+}
+
+function updateTrendElement(elementId, current, previous, higherIsBetter) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  
+  const diff = current - previous;
+  const percentChange = previous !== 0 ? Math.abs((diff / previous) * 100) : 0;
+  
+  if (Math.abs(diff) < 0.01) {
+    element.innerHTML = '<i class="fas fa-minus"></i> No change';
+    element.className = 'stat-trend neutral';
+  } else if (diff > 0) {
+    const isGood = higherIsBetter;
+    element.innerHTML = `<i class="fas fa-arrow-up"></i> +${percentChange.toFixed(0)}%`;
+    element.className = isGood ? 'stat-trend up' : 'stat-trend down';
+  } else {
+    const isGood = !higherIsBetter;
+    element.innerHTML = `<i class="fas fa-arrow-down"></i> -${percentChange.toFixed(0)}%`;
+    element.className = isGood ? 'stat-trend up' : 'stat-trend down';
+  }
 }
 
 // Update detailed QA views
@@ -1344,4 +1427,199 @@ async function showWelcomeBannerIfNeeded() {
   } catch (error) {
     console.error('Error showing welcome banner:', error);
   }
+}
+
+// Setup search functionality
+let searchTimeout = null;
+let allRequests = [];
+
+function setupSearch() {
+  const searchInput = document.getElementById('searchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+  
+  if (!searchInput || !clearSearchBtn) return;
+  
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    
+    // Show/hide clear button
+    if (query) {
+      clearSearchBtn.classList.add('visible');
+    } else {
+      clearSearchBtn.classList.remove('visible');
+    }
+    
+    // Debounce search
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      filterRequests(query);
+    }, 300);
+  });
+  
+  clearSearchBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    clearSearchBtn.classList.remove('visible');
+    filterRequests('');
+  });
+  
+  // Ctrl/Cmd + F - Focus search
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      searchInput.focus();
+    }
+    
+    // Escape - Clear search
+    if (e.key === 'Escape' && searchInput === document.activeElement) {
+      clearSearchBtn.click();
+      searchInput.blur();
+    }
+  });
+}
+
+// Filter requests based on search query
+function filterRequests(query) {
+  const container = document.getElementById('recentRequestsList');
+  if (!container) return;
+  
+  const requestItems = container.querySelectorAll('.request-item');
+  
+  if (!query) {
+    // Show all requests
+    requestItems.forEach(item => {
+      item.style.display = '';
+    });
+    return;
+  }
+  
+  const lowerQuery = query.toLowerCase();
+  let visibleCount = 0;
+  
+  requestItems.forEach(item => {
+    const url = item.querySelector('.request-url')?.textContent || '';
+    const method = item.querySelector('.request-method')?.textContent || '';
+    const status = item.querySelector('.request-status')?.textContent || '';
+    
+    const matches = 
+      url.toLowerCase().includes(lowerQuery) ||
+      method.toLowerCase().includes(lowerQuery) ||
+      status.toLowerCase().includes(lowerQuery);
+    
+    if (matches) {
+      item.style.display = '';
+      visibleCount++;
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  
+  // Show message if no results
+  if (visibleCount === 0 && requestItems.length > 0) {
+    const existingMsg = container.querySelector('.no-results-message');
+    if (!existingMsg) {
+      const noResultsMsg = document.createElement('p');
+      noResultsMsg.className = 'placeholder no-results-message';
+      noResultsMsg.textContent = `No requests matching "${query}"`;
+      container.appendChild(noResultsMsg);
+    }
+  } else {
+    // Remove no results message if exists
+    const existingMsg = container.querySelector('.no-results-message');
+    if (existingMsg) {
+      existingMsg.remove();
+    }
+  }
+}
+
+// Generate shareable report
+async function generateShareableReport() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    
+    if (!currentTab || !currentTab.url) {
+      showNotification('No active tab found', true);
+      return;
+    }
+    
+    const domain = new URL(currentTab.url).hostname;
+    
+    // Get current stats
+    const totalRequests = document.getElementById('totalRequests')?.textContent || '0';
+    const avgResponse = document.getElementById('avgResponse')?.textContent || '0ms';
+    const errorCount = document.getElementById('errorCount')?.textContent || '0';
+    const dataTransferred = document.getElementById('dataTransferred')?.textContent || '0KB';
+    
+    // Get status breakdown
+    const status2xx = document.getElementById('status2xx')?.textContent || '0';
+    const status3xx = document.getElementById('status3xx')?.textContent || '0';
+    const status4xx = document.getElementById('status4xx')?.textContent || '0';
+    const status5xx = document.getElementById('status5xx')?.textContent || '0';
+    
+    const timestamp = new Date().toLocaleString();
+    
+    const report = `
+# Network Performance Report
+**Domain:** ${domain}  
+**Generated:** ${timestamp}  
+**Generated by:** Universal Request Analyzer
+
+## Summary Statistics
+- **Total Requests:** ${totalRequests}
+- **Average Response Time:** ${avgResponse}
+- **Errors:** ${errorCount}
+- **Data Transferred:** ${dataTransferred}
+
+## Status Code Distribution
+- **2xx (Success):** ${status2xx}
+- **3xx (Redirect):** ${status3xx}
+- **4xx (Client Error):** ${status4xx}
+- **5xx (Server Error):** ${status5xx}
+
+## Performance Analysis
+${generatePerformanceAnalysisText()}
+
+---
+*This report was generated using Universal Request Analyzer browser extension.*
+*Install from: https://github.com/ModernaCyber/Universal-Request-Analyzer*
+`;
+    
+    // Copy to clipboard
+    await navigator.clipboard.writeText(report);
+    showNotification('Report copied to clipboard! 📋');
+    
+    // Also offer to download
+    const blob = new Blob([report], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `network-report-${domain}-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Share report error:', error);
+    showNotification('Failed to generate report', true);
+  }
+}
+
+// Generate performance analysis text for report
+function generatePerformanceAnalysisText() {
+  const insightsList = document.getElementById('insightsList');
+  if (!insightsList) return 'No insights available.';
+  
+  const insights = insightsList.querySelectorAll('.insight-item');
+  if (insights.length === 0) return 'No performance issues detected. 🎉';
+  
+  let text = '';
+  insights.forEach((insight, index) => {
+    const title = insight.querySelector('.insight-title')?.textContent || '';
+    const description = insight.querySelector('.insight-description')?.textContent || '';
+    const type = insight.classList.contains('warning') ? '⚠️' : 
+                 insight.classList.contains('error') ? '❌' : 
+                 insight.classList.contains('success') ? '✅' : 'ℹ️';
+    text += `\n${type} **${title}**\n${description}\n`;
+  });
+  
+  return text;
 }

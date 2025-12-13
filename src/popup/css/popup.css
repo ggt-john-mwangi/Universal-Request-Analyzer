@@ -317,6 +317,31 @@ body {
   color: var(--primary-color, #667eea);
 }
 
+.stat-trend {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stat-trend.up {
+  color: var(--success-color, #38a169);
+}
+
+.stat-trend.down {
+  color: var(--error-color, #e53e3e);
+}
+
+.stat-trend.neutral {
+  color: var(--text-secondary-color, #718096);
+}
+
+.stat-trend i {
+  font-size: 10px;
+}
+
 /* Timeline Chart */
 .timeline-chart {
   margin-top: 20px;
@@ -990,6 +1015,72 @@ button i {
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Search Bar */
+.search-bar {
+  padding: 12px 16px;
+  background: var(--surface-color, #f7fafc);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-secondary-color, #718096);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+#searchInput {
+  width: 100%;
+  padding: 10px 36px 10px 36px;
+  border: 2px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--background-color, white);
+  color: var(--text-primary-color, #2d3748);
+  transition: all 0.2s;
+}
+
+#searchInput:focus {
+  outline: none;
+  border-color: var(--primary-color, #667eea);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+#searchInput::placeholder {
+  color: var(--text-disabled-color, #a0aec0);
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary-color, #718096);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.clear-search-btn.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.clear-search-btn:hover {
+  background: var(--error-bg-color, #fff5f5);
+  color: var(--error-color, #f56565);
+}
+
 /* Quick Filter Chips */
 .quick-filters {
   display: flex;
@@ -1062,6 +1153,14 @@ button i {
 
 .export-btn i {
   font-size: 12px;
+}
+
+.export-btn.share-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.export-btn.share-btn:hover {
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f8a 100%);
 }
 
 /* Filters Section - Collapsible */
