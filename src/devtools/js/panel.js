@@ -322,7 +322,7 @@ export class DevToolsPanel {
               <div class="history-controls" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                 <div class="filter-group" id="typeFilterGroup">
                   <label><i class="fas fa-filter"></i> Type Filter:</label>
-                  <select id="requestTypeFilter" class="filter-select">
+                  <select id="endpointTypeFilter" class="filter-select">
                     <option value="">All Types</option>
                     <option value="fetch">Fetch</option>
                     <option value="xmlhttprequest">XHR/AJAX</option>
@@ -1689,6 +1689,8 @@ export class DevToolsPanel {
       const filters = this.getActiveFilters();
       
       // Get detailed requests for slow requests list
+      // Note: getDetailedRequests and getFilteredStats return different data structures
+      // and serve different purposes, so they cannot easily be combined
       const detailedResponse = await chrome.runtime.sendMessage({
         action: "getDetailedRequests",
         filters,
@@ -1806,6 +1808,9 @@ export class DevToolsPanel {
 
   // Update performance budgets and show status
   updatePerformanceBudgets(data) {
+    // Store current data for budget recalculation
+    this.currentPerformanceData = data;
+
     const budgetResponseTime = parseInt(document.getElementById("budgetResponseTime")?.value || 1000);
     const budgetTotalSize = parseFloat(document.getElementById("budgetTotalSize")?.value || 5);
     const budgetRequestCount = parseInt(document.getElementById("budgetRequestCount")?.value || 100);
@@ -1868,7 +1873,10 @@ export class DevToolsPanel {
         const element = document.getElementById(id);
         if (element) {
           element.addEventListener("change", () => {
-            this.updatePerformanceBudgets(data);
+            // Use stored current data for recalculation
+            if (this.currentPerformanceData) {
+              this.updatePerformanceBudgets(this.currentPerformanceData);
+            }
           });
         }
       });
@@ -1994,7 +2002,7 @@ export class DevToolsPanel {
 
         // Request Type Filter change listener - show endpoint input when a specific type is selected
         document
-          .getElementById("requestTypeFilter")
+          .getElementById("endpointTypeFilter")
           ?.addEventListener("change", (e) => {
             const selectedType = e.target.value;
             // Show endpoint pattern input when a specific type is selected in types mode
@@ -2067,7 +2075,7 @@ export class DevToolsPanel {
       );
       const mode = this.performanceViewMode || "types";
       const typeFilter =
-        document.getElementById("requestTypeFilter")?.value || "";
+        document.getElementById("endpointTypeFilter")?.value || "";
 
       const startTime = Date.now() - timeRangeMs;
       const endTime = Date.now();
@@ -2177,7 +2185,7 @@ export class DevToolsPanel {
 
     // Get current filter selections
     const selectedType =
-      document.getElementById("requestTypeFilter")?.value || "";
+      document.getElementById("endpointTypeFilter")?.value || "";
     const endpointPattern =
       document.getElementById("endpointFilterPattern")?.value || "";
     const mode = this.performanceViewMode || "types";
