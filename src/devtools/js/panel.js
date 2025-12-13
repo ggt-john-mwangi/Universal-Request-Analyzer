@@ -10,13 +10,13 @@ export class DevToolsPanel {
     this.streamData = [];
     this.selectedRequests = new Set();
     this.currentErrors = [];
-    
+
     // Constants
     this.SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
     this.MAX_CHART_POINTS = 20;
-    this.ERROR_STATUS_PREFIX = '4xx';
+    this.ERROR_STATUS_PREFIX = "4xx";
     this.DEFAULT_TIME_RANGE = 300; // 5 minutes in seconds
-    
+
     this.initialize();
   }
 
@@ -306,13 +306,33 @@ export class DevToolsPanel {
             </div>
             
             <div class="endpoint-performance-history" style="margin-top: 24px;">
-              <h4><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
-              <p class="hint">Track how specific endpoints perform over time. Useful for detecting performance degradation and regression analysis.</p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h4 style="margin: 0;"><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
+                <div class="mode-toggle" style="display: flex; gap: 8px;">
+                  <button id="modeRequestTypes" class="toggle-btn active" title="View by Request Types">
+                    <i class="fas fa-layer-group"></i> Request Types
+                  </button>
+                  <button id="modeSpecificEndpoint" class="toggle-btn" title="View Specific Endpoint">
+                    <i class="fas fa-link"></i> Specific Endpoint
+                  </button>
+                </div>
+              </div>
+              <p class="hint" id="performanceHint">Track request types (fetch, xhr, script, etc.) performance over time.</p>
               
               <div class="history-controls" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-                <div class="filter-group">
-                  <label><i class="fas fa-link"></i> Endpoint Pattern:</label>
-                  <input type="text" id="endpointPattern" placeholder="e.g., /api/login, /users/:id" class="filter-input" style="min-width: 250px;">
+                <div class="filter-group" id="typeFilterGroup">
+                  <label><i class="fas fa-filter"></i> Type Filter:</label>
+                  <select id="requestTypeFilter" class="filter-select">
+                    <option value="">All Types</option>
+                    <option value="fetch">Fetch</option>
+                    <option value="xmlhttprequest">XHR/AJAX</option>
+                    <option value="script">Script</option>
+                    <option value="stylesheet">Stylesheet</option>
+                    <option value="image">Image</option>
+                    <option value="font">Font</option>
+                    <option value="document">Document</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
                 
                 <div class="filter-group">
@@ -335,9 +355,29 @@ export class DevToolsPanel {
                   </select>
                 </div>
                 
+                <div class="filter-group" id="endpointPatternGroup" style="display: none;">
+                  <label><i class="fas fa-link"></i> Endpoint Pattern:</label>
+                  <input type="text" id="endpointPattern" placeholder="e.g., /api/login, /users/:id" class="filter-input" style="min-width: 250px;">
+                  <span class="hint-text" style="font-size: 11px; color: var(--text-secondary);">Filter specific API endpoint</span>
+                </div>
+                
                 <button id="loadHistoryBtn" class="btn-primary" style="align-self: flex-end;">
                   <i class="fas fa-sync-alt"></i> Load History
                 </button>
+              </div>
+              
+              <!-- Request Type Filters (shown only in types mode) -->
+              <div id="typeFiltersContainer" class="type-filters" style="margin-bottom: 16px; display: none;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <label style="font-weight: 500; color: var(--text-secondary);"><i class="fas fa-filter"></i> Filter Types:</label>
+                  <button id="selectAllTypes" class="btn-secondary" style="padding: 4px 8px; font-size: 11px;">
+                    <i class="fas fa-check-square"></i> Select All
+                  </button>
+                  <button id="deselectAllTypes" class="btn-secondary" style="padding: 4px 8px; font-size: 11px;">
+                    <i class="fas fa-square"></i> Deselect All
+                  </button>
+                </div>
+                <div id="typeCheckboxes" class="type-checkboxes"></div>
               </div>
               
               <div id="performanceHistoryChart" style="min-height: 300px; position: relative;">
@@ -446,7 +486,7 @@ export class DevToolsPanel {
     const timeRange = document.getElementById("timeRange");
     const requestTypeFilter = document.getElementById("requestTypeFilter");
     const statusFilter = document.getElementById("statusFilter");
-    
+
     if (pageFilter) {
       pageFilter.addEventListener("change", () => this.applyFilters());
     }
@@ -459,83 +499,97 @@ export class DevToolsPanel {
     if (statusFilter) {
       statusFilter.addEventListener("change", () => this.applyFilters());
     }
-    
+
     // Action buttons
     const refreshMetrics = document.getElementById("refreshMetrics");
     if (refreshMetrics) {
       refreshMetrics.addEventListener("click", () => this.refreshMetrics());
     }
-    
+
     const clearFilters = document.getElementById("clearFilters");
     if (clearFilters) {
       clearFilters.addEventListener("click", () => this.clearFilters());
     }
-    
+
     const exportMetrics = document.getElementById("exportMetrics");
     if (exportMetrics) {
       exportMetrics.addEventListener("click", () => this.exportMetrics());
     }
-    
+
     const resetFiltersBtn = document.getElementById("resetFiltersBtn");
     if (resetFiltersBtn) {
       resetFiltersBtn.addEventListener("click", () => this.clearFilters());
     }
-    
+
     // Time Travel feature
     const timeTravelBtn = document.getElementById("timeTravelBtn");
     if (timeTravelBtn) {
       timeTravelBtn.addEventListener("click", () => this.openTimeTravelModal());
     }
-    
-    const closeTimeTravelModal = document.getElementById("closeTimeTravelModal");
+
+    const closeTimeTravelModal = document.getElementById(
+      "closeTimeTravelModal"
+    );
     if (closeTimeTravelModal) {
-      closeTimeTravelModal.addEventListener("click", () => this.closeTimeTravelModal());
+      closeTimeTravelModal.addEventListener("click", () =>
+        this.closeTimeTravelModal()
+      );
     }
-    
+
     const loadHistoricalData = document.getElementById("loadHistoricalData");
     if (loadHistoricalData) {
-      loadHistoricalData.addEventListener("click", () => this.loadHistoricalData());
+      loadHistoricalData.addEventListener("click", () =>
+        this.loadHistoricalData()
+      );
     }
-    
+
     // HAR export features
     const copyHAR = document.getElementById("copyHAR");
     if (copyHAR) {
       copyHAR.addEventListener("click", () => this.copyAsHAR());
     }
-    
+
     const exportHAR = document.getElementById("exportHAR");
     if (exportHAR) {
       exportHAR.addEventListener("click", () => this.exportAsHAR());
     }
-    
+
     // Performance budgets
     const budgetResponseTime = document.getElementById("budgetResponseTime");
     if (budgetResponseTime) {
-      budgetResponseTime.addEventListener("change", () => this.checkPerformanceBudgets());
+      budgetResponseTime.addEventListener("change", () =>
+        this.checkPerformanceBudgets()
+      );
     }
-    
+
     const budgetTotalSize = document.getElementById("budgetTotalSize");
     if (budgetTotalSize) {
-      budgetTotalSize.addEventListener("change", () => this.checkPerformanceBudgets());
+      budgetTotalSize.addEventListener("change", () =>
+        this.checkPerformanceBudgets()
+      );
     }
-    
+
     const budgetRequestCount = document.getElementById("budgetRequestCount");
     if (budgetRequestCount) {
-      budgetRequestCount.addEventListener("change", () => this.checkPerformanceBudgets());
+      budgetRequestCount.addEventListener("change", () =>
+        this.checkPerformanceBudgets()
+      );
     }
-    
+
     // Live streaming
     const pauseCapture = document.getElementById("pauseCapture");
     if (pauseCapture) {
       pauseCapture.addEventListener("click", () => this.toggleCapture());
     }
-    
+
     // Tab navigation
     const tabButtons = document.querySelectorAll(".tab-btn");
     tabButtons.forEach((button) => {
-      button.addEventListener("click", () => this.switchTab(button.dataset.tab));
+      button.addEventListener("click", () =>
+        this.switchTab(button.dataset.tab)
+      );
     });
-    
+
     // Search
     const searchRequests = document.getElementById("searchRequests");
     if (searchRequests) {
@@ -554,11 +608,11 @@ export class DevToolsPanel {
   // Get chart colors from theme
   getChartColors() {
     return {
-      success: this.getThemeColor('--success-color'),
-      info: this.getThemeColor('--info-color'),
-      warning: this.getThemeColor('--warning-color'),
-      error: this.getThemeColor('--error-color'),
-      primary: this.getThemeColor('--primary-color'),
+      success: this.getThemeColor("--success-color"),
+      info: this.getThemeColor("--info-color"),
+      warning: this.getThemeColor("--warning-color"),
+      error: this.getThemeColor("--error-color"),
+      primary: this.getThemeColor("--primary-color"),
     };
   }
 
@@ -566,13 +620,13 @@ export class DevToolsPanel {
   async getCurrentDomain() {
     return new Promise((resolve) => {
       chrome.devtools.inspectedWindow.eval(
-        'window.location.hostname',
+        "window.location.hostname",
         (result, error) => {
           if (error) {
-            console.error('Error getting current domain:', error);
-            resolve('');
+            console.error("Error getting current domain:", error);
+            resolve("");
           } else {
-            resolve(result || '');
+            resolve(result || "");
           }
         }
       );
@@ -583,13 +637,13 @@ export class DevToolsPanel {
   async getCurrentPageUrl() {
     return new Promise((resolve) => {
       chrome.devtools.inspectedWindow.eval(
-        'window.location.origin + window.location.pathname',
+        "window.location.origin + window.location.pathname",
         (result, error) => {
           if (error) {
-            console.error('Error getting current page URL:', error);
-            resolve('');
+            console.error("Error getting current page URL:", error);
+            resolve("");
           } else {
-            resolve(result || '');
+            resolve(result || "");
           }
         }
       );
@@ -598,7 +652,7 @@ export class DevToolsPanel {
 
   initializeCharts() {
     const colors = this.getChartColors();
-    
+
     // Performance Chart - Line chart for response times over time
     const perfCtx = document
       .getElementById("performanceChart")
@@ -624,10 +678,10 @@ export class DevToolsPanel {
         plugins: {
           legend: {
             display: true,
-            position: 'top',
+            position: "top",
           },
           tooltip: {
-            mode: 'index',
+            mode: "index",
             intersect: false,
           },
         },
@@ -659,10 +713,10 @@ export class DevToolsPanel {
           {
             data: [],
             backgroundColor: [
-              colors.success,    // 2xx
-              colors.info,       // 3xx
-              colors.warning,    // 4xx
-              colors.error,      // 5xx
+              colors.success, // 2xx
+              colors.info, // 3xx
+              colors.warning, // 4xx
+              colors.error, // 5xx
             ],
           },
         ],
@@ -672,7 +726,7 @@ export class DevToolsPanel {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'right',
+            position: "right",
           },
         },
       },
@@ -736,14 +790,14 @@ export class DevToolsPanel {
         plugins: {
           legend: {
             display: true,
-            position: 'top',
+            position: "top",
           },
         },
         scales: {
           y: {
             beginAtZero: true,
             ticks: {
-              precision: 0
+              precision: 0,
             },
             title: {
               display: true,
@@ -786,7 +840,7 @@ export class DevToolsPanel {
           y: {
             beginAtZero: true,
             ticks: {
-              precision: 0
+              precision: 0,
             },
           },
         },
@@ -797,20 +851,20 @@ export class DevToolsPanel {
   async startMetricsCollection() {
     // Get and display current domain
     const currentDomain = await this.getCurrentDomain();
-    const domainDisplay = document.getElementById('currentDomainDisplay');
+    const domainDisplay = document.getElementById("currentDomainDisplay");
     if (domainDisplay && currentDomain) {
       domainDisplay.textContent = currentDomain;
       domainDisplay.title = `Showing data for ${currentDomain} only`;
     }
-    
+
     // Store current domain for use in filters
     this.currentDomain = currentDomain;
-    
+
     // Load pages for current domain
     if (currentDomain) {
       await this.loadPageFilter(currentDomain);
     }
-    
+
     // Initial collection
     await this.collectMetrics();
 
@@ -824,42 +878,52 @@ export class DevToolsPanel {
     try {
       // Check if extension context is still valid
       if (!chrome.runtime?.id) {
-        console.warn("Extension context invalidated, stopping metrics collection");
+        console.warn(
+          "Extension context invalidated, stopping metrics collection"
+        );
         this.stopMetricsCollection();
         return;
       }
 
       const filters = this.getActiveFilters();
-      console.log('DevTools Panel: Collecting metrics with filters:', filters);
+      console.log("DevTools Panel: Collecting metrics with filters:", filters);
 
       // Get metrics from background page
       chrome.runtime.sendMessage(
         {
           action: "getFilteredStats",
-          filters
+          filters,
         },
         (response) => {
           if (chrome.runtime.lastError) {
             // Context invalidated or extension reloaded
-            console.warn("Runtime error (context may be invalidated):", chrome.runtime.lastError.message);
+            console.warn(
+              "Runtime error (context may be invalidated):",
+              chrome.runtime.lastError.message
+            );
             this.stopMetricsCollection();
             return;
           }
 
-          console.log('DevTools Panel: Received response:', response);
+          console.log("DevTools Panel: Received response:", response);
 
           if (response && response.success) {
             // Check if there's data
             if (!response.totalRequests || response.totalRequests === 0) {
-              console.log('DevTools Panel: No data available (totalRequests = 0)');
+              console.log(
+                "DevTools Panel: No data available (totalRequests = 0)"
+              );
               this.showNoDataState(true);
             } else {
-              console.log('DevTools Panel: Data available, updating metrics');
+              console.log("DevTools Panel: Data available, updating metrics");
               this.showNoDataState(false);
               this.updateMetrics(response);
             }
           } else {
-            console.error("DevTools Panel: Failed to get metrics:", response?.error);
+            console.error(
+              "DevTools Panel: Failed to get metrics:",
+              response?.error
+            );
             this.showNoDataState(true);
           }
         }
@@ -881,62 +945,80 @@ export class DevToolsPanel {
 
   updateMetrics(metrics) {
     // Update stat cards
-    document.getElementById("totalRequestsValue").textContent = 
+    document.getElementById("totalRequestsValue").textContent =
       metrics.totalRequests || 0;
-    
-    const avgResponse = (metrics.responseTimes && metrics.responseTimes.length > 0)
-      ? Math.round(metrics.responseTimes.reduce((a, b) => a + b, 0) / metrics.responseTimes.length)
-      : 0;
-    document.getElementById("avgResponseValue").textContent = `${avgResponse}ms`;
-    
-    const slowRequests = (metrics.responseTimes && metrics.responseTimes.length > 0)
-      ? metrics.responseTimes.filter(t => t > 1000).length 
-      : 0;
+
+    const avgResponse =
+      metrics.responseTimes && metrics.responseTimes.length > 0
+        ? Math.round(
+            metrics.responseTimes.reduce((a, b) => a + b, 0) /
+              metrics.responseTimes.length
+          )
+        : 0;
+    document.getElementById(
+      "avgResponseValue"
+    ).textContent = `${avgResponse}ms`;
+
+    const slowRequests =
+      metrics.responseTimes && metrics.responseTimes.length > 0
+        ? metrics.responseTimes.filter((t) => t > 1000).length
+        : 0;
     document.getElementById("slowRequestsValue").textContent = slowRequests;
-    
+
     const errors = Object.entries(metrics.statusCodes || {})
       .filter(([status]) => parseInt(status) >= 400)
       .reduce((sum, [, count]) => sum + count, 0);
     document.getElementById("errorsValue").textContent = errors;
-    
+
     // Calculate success rate
     const total = metrics.totalRequests || 0;
     const successCount = total - errors;
-    const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+    const successRate =
+      total > 0 ? Math.round((successCount / total) * 100) : 0;
     document.getElementById("successRateValue").textContent = `${successRate}%`;
-    
+
     // Calculate P95 response time
     if (metrics.responseTimes && metrics.responseTimes.length > 0) {
       const p95 = this.calculatePercentile(metrics.responseTimes, 95);
       document.getElementById("p95ResponseValue").textContent = `${p95}ms`;
     } else {
-      document.getElementById("p95ResponseValue").textContent = '0ms';
+      document.getElementById("p95ResponseValue").textContent = "0ms";
     }
 
     // Update performance chart
-    if (this.charts.performance && metrics.timestamps && metrics.responseTimes) {
-      this.charts.performance.data.labels = metrics.timestamps.slice(-this.MAX_CHART_POINTS);
-      this.charts.performance.data.datasets[0].data = metrics.responseTimes.slice(-this.MAX_CHART_POINTS);
+    if (
+      this.charts.performance &&
+      metrics.timestamps &&
+      metrics.responseTimes
+    ) {
+      this.charts.performance.data.labels = metrics.timestamps.slice(
+        -this.MAX_CHART_POINTS
+      );
+      this.charts.performance.data.datasets[0].data =
+        metrics.responseTimes.slice(-this.MAX_CHART_POINTS);
       this.charts.performance.update();
     }
 
     // Update status chart
     if (this.charts.status && metrics.statusCodes) {
       const statusGroups = {
-        '2xx Success': 0,
-        '3xx Redirect': 0,
-        '4xx Client Error': 0,
-        '5xx Server Error': 0
+        "2xx Success": 0,
+        "3xx Redirect": 0,
+        "4xx Client Error": 0,
+        "5xx Server Error": 0,
       };
-      
+
       for (const [status, count] of Object.entries(metrics.statusCodes)) {
         const statusCode = parseInt(status);
-        if (statusCode >= 200 && statusCode < 300) statusGroups['2xx Success'] += count;
-        else if (statusCode >= 300 && statusCode < 400) statusGroups['3xx Redirect'] += count;
-        else if (statusCode >= 400 && statusCode < 500) statusGroups['4xx Client Error'] += count;
-        else if (statusCode >= 500) statusGroups['5xx Server Error'] += count;
+        if (statusCode >= 200 && statusCode < 300)
+          statusGroups["2xx Success"] += count;
+        else if (statusCode >= 300 && statusCode < 400)
+          statusGroups["3xx Redirect"] += count;
+        else if (statusCode >= 400 && statusCode < 500)
+          statusGroups["4xx Client Error"] += count;
+        else if (statusCode >= 500) statusGroups["5xx Server Error"] += count;
       }
-      
+
       // Only show groups that have values
       const labels = [];
       const data = [];
@@ -946,7 +1028,7 @@ export class DevToolsPanel {
           data.push(count);
         }
       }
-      
+
       this.charts.status.data.labels = labels;
       this.charts.status.data.datasets[0].data = data;
       this.charts.status.update();
@@ -973,7 +1055,7 @@ export class DevToolsPanel {
     if (this.charts.errors && metrics.statusCodes) {
       const errorCodes = [];
       const errorCounts = [];
-      
+
       for (const [status, count] of Object.entries(metrics.statusCodes)) {
         const statusCode = parseInt(status);
         if (statusCode >= 400) {
@@ -981,7 +1063,7 @@ export class DevToolsPanel {
           errorCounts.push(count);
         }
       }
-      
+
       this.charts.errors.data.labels = errorCodes;
       this.charts.errors.data.datasets[0].data = errorCounts;
       this.charts.errors.update();
@@ -990,16 +1072,16 @@ export class DevToolsPanel {
 
   aggregateByMinute(timestamps) {
     const minuteCounts = new Map();
-    
-    timestamps.forEach(ts => {
+
+    timestamps.forEach((ts) => {
       // Extract minute from timestamp
-      const minute = ts.substring(0, ts.lastIndexOf(':'));
+      const minute = ts.substring(0, ts.lastIndexOf(":"));
       minuteCounts.set(minute, (minuteCounts.get(minute) || 0) + 1);
     });
-    
+
     return {
       labels: Array.from(minuteCounts.keys()),
-      values: Array.from(minuteCounts.values())
+      values: Array.from(minuteCounts.values()),
     };
   }
 
@@ -1042,12 +1124,15 @@ export class DevToolsPanel {
           console.error("Export error:", chrome.runtime.lastError);
           return;
         }
-        
+
         if (response && response.success) {
-          this.showToast('Metrics exported successfully', 'success');
+          this.showToast("Metrics exported successfully", "success");
         } else {
           console.error("Export failed:", response?.error);
-          this.showToast('Export failed: ' + (response?.error || 'Unknown error'), 'error');
+          this.showToast(
+            "Export failed: " + (response?.error || "Unknown error"),
+            "error"
+          );
         }
       }
     );
@@ -1066,40 +1151,45 @@ export class DevToolsPanel {
   async loadPageFilter(domain) {
     try {
       const pageSelect = document.getElementById("pageFilter");
-      
+
       // Reset page filter
       pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
       pageSelect.disabled = false;
-      
-      if (!domain || domain === 'all') {
+
+      if (!domain || domain === "all") {
         pageSelect.disabled = true;
         return;
       }
-      
+
       // Get pages for this domain
       const response = await chrome.runtime.sendMessage({
-        action: 'getPagesByDomain',
+        action: "getPagesByDomain",
         domain: domain,
-        timeRange: 604800  // Last 7 days
+        timeRange: 604800, // Last 7 days
       });
-      
-      console.log('Pages for domain response:', response);
-      console.log('Response structure:', {
+
+      console.log("Pages for domain response:", response);
+      console.log("Response structure:", {
         success: response?.success,
         pagesLength: response?.pages?.length,
-        pages: response?.pages
+        pages: response?.pages,
       });
-      
-      if (response && response.success && response.pages && response.pages.length > 0) {
-        response.pages.forEach(pageObj => {
+
+      if (
+        response &&
+        response.success &&
+        response.pages &&
+        response.pages.length > 0
+      ) {
+        response.pages.forEach((pageObj) => {
           const pageUrl = pageObj.pageUrl;
           if (pageUrl) {
-            const option = document.createElement('option');
+            const option = document.createElement("option");
             option.value = pageUrl;
             // Extract path from full URL for display
             try {
               const url = new URL(pageUrl);
-              const displayPath = url.pathname + url.search || '/';
+              const displayPath = url.pathname + url.search || "/";
               option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
             } catch (e) {
               option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
@@ -1107,12 +1197,14 @@ export class DevToolsPanel {
             pageSelect.appendChild(option);
           }
         });
-        console.log(`Loaded ${response.pages.length} pages for domain ${domain}`);
+        console.log(
+          `Loaded ${response.pages.length} pages for domain ${domain}`
+        );
       } else {
         console.warn(`No pages found for domain ${domain}`);
       }
     } catch (error) {
-      console.error('Failed to load page filter:', error);
+      console.error("Failed to load page filter:", error);
     }
   }
 
@@ -1123,13 +1215,13 @@ export class DevToolsPanel {
     const requestTypeFilter = document.getElementById("requestTypeFilter");
     const statusFilter = document.getElementById("statusFilter");
     const searchRequests = document.getElementById("searchRequests");
-    
+
     if (pageFilter) pageFilter.value = "";
     if (timeRange) timeRange.value = "300";
     if (requestTypeFilter) requestTypeFilter.value = "";
     if (statusFilter) statusFilter.value = "";
     if (searchRequests) searchRequests.value = "";
-    
+
     // Reload data with cleared filters
     this.applyFilters();
   }
@@ -1137,46 +1229,46 @@ export class DevToolsPanel {
   // Switch between tabs
   switchTab(tabName) {
     // Update tab buttons
-    document.querySelectorAll(".tab-btn").forEach(btn => {
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.classList.remove("active");
     });
     document.querySelector(`[data-tab="${tabName}"]`).classList.add("active");
-    
+
     // Update tab content
-    document.querySelectorAll(".tab-content").forEach(content => {
+    document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.remove("active");
     });
     document.getElementById(`${tabName}Tab`).classList.add("active");
-    
+
     // Load tab-specific data
     this.loadTabData(tabName);
   }
 
   // Load data for specific tab
   async loadTabData(tabName) {
-    switch(tabName) {
-      case 'requests':
+    switch (tabName) {
+      case "requests":
         await this.loadRequestsTable();
         break;
-      case 'waterfall':
+      case "waterfall":
         await this.loadWaterfallData();
         break;
-      case 'performance':
+      case "performance":
         await this.loadPerformanceData();
         break;
-      case 'endpoints':
+      case "endpoints":
         await this.loadEndpointsData();
         break;
-      case 'resources':
+      case "resources":
         await this.loadResourcesData();
         break;
-      case 'errors':
+      case "errors":
         await this.loadErrorsData();
         break;
-      case 'websocket':
+      case "websocket":
         await this.loadWebSocketData();
         break;
-      case 'realtime':
+      case "realtime":
         this.startRealtimeFeed();
         break;
     }
@@ -1186,55 +1278,83 @@ export class DevToolsPanel {
   async loadRequestsTable(page = 1) {
     try {
       const filters = this.getActiveFilters();
-      const perPageSelect = document.getElementById('requestsPerPage');
+      const perPageSelect = document.getElementById("requestsPerPage");
       const perPage = perPageSelect ? parseInt(perPageSelect.value) : 25;
       const offset = (page - 1) * perPage;
-      
-      console.log('loadRequestsTable called:', { page, perPage, offset, filters });
-      
+
+      console.log("loadRequestsTable called:", {
+        page,
+        perPage,
+        offset,
+        filters,
+      });
+
       const response = await chrome.runtime.sendMessage({
-        action: 'getDetailedRequests',
+        action: "getDetailedRequests",
         filters,
         limit: perPage,
-        offset: offset
+        offset: offset,
       });
-      
-      console.log('getDetailedRequests response:', {
+
+      console.log("getDetailedRequests response:", {
         success: response?.success,
         requestsLength: response?.requests?.length,
-        totalCount: response?.totalCount
+        totalCount: response?.totalCount,
       });
-      
-      const tbody = document.getElementById('requestsTableBody');
-      
-      if (!response.success || !response.requests || response.requests.length === 0) {
-        tbody.innerHTML = '<tr class="no-data-row"><td colspan="7">No requests available for selected filters</td></tr>';
-        document.getElementById('tablePagination').innerHTML = '';
+
+      const tbody = document.getElementById("requestsTableBody");
+
+      if (
+        !response.success ||
+        !response.requests ||
+        response.requests.length === 0
+      ) {
+        tbody.innerHTML =
+          '<tr class="no-data-row"><td colspan="7">No requests available for selected filters</td></tr>';
+        document.getElementById("tablePagination").innerHTML = "";
         return;
       }
-      
+
       // Build table rows with actual request data
-      let rows = '';
-      response.requests.forEach(req => {
-        const statusClass = req.status >= 400 ? 'status-error' : req.status >= 300 ? 'status-warning' : 'status-success';
-        const size = req.size_bytes ? this.formatBytes(req.size_bytes) : 'N/A';
-        const duration = req.duration ? `${Math.round(req.duration)}ms` : 'N/A';
-        const cacheIcon = req.from_cache ? '<i class="fas fa-hdd" title="From cache"></i>' : '';
-        const errorIcon = req.error ? '<i class="fas fa-exclamation-circle" title="Error"></i>' : '';
-        
+      let rows = "";
+      response.requests.forEach((req) => {
+        const statusClass =
+          req.status >= 400
+            ? "status-error"
+            : req.status >= 300
+            ? "status-warning"
+            : "status-success";
+        const size = req.size_bytes ? this.formatBytes(req.size_bytes) : "N/A";
+        const duration = req.duration ? `${Math.round(req.duration)}ms` : "N/A";
+        const cacheIcon = req.from_cache
+          ? '<i class="fas fa-hdd" title="From cache"></i>'
+          : "";
+        const errorIcon = req.error
+          ? '<i class="fas fa-exclamation-circle" title="Error"></i>'
+          : "";
+
         rows += `
           <tr>
             <td><span class="method-badge">${req.method}</span></td>
-            <td class="url-cell" title="${req.url}">${this.truncateUrl(req.url, 50)}</td>
-            <td><span class="status-badge ${statusClass}">${req.status || 'N/A'}</span></td>
-            <td>${req.type || 'N/A'}</td>
+            <td class="url-cell" title="${req.url}">${this.truncateUrl(
+          req.url,
+          50
+        )}</td>
+            <td><span class="status-badge ${statusClass}">${
+          req.status || "N/A"
+        }</span></td>
+            <td>${req.type || "N/A"}</td>
             <td>${duration} ${cacheIcon}</td>
             <td>${size}</td>
             <td>
-              <button class="btn-icon btn-view-details" data-request-id="${req.id}" title="View details">
+              <button class="btn-icon btn-view-details" data-request-id="${
+                req.id
+              }" title="View details">
                 <i class="fas fa-info-circle"></i>
               </button>
-              <button class="btn-icon btn-copy-curl" data-request-id="${req.id}" title="Copy as cURL">
+              <button class="btn-icon btn-copy-curl" data-request-id="${
+                req.id
+              }" title="Copy as cURL">
                 <i class="fas fa-terminal"></i>
               </button>
               ${errorIcon}
@@ -1242,131 +1362,151 @@ export class DevToolsPanel {
           </tr>
         `;
       });
-      
+
       tbody.innerHTML = rows;
-      
+
       // Store requests for copy as cURL functionality
       this.currentRequests = response.requests;
-      
+
       // Render pagination
       this.renderPagination(page, response.totalCount, perPage);
-      
+
       // Add listener for per-page selector (only once)
       if (perPageSelect && !perPageSelect.dataset.listenerAdded) {
-        perPageSelect.dataset.listenerAdded = 'true';
-        perPageSelect.addEventListener('change', () => {
+        perPageSelect.dataset.listenerAdded = "true";
+        perPageSelect.addEventListener("change", () => {
           this.loadRequestsTable(1); // Reset to page 1 when changing per-page
         });
       }
-      
+
       // Use event delegation instead of inline onclick (only add listener once)
       if (!tbody.dataset.listenerAdded) {
-        tbody.dataset.listenerAdded = 'true';
-        tbody.addEventListener('click', (e) => {
-          const viewBtn = e.target.closest('.btn-view-details');
+        tbody.dataset.listenerAdded = "true";
+        tbody.addEventListener("click", (e) => {
+          const viewBtn = e.target.closest(".btn-view-details");
           if (viewBtn) {
             const requestId = viewBtn.dataset.requestId;
             this.viewRequestDetails(requestId);
             return;
           }
-          
-          const curlBtn = e.target.closest('.btn-copy-curl');
+
+          const curlBtn = e.target.closest(".btn-copy-curl");
           if (curlBtn) {
             const requestId = curlBtn.dataset.requestId;
-            const requestData = this.currentRequests.find(r => r.id === requestId);
+            console.log("Copy cURL clicked for request:", requestId);
+            console.log(
+              "Current requests available:",
+              this.currentRequests?.length
+            );
+            const requestData = this.currentRequests?.find(
+              (r) => r.id === requestId
+            );
             if (requestData) {
+              console.log("Found request data:", {
+                url: requestData.url,
+                method: requestData.method,
+              });
               this.copyAsCurl(requestData);
+            } else {
+              console.error("Request data not found for id:", requestId);
+              this.showToast("Request data not available", "error");
             }
             return;
           }
         });
       }
-      
     } catch (error) {
-      console.error('Failed to load requests table:', error);
-      document.getElementById('requestsTableBody').innerHTML = 
+      console.error("Failed to load requests table:", error);
+      document.getElementById("requestsTableBody").innerHTML =
         '<tr class="no-data-row"><td colspan="7">Error loading requests</td></tr>';
     }
   }
-  
+
   // Render pagination controls
   renderPagination(currentPage, totalCount, perPage) {
-    const container = document.getElementById('tablePagination');
+    const container = document.getElementById("tablePagination");
     if (!container || totalCount === 0) {
-      if (container) container.innerHTML = '';
+      if (container) container.innerHTML = "";
       return;
     }
-    
+
     const totalPages = Math.ceil(totalCount / perPage);
     if (totalPages <= 1) {
-      container.innerHTML = `<span class="pagination-info">Showing ${totalCount} request${totalCount !== 1 ? 's' : ''}</span>`;
+      container.innerHTML = `<span class="pagination-info">Showing ${totalCount} request${
+        totalCount !== 1 ? "s" : ""
+      }</span>`;
       return;
     }
-    
+
     let html = `<span class="pagination-info">Page ${currentPage} of ${totalPages} (${totalCount} total)</span>`;
-    
+
     // Previous button
     if (currentPage > 1) {
-      html += `<button class="pagination-btn" data-page="${currentPage - 1}"><i class="fas fa-chevron-left"></i> Previous</button>`;
+      html += `<button class="pagination-btn" data-page="${
+        currentPage - 1
+      }"><i class="fas fa-chevron-left"></i> Previous</button>`;
     }
-    
+
     // Page numbers
     const maxPageButtons = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
-    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-    
+    const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+
     if (endPage - startPage < maxPageButtons - 1) {
       startPage = Math.max(1, endPage - maxPageButtons + 1);
     }
-    
+
     if (startPage > 1) {
       html += `<button class="pagination-btn" data-page="1">1</button>`;
       if (startPage > 2) html += `<span class="pagination-ellipsis">...</span>`;
     }
-    
+
     for (let i = startPage; i <= endPage; i++) {
-      const activeClass = i === currentPage ? 'active' : '';
+      const activeClass = i === currentPage ? "active" : "";
       html += `<button class="pagination-btn ${activeClass}" data-page="${i}">${i}</button>`;
     }
-    
+
     if (endPage < totalPages) {
-      if (endPage < totalPages - 1) html += `<span class="pagination-ellipsis">...</span>`;
+      if (endPage < totalPages - 1)
+        html += `<span class="pagination-ellipsis">...</span>`;
       html += `<button class="pagination-btn" data-page="${totalPages}">${totalPages}</button>`;
     }
-    
+
     // Next button
     if (currentPage < totalPages) {
-      html += `<button class="pagination-btn" data-page="${currentPage + 1}">Next <i class="fas fa-chevron-right"></i></button>`;
+      html += `<button class="pagination-btn" data-page="${
+        currentPage + 1
+      }">Next <i class="fas fa-chevron-right"></i></button>`;
     }
-    
+
     container.innerHTML = html;
-    
+
     // Add event listeners to pagination buttons
-    container.querySelectorAll('.pagination-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+    container.querySelectorAll(".pagination-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
         const page = parseInt(btn.dataset.page);
         this.loadRequestsTable(page);
       });
     });
   }
-  
+
   // View request details
   async viewRequestDetails(requestId) {
     try {
       // Search in both currentRequests and currentErrors arrays
-      let request = this.currentRequests?.find(r => r.id === requestId);
+      let request = this.currentRequests?.find((r) => r.id === requestId);
       if (!request) {
-        request = this.currentErrors?.find(r => r.id === requestId);
+        request = this.currentErrors?.find((r) => r.id === requestId);
       }
-      
+
       if (!request) {
-        this.showToast('Request not found', 'error');
+        this.showToast("Request not found", "error");
         return;
       }
-      
+
       // Create modal
-      const modal = document.createElement('div');
-      modal.className = 'details-modal';
+      const modal = document.createElement("div");
+      modal.className = "details-modal";
       modal.innerHTML = `
         <div class="modal-overlay"></div>
         <div class="modal-content">
@@ -1380,108 +1520,167 @@ export class DevToolsPanel {
             <div class="detail-section">
               <h4>General</h4>
               <table class="details-table">
-                <tr><td>Method:</td><td><span class="method-badge">${request.method}</span></td></tr>
+                <tr><td>Method:</td><td><span class="method-badge">${
+                  request.method
+                }</span></td></tr>
                 <tr><td>URL:</td><td class="selectable">${request.url}</td></tr>
-                <tr><td>Status:</td><td>${request.status} ${request.status_text || ''}</td></tr>
+                <tr><td>Status:</td><td>${request.status} ${
+        request.status_text || ""
+      }</td></tr>
                 <tr><td>Type:</td><td>${request.type}</td></tr>
-                <tr><td>Domain:</td><td>${request.domain || 'N/A'}</td></tr>
-                <tr><td>Page:</td><td>${request.page_url || 'N/A'}</td></tr>
+                <tr><td>Domain:</td><td>${request.domain || "N/A"}</td></tr>
+                <tr><td>Page:</td><td>${request.page_url || "N/A"}</td></tr>
               </table>
             </div>
             <div class="detail-section">
               <h4>Performance</h4>
               <table class="details-table">
-                <tr><td>Duration:</td><td>${request.duration ? Math.round(request.duration) + 'ms' : 'N/A'}</td></tr>
-                <tr><td>Size:</td><td>${this.formatBytes(request.size_bytes || 0)}</td></tr>
-                <tr><td>From Cache:</td><td>${request.from_cache ? 'Yes' : 'No'}</td></tr>
-                <tr><td>Timestamp:</td><td>${new Date(request.timestamp).toLocaleString()}</td></tr>
+                <tr><td>Duration:</td><td>${
+                  request.duration ? Math.round(request.duration) + "ms" : "N/A"
+                }</td></tr>
+                <tr><td>Size:</td><td>${this.formatBytes(
+                  request.size_bytes || 0
+                )}</td></tr>
+                <tr><td>From Cache:</td><td>${
+                  request.from_cache ? "Yes" : "No"
+                }</td></tr>
+                <tr><td>Timestamp:</td><td>${new Date(
+                  request.timestamp
+                ).toLocaleString()}</td></tr>
               </table>
             </div>
-            ${request.error ? `
+            ${
+              request.error
+                ? `
             <div class="detail-section">
               <h4>Error</h4>
               <div class="error-box">${request.error}</div>
             </div>
-            ` : ''}
+            `
+                : ""
+            }
           </div>
           <div class="modal-footer">
             <button class="btn-secondary modal-close-btn">Close</button>
           </div>
         </div>
       `;
-      
+
       // Add event listeners for closing
-      const overlay = modal.querySelector('.modal-overlay');
-      const closeBtn = modal.querySelector('.modal-close');
-      const closeBtnFooter = modal.querySelector('.modal-close-btn');
-      
+      const overlay = modal.querySelector(".modal-overlay");
+      const closeBtn = modal.querySelector(".modal-close");
+      const closeBtnFooter = modal.querySelector(".modal-close-btn");
+
       const closeModal = () => modal.remove();
-      
-      overlay.addEventListener('click', closeModal);
-      closeBtn.addEventListener('click', closeModal);
-      closeBtnFooter.addEventListener('click', closeModal);
-      
+
+      overlay.addEventListener("click", closeModal);
+      closeBtn.addEventListener("click", closeModal);
+      closeBtnFooter.addEventListener("click", closeModal);
+
       document.body.appendChild(modal);
     } catch (error) {
-      console.error('Error showing request details:', error);
-      this.showToast('Failed to load request details', 'error');
+      console.error("Error showing request details:", error);
+      this.showToast("Failed to load request details", "error");
     }
   }
-  
+
   // Copy request as cURL command
   // Note: Headers are stored in a separate table and not included in basic cURL export
   copyAsCurl(request) {
     try {
       let curl = `curl '${request.url}'`;
-      
+
       // Add method if not GET
-      if (request.method && request.method !== 'GET') {
+      if (request.method && request.method !== "GET") {
         curl += ` -X ${request.method}`;
       }
-      
+
       // Note: Headers are stored in bronze_request_headers table
       // and not fetched for performance reasons
       // Add common headers manually
       curl += ` -H 'Accept: */*'`;
-      
+
       // Add compressed flag
-      curl += ' --compressed';
-      
-      // Copy to clipboard
-      navigator.clipboard.writeText(curl).then(() => {
-        this.showToast('cURL command copied to clipboard!', 'success');
-      }).catch(err => {
-        console.error('Failed to copy:', err);
-        this.showToast('Failed to copy cURL command', 'error');
-      });
+      curl += " --compressed";
+
+      // Copy to clipboard with fallback method
+      this.copyToClipboard(curl);
     } catch (error) {
-      console.error('Error generating cURL:', error);
-      this.showToast('Failed to generate cURL command', 'error');
+      console.error("Error generating cURL:", error);
+      this.showToast("Failed to generate cURL command", "error");
     }
   }
-  
+
+  // Copy text to clipboard with fallback for different browsers
+  copyToClipboard(text) {
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          this.showToast("cURL command copied to clipboard!", "success");
+        })
+        .catch((err) => {
+          console.error("Clipboard API failed:", err);
+          this.copyToClipboardFallback(text);
+        });
+    } else {
+      // Fallback for older browsers or restricted contexts
+      this.copyToClipboardFallback(text);
+    }
+  }
+
+  // Fallback clipboard copy method using textarea
+  copyToClipboardFallback(text) {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textarea);
+
+      if (successful) {
+        this.showToast("cURL command copied to clipboard!", "success");
+      } else {
+        this.showToast(
+          "Failed to copy cURL command - please try again",
+          "error"
+        );
+      }
+    } catch (err) {
+      console.error("Fallback copy failed:", err);
+      this.showToast("Failed to copy cURL command", "error");
+    }
+  }
+
   // Helper to truncate URLs
   truncateUrl(url, maxLength) {
     if (url.length <= maxLength) return url;
-    const parts = url.split('?');
+    const parts = url.split("?");
     const base = parts[0];
     if (base.length > maxLength) {
-      return base.substring(0, maxLength - 3) + '...';
+      return base.substring(0, maxLength - 3) + "...";
     }
     if (parts.length > 1 && parts[1]) {
       const remaining = maxLength - base.length - 4;
-      return base + '?' + parts[1].substring(0, remaining) + '...';
+      return base + "?" + parts[1].substring(0, remaining) + "...";
     }
     return url;
   }
-  
+
   // Helper to format bytes
   formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   }
 
   // Load performance data
@@ -1489,22 +1688,30 @@ export class DevToolsPanel {
     try {
       const filters = this.getActiveFilters();
       const response = await chrome.runtime.sendMessage({
-        action: 'getFilteredStats',
-        filters
+        action: "getFilteredStats",
+        filters,
       });
-      
-      if (!response.success || !response.responseTimes || response.responseTimes.length === 0) {
-        document.getElementById('timingBreakdown').innerHTML = '<p class="no-data">No performance data available</p>';
-        document.getElementById('slowRequestsList').innerHTML = '<p class="no-data">No requests available</p>';
+
+      if (
+        !response.success ||
+        !response.responseTimes ||
+        response.responseTimes.length === 0
+      ) {
+        document.getElementById("timingBreakdown").innerHTML =
+          '<p class="no-data">No performance data available</p>';
+        document.getElementById("slowRequestsList").innerHTML =
+          '<p class="no-data">No requests available</p>';
         return;
       }
-      
+
       // Show timing breakdown
-      const avgTime = response.responseTimes.reduce((a, b) => a + b, 0) / response.responseTimes.length;
+      const avgTime =
+        response.responseTimes.reduce((a, b) => a + b, 0) /
+        response.responseTimes.length;
       const maxTime = Math.max(...response.responseTimes);
       const minTime = Math.min(...response.responseTimes);
-      
-      document.getElementById('timingBreakdown').innerHTML = `
+
+      document.getElementById("timingBreakdown").innerHTML = `
         <div class="timing-stats">
           <div class="timing-stat">
             <span class="label">Average:</span>
@@ -1520,20 +1727,26 @@ export class DevToolsPanel {
           </div>
           <div class="timing-stat">
             <span class="label">P95:</span>
-            <span class="value">${this.calculatePercentile(response.responseTimes, 95)}ms</span>
+            <span class="value">${this.calculatePercentile(
+              response.responseTimes,
+              95
+            )}ms</span>
           </div>
         </div>
       `;
-      
+
       // Show slow requests placeholder
-      document.getElementById('slowRequestsList').innerHTML = `
+      document.getElementById("slowRequestsList").innerHTML = `
         <p class="info-message">
           <i class="fas fa-info-circle"></i> 
-          Top ${Math.min(10, response.responseTimes.length)} slowest requests will be displayed here.
+          Top ${Math.min(
+            10,
+            response.responseTimes.length
+          )} slowest requests will be displayed here.
         </p>
       `;
     } catch (error) {
-      console.error('Failed to load performance data:', error);
+      console.error("Failed to load performance data:", error);
     }
   }
 
@@ -1542,17 +1755,22 @@ export class DevToolsPanel {
     try {
       const filters = this.getActiveFilters();
       const response = await chrome.runtime.sendMessage({
-        action: 'getEndpointAnalysis',
-        filters
+        action: "getEndpointAnalysis",
+        filters,
       });
-      
-      const table = document.getElementById('endpointsTable');
-      
-      if (!response.success || !response.endpoints || response.endpoints.length === 0) {
-        table.innerHTML = '<p class="no-data">No API endpoints found for selected filters</p>';
+
+      const table = document.getElementById("endpointsTable");
+
+      if (
+        !response.success ||
+        !response.endpoints ||
+        response.endpoints.length === 0
+      ) {
+        table.innerHTML =
+          '<p class="no-data">No API endpoints found for selected filters</p>';
         return;
       }
-      
+
       // Build table with endpoint analysis
       let html = `
         <table class="data-table">
@@ -1569,11 +1787,21 @@ export class DevToolsPanel {
           </thead>
           <tbody>
       `;
-      
-      response.endpoints.forEach(ep => {
-        const errorClass = ep.errorRate > 10 ? 'status-error' : ep.errorRate > 5 ? 'status-warning' : '';
-        const perfClass = ep.avgDuration > 1000 ? 'status-error' : ep.avgDuration > 500 ? 'status-warning' : 'status-success';
-        
+
+      response.endpoints.forEach((ep) => {
+        const errorClass =
+          ep.errorRate > 10
+            ? "status-error"
+            : ep.errorRate > 5
+            ? "status-warning"
+            : "";
+        const perfClass =
+          ep.avgDuration > 1000
+            ? "status-error"
+            : ep.avgDuration > 500
+            ? "status-warning"
+            : "status-success";
+
         html += `
           <tr>
             <td title="${ep.url}"><code>${ep.endpoint}</code></td>
@@ -1586,253 +1814,555 @@ export class DevToolsPanel {
           </tr>
         `;
       });
-      
-      html += '</tbody></table>';
+
+      html += "</tbody></table>";
       table.innerHTML = html;
-      
+
       // Setup history load button listener (only once)
-      const loadHistoryBtn = document.getElementById('loadHistoryBtn');
+      const loadHistoryBtn = document.getElementById("loadHistoryBtn");
       if (loadHistoryBtn && !loadHistoryBtn.dataset.listenerAdded) {
-        loadHistoryBtn.dataset.listenerAdded = 'true';
-        loadHistoryBtn.addEventListener('click', () => this.loadEndpointPerformanceHistory());
+        loadHistoryBtn.dataset.listenerAdded = "true";
+        loadHistoryBtn.addEventListener("click", () =>
+          this.loadEndpointPerformanceHistory()
+        );
+
+        // Mode toggle for request types vs specific endpoint
+        const modeRequestTypes = document.getElementById("modeRequestTypes");
+        const modeSpecificEndpoint = document.getElementById(
+          "modeSpecificEndpoint"
+        );
+        const endpointPatternGroup = document.getElementById(
+          "endpointPatternGroup"
+        );
+        const performanceHint = document.getElementById("performanceHint");
+
+        modeRequestTypes.addEventListener("click", () => {
+          modeRequestTypes.classList.add("active");
+          modeSpecificEndpoint.classList.remove("active");
+          endpointPatternGroup.style.display = "none";
+          document.getElementById("typeFiltersContainer").style.display =
+            "block";
+          performanceHint.textContent =
+            "Track request types (fetch, xhr, script, etc.) performance over time.";
+          this.performanceViewMode = "types";
+          // Auto-reload if data exists
+          if (this.performanceHistoryChart) {
+            this.loadEndpointPerformanceHistory();
+          }
+        });
+
+        modeSpecificEndpoint.addEventListener("click", () => {
+          modeSpecificEndpoint.classList.add("active");
+          modeRequestTypes.classList.remove("active");
+          endpointPatternGroup.style.display = "flex";
+          document.getElementById("typeFiltersContainer").style.display =
+            "none";
+          performanceHint.textContent =
+            "Track specific API endpoint (e.g., /api/login) combined with type filter for precise performance analysis.";
+          this.performanceViewMode = "endpoint";
+          // Auto-reload if data exists
+          if (this.performanceHistoryChart) {
+            this.loadEndpointPerformanceHistory();
+          }
+        });
+
+        // Request Type Filter change listener - show endpoint input when a specific type is selected
+        document
+          .getElementById("requestTypeFilter")
+          ?.addEventListener("change", (e) => {
+            const selectedType = e.target.value;
+            // Show endpoint pattern input when a specific type is selected in types mode
+            if (this.performanceViewMode === "types" && selectedType) {
+              endpointPatternGroup.style.display = "flex";
+            } else if (this.performanceViewMode === "types") {
+              endpointPatternGroup.style.display = "none";
+              // Clear endpoint pattern when hiding
+              document.getElementById("endpointPattern").value = "";
+            }
+
+            // Auto-reload chart
+            this.loadEndpointPerformanceHistory();
+          });
+
+        // Endpoint pattern input listeners - reload on Enter key or blur
+        const endpointPatternInput = document.getElementById("endpointPattern");
+        if (endpointPatternInput) {
+          endpointPatternInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+              this.loadEndpointPerformanceHistory();
+            }
+          });
+
+          endpointPatternInput.addEventListener("blur", () => {
+            this.loadEndpointPerformanceHistory();
+          });
+        }
+
+        // Setup type filter controls
+        document
+          .getElementById("selectAllTypes")
+          ?.addEventListener("click", () => {
+            document
+              .querySelectorAll(".type-checkbox")
+              .forEach((cb) => (cb.checked = true));
+            this.updateChartVisibility();
+          });
+
+        document
+          .getElementById("deselectAllTypes")
+          ?.addEventListener("click", () => {
+            document
+              .querySelectorAll(".type-checkbox")
+              .forEach((cb) => (cb.checked = false));
+            this.updateChartVisibility();
+          });
+
+        // Initialize mode
+        this.performanceViewMode = "types";
+        this.selectedRequestTypes = new Set();
       }
-      
     } catch (error) {
-      console.error('Failed to load endpoints data:', error);
-      document.getElementById('endpointsTable').innerHTML = 
+      console.error("Failed to load endpoints data:", error);
+      document.getElementById("endpointsTable").innerHTML =
         '<p class="error-message">Error loading endpoint analysis</p>';
     }
   }
-  
+
   // Load endpoint performance history for regression analysis
   async loadEndpointPerformanceHistory() {
     try {
       const filters = this.getActiveFilters();
-      const endpointPattern = document.getElementById('endpointPattern')?.value || '';
-      const timeBucket = document.getElementById('historyTimeBucket')?.value || 'hourly';
-      const timeRangeMs = parseInt(document.getElementById('historyTimeRange')?.value || '604800000');
-      
+      const endpointPattern =
+        document.getElementById("endpointPattern")?.value || "";
+      const timeBucket =
+        document.getElementById("historyTimeBucket")?.value || "hourly";
+      const timeRangeMs = parseInt(
+        document.getElementById("historyTimeRange")?.value || "604800000"
+      );
+      const mode = this.performanceViewMode || "types";
+      const typeFilter =
+        document.getElementById("requestTypeFilter")?.value || "";
+
       const startTime = Date.now() - timeRangeMs;
       const endTime = Date.now();
-      
-      console.log('Loading endpoint performance history:', { 
-        endpoint: endpointPattern, 
-        timeBucket, 
-        startTime, 
-        endTime, 
-        domain: filters.domain 
+
+      console.log("Loading endpoint performance history:", {
+        mode,
+        endpoint: endpointPattern,
+        typeFilter,
+        timeBucket,
+        startTime,
+        endTime,
+        timeRangeMs,
+        domain: filters.domain,
       });
-      
+
+      // Choose action based on mode
+      const action =
+        mode === "types"
+          ? "getRequestTypePerformanceHistory"
+          : "getEndpointPerformanceHistory";
+
       const response = await chrome.runtime.sendMessage({
-        action: 'getEndpointPerformanceHistory',
+        action,
         filters: {
           domain: filters.domain,
           pageUrl: filters.pageUrl,
           endpoint: endpointPattern,
+          type: typeFilter,
           timeBucket,
           startTime,
-          endTime
-        }
+          endTime,
+        },
       });
-      
-      console.log('Performance history response:', response);
-      
-      if (!response.success || !response.history || response.history.length === 0) {
-        document.getElementById('performanceHistoryChart').innerHTML = 
-          '<p class="no-data"><i class="fas fa-info-circle"></i> No performance data found. Try adjusting the endpoint pattern or time range.</p>';
-        document.getElementById('performanceInsights').style.display = 'none';
+
+      console.log("Performance history response:", {
+        success: response?.success,
+        historyLength: response?.history?.length,
+        groupedByType: response?.groupedByType
+          ? Object.keys(response.groupedByType)
+          : null,
+        groupedByEndpoint: response?.groupedByEndpoint
+          ? Object.keys(response.groupedByEndpoint)
+          : null,
+        timeBucket: response?.timeBucket,
+        fullResponse: response,
+      });
+
+      // Check for data in either format (request types or endpoints)
+      const hasData =
+        response.success && response.history && response.history.length > 0;
+      const groupedData = response.groupedByType || response.groupedByEndpoint;
+      const hasGroupedData = groupedData && Object.keys(groupedData).length > 0;
+
+      if (!hasData && !hasGroupedData) {
+        document.getElementById("performanceHistoryChart").innerHTML =
+          '<p class="no-data"><i class="fas fa-info-circle"></i> No performance data found. Try adjusting the filters or time range.</p>';
+        document.getElementById("performanceInsights").style.display = "none";
         return;
       }
-      
+
       // Render the performance chart
       this.renderEndpointPerformanceChart(response);
-      
+
       // Generate performance insights
       this.generatePerformanceInsights(response);
-      
     } catch (error) {
-      console.error('Failed to load endpoint performance history:', error);
-      document.getElementById('performanceHistoryChart').innerHTML = 
+      console.error("Failed to load endpoint performance history:", error);
+      document.getElementById("performanceHistoryChart").innerHTML =
         '<p class="error-message">Error loading performance history</p>';
     }
   }
-  
+
   // Render endpoint performance history chart
   renderEndpointPerformanceChart(response) {
-    const canvas = document.getElementById('historyChartCanvas');
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    
+    console.log("renderEndpointPerformanceChart called with:", {
+      hasGroupedByType: !!response.groupedByType,
+      hasGroupedByEndpoint: !!response.groupedByEndpoint,
+      groupedByTypeKeys: response.groupedByType
+        ? Object.keys(response.groupedByType)
+        : null,
+      groupedByEndpointKeys: response.groupedByEndpoint
+        ? Object.keys(response.groupedByEndpoint)
+        : null,
+    });
+
+    const canvas = document.getElementById("historyChartCanvas");
+    if (!canvas) {
+      console.error("Canvas element not found: historyChartCanvas");
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+
     // Destroy existing chart if any
     if (this.performanceHistoryChart) {
       this.performanceHistoryChart.destroy();
     }
-    
-    // Group data by endpoint pattern for multi-line chart
-    const groupedData = response.groupedByEndpoint;
-    const endpoints = Object.keys(groupedData);
-    
-    if (endpoints.length === 0) {
-      document.getElementById('performanceHistoryChart').innerHTML = 
-        '<p class="no-data">No endpoints found in the data</p>';
+
+    // Group data by endpoint pattern or request type
+    const groupedData = response.groupedByType || response.groupedByEndpoint;
+    if (!groupedData) {
+      console.error("No grouped data found in response");
+      document.getElementById("performanceHistoryChart").innerHTML =
+        '<p class="no-data">No grouped data available</p>';
       return;
     }
-    
-    // Generate colors for each endpoint
+
+    // Get current filter selections
+    const selectedType =
+      document.getElementById("requestTypeFilter")?.value || "";
+    const endpointPattern =
+      document.getElementById("endpointFilterPattern")?.value || "";
+    const mode = this.performanceViewMode || "types";
+
+    // Filter grouped data based on selected type
+    let filteredGroupedData = groupedData;
+    if (selectedType && selectedType !== "" && mode === "types") {
+      // If a specific type is selected, only show that type
+      filteredGroupedData = {};
+      if (groupedData[selectedType]) {
+        filteredGroupedData[selectedType] = groupedData[selectedType];
+      }
+      console.log(
+        `Filtered to type '${selectedType}':`,
+        Object.keys(filteredGroupedData)
+      );
+    }
+
+    const groupKeys = Object.keys(filteredGroupedData);
+    console.log("Group keys found:", groupKeys);
+
+    if (groupKeys.length === 0) {
+      console.warn("No group keys found");
+      document.getElementById("performanceHistoryChart").innerHTML =
+        '<p class="no-data">No data found</p>';
+      return;
+    }
+
+    // Generate colors for each line
     const colors = [
-      '#4CAF50', '#2196F3', '#FF9800', '#F44336', '#9C27B0',
-      '#00BCD4', '#FFEB3B', '#795548', '#607D8B', '#E91E63'
+      "#4CAF50",
+      "#2196F3",
+      "#FF9800",
+      "#F44336",
+      "#9C27B0",
+      "#00BCD4",
+      "#FFEB3B",
+      "#795548",
+      "#607D8B",
+      "#E91E63",
     ];
-    
-    // Prepare datasets - one per endpoint
-    const datasets = endpoints.slice(0, 10).map((endpoint, index) => {
-      const records = groupedData[endpoint];
+
+    // Prepare datasets - one per endpoint/type
+    const datasets = groupKeys.slice(0, 10).map((key, index) => {
+      const records = filteredGroupedData[key];
+      console.log(`Processing ${key}:`, {
+        recordCount: records.length,
+        firstRecord: records[0],
+        lastRecord: records[records.length - 1],
+      });
+
       // Sort by time bucket
       records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
-      
+
+      const dataPoints = records.map((r) => ({
+        x: r.timeBucket,
+        y: r.avgDuration,
+      }));
+      console.log(`Data points for ${key}:`, dataPoints);
+
       return {
-        label: endpoint,
-        data: records.map(r => ({ x: r.timeBucket, y: r.avgDuration })),
+        label: key,
+        data: dataPoints,
         borderColor: colors[index % colors.length],
-        backgroundColor: 'transparent',
+        backgroundColor: "transparent",
         tension: 0.4,
         fill: false,
         pointRadius: 4,
-        pointHoverRadius: 6
+        pointHoverRadius: 6,
       };
     });
-    
-    this.performanceHistoryChart = new Chart(ctx, {
-      type: 'line',
-      data: { datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: `Endpoint Performance Over Time (${response.timeBucket})`
-          },
-          legend: {
-            display: true,
-            position: 'top'
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            callbacks: {
-              afterLabel: function(context) {
-                const dataPoint = response.history[context.dataIndex];
-                if (dataPoint) {
-                  return [
-                    `Requests: ${dataPoint.requestCount}`,
-                    `Min: ${dataPoint.minDuration}ms`,
-                    `Max: ${dataPoint.maxDuration}ms`,
-                    `Errors: ${dataPoint.errorCount} (${dataPoint.errorRate}%)`
-                  ];
-                }
-                return [];
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: 'category',
+
+    console.log("Final datasets:", datasets);
+
+    const titleText =
+      mode === "types"
+        ? `Request Type Performance Over Time (${response.timeBucket})`
+        : `Endpoint Performance Over Time (${response.timeBucket})`;
+
+    console.log("Creating chart with:", {
+      mode,
+      titleText,
+      datasetCount: datasets.length,
+      canvasId: canvas.id,
+    });
+
+    try {
+      this.performanceHistoryChart = new Chart(ctx, {
+        type: "line",
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
             title: {
               display: true,
-              text: 'Time'
+              text: titleText,
             },
-            ticks: {
-              maxRotation: 45,
-              minRotation: 45
-            }
-          },
-          y: {
-            beginAtZero: true,
-            title: {
+            legend: {
               display: true,
-              text: 'Average Duration (ms)'
-            }
-          }
-        }
+              position: "top",
+            },
+            tooltip: {
+              mode: "index",
+              intersect: false,
+              callbacks: {
+                afterLabel: function (context) {
+                  const dataPoint = response.history[context.dataIndex];
+                  if (dataPoint) {
+                    return [
+                      `Requests: ${dataPoint.requestCount}`,
+                      `Min: ${dataPoint.minDuration}ms`,
+                      `Max: ${dataPoint.maxDuration}ms`,
+                      `Errors: ${dataPoint.errorCount} (${dataPoint.errorRate}%)`,
+                    ];
+                  }
+                  return [];
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              type: "category",
+              title: {
+                display: true,
+                text: "Time",
+              },
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: "Average Duration (ms)",
+              },
+            },
+          },
+        },
+      });
+
+      console.log("Chart created successfully:", this.performanceHistoryChart);
+
+      // Show the chart container
+      const chartContainer = document.getElementById("performanceHistoryChart");
+      if (chartContainer) {
+        chartContainer.style.display = "block";
+        console.log("Chart container made visible");
+      }
+
+      // Create type filter checkboxes if in types mode
+      if (mode === "types" && groupKeys.length > 0) {
+        this.createTypeFilterCheckboxes(groupKeys, colors);
+      }
+    } catch (error) {
+      console.error("Error creating chart:", error);
+      document.getElementById(
+        "performanceHistoryChart"
+      ).innerHTML = `<p class="error-message">Error rendering chart: ${error.message}</p>`;
+    }
+  }
+
+  // Create checkboxes for filtering request types
+  createTypeFilterCheckboxes(types, colors) {
+    const container = document.getElementById("typeCheckboxes");
+    if (!container) return;
+
+    container.innerHTML = "";
+    this.selectedRequestTypes.clear();
+
+    types.forEach((type, index) => {
+      const color = colors[index % colors.length];
+      const checkbox = document.createElement("label");
+      checkbox.className = "type-checkbox-label";
+      checkbox.innerHTML = `
+        <input type="checkbox" class="type-checkbox" value="${type}" checked data-index="${index}">
+        <span class="type-checkbox-color" style="background: ${color};"></span>
+        <span class="type-checkbox-text">${type}</span>
+      `;
+
+      const input = checkbox.querySelector("input");
+      input.addEventListener("change", () => {
+        this.updateChartVisibility();
+      });
+
+      container.appendChild(checkbox);
+      this.selectedRequestTypes.add(type);
+    });
+
+    // Show the filters container
+    document.getElementById("typeFiltersContainer").style.display = "block";
+  }
+
+  // Update chart visibility based on selected types
+  updateChartVisibility() {
+    if (!this.performanceHistoryChart) return;
+
+    const checkboxes = document.querySelectorAll(".type-checkbox");
+    const selectedTypes = new Set();
+
+    checkboxes.forEach((cb) => {
+      if (cb.checked) {
+        selectedTypes.add(cb.value);
       }
     });
-    
-    // Show the chart container
-    document.getElementById('performanceHistoryChart').innerHTML = '';
-    document.getElementById('performanceHistoryChart').appendChild(canvas);
+
+    // Update dataset visibility
+    this.performanceHistoryChart.data.datasets.forEach((dataset, index) => {
+      const isVisible = selectedTypes.has(dataset.label);
+      dataset.hidden = !isVisible;
+    });
+
+    this.performanceHistoryChart.update();
+    this.selectedRequestTypes = selectedTypes;
+
+    console.log("Chart visibility updated:", {
+      selectedTypes: Array.from(selectedTypes),
+      totalDatasets: this.performanceHistoryChart.data.datasets.length,
+    });
   }
-  
+
   // Generate performance insights for regression analysis
   generatePerformanceInsights(response) {
     const insights = [];
-    const { groupedByEndpoint } = response;
-    
-    Object.keys(groupedByEndpoint).forEach(endpoint => {
-      const records = groupedByEndpoint[endpoint];
+    const groupedData = response.groupedByType || response.groupedByEndpoint;
+    const labelType = response.groupedByType ? "Request Type" : "Endpoint";
+
+    if (!groupedData) {
+      console.warn("No grouped data available for insights");
+      return;
+    }
+
+    Object.keys(groupedData).forEach((key) => {
+      const records = groupedData[key];
       if (records.length < 2) return; // Need at least 2 data points
-      
+
       // Sort chronologically
       records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
-      
+
       // Calculate performance trends
       const first = records[0];
       const last = records[records.length - 1];
       const avgFirst = first.avgDuration;
       const avgLast = last.avgDuration;
-      
+
       const change = avgLast - avgFirst;
-      const changePercent = avgFirst > 0 ? ((change / avgFirst) * 100).toFixed(1) : 0;
-      
+      const changePercent =
+        avgFirst > 0 ? ((change / avgFirst) * 100).toFixed(1) : 0;
+
       // Detect spikes (more than 50% increase between consecutive points)
       const spikes = [];
       for (let i = 1; i < records.length; i++) {
         const prev = records[i - 1];
         const curr = records[i];
-        const increase = ((curr.avgDuration - prev.avgDuration) / prev.avgDuration) * 100;
-        
+        const increase =
+          ((curr.avgDuration - prev.avgDuration) / prev.avgDuration) * 100;
+
         if (increase > 50) {
           spikes.push({
             time: curr.timeBucket,
             increase: increase.toFixed(1),
             from: prev.avgDuration,
-            to: curr.avgDuration
+            to: curr.avgDuration,
           });
         }
       }
-      
+
       // Calculate error rate trend
-      const avgErrorRate = (records.reduce((sum, r) => sum + parseFloat(r.errorRate), 0) / records.length).toFixed(2);
-      
+      const avgErrorRate = (
+        records.reduce((sum, r) => sum + parseFloat(r.errorRate), 0) /
+        records.length
+      ).toFixed(2);
+
       insights.push({
-        endpoint,
-        trend: change > 0 ? 'degradation' : 'improvement',
+        label: key,
+        endpoint: key,
+        trend: change > 0 ? "degradation" : "improvement",
         change,
         changePercent,
         spikes,
         avgErrorRate,
-        totalRequests: records.reduce((sum, r) => sum + r.requestCount, 0)
+        totalRequests: records.reduce((sum, r) => sum + r.requestCount, 0),
       });
     });
-    
+
     // Render insights
     let html = '<div class="insights-grid">';
-    
-    insights.forEach(insight => {
-      const trendIcon = insight.trend === 'degradation' ? 'fa-arrow-up' : 'fa-arrow-down';
-      const trendClass = insight.trend === 'degradation' ? 'trend-bad' : 'trend-good';
-      const trendColor = insight.trend === 'degradation' ? '#F44336' : '#4CAF50';
-      
+
+    insights.forEach((insight) => {
+      const trendIcon =
+        insight.trend === "degradation" ? "fa-arrow-up" : "fa-arrow-down";
+      const trendClass =
+        insight.trend === "degradation" ? "trend-bad" : "trend-good";
+      const trendColor =
+        insight.trend === "degradation" ? "#F44336" : "#4CAF50";
+
       html += `
         <div class="insight-card">
-          <h6><code>${insight.endpoint}</code></h6>
+          <h6><code>${insight.label}</code></h6>
           <div class="insight-stats">
             <div class="insight-stat">
               <i class="fas ${trendIcon}" style="color: ${trendColor}"></i>
-              <span class="${trendClass}">${Math.abs(insight.changePercent)}% ${insight.trend}</span>
-              <small>${Math.abs(insight.change).toFixed(0)}ms ${insight.change > 0 ? 'slower' : 'faster'}</small>
+              <span class="${trendClass}">${Math.abs(insight.changePercent)}% ${
+        insight.trend
+      }</span>
+              <small>${Math.abs(insight.change).toFixed(0)}ms ${
+        insight.change > 0 ? "slower" : "faster"
+      }</small>
             </div>
             <div class="insight-stat">
               <i class="fas fa-bug"></i>
@@ -1843,88 +2373,103 @@ export class DevToolsPanel {
               <span>${insight.totalRequests} requests</span>
             </div>
           </div>
-          ${insight.spikes.length > 0 ? `
+          ${
+            insight.spikes.length > 0
+              ? `
             <div class="insight-spikes">
               <strong><i class="fas fa-exclamation-triangle"></i> Performance Spikes Detected:</strong>
               <ul>
-                ${insight.spikes.slice(0, 3).map(spike => `
+                ${insight.spikes
+                  .slice(0, 3)
+                  .map(
+                    (spike) => `
                   <li>${spike.time}: +${spike.increase}% (${spike.from}ms → ${spike.to}ms)</li>
-                `).join('')}
+                `
+                  )
+                  .join("")}
               </ul>
               <p class="hint">Check deployments or PR merges around these times</p>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
         </div>
       `;
     });
-    
-    html += '</div>';
-    
-    document.getElementById('insightsContent').innerHTML = html;
-    document.getElementById('performanceInsights').style.display = 'block';
+
+    html += "</div>";
+
+    document.getElementById("insightsContent").innerHTML = html;
+    document.getElementById("performanceInsights").style.display = "block";
   }
-  
+
   // Load waterfall chart data
   async loadWaterfallData() {
     try {
       const filters = this.getActiveFilters();
-      
-      console.log('🌊 Loading waterfall data with filters:', filters);
-      
+
+      console.log("🌊 Loading waterfall data with filters:", filters);
+
       const response = await chrome.runtime.sendMessage({
-        action: 'getWaterfallData',
+        action: "getWaterfallData",
         filters,
-        limit: 50
+        limit: 50,
       });
-      
-      console.log('🌊 Waterfall response:', {
+
+      console.log("🌊 Waterfall response:", {
         success: response?.success,
         requestsLength: response?.requests?.length,
-        error: response?.error
+        error: response?.error,
       });
-      
-      const container = document.getElementById('waterfallChart');
-      
+
+      const container = document.getElementById("waterfallChart");
+
       if (!response || !response.success) {
-        const errorMsg = response?.error || 'Unknown error';
-        console.error('Waterfall data fetch failed:', errorMsg);
+        const errorMsg = response?.error || "Unknown error";
+        console.error("Waterfall data fetch failed:", errorMsg);
         container.innerHTML = `<p class="error-message">Error loading waterfall data: ${errorMsg}</p>`;
         return;
       }
-      
+
       if (!response.requests || response.requests.length === 0) {
-        container.innerHTML = '<p class="no-data"><i class="fas fa-info-circle"></i> No requests available for waterfall visualization. Try adjusting filters or wait for requests to be captured.</p>';
+        container.innerHTML =
+          '<p class="no-data"><i class="fas fa-info-circle"></i> No requests available for waterfall visualization. Try adjusting filters or wait for requests to be captured.</p>';
         return;
       }
-      
-      console.log('🌊 Rendering waterfall chart with', response.requests.length, 'requests');
-      
+
+      console.log(
+        "🌊 Rendering waterfall chart with",
+        response.requests.length,
+        "requests"
+      );
+
       // Render waterfall chart
       this.renderWaterfallChart(response.requests);
-      
     } catch (error) {
-      console.error('Failed to load waterfall data:', error);
-      const container = document.getElementById('waterfallChart');
+      console.error("Failed to load waterfall data:", error);
+      const container = document.getElementById("waterfallChart");
       if (container) {
         container.innerHTML = `<p class="error-message"><i class="fas fa-exclamation-triangle"></i> Error loading waterfall chart: ${error.message}</p>`;
       }
     }
   }
-  
+
   // Render waterfall chart visualization
   renderWaterfallChart(requests) {
-    const container = document.getElementById('waterfallChart');
-    
+    const container = document.getElementById("waterfallChart");
+
     if (requests.length === 0) {
       container.innerHTML = '<p class="no-data">No requests to display</p>';
       return;
     }
-    
+
     // Find timeline bounds
-    const minTime = Math.min(...requests.map(r => r.timestamp));
-    const maxTime = Math.max(...requests.map(r => r.timestamp + (r.duration || 0)));
+    const minTime = Math.min(...requests.map((r) => r.timestamp));
+    const maxTime = Math.max(
+      ...requests.map((r) => r.timestamp + (r.duration || 0))
+    );
     const timeRange = maxTime - minTime || 1000; // Default to 1 second if all same time
-    
+
     // Create timeline header with time markers
     let html = `
       <div class="waterfall-header">
@@ -1940,35 +2485,43 @@ export class DevToolsPanel {
           <span>0ms</span>
           <span>${Math.round(timeRange / 4)}ms</span>
           <span>${Math.round(timeRange / 2)}ms</span>
-          <span>${Math.round(3 * timeRange / 4)}ms</span>
+          <span>${Math.round((3 * timeRange) / 4)}ms</span>
           <span>${Math.round(timeRange)}ms</span>
         </div>
       </div>
       <div class="waterfall-rows">
     `;
-    
+
     requests.forEach((req, index) => {
       const startOffset = ((req.timestamp - minTime) / timeRange) * 100;
       const duration = req.duration || 0;
       const width = Math.max((duration / timeRange) * 100, 0.5);
-      
-      const statusClass = req.status >= 400 ? 'error' : req.status >= 300 ? 'warning' : 'success';
-      
+
+      const statusClass =
+        req.status >= 400 ? "error" : req.status >= 300 ? "warning" : "success";
+
       // Estimate timing phases if not provided
       const phases = req.phases || this.estimateTimingPhases(req);
-      const totalPhases = Object.values(phases).reduce((a, b) => a + b, 0) || duration;
-      
+      const totalPhases =
+        Object.values(phases).reduce((a, b) => a + b, 0) || duration;
+
       html += `
         <div class="waterfall-row" data-index="${index}">
           <div class="waterfall-info">
             <div class="waterfall-label" title="${req.url}">
-              <span class="method-badge ${statusClass}">${req.method || 'GET'}</span>
-              <span class="status-code status-${statusClass}">${req.status || ''}</span>
+              <span class="method-badge ${statusClass}">${
+        req.method || "GET"
+      }</span>
+              <span class="status-code status-${statusClass}">${
+        req.status || ""
+      }</span>
               <span class="url-text">${this.truncateUrl(req.url, 35)}</span>
             </div>
           </div>
           <div class="waterfall-timeline">
-            <div class="waterfall-bar" style="left: ${startOffset}%; width: ${width}%;" title="${req.url}">
+            <div class="waterfall-bar" style="left: ${startOffset}%; width: ${width}%;" title="${
+        req.url
+      }">
               ${this.renderWaterfallPhases(phases, totalPhases)}
             </div>
             <div class="waterfall-duration">${Math.round(duration)}ms</div>
@@ -1976,18 +2529,18 @@ export class DevToolsPanel {
         </div>
       `;
     });
-    
-    html += '</div>';
+
+    html += "</div>";
     container.innerHTML = html;
   }
-  
+
   // Estimate timing phases from available data
   estimateTimingPhases(request) {
     const duration = request.duration || 0;
-    
+
     // If we don't have detailed timing, estimate based on request type
     const phases = {};
-    
+
     // Rough estimates for different phases
     if (duration > 0) {
       // DNS typically 20-50ms
@@ -1995,7 +2548,7 @@ export class DevToolsPanel {
       // TCP connection 20-100ms
       phases.tcp = Math.min(duration * 0.15, 100);
       // SSL for HTTPS
-      if (request.url && request.url.startsWith('https')) {
+      if (request.url && request.url.startsWith("https")) {
         phases.ssl = Math.min(duration * 0.1, 80);
       }
       // Waiting for response (TTFB)
@@ -2003,77 +2556,95 @@ export class DevToolsPanel {
       // Download
       phases.download = duration * 0.35;
     }
-    
+
     return phases;
   }
-  
+
   // Render waterfall timing phases
   renderWaterfallPhases(phases, total) {
     const colors = {
-      queued: '#cbd5e0',
-      dns: '#48bb78',
-      tcp: '#4299e1',
-      ssl: '#9f7aea',
-      waiting: '#ed8936',
-      ttfb: '#ed8936',
-      download: '#f56565'
+      queued: "#cbd5e0",
+      dns: "#48bb78",
+      tcp: "#4299e1",
+      ssl: "#9f7aea",
+      waiting: "#ed8936",
+      ttfb: "#ed8936",
+      download: "#f56565",
     };
-    
+
     const phaseNames = {
-      queued: 'Queued',
-      dns: 'DNS Lookup',
-      tcp: 'TCP Connection',
-      ssl: 'SSL/TLS',
-      waiting: 'Waiting (TTFB)',
-      ttfb: 'Waiting (TTFB)',
-      download: 'Content Download'
+      queued: "Queued",
+      dns: "DNS Lookup",
+      tcp: "TCP Connection",
+      ssl: "SSL/TLS",
+      waiting: "Waiting (TTFB)",
+      ttfb: "Waiting (TTFB)",
+      download: "Content Download",
     };
-    
-    let html = '';
+
+    let html = "";
     let cumulative = 0;
-    
+
     // Order phases logically
-    const orderedPhases = ['queued', 'dns', 'tcp', 'ssl', 'waiting', 'ttfb', 'download'];
-    
-    orderedPhases.forEach(phase => {
+    const orderedPhases = [
+      "queued",
+      "dns",
+      "tcp",
+      "ssl",
+      "waiting",
+      "ttfb",
+      "download",
+    ];
+
+    orderedPhases.forEach((phase) => {
       if (phases[phase] && phases[phase] > 0) {
         const time = phases[phase];
         const percent = (time / total) * 100;
         html += `
           <div class="phase-segment ${phase}" 
-               style="left: ${cumulative}%; width: ${Math.max(percent, 0.5)}%; background: ${colors[phase] || '#888'};"
+               style="left: ${cumulative}%; width: ${Math.max(
+          percent,
+          0.5
+        )}%; background: ${colors[phase] || "#888"};"
                title="${phaseNames[phase] || phase}: ${Math.round(time)}ms">
           </div>
         `;
         cumulative += percent;
       }
     });
-    
+
     // If no segments were rendered, show a simple bar
-    if (html === '') {
-      html = `<div class="phase-segment default" style="width: 100%; background: ${colors.download};" title="Total: ${Math.round(total)}ms"></div>`;
+    if (html === "") {
+      html = `<div class="phase-segment default" style="width: 100%; background: ${
+        colors.download
+      };" title="Total: ${Math.round(total)}ms"></div>`;
     }
-    
+
     return html;
   }
-  
+
   // Load resources data
   async loadResourcesData() {
     try {
       const filters = this.getActiveFilters();
       const response = await chrome.runtime.sendMessage({
-        action: 'getResourceSizeBreakdown',
-        filters
+        action: "getResourceSizeBreakdown",
+        filters,
       });
-      
-      if (!response.success || !response.breakdown || response.breakdown.length === 0) {
-        document.getElementById('resourcesTable').innerHTML = '<p class="no-data">No resource data available</p>';
+
+      if (
+        !response.success ||
+        !response.breakdown ||
+        response.breakdown.length === 0
+      ) {
+        document.getElementById("resourcesTable").innerHTML =
+          '<p class="no-data">No resource data available</p>';
         return;
       }
-      
+
       // Render pie chart
       this.renderResourcePieChart(response.breakdown);
-      
+
       // Render table
       let html = `
         <h5>Total Size: ${this.formatBytes(response.totalSize)}</h5>
@@ -2090,8 +2661,8 @@ export class DevToolsPanel {
           </thead>
           <tbody>
       `;
-      
-      response.breakdown.forEach(item => {
+
+      response.breakdown.forEach((item) => {
         html += `
           <tr>
             <td><strong>${item.type}</strong></td>
@@ -2103,65 +2674,78 @@ export class DevToolsPanel {
           </tr>
         `;
       });
-      
-      html += '</tbody></table>';
-      document.getElementById('resourcesTable').innerHTML = html;
-      
+
+      html += "</tbody></table>";
+      document.getElementById("resourcesTable").innerHTML = html;
+
       // Add compression analysis
       this.renderCompressionAnalysis(response.breakdown, response.totalSize);
-      
     } catch (error) {
-      console.error('Failed to load resources data:', error);
+      console.error("Failed to load resources data:", error);
     }
   }
-  
+
   // Render resource pie chart
   renderResourcePieChart(breakdown) {
-    const ctx = document.getElementById('resourcePieChart').getContext('2d');
-    
+    const ctx = document.getElementById("resourcePieChart").getContext("2d");
+
     if (this.resourceChart) {
       this.resourceChart.destroy();
     }
-    
-    const labels = breakdown.map(b => b.type);
-    const data = breakdown.map(b => b.totalBytes);
-    
+
+    const labels = breakdown.map((b) => b.type);
+    const data = breakdown.map((b) => b.totalBytes);
+
     this.resourceChart = new Chart(ctx, {
-      type: 'pie',
+      type: "pie",
       data: {
         labels,
-        datasets: [{
-          data,
-          backgroundColor: [
-            '#4CAF50', '#2196F3', '#FF9800', '#F44336',
-            '#9C27B0', '#00BCD4', '#FFEB3B', '#795548'
-          ]
-        }]
+        datasets: [
+          {
+            data,
+            backgroundColor: [
+              "#4CAF50",
+              "#2196F3",
+              "#FF9800",
+              "#F44336",
+              "#9C27B0",
+              "#00BCD4",
+              "#FFEB3B",
+              "#795548",
+            ],
+          },
+        ],
       },
       options: {
         responsive: true,
         plugins: {
           legend: {
-            position: 'right'
+            position: "right",
           },
           title: {
             display: true,
-            text: 'Resource Size Distribution'
-          }
-        }
-      }
+            text: "Resource Size Distribution",
+          },
+        },
+      },
     });
   }
-  
+
   // Render compression analysis
   renderCompressionAnalysis(breakdown, totalSize) {
-    const compressibleTypes = ['script', 'stylesheet', 'xmlhttprequest', 'fetch', 'document'];
+    const compressibleTypes = [
+      "script",
+      "stylesheet",
+      "xmlhttprequest",
+      "fetch",
+      "document",
+    ];
     const compressibleSize = breakdown
-      .filter(b => compressibleTypes.includes(b.type))
+      .filter((b) => compressibleTypes.includes(b.type))
       .reduce((sum, b) => sum + b.totalBytes, 0);
-    
+
     const potentialSavings = compressibleSize * 0.7; // Assume 70% compression ratio
-    
+
     const html = `
       <div class="compression-stats-content">
         <div class="stat-item">
@@ -2174,51 +2758,54 @@ export class DevToolsPanel {
         </div>
         <div class="stat-item">
           <label>Compression Ratio:</label>
-          <span>${((potentialSavings / totalSize) * 100).toFixed(1)}% of total</span>
+          <span>${((potentialSavings / totalSize) * 100).toFixed(
+            1
+          )}% of total</span>
         </div>
         <p class="hint"><i class="fas fa-info-circle"></i> Enable gzip/brotli compression on your server to reduce transfer size</p>
       </div>
     `;
-    
-    document.getElementById('compressionStats').innerHTML = html;
+
+    document.getElementById("compressionStats").innerHTML = html;
   }
 
   // Load errors data with enhanced categorization
   async loadErrorsData() {
     try {
-      const filters = {...this.getActiveFilters()};
-      
+      const filters = { ...this.getActiveFilters() };
+
       // Get 4xx errors
-      const filters4xx = {...filters, statusPrefix: '4xx'};
+      const filters4xx = { ...filters, statusPrefix: "4xx" };
       const response4xx = await chrome.runtime.sendMessage({
-        action: 'getDetailedRequests',
+        action: "getDetailedRequests",
         filters: filters4xx,
-        limit: 50
+        limit: 50,
       });
-      
+
       // Get 5xx errors
-      const filters5xx = {...filters, statusPrefix: '5xx'};
+      const filters5xx = { ...filters, statusPrefix: "5xx" };
       const response5xx = await chrome.runtime.sendMessage({
-        action: 'getDetailedRequests',
+        action: "getDetailedRequests",
         filters: filters5xx,
-        limit: 50
+        limit: 50,
       });
-      
-      const errorsList = document.getElementById('errorsList');
-      const errorCategories = document.getElementById('errorCategories');
-      
+
+      const errorsList = document.getElementById("errorsList");
+      const errorCategories = document.getElementById("errorCategories");
+
       const errors4xx = response4xx.success ? response4xx.requests : [];
       const errors5xx = response5xx.success ? response5xx.requests : [];
       const totalErrors = errors4xx.length + errors5xx.length;
-      
+
       if (totalErrors === 0) {
-        errorsList.innerHTML = '<p class="no-data">No errors found for selected filters</p>';
-        errorCategories.innerHTML = '';
+        errorsList.innerHTML =
+          '<p class="no-data">No errors found for selected filters</p>';
+        errorCategories.innerHTML = "";
         return;
       }
-      
+
       // Render error categories
-      let categoriesHtml = `
+      const categoriesHtml = `
         <div class="error-category-stats">
           <div class="category-card client-error">
             <h5>4xx Client Errors</h5>
@@ -2233,48 +2820,50 @@ export class DevToolsPanel {
         </div>
       `;
       errorCategories.innerHTML = categoriesHtml;
-      
+
       // Render detailed error list
       let listHtml = `<div class="errors-list-content">`;
-      
+
       if (errors4xx.length > 0) {
-        listHtml += '<h5><i class="fas fa-exclamation-triangle"></i> Client Errors (4xx)</h5>';
-        errors4xx.forEach(err => {
-          listHtml += this.renderErrorItem(err, 'client');
+        listHtml +=
+          '<h5><i class="fas fa-exclamation-triangle"></i> Client Errors (4xx)</h5>';
+        errors4xx.forEach((err) => {
+          listHtml += this.renderErrorItem(err, "client");
         });
       }
-      
+
       if (errors5xx.length > 0) {
-        listHtml += '<h5><i class="fas fa-times-circle"></i> Server Errors (5xx)</h5>';
-        errors5xx.forEach(err => {
-          listHtml += this.renderErrorItem(err, 'server');
+        listHtml +=
+          '<h5><i class="fas fa-times-circle"></i> Server Errors (5xx)</h5>';
+        errors5xx.forEach((err) => {
+          listHtml += this.renderErrorItem(err, "server");
         });
       }
-      
-      listHtml += '</div>';
+
+      listHtml += "</div>";
       errorsList.innerHTML = listHtml;
-      
+
       // Store error requests for action handlers
       this.currentErrors = [...errors4xx, ...errors5xx];
-      
+
       // Add event delegation for error actions
       if (!errorsList.dataset.listenerAdded) {
-        errorsList.dataset.listenerAdded = 'true';
-        errorsList.addEventListener('click', (e) => {
-          const detailsBtn = e.target.closest('.btn-error-details');
+        errorsList.dataset.listenerAdded = "true";
+        errorsList.addEventListener("click", (e) => {
+          const detailsBtn = e.target.closest(".btn-error-details");
           if (detailsBtn) {
             const requestId = detailsBtn.dataset.requestId;
-            const request = this.currentErrors.find(r => r.id === requestId);
+            const request = this.currentErrors.find((r) => r.id === requestId);
             if (request) {
               this.viewRequestDetails(requestId);
             }
             return;
           }
-          
-          const curlBtn = e.target.closest('.btn-error-curl');
+
+          const curlBtn = e.target.closest(".btn-error-curl");
           if (curlBtn) {
             const requestId = curlBtn.dataset.requestId;
-            const request = this.currentErrors.find(r => r.id === requestId);
+            const request = this.currentErrors.find((r) => r.id === requestId);
             if (request) {
               this.copyAsCurl(request);
             }
@@ -2282,154 +2871,175 @@ export class DevToolsPanel {
           }
         });
       }
-      
+
       // Render error distribution chart
       this.renderErrorChart(errors4xx, errors5xx);
-      
     } catch (error) {
-      console.error('Failed to load errors data:', error);
+      console.error("Failed to load errors data:", error);
     }
   }
-  
+
   renderErrorItem(err, type) {
-    const typeClass = type === 'client' ? 'error-client' : 'error-server';
-    const domain = err.domain || 'N/A';
-    const pageUrl = err.page_url || 'N/A';
-    
+    const typeClass = type === "client" ? "error-client" : "error-server";
+    const domain = err.domain || "N/A";
+    const pageUrl = err.page_url || "N/A";
+
     // Extract path from page URL for display
     let pageDisplay = pageUrl;
-    if (pageUrl !== 'N/A') {
+    if (pageUrl !== "N/A") {
       try {
         const url = new URL(pageUrl);
-        pageDisplay = url.pathname + url.search || '/';
+        pageDisplay = url.pathname + url.search || "/";
       } catch (e) {
         pageDisplay = pageUrl;
       }
     }
-    
+
     return `
       <div class="error-item ${typeClass}">
         <div class="error-header">
           <span class="status-badge status-error">${err.status}</span>
-          <span class="error-url" title="${err.url}">${this.truncateUrl(err.url, 60)}</span>
-          <span class="error-time">${new Date(err.timestamp).toLocaleTimeString()}</span>
+          <span class="error-url" title="${err.url}">${this.truncateUrl(
+      err.url,
+      60
+    )}</span>
+          <span class="error-time">${new Date(
+            err.timestamp
+          ).toLocaleTimeString()}</span>
         </div>
         <div class="error-details">
-          <span><i class="fas fa-code"></i> ${err.method || 'GET'}</span>
-          <span><i class="fas fa-tag"></i> ${err.type || 'unknown'}</span>
+          <span><i class="fas fa-code"></i> ${err.method || "GET"}</span>
+          <span><i class="fas fa-tag"></i> ${err.type || "unknown"}</span>
           <span><i class="fas fa-globe"></i> ${domain}</span>
-          <span title="${pageUrl}"><i class="fas fa-file"></i> ${this.truncateUrl(pageDisplay, 30)}</span>
-          ${err.error ? `<span class="error-message"><i class="fas fa-info-circle"></i> ${err.error}</span>` : ''}
+          <span title="${pageUrl}"><i class="fas fa-file"></i> ${this.truncateUrl(
+      pageDisplay,
+      30
+    )}</span>
+          ${
+            err.error
+              ? `<span class="error-message"><i class="fas fa-info-circle"></i> ${err.error}</span>`
+              : ""
+          }
         </div>
         <div class="error-actions">
-          <button class="btn-icon btn-error-details" data-request-id="${err.id}" title="View details">
+          <button class="btn-icon btn-error-details" data-request-id="${
+            err.id
+          }" title="View details">
             <i class="fas fa-info-circle"></i>
           </button>
-          <button class="btn-icon btn-error-curl" data-request-id="${err.id}" title="Copy as cURL">
+          <button class="btn-icon btn-error-curl" data-request-id="${
+            err.id
+          }" title="Copy as cURL">
             <i class="fas fa-terminal"></i>
           </button>
         </div>
       </div>
     `;
   }
-  
+
   renderErrorChart(errors4xx, errors5xx) {
-    const ctx = document.getElementById('errorsChart').getContext('2d');
-    
+    const ctx = document.getElementById("errorsChart").getContext("2d");
+
     if (this.errorChart) {
       this.errorChart.destroy();
     }
-    
+
     // Group by status code
     const statusCounts = {};
-    [...errors4xx, ...errors5xx].forEach(err => {
+    [...errors4xx, ...errors5xx].forEach((err) => {
       statusCounts[err.status] = (statusCounts[err.status] || 0) + 1;
     });
-    
+
     const labels = Object.keys(statusCounts).sort();
-    const data = labels.map(status => statusCounts[status]);
-    
+    const data = labels.map((status) => statusCounts[status]);
+
     this.errorChart = new Chart(ctx, {
-      type: 'bar',
+      type: "bar",
       data: {
         labels,
-        datasets: [{
-          label: 'Error Count',
-          data,
-          backgroundColor: labels.map(s => parseInt(s) >= 500 ? '#F44336' : '#FF9800')
-        }]
+        datasets: [
+          {
+            label: "Error Count",
+            data,
+            backgroundColor: labels.map((s) =>
+              parseInt(s) >= 500 ? "#F44336" : "#FF9800"
+            ),
+          },
+        ],
       },
       options: {
         responsive: true,
         plugins: {
           legend: {
-            display: false
+            display: false,
           },
           title: {
             display: true,
-            text: 'Errors by Status Code'
-          }
+            text: "Errors by Status Code",
+          },
         },
         scales: {
           y: {
             beginAtZero: true,
             title: {
               display: true,
-              text: 'Count'
-            }
-          }
-        }
-      }
+              text: "Count",
+            },
+          },
+        },
+      },
     });
   }
 
   // Search requests
   searchRequests(query) {
-    const tbody = document.getElementById('requestsTableBody');
+    const tbody = document.getElementById("requestsTableBody");
     if (!tbody) {
-      console.warn('requestsTableBody not found');
+      console.warn("requestsTableBody not found");
       return;
     }
-    
-    const rows = tbody.querySelectorAll('tr');
+
+    const rows = tbody.querySelectorAll("tr");
     const searchLower = query.toLowerCase().trim();
-    
+
     console.log(`Searching for: "${query}" in ${rows.length} rows`);
-    
+
     let matchCount = 0;
     let totalDataRows = 0;
-    
+
     // Filter rows based on search query
-    rows.forEach(row => {
+    rows.forEach((row) => {
       // Skip no-data-row
-      if (row.classList.contains('no-data-row')) {
+      if (row.classList.contains("no-data-row")) {
         return;
       }
-      
+
       totalDataRows++;
-      
+
       if (!searchLower) {
         // Show all rows if search is empty
-        row.style.display = '';
+        row.style.display = "";
         matchCount++;
         return;
       }
-      
-      const cells = row.querySelectorAll('td');
+
+      const cells = row.querySelectorAll("td");
       let found = false;
-      
-      cells.forEach(cell => {
+
+      cells.forEach((cell) => {
         const text = cell.textContent.toLowerCase();
         if (text.includes(searchLower)) {
           found = true;
         }
       });
-      
-      row.style.display = found ? '' : 'none';
+
+      row.style.display = found ? "" : "none";
       if (found) matchCount++;
     });
-    
-    console.log(`Search: "${query}" - ${matchCount} matches out of ${totalDataRows} total rows`);
+
+    console.log(
+      `Search: "${query}" - ${matchCount} matches out of ${totalDataRows} total rows`
+    );
   }
 
   // Get active filters
@@ -2438,37 +3048,39 @@ export class DevToolsPanel {
     const timeRange = document.getElementById("timeRange");
     const requestTypeFilter = document.getElementById("requestTypeFilter");
     const statusFilter = document.getElementById("statusFilter");
-    
-    const filters = { 
-      timeRange: timeRange ? parseInt(timeRange.value) : this.DEFAULT_TIME_RANGE 
+
+    const filters = {
+      timeRange: timeRange
+        ? parseInt(timeRange.value)
+        : this.DEFAULT_TIME_RANGE,
     };
-    
+
     // Use the current domain (already determined from inspected window)
     if (this.currentDomain) {
       filters.domain = this.currentDomain;
     }
-    
+
     // Add page filter (if specific page selected)
     const pageValue = pageFilter ? pageFilter.value : "";
     if (pageValue && pageValue !== "") {
       filters.pageUrl = pageValue;
     }
-    
+
     // Add request type filter
     const requestType = requestTypeFilter ? requestTypeFilter.value : "";
     if (requestType) {
       filters.type = requestType;
     }
-    
+
     // Add status filter
     const status = statusFilter ? statusFilter.value : "";
     if (status) {
       filters.statusPrefix = status;
     }
-    
+
     // Update active filters display
     this.updateActiveFiltersDisplay(filters);
-    
+
     return filters;
   }
 
@@ -2476,7 +3088,7 @@ export class DevToolsPanel {
   updateActiveFiltersDisplay(filters) {
     const container = document.getElementById("activeFiltersDisplay");
     const list = document.getElementById("activeFiltersList");
-    
+
     const activeFilters = [];
     if (filters.domain) {
       activeFilters.push(`Domain: ${filters.domain}`);
@@ -2484,7 +3096,7 @@ export class DevToolsPanel {
     if (filters.pageUrl) {
       try {
         const url = new URL(filters.pageUrl);
-        const path = url.pathname + url.search || '/';
+        const path = url.pathname + url.search || "/";
         activeFilters.push(`Page: ${path}`);
       } catch (e) {
         activeFilters.push(`Page: ${filters.pageUrl}`);
@@ -2493,13 +3105,16 @@ export class DevToolsPanel {
       activeFilters.push(`Page: All (Aggregated)`);
     }
     if (filters.type) activeFilters.push(`Type: ${filters.type}`);
-    if (filters.statusPrefix) activeFilters.push(`Status: ${filters.statusPrefix}`);
-    
+    if (filters.statusPrefix)
+      activeFilters.push(`Status: ${filters.statusPrefix}`);
+
     if (activeFilters.length > 0) {
-      list.innerHTML = activeFilters.map(f => `<span class="filter-tag">${f}</span>`).join('');
-      container.style.display = 'flex';
+      list.innerHTML = activeFilters
+        .map((f) => `<span class="filter-tag">${f}</span>`)
+        .join("");
+      container.style.display = "flex";
     } else {
-      container.style.display = 'none';
+      container.style.display = "none";
     }
   }
 
@@ -2512,228 +3127,233 @@ export class DevToolsPanel {
 
   // Show/hide no data state
   showNoDataState(show) {
-    const noDataEl = document.getElementById('noDataState');
-    const contentEl = document.querySelector('.content-tabs');
-    
+    const noDataEl = document.getElementById("noDataState");
+    const contentEl = document.querySelector(".content-tabs");
+
     if (show) {
-      noDataEl.style.display = 'flex';
-      contentEl.style.display = 'none';
+      noDataEl.style.display = "flex";
+      contentEl.style.display = "none";
     } else {
-      noDataEl.style.display = 'none';
-      contentEl.style.display = 'block';
+      noDataEl.style.display = "none";
+      contentEl.style.display = "block";
     }
   }
-  
+
   // Time Travel Modal methods
   openTimeTravelModal() {
-    const modal = document.getElementById('timeTravelModal');
+    const modal = document.getElementById("timeTravelModal");
     if (modal) {
-      modal.style.display = 'flex';
+      modal.style.display = "flex";
     }
   }
-  
+
   closeTimeTravelModal() {
-    const modal = document.getElementById('timeTravelModal');
+    const modal = document.getElementById("timeTravelModal");
     if (modal) {
-      modal.style.display = 'none';
+      modal.style.display = "none";
     }
   }
-  
+
   async loadHistoricalData() {
     try {
       const filters = this.getActiveFilters();
-      const groupBy = document.getElementById('timeTravelGroupBy').value;
-      
+      const groupBy = document.getElementById("timeTravelGroupBy").value;
+
       const response = await chrome.runtime.sendMessage({
-        action: 'getHistoricalData',
+        action: "getHistoricalData",
         filters,
-        groupBy
+        groupBy,
       });
-      
+
       if (!response.success || !response.data || response.data.length === 0) {
         // Show inline message instead of alert
-        const container = document.getElementById('historicalChartContainer');
-        container.innerHTML = '<p class="info-message"><i class="fas fa-info-circle"></i> No historical data available for the selected filters and time range</p>';
+        const container = document.getElementById("historicalChartContainer");
+        container.innerHTML =
+          '<p class="info-message"><i class="fas fa-info-circle"></i> No historical data available for the selected filters and time range</p>';
         return;
       }
-      
+
       // Create historical chart
       this.renderHistoricalChart(response.data);
-      
     } catch (error) {
-      console.error('Failed to load historical data:', error);
-      const container = document.getElementById('historicalChartContainer');
-      container.innerHTML = '<p class="error-message"><i class="fas fa-exclamation-circle"></i> Error loading historical data. Please try again.</p>';
+      console.error("Failed to load historical data:", error);
+      const container = document.getElementById("historicalChartContainer");
+      container.innerHTML =
+        '<p class="error-message"><i class="fas fa-exclamation-circle"></i> Error loading historical data. Please try again.</p>';
     }
   }
-  
+
   renderHistoricalChart(data) {
-    const ctx = document.getElementById('historicalChart').getContext('2d');
-    
+    const ctx = document.getElementById("historicalChart").getContext("2d");
+
     // Destroy existing chart if any
     if (this.historicalChart) {
       this.historicalChart.destroy();
     }
-    
-    const labels = data.map(d => d.timeBucket);
-    const requestCounts = data.map(d => d.requestCount);
-    const avgDurations = data.map(d => d.avgDuration);
-    const errorCounts = data.map(d => d.errorCount);
-    
+
+    const labels = data.map((d) => d.timeBucket);
+    const requestCounts = data.map((d) => d.requestCount);
+    const avgDurations = data.map((d) => d.avgDuration);
+    const errorCounts = data.map((d) => d.errorCount);
+
     this.historicalChart = new Chart(ctx, {
-      type: 'line',
+      type: "line",
       data: {
         labels,
         datasets: [
           {
-            label: 'Request Count',
+            label: "Request Count",
             data: requestCounts,
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.1)',
-            yAxisID: 'y',
-            tension: 0.4
+            borderColor: "rgb(75, 192, 192)",
+            backgroundColor: "rgba(75, 192, 192, 0.1)",
+            yAxisID: "y",
+            tension: 0.4,
           },
           {
-            label: 'Avg Duration (ms)',
+            label: "Avg Duration (ms)",
             data: avgDurations,
-            borderColor: 'rgb(54, 162, 235)',
-            backgroundColor: 'rgba(54, 162, 235, 0.1)',
-            yAxisID: 'y1',
-            tension: 0.4
+            borderColor: "rgb(54, 162, 235)",
+            backgroundColor: "rgba(54, 162, 235, 0.1)",
+            yAxisID: "y1",
+            tension: 0.4,
           },
           {
-            label: 'Errors',
+            label: "Errors",
             data: errorCounts,
-            borderColor: 'rgb(255, 99, 132)',
-            backgroundColor: 'rgba(255, 99, 132, 0.1)',
-            yAxisID: 'y',
-            tension: 0.4
-          }
-        ]
+            borderColor: "rgb(255, 99, 132)",
+            backgroundColor: "rgba(255, 99, 132, 0.1)",
+            yAxisID: "y",
+            tension: 0.4,
+          },
+        ],
       },
       options: {
         responsive: true,
         interaction: {
-          mode: 'index',
+          mode: "index",
           intersect: false,
         },
         plugins: {
           title: {
             display: true,
-            text: 'Historical Performance Data'
+            text: "Historical Performance Data",
           },
           legend: {
             display: true,
-            position: 'top'
-          }
+            position: "top",
+          },
         },
         scales: {
           y: {
-            type: 'linear',
+            type: "linear",
             display: true,
-            position: 'left',
+            position: "left",
             title: {
               display: true,
-              text: 'Request Count / Errors'
-            }
+              text: "Request Count / Errors",
+            },
           },
           y1: {
-            type: 'linear',
+            type: "linear",
             display: true,
-            position: 'right',
+            position: "right",
             title: {
               display: true,
-              text: 'Avg Duration (ms)'
+              text: "Avg Duration (ms)",
             },
             grid: {
               drawOnChartArea: false,
             },
           },
-        }
-      }
+        },
+      },
     });
   }
-  
+
   // HAR Export functions
   async copyAsHAR() {
     try {
       const har = await this.generateHAR();
       await navigator.clipboard.writeText(JSON.stringify(har, null, 2));
-      
-      this.showToast('HAR data copied to clipboard', 'success');
+
+      this.showToast("HAR data copied to clipboard", "success");
     } catch (error) {
-      console.error('Failed to copy HAR:', error);
-      this.showToast('Failed to copy HAR data', 'error');
+      console.error("Failed to copy HAR:", error);
+      this.showToast("Failed to copy HAR data", "error");
     }
   }
-  
+
   async exportAsHAR() {
     try {
       const har = await this.generateHAR();
-      const blob = new Blob([JSON.stringify(har, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(har, null, 2)], {
+        type: "application/json",
+      });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `network-export-${Date.now()}.har`;
       a.click();
       URL.revokeObjectURL(url);
-      
-      this.showToast('HAR file exported', 'success');
+
+      this.showToast("HAR file exported", "success");
     } catch (error) {
-      console.error('Failed to export HAR:', error);
-      this.showToast('Failed to export HAR file', 'error');
+      console.error("Failed to export HAR:", error);
+      this.showToast("Failed to export HAR file", "error");
     }
   }
-  
+
   async generateHAR() {
     const filters = this.getActiveFilters();
     const response = await chrome.runtime.sendMessage({
-      action: 'getDetailedRequests',
+      action: "getDetailedRequests",
       filters,
-      limit: 1000
+      limit: 1000,
     });
-    
+
     if (!response.success || !response.requests) {
-      throw new Error('No requests available');
+      throw new Error("No requests available");
     }
-    
+
     // Generate HAR format
     const har = {
       log: {
-        version: '1.2',
+        version: "1.2",
         creator: {
-          name: 'Universal Request Analyzer',
-          version: '1.0.0'
+          name: "Universal Request Analyzer",
+          version: "1.0.0",
         },
-        entries: response.requests.map(req => ({
+        entries: response.requests.map((req) => ({
           startedDateTime: new Date(req.timestamp).toISOString(),
           time: req.duration || 0,
           request: {
-            method: req.method || 'GET',
+            method: req.method || "GET",
             url: req.url,
-            httpVersion: 'HTTP/1.1',
+            httpVersion: "HTTP/1.1",
             headers: [],
             queryString: [],
             cookies: [],
             headersSize: -1,
-            bodySize: -1
+            bodySize: -1,
           },
           response: {
             status: req.status || 0,
-            statusText: req.status_text || '',
-            httpVersion: 'HTTP/1.1',
+            statusText: req.status_text || "",
+            httpVersion: "HTTP/1.1",
             headers: [],
             cookies: [],
             content: {
               size: req.size_bytes || 0,
-              mimeType: req.type || 'application/octet-stream'
+              mimeType: req.type || "application/octet-stream",
             },
-            redirectURL: '',
+            redirectURL: "",
             headersSize: -1,
-            bodySize: req.size_bytes || 0
+            bodySize: req.size_bytes || 0,
           },
           cache: {
-            beforeRequest: req.from_cache ? { lastAccess: '', eTag: '', hitCount: 1 } : null
+            beforeRequest: req.from_cache
+              ? { lastAccess: "", eTag: "", hitCount: 1 }
+              : null,
           },
           timings: {
             blocked: -1,
@@ -2742,124 +3362,155 @@ export class DevToolsPanel {
             send: 0,
             wait: req.duration || 0,
             receive: 0,
-            ssl: -1
-          }
-        }))
-      }
+            ssl: -1,
+          },
+        })),
+      },
     };
-    
+
     return har;
   }
-  
+
   // Performance budgets checking
   async checkPerformanceBudgets() {
-    const budgetResponseTime = parseInt(document.getElementById('budgetResponseTime')?.value || 1000);
-    const budgetTotalSize = parseFloat(document.getElementById('budgetTotalSize')?.value || 5) * 1024 * 1024; // Convert to bytes
-    const budgetRequestCount = parseInt(document.getElementById('budgetRequestCount')?.value || 100);
-    
+    const budgetResponseTime = parseInt(
+      document.getElementById("budgetResponseTime")?.value || 1000
+    );
+    const budgetTotalSize =
+      parseFloat(document.getElementById("budgetTotalSize")?.value || 5) *
+      1024 *
+      1024; // Convert to bytes
+    const budgetRequestCount = parseInt(
+      document.getElementById("budgetRequestCount")?.value || 100
+    );
+
     const filters = this.getActiveFilters();
     const response = await chrome.runtime.sendMessage({
-      action: 'getFilteredStats',
-      filters
+      action: "getFilteredStats",
+      filters,
     });
-    
+
     if (!response.success) return;
-    
+
     // Check response time budget
-    const avgResponse = response.responseTimes && response.responseTimes.length > 0
-      ? response.responseTimes.reduce((a, b) => a + b, 0) / response.responseTimes.length
-      : 0;
-    const responseStatus = document.getElementById('budgetResponseStatus');
+    const avgResponse =
+      response.responseTimes && response.responseTimes.length > 0
+        ? response.responseTimes.reduce((a, b) => a + b, 0) /
+          response.responseTimes.length
+        : 0;
+    const responseStatus = document.getElementById("budgetResponseStatus");
     if (responseStatus) {
       if (avgResponse <= budgetResponseTime) {
-        responseStatus.innerHTML = '<i class="fas fa-check-circle"></i> Within budget';
-        responseStatus.className = 'budget-status success';
+        responseStatus.innerHTML =
+          '<i class="fas fa-check-circle"></i> Within budget';
+        responseStatus.className = "budget-status success";
       } else {
-        responseStatus.innerHTML = '<i class="fas fa-times-circle"></i> Over budget';
-        responseStatus.className = 'budget-status error';
+        responseStatus.innerHTML =
+          '<i class="fas fa-times-circle"></i> Over budget';
+        responseStatus.className = "budget-status error";
       }
     }
-    
+
     // Check request count budget
-    const countStatus = document.getElementById('budgetCountStatus');
+    const countStatus = document.getElementById("budgetCountStatus");
     if (countStatus) {
       if (response.totalRequests <= budgetRequestCount) {
-        countStatus.innerHTML = '<i class="fas fa-check-circle"></i> Within budget';
-        countStatus.className = 'budget-status success';
+        countStatus.innerHTML =
+          '<i class="fas fa-check-circle"></i> Within budget';
+        countStatus.className = "budget-status success";
       } else {
-        countStatus.innerHTML = '<i class="fas fa-times-circle"></i> Over budget';
-        countStatus.className = 'budget-status error';
+        countStatus.innerHTML =
+          '<i class="fas fa-times-circle"></i> Over budget';
+        countStatus.className = "budget-status error";
       }
     }
-    
+
     // Check size budget (fetch actual resource size data)
     const sizeResponse = await chrome.runtime.sendMessage({
-      action: 'getResourceSizeBreakdown',
-      filters
+      action: "getResourceSizeBreakdown",
+      filters,
     });
-    
-    const sizeStatus = document.getElementById('budgetSizeStatus');
+
+    const sizeStatus = document.getElementById("budgetSizeStatus");
     if (sizeStatus && sizeResponse.success) {
       const totalSizeMB = (sizeResponse.totalSize || 0) / (1024 * 1024);
-      const budgetSizeMB = parseFloat(document.getElementById('budgetTotalSize')?.value || 5);
-      
+      const budgetSizeMB = parseFloat(
+        document.getElementById("budgetTotalSize")?.value || 5
+      );
+
       if (totalSizeMB <= budgetSizeMB) {
-        sizeStatus.innerHTML = '<i class="fas fa-check-circle"></i> Within budget';
-        sizeStatus.className = 'budget-status success';
+        sizeStatus.innerHTML =
+          '<i class="fas fa-check-circle"></i> Within budget';
+        sizeStatus.className = "budget-status success";
       } else {
-        sizeStatus.innerHTML = '<i class="fas fa-times-circle"></i> Over budget';
-        sizeStatus.className = 'budget-status error';
+        sizeStatus.innerHTML =
+          '<i class="fas fa-times-circle"></i> Over budget';
+        sizeStatus.className = "budget-status error";
       }
     }
   }
-  
+
   // Show toast notification
-  showToast(message, type = 'info') {
-    const toast = document.createElement('div');
+  showToast(message, type = "info") {
+    const toast = document.createElement("div");
     toast.className = `toast-notification toast-${type}`;
-    const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
+    const icon =
+      type === "success"
+        ? "check-circle"
+        : type === "error"
+        ? "exclamation-circle"
+        : "info-circle";
     toast.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
-    toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: ' + 
-      (type === 'success' ? '#4CAF50' : type === 'error' ? '#F44336' : '#2196F3') + 
-      '; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;';
+    toast.style.cssText =
+      "position: fixed; bottom: 20px; right: 20px; background: " +
+      (type === "success"
+        ? "#4CAF50"
+        : type === "error"
+        ? "#F44336"
+        : "#2196F3") +
+      "; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;";
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
   }
-  
+
   // Request Comparison features
   openComparisonModal() {
-    const modal = document.getElementById('comparisonModal');
+    const modal = document.getElementById("comparisonModal");
     if (modal) {
-      modal.style.display = 'flex';
+      modal.style.display = "flex";
       this.loadComparisonData();
     }
   }
-  
+
   closeComparisonModal() {
-    const modal = document.getElementById('comparisonModal');
+    const modal = document.getElementById("comparisonModal");
     if (modal) {
-      modal.style.display = 'none';
+      modal.style.display = "none";
     }
   }
-  
+
   async loadComparisonData() {
     const filters = this.getActiveFilters();
     const response = await chrome.runtime.sendMessage({
-      action: 'getDetailedRequests',
+      action: "getDetailedRequests",
       filters,
-      limit: 10
+      limit: 10,
     });
-    
-    if (!response.success || !response.requests || response.requests.length < 2) {
-      document.getElementById('comparisonContent').innerHTML = 
+
+    if (
+      !response.success ||
+      !response.requests ||
+      response.requests.length < 2
+    ) {
+      document.getElementById("comparisonContent").innerHTML =
         '<p class="info-message">Select at least 2 requests to compare. Showing first 10 requests for demonstration.</p>';
       return;
     }
-    
+
     // Take first 2 requests for comparison
     const req1 = response.requests[0];
     const req2 = response.requests[1];
-    
+
     const html = `
       <div class="comparison-columns">
         <div class="comparison-column">
@@ -2875,16 +3526,24 @@ export class DevToolsPanel {
       <div class="comparison-diff">
         <h4>Differences</h4>
         <ul>
-          <li><strong>Duration:</strong> ${this.formatDiff(req1.duration, req2.duration, 'ms')}</li>
-          <li><strong>Size:</strong> ${this.formatDiff(req1.size_bytes, req2.size_bytes, 'bytes')}</li>
+          <li><strong>Duration:</strong> ${this.formatDiff(
+            req1.duration,
+            req2.duration,
+            "ms"
+          )}</li>
+          <li><strong>Size:</strong> ${this.formatDiff(
+            req1.size_bytes,
+            req2.size_bytes,
+            "bytes"
+          )}</li>
           <li><strong>Status:</strong> ${req1.status} vs ${req2.status}</li>
         </ul>
       </div>
     `;
-    
-    document.getElementById('comparisonContent').innerHTML = html;
+
+    document.getElementById("comparisonContent").innerHTML = html;
   }
-  
+
   renderComparisonDetails(req) {
     return `
       <div class="comparison-details">
@@ -2894,15 +3553,17 @@ export class DevToolsPanel {
         </div>
         <div class="detail-row">
           <label>Method:</label>
-          <span class="method-badge">${req.method || 'GET'}</span>
+          <span class="method-badge">${req.method || "GET"}</span>
         </div>
         <div class="detail-row">
           <label>Status:</label>
-          <span class="status-badge ${req.status >= 400 ? 'status-error' : 'status-success'}">${req.status}</span>
+          <span class="status-badge ${
+            req.status >= 400 ? "status-error" : "status-success"
+          }">${req.status}</span>
         </div>
         <div class="detail-row">
           <label>Type:</label>
-          <span>${req.type || 'N/A'}</span>
+          <span>${req.type || "N/A"}</span>
         </div>
         <div class="detail-row">
           <label>Duration:</label>
@@ -2918,94 +3579,106 @@ export class DevToolsPanel {
         </div>
         <div class="detail-row">
           <label>Cache:</label>
-          <span>${req.from_cache ? 'Yes' : 'No'}</span>
+          <span>${req.from_cache ? "Yes" : "No"}</span>
         </div>
       </div>
     `;
   }
-  
+
   formatDiff(val1, val2, unit) {
     const diff = (val1 || 0) - (val2 || 0);
-    const sign = diff > 0 ? '+' : '';
-    const color = diff > 0 ? 'red' : diff < 0 ? 'green' : 'gray';
+    const sign = diff > 0 ? "+" : "";
+    const color = diff > 0 ? "red" : diff < 0 ? "green" : "gray";
     return `<span style="color: ${color}">${sign}${diff} ${unit}</span>`;
   }
-  
+
   // Live Stream features
   toggleCapture() {
     this.capturePaused = !this.capturePaused;
-    const btn = document.getElementById('pauseCapture');
+    const btn = document.getElementById("pauseCapture");
     if (btn) {
       if (this.capturePaused) {
         btn.innerHTML = '<i class="fas fa-play"></i> Resume';
-        this.showToast('Request capture paused', 'info');
+        this.showToast("Request capture paused", "info");
       } else {
         btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
-        this.showToast('Request capture resumed', 'success');
+        this.showToast("Request capture resumed", "success");
       }
     }
   }
-  
+
   closeLiveStreamModal() {
-    const modal = document.getElementById('liveStreamModal');
+    const modal = document.getElementById("liveStreamModal");
     if (modal) {
-      modal.style.display = 'none';
+      modal.style.display = "none";
     }
   }
-  
+
   toggleStreamPause() {
     this.streamPaused = !this.streamPaused;
-    const btn = document.getElementById('pauseStream');
+    const btn = document.getElementById("pauseStream");
     if (btn) {
-      btn.innerHTML = this.streamPaused ? 
-        '<i class="fas fa-play"></i> Resume' : 
-        '<i class="fas fa-pause"></i> Pause';
+      btn.innerHTML = this.streamPaused
+        ? '<i class="fas fa-play"></i> Resume'
+        : '<i class="fas fa-pause"></i> Pause';
     }
   }
-  
+
   clearStream() {
     this.streamData = [];
-    const content = document.getElementById('liveStreamContent');
+    const content = document.getElementById("liveStreamContent");
     if (content) {
-      content.innerHTML = '<p class="info-message">Stream cleared. New requests will appear here.</p>';
+      content.innerHTML =
+        '<p class="info-message">Stream cleared. New requests will appear here.</p>';
     }
   }
-  
+
   addToStream(request) {
     if (this.streamPaused) return;
-    
+
     this.streamData.push(request);
     if (this.streamData.length > 100) {
       this.streamData.shift(); // Keep last 100
     }
-    
-    const content = document.getElementById('liveStreamContent');
+
+    const content = document.getElementById("liveStreamContent");
     if (!content) return;
-    
-    const highlightCriteria = document.getElementById('highlightCriteria')?.value;
+
+    const highlightCriteria =
+      document.getElementById("highlightCriteria")?.value;
     let shouldHighlight = false;
-    
-    if (highlightCriteria === 'errors' && request.status >= 400) {
+
+    if (highlightCriteria === "errors" && request.status >= 400) {
       shouldHighlight = true;
-    } else if (highlightCriteria === 'slow' && request.duration > 1000) {
+    } else if (highlightCriteria === "slow" && request.duration > 1000) {
       shouldHighlight = true;
-    } else if (highlightCriteria === 'large' && request.size_bytes > 1024 * 1024) {
+    } else if (
+      highlightCriteria === "large" &&
+      request.size_bytes > 1024 * 1024
+    ) {
       shouldHighlight = true;
     }
-    
-    const item = document.createElement('div');
-    item.className = `stream-item ${shouldHighlight ? 'highlight' : ''}`;
+
+    const item = document.createElement("div");
+    item.className = `stream-item ${shouldHighlight ? "highlight" : ""}`;
     item.innerHTML = `
-      <span class="stream-time">${new Date(request.timestamp).toLocaleTimeString()}</span>
-      <span class="method-badge">${request.method || 'GET'}</span>
-      <span class="status-badge ${request.status >= 400 ? 'status-error' : 'status-success'}">${request.status}</span>
-      <span class="stream-url" title="${request.url}">${this.truncateUrl(request.url, 60)}</span>
+      <span class="stream-time">${new Date(
+        request.timestamp
+      ).toLocaleTimeString()}</span>
+      <span class="method-badge">${request.method || "GET"}</span>
+      <span class="status-badge ${
+        request.status >= 400 ? "status-error" : "status-success"
+      }">${request.status}</span>
+      <span class="stream-url" title="${request.url}">${this.truncateUrl(
+      request.url,
+      60
+    )}</span>
       <span class="stream-duration">${request.duration || 0}ms</span>
     `;
-    
+
     content.appendChild(item);
-    
-    const autoScroll = document.getElementById('autoScroll')?.checked;
+
+    const autoScroll = document.getElementById("autoScroll")?.checked;
     if (autoScroll) {
       content.scrollTop = content.scrollHeight;
     }
@@ -3016,9 +3689,9 @@ export class DevToolsPanel {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
-    
+
     // Destroy all charts
-    Object.values(this.charts).forEach(chart => {
+    Object.values(this.charts).forEach((chart) => {
       if (chart) {
         chart.destroy();
       }
@@ -3030,230 +3703,274 @@ export class DevToolsPanel {
     // Initialize WebSocket tracking
     this.websocketMessages = this.websocketMessages || [];
     this.websocketPaused = false;
-    
+
     // Setup event listeners for WebSocket controls
-    const clearBtn = document.getElementById('clearWebSocketBtn');
-    const pauseBtn = document.getElementById('pauseWebSocketBtn');
-    
+    const clearBtn = document.getElementById("clearWebSocketBtn");
+    const pauseBtn = document.getElementById("pauseWebSocketBtn");
+
     if (clearBtn) {
       // Remove existing listener if any
       clearBtn.replaceWith(clearBtn.cloneNode(true));
-      document.getElementById('clearWebSocketBtn').addEventListener('click', () => this.clearWebSocket());
+      document
+        .getElementById("clearWebSocketBtn")
+        .addEventListener("click", () => this.clearWebSocket());
     }
     if (pauseBtn) {
       // Remove existing listener if any
       pauseBtn.replaceWith(pauseBtn.cloneNode(true));
-      document.getElementById('pauseWebSocketBtn').addEventListener('click', () => this.toggleWebSocketPause());
+      document
+        .getElementById("pauseWebSocketBtn")
+        .addEventListener("click", () => this.toggleWebSocketPause());
     }
-    
+
     // Display message that WebSocket tracking is active
     this.updateWebSocketDisplay();
   }
-  
+
   toggleWebSocketPause() {
     this.websocketPaused = !this.websocketPaused;
-    const btn = document.getElementById('pauseWebSocketBtn');
+    const btn = document.getElementById("pauseWebSocketBtn");
     if (btn) {
-      btn.innerHTML = this.websocketPaused ? 
-        '<i class="fas fa-play"></i> Resume' : 
-        '<i class="fas fa-pause"></i> Pause';
+      btn.innerHTML = this.websocketPaused
+        ? '<i class="fas fa-play"></i> Resume'
+        : '<i class="fas fa-pause"></i> Pause';
     }
   }
-  
+
   clearWebSocket() {
     this.websocketMessages = [];
     this.updateWebSocketDisplay();
   }
-  
+
   updateWebSocketDisplay() {
-    const container = document.getElementById('websocketMessages');
+    const container = document.getElementById("websocketMessages");
     if (!container) return;
-    
+
     if (this.websocketMessages.length === 0) {
-      container.innerHTML = '<p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>';
+      container.innerHTML =
+        '<p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>';
       return;
     }
-    
+
     let html = '<div class="websocket-list">';
-    
-    this.websocketMessages.slice(-100).reverse().forEach((msg, idx) => {
-      const direction = msg.direction === 'sent' ? 'outgoing' : 'incoming';
-      html += `
+
+    this.websocketMessages
+      .slice(-100)
+      .reverse()
+      .forEach((msg, idx) => {
+        const direction = msg.direction === "sent" ? "outgoing" : "incoming";
+        html += `
         <div class="websocket-message ${direction}">
           <div class="ws-header">
-            <span class="ws-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
-            <span class="ws-direction">${msg.direction === 'sent' ? '→' : '←'} ${msg.direction.toUpperCase()}</span>
+            <span class="ws-time">${new Date(
+              msg.timestamp
+            ).toLocaleTimeString()}</span>
+            <span class="ws-direction">${
+              msg.direction === "sent" ? "→" : "←"
+            } ${msg.direction.toUpperCase()}</span>
             <span class="ws-size">${this.formatBytes(msg.size || 0)}</span>
           </div>
-          <div class="ws-connection">${msg.url || 'Unknown connection'}</div>
-          <div class="ws-data">${this.truncateText(msg.data || '', 200)}</div>
+          <div class="ws-connection">${msg.url || "Unknown connection"}</div>
+          <div class="ws-data">${this.truncateText(msg.data || "", 200)}</div>
         </div>
       `;
-    });
-    
-    html += '</div>';
+      });
+
+    html += "</div>";
     container.innerHTML = html;
-    
+
     // Update stats
-    const sentCount = this.websocketMessages.filter(m => m.direction === 'sent').length;
-    const receivedCount = this.websocketMessages.filter(m => m.direction === 'received').length;
-    const connections = new Set(this.websocketMessages.map(m => m.url)).size;
-    
-    document.getElementById('wsConnectionCount').textContent = connections;
-    document.getElementById('wsSentCount').textContent = sentCount;
-    document.getElementById('wsReceivedCount').textContent = receivedCount;
+    const sentCount = this.websocketMessages.filter(
+      (m) => m.direction === "sent"
+    ).length;
+    const receivedCount = this.websocketMessages.filter(
+      (m) => m.direction === "received"
+    ).length;
+    const connections = new Set(this.websocketMessages.map((m) => m.url)).size;
+
+    document.getElementById("wsConnectionCount").textContent = connections;
+    document.getElementById("wsSentCount").textContent = sentCount;
+    document.getElementById("wsReceivedCount").textContent = receivedCount;
   }
-  
+
   // Real-time Feed Methods
   startRealtimeFeed() {
     this.realtimeMessages = this.realtimeMessages || [];
     this.realtimePaused = false;
-    
+
     // Setup event listeners
-    const clearBtn = document.getElementById('clearRealtimeBtn');
-    const pauseBtn = document.getElementById('pauseRealtimeBtn');
-    
+    const clearBtn = document.getElementById("clearRealtimeBtn");
+    const pauseBtn = document.getElementById("pauseRealtimeBtn");
+
     if (clearBtn) {
       // Remove existing listener if any
       clearBtn.replaceWith(clearBtn.cloneNode(true));
-      document.getElementById('clearRealtimeBtn').addEventListener('click', () => this.clearRealtimeFeed());
+      document
+        .getElementById("clearRealtimeBtn")
+        .addEventListener("click", () => this.clearRealtimeFeed());
     }
     if (pauseBtn) {
       // Remove existing listener if any
       pauseBtn.replaceWith(pauseBtn.cloneNode(true));
-      document.getElementById('pauseRealtimeBtn').addEventListener('click', () => this.toggleRealtimePause());
+      document
+        .getElementById("pauseRealtimeBtn")
+        .addEventListener("click", () => this.toggleRealtimePause());
     }
-    
+
     // Start polling for new requests
     if (!this.realtimeInterval) {
-      this.realtimeInterval = setInterval(() => this.pollRealtimeRequests(), 1000);
+      this.realtimeInterval = setInterval(
+        () => this.pollRealtimeRequests(),
+        1000
+      );
     }
-    
+
     this.updateRealtimeDisplay();
   }
-  
+
   async pollRealtimeRequests() {
     if (this.realtimePaused) return;
-    
+
     try {
       const filters = {
         ...this.getActiveFilters(),
-        timeRange: 5 // Last 5 seconds
+        timeRange: 5, // Last 5 seconds
       };
-      
+
       const response = await chrome.runtime.sendMessage({
-        action: 'getDetailedRequests',
+        action: "getDetailedRequests",
         filters,
-        limit: 10
+        limit: 10,
       });
-      
+
       if (response && response.success && response.requests) {
-        response.requests.forEach(req => {
+        response.requests.forEach((req) => {
           // Only add if not already in feed
-          if (!this.realtimeMessages.find(m => m.id === req.id)) {
+          if (!this.realtimeMessages.find((m) => m.id === req.id)) {
             this.addRealtimeRequest(req);
           }
         });
       }
     } catch (error) {
-      console.error('Failed to poll realtime requests:', error);
+      console.error("Failed to poll realtime requests:", error);
     }
   }
-  
+
   toggleRealtimePause() {
     this.realtimePaused = !this.realtimePaused;
-    const btn = document.getElementById('pauseRealtimeBtn');
+    const btn = document.getElementById("pauseRealtimeBtn");
     if (btn) {
-      btn.innerHTML = this.realtimePaused ? 
-        '<i class="fas fa-play"></i> Resume' : 
-        '<i class="fas fa-pause"></i> Pause';
+      btn.innerHTML = this.realtimePaused
+        ? '<i class="fas fa-play"></i> Resume'
+        : '<i class="fas fa-pause"></i> Pause';
     }
   }
-  
+
   clearRealtimeFeed() {
     this.realtimeMessages = [];
     this.updateRealtimeDisplay();
   }
-  
+
   addRealtimeRequest(request) {
     if (this.realtimePaused) return;
-    
+
     this.realtimeMessages.push(request);
     if (this.realtimeMessages.length > 200) {
       this.realtimeMessages.shift();
     }
-    
+
     this.updateRealtimeDisplay();
   }
-  
+
   updateRealtimeDisplay() {
-    const container = document.getElementById('realtimeFeed');
+    const container = document.getElementById("realtimeFeed");
     if (!container) return;
-    
+
     if (this.realtimeMessages.length === 0) {
-      container.innerHTML = '<p class="placeholder">Waiting for requests...</p>';
+      container.innerHTML =
+        '<p class="placeholder">Waiting for requests...</p>';
       return;
     }
-    
+
     let html = '<div class="realtime-list">';
-    
-    this.realtimeMessages.slice(-50).reverse().forEach(req => {
-      const statusClass = req.status >= 400 ? 'error' : req.status >= 300 ? 'warning' : 'success';
-      const errorClass = req.status >= 400 ? 'realtime-error' : '';
-      
-      html += `
+
+    this.realtimeMessages
+      .slice(-50)
+      .reverse()
+      .forEach((req) => {
+        const statusClass =
+          req.status >= 400
+            ? "error"
+            : req.status >= 300
+            ? "warning"
+            : "success";
+        const errorClass = req.status >= 400 ? "realtime-error" : "";
+
+        html += `
         <div class="realtime-item ${errorClass}">
-          <div class="realtime-time">${new Date(req.timestamp).toLocaleTimeString()}.${new Date(req.timestamp).getMilliseconds()}</div>
-          <span class="method-badge">${req.method || 'GET'}</span>
-          <span class="status-badge status-${statusClass}">${req.status || 'N/A'}</span>
-          <span class="realtime-url" title="${req.url}">${this.truncateUrl(req.url, 70)}</span>
+          <div class="realtime-time">${new Date(
+            req.timestamp
+          ).toLocaleTimeString()}.${new Date(
+          req.timestamp
+        ).getMilliseconds()}</div>
+          <span class="method-badge">${req.method || "GET"}</span>
+          <span class="status-badge status-${statusClass}">${
+          req.status || "N/A"
+        }</span>
+          <span class="realtime-url" title="${req.url}">${this.truncateUrl(
+          req.url,
+          70
+        )}</span>
           <span class="realtime-duration">${req.duration || 0}ms</span>
-          <div class="realtime-timing-bar" style="width: ${Math.min((req.duration || 0) / 10, 100)}%"></div>
+          <div class="realtime-timing-bar" style="width: ${Math.min(
+            (req.duration || 0) / 10,
+            100
+          )}%"></div>
         </div>
       `;
-    });
-    
-    html += '</div>';
+      });
+
+    html += "</div>";
     container.innerHTML = html;
-    
+
     // Auto-scroll if enabled
-    const autoScrollCheckbox = document.getElementById('autoScrollCheckbox');
+    const autoScrollCheckbox = document.getElementById("autoScrollCheckbox");
     if (autoScrollCheckbox && autoScrollCheckbox.checked) {
       container.scrollTop = 0; // Scroll to top since we reverse the list
     }
   }
-  
+
   truncateText(text, maxLength) {
     if (!text || text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+    return text.substring(0, maxLength) + "...";
   }
 }
 
 // Initialize panel when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Initializing DevTools Panel...');
-  
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("Initializing DevTools Panel...");
+
   const panel = new DevToolsPanel();
-  
+
   // Listen for tab URL changes
   chrome.devtools.network.onNavigated.addListener((url) => {
     panel.handleUrlChange(url);
   });
-  
+
   // Get current URL
   chrome.devtools.inspectedWindow.eval(
-    'window.location.href',
+    "window.location.href",
     (result, isException) => {
       if (!isException && result) {
         panel.handleUrlChange(result);
       }
     }
   );
-  
+
   // Cleanup on unload
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener("beforeunload", () => {
     panel.destroy();
   });
-  
-  console.log('✓ DevTools Panel initialized');
+
+  console.log("✓ DevTools Panel initialized");
 });

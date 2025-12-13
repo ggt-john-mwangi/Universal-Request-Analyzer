@@ -1,6 +1,7 @@
 # Universal Request Analyzer - Complete Architecture Overview
 
 ## Table of Contents
+
 1. [System Architecture](#system-architecture)
 2. [Data Architecture](#data-architecture)
 3. [Code Organization](#code-organization)
@@ -12,22 +13,101 @@
 
 ### High-Level Overview
 
+```mermaid
+graph TB
+    subgraph Browser["🌐 Browser Environment"]
+        subgraph UI["User Interface Components"]
+            Popup["📊 Popup UI<br/>(Extension Icon)"]
+            DevTools["🔧 DevTools Panel<br/>(Browser DevTools)"]
+            Options["⚙️ Options Page<br/>(Settings)"]
+        end
+
+        ContentScript["📄 Content Scripts<br/>(Injected into pages)"]
+
+        subgraph Background["🔄 Background Service Worker (MV3)"]
+            RequestCapture["📡 Request Capture<br/>(webRequest API)"]
+            EventBus["🚌 Event Bus<br/>(Message routing)"]
+            MessageHandler["✉️ Message Handler<br/>(Action dispatcher)"]
+
+            subgraph Managers["Core Managers"]
+                DBManager["💾 Database Manager"]
+                SettingsManager["⚙️ Settings Manager"]
+                ExportManager["📤 Export Manager"]
+                CleanupManager["🧹 Cleanup Manager"]
+            end
+        end
+
+        subgraph Database["🗄️ Database Layer (SQL.js)"]
+            Config["Config Schema<br/>(Settings & Flags)"]
+            Bronze["Bronze Layer<br/>(Raw OLTP Data)"]
+            Silver["Silver Layer<br/>(Validated + Star Schema)"]
+            Gold["Gold Layer<br/>(Analytics & Insights)"]
+        end
+    end
+
+    subgraph External["🌍 External Systems"]
+        WebPages["Web Pages<br/>(HTTP Requests)"]
+        Storage["Browser Storage<br/>(chrome.storage)"]
+    end
+
+    %% Communication flows
+    WebPages -->|"HTTP Requests"| RequestCapture
+    RequestCapture -->|"Captured Data"| Bronze
+
+    ContentScript -.->|"chrome.runtime<br/>.sendMessage"| EventBus
+    Popup -.->|"chrome.runtime<br/>.sendMessage"| EventBus
+    DevTools -.->|"chrome.runtime<br/>.sendMessage"| EventBus
+    Options -.->|"chrome.runtime<br/>.sendMessage"| EventBus
+
+    EventBus -->|"Route Messages"| MessageHandler
+    MessageHandler -->|"Query/Update"| Managers
+
+    Managers <-->|"Read/Write"| Database
+    SettingsManager <-->|"Sync Config"| Config
+    SettingsManager <-->|"Sync Settings"| Storage
+
+    Bronze -->|"Process & Validate"| Silver
+    Silver -->|"Aggregate & Analyze"| Gold
+
+    MessageHandler -.->|"Response"| Popup
+    MessageHandler -.->|"Response"| DevTools
+    MessageHandler -.->|"Response"| Options
+
+    ExportManager -->|"Export Data"| Bronze
+    ExportManager -->|"Export Data"| Silver
+    ExportManager -->|"Export Data"| Gold
+
+    CleanupManager -->|"Purge Old Data"| Bronze
+    CleanupManager -->|"Purge Old Data"| Silver
+    CleanupManager -->|"Purge Old Data"| Gold
+
+    style UI fill:#e3f2fd
+    style Background fill:#fff3e0
+    style Database fill:#f3e5f5
+    style External fill:#e8f5e9
+    style Managers fill:#fff9c4
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Browser Extension                         │
-├─────────────────────────────────────────────────────────────┤
-│  Popup UI  │  Options Page  │  DevTools Panel  │  Content   │
-├─────────────────────────────────────────────────────────────┤
-│                    Shared Library (/lib)                     │
-│  UI Components │ Core Classes │ Managers │ Utilities         │
-├─────────────────────────────────────────────────────────────┤
-│                   Background Service Worker                   │
-│  Request Capture │ Event Bus │ Message Handler               │
-├─────────────────────────────────────────────────────────────┤
-│                  Database Layer (SQLite)                     │
-│  Config Schema │ Bronze │ Silver │ Gold │ Star Schema        │
-└─────────────────────────────────────────────────────────────┘
-```
+
+### Communication Flow Details
+
+1. **Request Capture Flow**
+
+   - Browser makes HTTP request → `webRequest API` intercepts → Background captures → Bronze layer stores
+
+2. **UI → Background Flow**
+
+   - UI component calls `chrome.runtime.sendMessage()` → Event Bus receives → Message Handler routes → Manager processes → Database query/update → Response back to UI
+
+3. **Settings Sync Flow**
+
+   - Settings Manager maintains settings in both database (`config_app_settings`) and browser storage (`chrome.storage.local`) for fast access
+
+4. **Data Processing Flow**
+
+   - Bronze (raw) → Silver (validated + enriched) → Gold (aggregated analytics)
+
+5. **Content Script Communication**
+   - Content scripts read config from `chrome.storage.local` (set by Settings Manager) and cannot directly import background modules
 
 ## Data Architecture
 
@@ -158,21 +238,21 @@ src/
 All UI components extend `BaseComponent`:
 
 ```javascript
-import { BaseComponent } from '@/lib/ui/BaseComponent.js';
+import { BaseComponent } from "@/lib/ui/BaseComponent.js";
 
 class RequestList extends BaseComponent {
   async onInit() {
     // Initialization
   }
-  
+
   setupEventListeners() {
     // Event handlers
   }
-  
+
   render() {
     // Rendering logic
   }
-  
+
   onDestroy() {
     // Cleanup
   }
@@ -197,14 +277,14 @@ Encapsulate complex functionality:
 
 ```javascript
 const timeframes = [
-  '1min',   // 1 minute
-  '5min',   // 5 minutes
-  '15min',  // 15 minutes
-  '1h',     // 1 hour
-  '4h',     // 4 hours
-  '1d',     // 1 day
-  '1w',     // 1 week
-  '1m'      // 1 month
+  "1min", // 1 minute
+  "5min", // 5 minutes
+  "15min", // 15 minutes
+  "1h", // 1 hour
+  "4h", // 4 hours
+  "1d", // 1 day
+  "1w", // 1 week
+  "1m", // 1 month
 ];
 ```
 
@@ -293,6 +373,7 @@ Domain attributes tracked over time:
 ### 1. Multi-Timeframe Analysis
 
 View performance at any granularity:
+
 - **Real-time**: 1min, 5min
 - **Short-term**: 15min, 1h
 - **Mid-term**: 4h, 1d
@@ -301,6 +382,7 @@ View performance at any granularity:
 ### 2. Historical Tracking
 
 Complete audit trail:
+
 - All raw requests in Bronze
 - SCD Type 2 domain history
 - Trend analysis in Gold
@@ -322,6 +404,7 @@ Complete audit trail:
 ### 5. Flexible Querying
 
 Star schema enables:
+
 - Drill-down by domain
 - Drill-down by resource type
 - Time-series analysis
@@ -332,9 +415,11 @@ Star schema enables:
 ### Dimension Tables
 
 #### 1. Time Dimension (`dim_time`)
+
 Multi-granularity time tracking with support for 8 timeframes.
 
 **Supported Timeframes:**
+
 - `1min` - 1 minute periods
 - `5min` - 5 minute periods
 - `15min` - 15 minute periods
@@ -345,21 +430,25 @@ Multi-granularity time tracking with support for 8 timeframes.
 - `1m` - Monthly periods
 
 **Key Columns:**
+
 - `time_key` - Primary key
 - `timestamp` - Unix timestamp
 - `year, quarter, month, week, day, hour, minute` - Date/time components
 - `period_1min ... period_1m` - Period identifiers for each timeframe
 
 #### 2. Domain Dimension with SCD Type 2 (`dim_domain`)
+
 Tracks domain attributes with full historical versioning using Slowly Changing Dimensions Type 2.
 
 **SCD Type 2 Implementation:**
+
 - Maintains complete history of attribute changes
 - Each change creates a new version with `valid_from` and `valid_to` timestamps
 - `is_current` flag identifies the active record
 - Enables point-in-time queries
 
 **Key Columns:**
+
 - `domain_key` - Primary key
 - `domain` - Domain name
 - `is_third_party` - Third-party status
@@ -370,6 +459,7 @@ Tracks domain attributes with full historical versioning using Slowly Changing D
 - `version` - Version number
 
 **Example History:**
+
 ```
 domain_key | domain      | risk_level | valid_from | valid_to   | is_current | version
 -----------|-------------|------------|------------|------------|------------|--------
@@ -378,45 +468,56 @@ domain_key | domain      | risk_level | valid_from | valid_to   | is_current | v
 ```
 
 #### 3. Resource Type Dimension (`dim_resource_type`)
+
 Pre-populated resource type categorization:
+
 - document, stylesheet, script, image, font
 - xmlhttprequest, fetch, websocket
 - media, other
 
 #### 4. Status Code Dimension (`dim_status_code`)
+
 HTTP status code metadata with success/error/redirect classifications.
 
 ### Fact Tables
 
 #### 1. Request Fact Table (`fact_requests`)
+
 Atomic request metrics linked to all dimensions.
 
 **Key Measures:**
+
 - Timing: duration_ms, dns_time_ms, tcp_time_ms, ssl_time_ms, wait_time_ms, download_time_ms
 - Size: size_bytes, header_size_bytes, body_size_bytes
 - Quality: performance_score, quality_score
 - Flags: is_cached, is_compressed, has_error, is_secure
 
 #### 2. OHLC Performance Fact (`fact_ohlc_performance`)
+
 Candlestick-style aggregated metrics per timeframe.
 
 **OHLC Metrics:**
+
 - `open_time` - First request duration in period
 - `high_time` - Maximum request duration
 - `low_time` - Minimum request duration
 - `close_time` - Last request duration
 
 **Aggregate Metrics:**
+
 - Request count and volume
 - Average, median (P50), P95, P99 percentiles
 - Success/error counts and rates
 - Performance and quality scores
 
 #### 3. Performance Trends Fact (`fact_performance_trends`)
+
 Tracks metric changes with moving averages and volatility measures.
 
 #### 4. Quality Metrics Fact (`fact_quality_metrics`)
+
 Comprehensive quality assessment including:
+
 - Availability rate, performance index, reliability score
 - Performance distribution buckets
 - Cache hit rates
@@ -427,23 +528,23 @@ Comprehensive quality assessment including:
 
 ```javascript
 // Via ConfigSchemaManager
-await configManager.setAppSetting('theme', 'dark', {
-  category: 'ui',
-  description: 'UI theme preference'
+await configManager.setAppSetting("theme", "dark", {
+  category: "ui",
+  description: "UI theme preference",
 });
 
-const theme = await configManager.getAppSetting('theme');
+const theme = await configManager.getAppSetting("theme");
 ```
 
 ### Feature Flags
 
 ```javascript
 // Gradual rollout
-await configManager.setFeatureFlag('newFeature', true, {
-  rolloutPercentage: 25  // 25% of users
+await configManager.setFeatureFlag("newFeature", true, {
+  rolloutPercentage: 25, // 25% of users
 });
 
-const isEnabled = await configManager.getFeatureFlag('newFeature');
+const isEnabled = await configManager.getFeatureFlag("newFeature");
 ```
 
 ### Performance Settings
@@ -452,7 +553,7 @@ const isEnabled = await configManager.getFeatureFlag('newFeature');
 await configManager.updatePerformanceSettings({
   enabled: true,
   samplingRate: 100,
-  captureNavigationTiming: true
+  captureNavigationTiming: true,
 });
 ```
 
@@ -461,12 +562,14 @@ await configManager.updatePerformanceSettings({
 ### 1. Data Layer
 
 ✅ **Do:**
+
 - Write to Bronze first
 - Let system process to Silver/Gold
 - Use Config schema for settings
 - Query appropriate layer (Silver for UI, Gold for dashboards)
 
 ❌ **Don't:**
+
 - Write directly to Silver/Gold
 - Skip Bronze layer
 - Store config in Bronze/Silver/Gold
@@ -474,12 +577,14 @@ await configManager.updatePerformanceSettings({
 ### 2. Components
 
 ✅ **Do:**
+
 - Extend BaseComponent
 - Use shared utilities from /lib
 - Implement proper cleanup
 - Emit events for communication
 
 ❌ **Don't:**
+
 - Duplicate code between popup/options
 - Create new utility functions
 - Skip lifecycle methods
@@ -487,12 +592,14 @@ await configManager.updatePerformanceSettings({
 ### 3. Analytics
 
 ✅ **Do:**
+
 - Choose appropriate timeframe
 - Use OHLC for performance trends
 - Cache aggregated data
 - Index fact tables properly
 
 ❌ **Don't:**
+
 - Query Bronze for analytics
 - Recalculate aggregates on every query
 - Skip dimension lookups
@@ -523,21 +630,25 @@ await configManager.updatePerformanceSettings({
 ## Future Enhancements
 
 1. **Machine Learning Layer**
+
    - Anomaly detection
    - Performance predictions
    - Optimization recommendations
 
 2. **Real-time Streaming**
+
    - Live OHLC updates
    - WebSocket support
    - Real-time dashboards
 
 3. **Advanced Analytics**
+
    - Correlation analysis
    - Regression analysis
    - Forecasting
 
 4. **Data Export**
+
    - External BI tools integration
    - API for analytics
    - Scheduled exports

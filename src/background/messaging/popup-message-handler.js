@@ -87,6 +87,12 @@ async function handleMessage(message, sender) {
       case "getEndpointPerformanceHistory":
         return await handleGetEndpointPerformanceHistory(message.filters);
 
+      case "getRequestTypePerformanceHistory":
+        return await handleGetRequestTypePerformanceHistory(message.filters);
+
+      case "getApiEndpointPerformanceHistory":
+        return await handleGetApiEndpointPerformanceHistory(message.filters);
+
       case "getResourceSizeBreakdown":
         return await handleGetResourceSizeBreakdown(message.filters);
 
@@ -1400,6 +1406,7 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       domain,
       pageUrl,
       endpoint,
+      type,
       timeBucket = "hourly",
       startTime,
       endTime,
@@ -1434,8 +1441,8 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
         AVG(duration) as avg_duration,
         MIN(duration) as min_duration,
         MAX(duration) as max_duration,
-        SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as error_count,
-        SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END) as server_error_count,
+        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+        SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as server_error_count,
         AVG(size_bytes) as avg_size,
         SUM(size_bytes) as total_size
       FROM bronze_requests
@@ -1449,6 +1456,10 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
 
     if (pageUrl && pageUrl !== "") {
       query += ` AND page_url = ${escapeStr(pageUrl)}`;
+    }
+
+    if (type && type !== "") {
+      query += ` AND type = ${escapeStr(type)}`;
     }
 
     if (endpoint && endpoint !== "") {
@@ -1539,6 +1550,336 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
     };
   } catch (error) {
     console.error("Get endpoint performance history error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get request type performance history - tracks performance by request type (fetch, xhr, script, etc.)
+async function handleGetRequestTypePerformanceHistory(filters = {}) {
+  try {
+    const {
+      domain,
+      pageUrl,
+      type,
+      timeBucket = "hourly",
+      startTime,
+      endTime,
+    } = filters;
+
+    // Default time range if not provided
+    const actualStartTime = startTime || Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days ago
+    const actualEndTime = endTime || Date.now();
+
+    // Escape SQL strings
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    // Time bucket SQL expression
+    let timeBucketExpr;
+    if (timeBucket === "daily") {
+      timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
+    } else {
+      timeBucketExpr = `strftime('%Y-%m-%d %H:00:00', timestamp / 1000, 'unixepoch')`;
+    }
+
+    let query = `
+      SELECT 
+        ${timeBucketExpr} as time_bucket,
+        type,
+        COUNT(*) as request_count,
+        AVG(duration) as avg_duration,
+        MIN(duration) as min_duration,
+        MAX(duration) as max_duration,
+        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+        SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as server_error_count,
+        AVG(size_bytes) as avg_size,
+        SUM(size_bytes) as total_size
+      FROM bronze_requests
+      WHERE timestamp >= ${actualStartTime}
+      AND timestamp <= ${actualEndTime}
+      AND type IS NOT NULL AND type != ''
+    `;
+
+    if (domain && domain !== "") {
+      query += ` AND domain = ${escapeStr(domain)}`;
+    }
+
+    if (pageUrl && pageUrl !== "") {
+      query += ` AND page_url = ${escapeStr(pageUrl)}`;
+    }
+
+    if (type && type !== "") {
+      query += ` AND type = ${escapeStr(type)}`;
+    }
+
+    query += ` GROUP BY time_bucket, type ORDER BY time_bucket DESC, request_count DESC`;
+
+    console.log("Request Type Performance Query:", query);
+
+    // First, let's check if there's ANY data with type field
+    let checkQuery = `SELECT COUNT(*) as total, COUNT(CASE WHEN type IS NOT NULL AND type != '' THEN 1 END) as with_type FROM bronze_requests WHERE timestamp >= ${actualStartTime} AND timestamp <= ${actualEndTime}`;
+    if (domain && domain !== "") {
+      checkQuery += ` AND domain = ${escapeStr(domain)}`;
+    }
+
+    try {
+      if (dbManager?.db) {
+        const checkResult = dbManager.db.exec(checkQuery);
+        if (checkResult && checkResult[0]?.values) {
+          console.log("Data availability check:", {
+            total: checkResult[0].values[0][0],
+            withType: checkResult[0].values[0][1],
+            startTime: new Date(actualStartTime).toISOString(),
+            endTime: new Date(actualEndTime).toISOString(),
+          });
+        }
+      }
+    } catch (checkError) {
+      console.error("Check query error:", checkError);
+    }
+
+    let history = [];
+
+    try {
+      if (dbManager?.db) {
+        const result = dbManager.db.exec(query);
+        console.log("Query result:", {
+          hasResult: !!result,
+          hasValues: !!(result && result[0]?.values),
+          valueCount: result?.[0]?.values?.length,
+        });
+        if (result && result[0]?.values) {
+          history = result[0].values.map((row) => {
+            const requestCount = row[2] || 0;
+            const errorCount = row[6] || 0;
+
+            return {
+              timeBucket: row[0],
+              type: row[1] || "unknown",
+              requestCount,
+              avgDuration: Math.round(row[3] || 0),
+              minDuration: Math.round(row[4] || 0),
+              maxDuration: Math.round(row[5] || 0),
+              errorCount,
+              serverErrorCount: row[7] || 0,
+              avgSize: Math.round(row[8] || 0),
+              totalSize: row[9] || 0,
+              errorRate:
+                requestCount > 0
+                  ? ((errorCount / requestCount) * 100).toFixed(2)
+                  : 0,
+              successRate:
+                requestCount > 0
+                  ? (
+                      ((requestCount - errorCount) / requestCount) *
+                      100
+                    ).toFixed(2)
+                  : 100,
+            };
+          });
+        }
+      }
+    } catch (queryError) {
+      console.error(
+        "Get request type performance history query error:",
+        queryError
+      );
+    }
+
+    // Group by request type for easier analysis
+    const groupedHistory = {};
+    history.forEach((record) => {
+      if (!groupedHistory[record.type]) {
+        groupedHistory[record.type] = [];
+      }
+      groupedHistory[record.type].push(record);
+    });
+
+    console.log("Request Type Performance Result:", {
+      historyCount: history.length,
+      groupedTypes: Object.keys(groupedHistory),
+      timeBucket,
+      startTime: new Date(actualStartTime).toISOString(),
+      endTime: new Date(actualEndTime).toISOString(),
+    });
+
+    // If no data found, check what types exist in the entire database
+    if (history.length === 0) {
+      try {
+        const typesQuery = `SELECT DISTINCT type, COUNT(*) as count FROM bronze_requests WHERE type IS NOT NULL AND type != '' GROUP BY type ORDER BY count DESC LIMIT 10`;
+        const typesResult = dbManager.db.exec(typesQuery);
+        if (typesResult && typesResult[0]?.values) {
+          console.log(
+            "Available request types in database:",
+            typesResult[0].values
+          );
+        }
+      } catch (typesError) {
+        console.error("Error checking available types:", typesError);
+      }
+    }
+
+    return {
+      success: true,
+      history,
+      groupedByType: groupedHistory,
+      timeBucket,
+      startTime: actualStartTime,
+      endTime: actualEndTime,
+    };
+  } catch (error) {
+    console.error("Get request type performance history error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get API endpoint performance history - tracks individual API endpoints (fetch/xhr) over time
+async function handleGetApiEndpointPerformanceHistory(filters = {}) {
+  try {
+    const {
+      domain,
+      pageUrl,
+      timeBucket = "hourly",
+      startTime,
+      endTime,
+    } = filters;
+
+    const actualStartTime = startTime || Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const actualEndTime = endTime || Date.now();
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    let timeBucketExpr;
+    if (timeBucket === "daily") {
+      timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
+    } else {
+      timeBucketExpr = `strftime('%Y-%m-%d %H:00:00', timestamp / 1000, 'unixepoch')`;
+    }
+
+    // Focus on API requests (fetch, xmlhttprequest, xhr)
+    let query = `
+      SELECT 
+        ${timeBucketExpr} as time_bucket,
+        url,
+        method,
+        type,
+        COUNT(*) as request_count,
+        AVG(duration) as avg_duration,
+        MIN(duration) as min_duration,
+        MAX(duration) as max_duration,
+        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+        SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as server_error_count,
+        AVG(size_bytes) as avg_size,
+        SUM(size_bytes) as total_size
+      FROM bronze_requests
+      WHERE timestamp >= ${actualStartTime}
+      AND timestamp <= ${actualEndTime}
+      AND (type = 'fetch' OR type = 'xmlhttprequest' OR type = 'xhr')
+    `;
+
+    if (domain && domain !== "") {
+      query += ` AND domain = ${escapeStr(domain)}`;
+    }
+
+    if (pageUrl && pageUrl !== "") {
+      query += ` AND page_url = ${escapeStr(pageUrl)}`;
+    }
+
+    query += ` GROUP BY time_bucket, url, method ORDER BY time_bucket DESC, request_count DESC`;
+
+    console.log("API Endpoint Performance Query:", query);
+
+    let history = [];
+
+    try {
+      if (dbManager?.db) {
+        const result = dbManager.db.exec(query);
+        if (result && result[0]?.values) {
+          history = result[0].values.map((row) => {
+            const url = row[1];
+            const method = row[2] || "GET";
+
+            // Extract endpoint pattern from URL
+            let endpointPattern = url;
+            try {
+              const urlObj = new URL(url);
+              endpointPattern = urlObj.pathname;
+              // Replace IDs and hashes with placeholders
+              endpointPattern = endpointPattern.replace(/\/\d+/g, "/:id");
+              endpointPattern = endpointPattern.replace(
+                /\/[0-9a-f]{8,}/gi,
+                "/:hash"
+              );
+            } catch (e) {
+              // Keep original if URL parsing fails
+            }
+
+            const requestCount = row[4] || 0;
+            const errorCount = row[8] || 0;
+
+            return {
+              timeBucket: row[0],
+              url,
+              method,
+              type: row[3],
+              endpoint: `${method} ${endpointPattern}`,
+              requestCount,
+              avgDuration: Math.round(row[5] || 0),
+              minDuration: Math.round(row[6] || 0),
+              maxDuration: Math.round(row[7] || 0),
+              errorCount,
+              serverErrorCount: row[9] || 0,
+              avgSize: Math.round(row[10] || 0),
+              totalSize: row[11] || 0,
+              errorRate:
+                requestCount > 0
+                  ? ((errorCount / requestCount) * 100).toFixed(2)
+                  : 0,
+              successRate:
+                requestCount > 0
+                  ? (
+                      ((requestCount - errorCount) / requestCount) *
+                      100
+                    ).toFixed(2)
+                  : 100,
+            };
+          });
+        }
+      }
+    } catch (queryError) {
+      console.error("Get API endpoint performance query error:", queryError);
+    }
+
+    // Group by endpoint pattern (METHOD + path)
+    const groupedHistory = {};
+    history.forEach((record) => {
+      if (!groupedHistory[record.endpoint]) {
+        groupedHistory[record.endpoint] = [];
+      }
+      groupedHistory[record.endpoint].push(record);
+    });
+
+    console.log("API Endpoint Performance Result:", {
+      historyCount: history.length,
+      groupedEndpoints: Object.keys(groupedHistory),
+      timeBucket,
+    });
+
+    return {
+      success: true,
+      history,
+      groupedByEndpoint: groupedHistory,
+      timeBucket,
+      startTime: actualStartTime,
+      endTime: actualEndTime,
+    };
+  } catch (error) {
+    console.error("Get API endpoint performance error:", error);
     return { success: false, error: error.message };
   }
 }

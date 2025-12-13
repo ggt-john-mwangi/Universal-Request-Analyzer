@@ -1,9 +1,26 @@
 // Browser compatibility layer - provides consistent API across different browsers
 
+// Get the appropriate browser API
+const getBrowserAPI = () => {
+  if (typeof browser !== "undefined" && browser.runtime) {
+    return browser; // Firefox
+  }
+  if (typeof chrome !== "undefined" && chrome.runtime) {
+    return chrome; // Chrome, Edge, Safari
+  }
+  return null;
+};
+
+const browserAPI = getBrowserAPI();
+
 // Browser detection
 const browserInfo = {
-  isChrome: typeof chrome !== "undefined" && !!chrome.runtime,
-  isFirefox: typeof browser !== "undefined",
+  isFirefox: typeof browser !== "undefined" && !!browser.runtime,
+  isChrome:
+    typeof chrome !== "undefined" &&
+    !!chrome.runtime &&
+    !navigator.userAgent.includes("Edg") &&
+    !navigator.userAgent.includes("Safari"),
   isEdge:
     typeof chrome !== "undefined" &&
     !!chrome.runtime &&
@@ -11,8 +28,7 @@ const browserInfo = {
   isSafari:
     typeof chrome !== "undefined" &&
     !!chrome.runtime &&
-    navigator.userAgent.includes("Safari") &&
-    !navigator.userAgent.includes("Chrome"),
+    /^((?!chrome|android).)*safari/i.test(navigator.userAgent),
 };
 
 // Storage API compatibility
@@ -21,8 +37,18 @@ export const storage = {
     if (browserInfo.isFirefox) {
       return browser.storage.local.get(keys);
     }
-    return new Promise((resolve) => {
-      chrome.storage.local.get(keys, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.storage.local.get(keys, (result) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(result);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -30,8 +56,18 @@ export const storage = {
     if (browserInfo.isFirefox) {
       return browser.storage.local.set(items);
     }
-    return new Promise((resolve) => {
-      chrome.storage.local.set(items, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.storage.local.set(items, () => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve();
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -39,8 +75,18 @@ export const storage = {
     if (browserInfo.isFirefox) {
       return browser.storage.local.remove(keys);
     }
-    return new Promise((resolve) => {
-      chrome.storage.local.remove(keys, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.storage.local.remove(keys, () => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve();
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -48,8 +94,18 @@ export const storage = {
     if (browserInfo.isFirefox) {
       return browser.storage.local.clear();
     }
-    return new Promise((resolve) => {
-      chrome.storage.local.clear(resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.storage.local.clear(() => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve();
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -63,7 +119,7 @@ export const storage = {
       if (browserInfo.isFirefox) {
         browser.storage.onChanged.addListener(wrappedCallback);
       } else {
-        chrome.storage.onChanged.addListener(wrappedCallback);
+        browserAPI.storage.onChanged.addListener(wrappedCallback);
       }
     },
   },
@@ -75,8 +131,18 @@ export const runtime = {
     if (browserInfo.isFirefox) {
       return browser.runtime.sendMessage(message);
     }
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage(message, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.runtime.sendMessage(message, (response) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -84,7 +150,7 @@ export const runtime = {
     if (browserInfo.isFirefox) {
       return browser.runtime.connect(connectInfo);
     }
-    return chrome.runtime.connect(connectInfo);
+    return browserAPI.runtime.connect(connectInfo);
   },
 
   onMessage: {
@@ -94,14 +160,18 @@ export const runtime = {
           return callback(message, sender);
         });
       } else {
-        chrome.runtime.onMessage.addListener(
+        browserAPI.runtime.onMessage.addListener(
           (message, sender, sendResponse) => {
             const response = callback(message, sender);
             if (response instanceof Promise) {
-              response.then(sendResponse);
-              return true;
+              response.then(sendResponse).catch((error) => {
+                console.error("Message handler error:", error);
+                sendResponse({ success: false, error: error.message });
+              });
+              return true; // Required for async responses
             }
             sendResponse(response);
+            return false;
           }
         );
       }
@@ -112,7 +182,30 @@ export const runtime = {
     if (browserInfo.isFirefox) {
       return browser.runtime.getURL(path);
     }
-    return chrome.runtime.getURL(path);
+    return browserAPI.runtime.getURL(path);
+  },
+
+  get id() {
+    return browserAPI.runtime.id;
+  },
+
+  openOptionsPage() {
+    if (browserInfo.isFirefox) {
+      return browser.runtime.openOptionsPage();
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.runtime.openOptionsPage(() => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve();
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
   },
 };
 
@@ -127,7 +220,7 @@ export const webRequest = {
           extraInfoSpec
         );
       }
-      return chrome.webRequest.onBeforeRequest.addListener(
+      return browserAPI.webRequest.onBeforeRequest.addListener(
         callback,
         filter,
         extraInfoSpec
@@ -144,7 +237,7 @@ export const webRequest = {
           extraInfoSpec
         );
       }
-      return chrome.webRequest.onCompleted.addListener(
+      return browserAPI.webRequest.onCompleted.addListener(
         callback,
         filter,
         extraInfoSpec
@@ -157,7 +250,10 @@ export const webRequest = {
       if (browserInfo.isFirefox) {
         return browser.webRequest.onErrorOccurred.addListener(callback, filter);
       }
-      return chrome.webRequest.onErrorOccurred.addListener(callback, filter);
+      return browserAPI.webRequest.onErrorOccurred.addListener(
+        callback,
+        filter
+      );
     },
   },
 };
@@ -168,8 +264,18 @@ export const notifications = {
     if (browserInfo.isFirefox) {
       return browser.notifications.create(id, options);
     }
-    return new Promise((resolve) => {
-      chrome.notifications.create(id, options, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.notifications.create(id, options, (notificationId) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(notificationId);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -177,8 +283,18 @@ export const notifications = {
     if (browserInfo.isFirefox) {
       return browser.notifications.clear(id);
     }
-    return new Promise((resolve) => {
-      chrome.notifications.clear(id, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.notifications.clear(id, (wasCleared) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(wasCleared);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -187,7 +303,7 @@ export const notifications = {
       if (browserInfo.isFirefox) {
         browser.notifications.onClicked.addListener(callback);
       } else {
-        chrome.notifications.onClicked.addListener(callback);
+        browserAPI.notifications.onClicked.addListener(callback);
       }
     },
   },
@@ -199,8 +315,18 @@ export const downloads = {
     if (browserInfo.isFirefox) {
       return browser.downloads.download(options);
     }
-    return new Promise((resolve) => {
-      chrome.downloads.download(options, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.downloads.download(options, (downloadId) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(downloadId);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 };
@@ -211,8 +337,18 @@ export const tabs = {
     if (browserInfo.isFirefox) {
       return browser.tabs.query(queryInfo);
     }
-    return new Promise((resolve) => {
-      chrome.tabs.query(queryInfo, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.tabs.query(queryInfo, (result) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(result);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -220,20 +356,73 @@ export const tabs = {
     if (browserInfo.isFirefox) {
       return browser.tabs.sendMessage(tabId, message);
     }
-    return new Promise((resolve) => {
-      chrome.tabs.sendMessage(tabId, message, resolve);
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.tabs.sendMessage(tabId, message, (response) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  },
+
+  async create(createProperties) {
+    if (browserInfo.isFirefox) {
+      return browser.tabs.create(createProperties);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.tabs.create(createProperties, (tab) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(tab);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  },
+
+  async update(tabId, updateProperties) {
+    if (browserInfo.isFirefox) {
+      return browser.tabs.update(tabId, updateProperties);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        browserAPI.tabs.update(tabId, updateProperties, (tab) => {
+          if (browserAPI.runtime.lastError) {
+            reject(browserAPI.runtime.lastError);
+          } else {
+            resolve(tab);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 };
 
 // Extension feature detection
 export const features = {
-  hasClipboardAccess: browserInfo.isChrome || browserInfo.isEdge,
+  hasClipboardAccess:
+    browserInfo.isChrome || browserInfo.isEdge || browserInfo.isSafari,
   hasUnlimitedStorage: browserInfo.isChrome || browserInfo.isEdge,
-  hasBackgroundWorkers: browserInfo.isChrome || browserInfo.isEdge,
-  hasMV3Support: browserInfo.isChrome || browserInfo.isEdge,
+  hasBackgroundWorkers:
+    browserInfo.isChrome || browserInfo.isEdge || browserInfo.isSafari,
+  hasMV3Support:
+    browserInfo.isChrome || browserInfo.isEdge || browserInfo.isSafari,
   hasWebRequestBlocking: true, // Will be false for MV3 in Chrome
-  hasNativeMessaging: true,
+  hasNativeMessaging:
+    browserInfo.isChrome || browserInfo.isEdge || browserInfo.isFirefox,
+  supportsPromises: browserInfo.isFirefox || browserInfo.isSafari, // Firefox and Safari support promises natively
 };
 
 // Initialize compatibility layer

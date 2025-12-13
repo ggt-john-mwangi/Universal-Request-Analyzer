@@ -12,7 +12,7 @@ module.exports = (env, argv) => {
     mode: argv.mode,
     devtool: isProduction ? false : "inline-source-map",
     entry: {
-      popup: "./src/popup/popup.js",
+      popup: "./src/popup/js/popup.js",
       options: "./src/options/js/options.js",
       background: "./src/background/background.js",
       content: "./src/content/content.js",
@@ -111,7 +111,7 @@ module.exports = (env, argv) => {
         template: "./src/devtools/panel.html",
         filename: "panel.html",
         chunks: ["panel"],
-      }), 
+      }),
       new HtmlWebpackPlugin({
         template: "./src/help/help.html",
         filename: "help/help.html",

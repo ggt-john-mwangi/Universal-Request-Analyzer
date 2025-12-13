@@ -16,7 +16,8 @@ body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui,
+    sans-serif;
   background: var(--background-color);
 }
 
@@ -498,6 +499,10 @@ body {
 }
 
 .action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 16px 12px;
   background: var(--background-color, white);
   border: 2px solid var(--border-color, #e2e8f0);
@@ -518,10 +523,13 @@ body {
 }
 
 .action-btn i {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
   margin-bottom: 8px;
-  color: var(--primary-color, #667eea);
+  color: inherit;
+  line-height: 1;
 }
 
 .footer-info {
@@ -870,6 +878,10 @@ button i {
   transform: scale(0.95);
 }
 
+.action-btn i {
+  color: inherit;
+}
+
 .action-btn i.fa-sync-alt {
   animation: none;
 }
@@ -879,8 +891,12 @@ button i {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Loading States */
@@ -913,7 +929,7 @@ button i {
 }
 
 .page-summary.loading::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1055,6 +1071,7 @@ button i {
 
 .filter-chip i {
   font-size: 11px;
+  color: inherit;
 }
 
 /* Export Actions */
@@ -1089,6 +1106,7 @@ button i {
 
 .export-btn i {
   font-size: 12px;
+  color: inherit;
 }
 
 /* Filters Section - Collapsible */
@@ -1173,6 +1191,11 @@ button i {
 
 .mode-btn i {
   font-size: 12px;
+  color: inherit;
+}
+
+.mode-btn.active i {
+  color: white;
 }
 
 /* Resource Usage Display */
