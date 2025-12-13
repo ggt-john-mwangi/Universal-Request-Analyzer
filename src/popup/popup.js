@@ -1242,8 +1242,13 @@ function parseAndCleanHeaders(headers) {
 // Escape string for shell command (security fix)
 function escapeShellArg(arg) {
   if (!arg) return "''";
+  const str = String(arg);
+  // Reject arguments containing null bytes (security)
+  if (str.includes('\0')) {
+    throw new Error('Invalid argument: contains null byte');
+  }
   // Replace single quotes with '\'' to escape properly in shell
-  return `'${String(arg).replace(/'/g, "'\\''")}'`;
+  return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
 // Copy request as cURL
