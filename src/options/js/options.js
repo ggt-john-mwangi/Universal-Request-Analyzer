@@ -1,6 +1,6 @@
 // Import necessary modules
 import "../components/dashboard.js";
-import "../components/analytics.js";
+import "../components/analytics.js"; // Analytics features available through Dashboard
 import "../components/alerts.js";
 import "../components/auto-export.js";
 import "../components/capture-filters.js";
@@ -144,8 +144,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("Options page: Initializing advanced tab...");
     initializeAdvancedTab();
 
-    // Initialize Analytics component
-    console.log("Options page: Initializing analytics...");
+    // Initialize Analytics features (accessible from Dashboard)
+    console.log("Options page: Initializing analytics features...");
     await initializeAnalytics();
 
     // Initialize Alerts component

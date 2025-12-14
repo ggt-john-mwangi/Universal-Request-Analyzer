@@ -33,10 +33,6 @@
             <i class="fas fa-cog"></i>
             <span>General</span>
           </button>
-          <button class="nav-item" data-tab="analytics">
-            <i class="fas fa-chart-pie"></i>
-            <span>Analytics</span>
-          </button>
           <button class="nav-item" data-tab="alerts">
             <i class="fas fa-bell"></i>
             <span>Alerts</span>
@@ -96,7 +92,17 @@
             <div class="dashboard-container">
               <div class="dashboard-header">
                 <h2>
-                  <i class="fas fa-tachometer-alt"></i> Performance Dashboard
+                  <i class="fas fa-tachometer-alt"></i> Dashboard
+                  <span
+                    style="
+                      font-size: 12px;
+                      font-weight: normal;
+                      color: var(--text-secondary-color, #718096);
+                      margin-left: 8px;
+                    "
+                  >
+                    (Analytics & Performance)
+                  </span>
                 </h2>
                 <div class="dashboard-controls">
                   <button
@@ -225,476 +231,816 @@
                 </div>
               </div>
 
-              <!-- Core Web Vitals Section -->
-              <div class="web-vitals-section">
-                <h3><i class="fas fa-tachometer-alt"></i> Core Web Vitals</h3>
-                <div class="web-vitals-grid">
-                  <div class="vital-card" id="lcpCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-image"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">LCP</div>
-                      <div class="vital-subtitle">Largest Contentful Paint</div>
-                      <div class="vital-value" id="lcpValue">-</div>
-                      <div class="vital-rating" id="lcpRating"></div>
-                      <div class="vital-target">Target: &lt; 2.5s</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="fidCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-mouse-pointer"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">FID</div>
-                      <div class="vital-subtitle">First Input Delay</div>
-                      <div class="vital-value" id="fidValue">-</div>
-                      <div class="vital-rating" id="fidRating"></div>
-                      <div class="vital-target">Target: &lt; 100ms</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="clsCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-arrows-alt"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">CLS</div>
-                      <div class="vital-subtitle">Cumulative Layout Shift</div>
-                      <div class="vital-value" id="clsValue">-</div>
-                      <div class="vital-rating" id="clsRating"></div>
-                      <div class="vital-target">Target: &lt; 0.1</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="fcpCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-paint-brush"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">FCP</div>
-                      <div class="vital-subtitle">First Contentful Paint</div>
-                      <div class="vital-value" id="fcpValue">-</div>
-                      <div class="vital-rating" id="fcpRating"></div>
-                      <div class="vital-target">Target: &lt; 1.8s</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="ttfbCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-server"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">TTFB</div>
-                      <div class="vital-subtitle">Time to First Byte</div>
-                      <div class="vital-value" id="ttfbValue">-</div>
-                      <div class="vital-rating" id="ttfbRating"></div>
-                      <div class="vital-target">Target: &lt; 800ms</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="ttiCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-hand-pointer"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">TTI</div>
-                      <div class="vital-subtitle">Time to Interactive</div>
-                      <div class="vital-value" id="ttiValue">-</div>
-                      <div class="vital-rating" id="ttiRating"></div>
-                      <div class="vital-target">Target: &lt; 3.8s</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="dclCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-file-code"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">DCL</div>
-                      <div class="vital-subtitle">DOMContentLoaded</div>
-                      <div class="vital-value" id="dclValue">-</div>
-                      <div class="vital-rating" id="dclRating"></div>
-                      <div class="vital-target">Target: &lt; 1.5s</div>
-                    </div>
-                  </div>
-
-                  <div class="vital-card" id="loadCard">
-                    <div class="vital-icon">
-                      <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="vital-content">
-                      <div class="vital-label">Load</div>
-                      <div class="vital-subtitle">Page Load Complete</div>
-                      <div class="vital-value" id="loadValue">-</div>
-                      <div class="vital-rating" id="loadRating"></div>
-                      <div class="vital-target">Target: &lt; 2.5s</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Session Metrics Section -->
-              <div class="session-metrics-section">
-                <h3><i class="fas fa-user-clock"></i> Session Metrics</h3>
-                <div class="session-metrics-grid">
-                  <div class="session-metric-card">
-                    <div class="session-metric-icon">
-                      <i class="fas fa-hourglass-half"></i>
-                    </div>
-                    <div class="session-metric-content">
-                      <div class="session-metric-label">
-                        Avg Session Duration
-                      </div>
-                      <div class="session-metric-value" id="avgSessionDuration">
-                        -
-                      </div>
-                      <div class="session-metric-detail">
-                        Across all sessions
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="session-metric-card">
-                    <div class="session-metric-icon">
-                      <i class="fas fa-users"></i>
-                    </div>
-                    <div class="session-metric-content">
-                      <div class="session-metric-label">Total Sessions</div>
-                      <div class="session-metric-value" id="totalSessions">
-                        -
-                      </div>
-                      <div class="session-metric-detail">
-                        In selected time range
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="session-metric-card">
-                    <div class="session-metric-icon">
-                      <i class="fas fa-exchange-alt"></i>
-                    </div>
-                    <div class="session-metric-content">
-                      <div class="session-metric-label">
-                        Requests per Session
-                      </div>
-                      <div
-                        class="session-metric-value"
-                        id="avgRequestsPerSession"
-                      >
-                        -
-                      </div>
-                      <div class="session-metric-detail">Average</div>
-                    </div>
-                  </div>
-
-                  <div class="session-metric-card">
-                    <div class="session-metric-icon">
-                      <i class="fas fa-bolt"></i>
-                    </div>
-                    <div class="session-metric-content">
-                      <div class="session-metric-label">Events per Session</div>
-                      <div
-                        class="session-metric-value"
-                        id="avgEventsPerSession"
-                      >
-                        -
-                      </div>
-                      <div class="session-metric-detail">Average</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Charts Section -->
-              <div class="dashboard-charts">
-                <div class="chart-section">
-                  <h3>
-                    <i class="fas fa-chart-line"></i> Request Volume Over Time
-                  </h3>
-                  <canvas id="dashboardVolumeChart"></canvas>
+              <!-- Dashboard Sub-Tabs Navigation -->
+              <div class="dashboard-tabs">
+                <div class="tabs-nav">
+                  <button data-tab="overview" class="dashboard-tab-btn active">
+                    <i class="fas fa-chart-line"></i> Overview
+                  </button>
+                  <button data-tab="requests" class="dashboard-tab-btn">
+                    <i class="fas fa-list"></i> Requests
+                  </button>
+                  <button data-tab="performance" class="dashboard-tab-btn">
+                    <i class="fas fa-stopwatch"></i> Performance
+                  </button>
+                  <button data-tab="resources" class="dashboard-tab-btn">
+                    <i class="fas fa-database"></i> Resources
+                  </button>
+                  <button data-tab="errors" class="dashboard-tab-btn">
+                    <i class="fas fa-bug"></i> Errors
+                  </button>
+                  <button data-tab="analytics" class="dashboard-tab-btn">
+                    <i class="fas fa-chart-bar"></i> Analytics
+                  </button>
                 </div>
 
-                <div class="chart-row">
-                  <div class="chart-section half">
+                <!-- Overview Tab -->
+                <div
+                  class="dashboard-tab-content active"
+                  data-tab-content="overview"
+                >
+                  <!-- Core Web Vitals Section -->
+                  <div class="web-vitals-section">
                     <h3>
-                      <i class="fas fa-chart-pie"></i> Status Distribution
+                      <i class="fas fa-tachometer-alt"></i> Core Web Vitals
                     </h3>
-                    <canvas id="dashboardStatusChart"></canvas>
+                    <div class="web-vitals-grid">
+                      <div class="vital-card" id="lcpCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-image"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">LCP</div>
+                          <div class="vital-subtitle">
+                            Largest Contentful Paint
+                          </div>
+                          <div class="vital-value" id="lcpValue">-</div>
+                          <div class="vital-rating" id="lcpRating"></div>
+                          <div class="vital-target">Target: &lt; 2.5s</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="fidCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-mouse-pointer"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">FID</div>
+                          <div class="vital-subtitle">First Input Delay</div>
+                          <div class="vital-value" id="fidValue">-</div>
+                          <div class="vital-rating" id="fidRating"></div>
+                          <div class="vital-target">Target: &lt; 100ms</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="clsCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-arrows-alt"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">CLS</div>
+                          <div class="vital-subtitle">
+                            Cumulative Layout Shift
+                          </div>
+                          <div class="vital-value" id="clsValue">-</div>
+                          <div class="vital-rating" id="clsRating"></div>
+                          <div class="vital-target">Target: &lt; 0.1</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="fcpCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-paint-brush"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">FCP</div>
+                          <div class="vital-subtitle">
+                            First Contentful Paint
+                          </div>
+                          <div class="vital-value" id="fcpValue">-</div>
+                          <div class="vital-rating" id="fcpRating"></div>
+                          <div class="vital-target">Target: &lt; 1.8s</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="ttfbCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-server"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">TTFB</div>
+                          <div class="vital-subtitle">Time to First Byte</div>
+                          <div class="vital-value" id="ttfbValue">-</div>
+                          <div class="vital-rating" id="ttfbRating"></div>
+                          <div class="vital-target">Target: &lt; 800ms</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="ttiCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-hand-pointer"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">TTI</div>
+                          <div class="vital-subtitle">Time to Interactive</div>
+                          <div class="vital-value" id="ttiValue">-</div>
+                          <div class="vital-rating" id="ttiRating"></div>
+                          <div class="vital-target">Target: &lt; 3.8s</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="dclCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-file-code"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">DCL</div>
+                          <div class="vital-subtitle">DOMContentLoaded</div>
+                          <div class="vital-value" id="dclValue">-</div>
+                          <div class="vital-rating" id="dclRating"></div>
+                          <div class="vital-target">Target: &lt; 1.5s</div>
+                        </div>
+                      </div>
+
+                      <div class="vital-card" id="loadCard">
+                        <div class="vital-icon">
+                          <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="vital-content">
+                          <div class="vital-label">Load</div>
+                          <div class="vital-subtitle">Page Load Complete</div>
+                          <div class="vital-value" id="loadValue">-</div>
+                          <div class="vital-rating" id="loadRating"></div>
+                          <div class="vital-target">Target: &lt; 2.5s</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div class="chart-section half">
-                    <h3><i class="fas fa-chart-bar"></i> Top Domains</h3>
-                    <canvas id="dashboardDomainsChart"></canvas>
+                  <!-- Session Metrics Section -->
+                  <div class="session-metrics-section">
+                    <h3><i class="fas fa-user-clock"></i> Session Metrics</h3>
+                    <div class="session-metrics-grid">
+                      <div class="session-metric-card">
+                        <div class="session-metric-icon">
+                          <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="session-metric-content">
+                          <div class="session-metric-label">
+                            Avg Session Duration
+                          </div>
+                          <div
+                            class="session-metric-value"
+                            id="avgSessionDuration"
+                          >
+                            -
+                          </div>
+                          <div class="session-metric-detail">
+                            Across all sessions
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="session-metric-card">
+                        <div class="session-metric-icon">
+                          <i class="fas fa-users"></i>
+                        </div>
+                        <div class="session-metric-content">
+                          <div class="session-metric-label">Total Sessions</div>
+                          <div class="session-metric-value" id="totalSessions">
+                            -
+                          </div>
+                          <div class="session-metric-detail">
+                            In selected time range
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="session-metric-card">
+                        <div class="session-metric-icon">
+                          <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="session-metric-content">
+                          <div class="session-metric-label">
+                            Requests per Session
+                          </div>
+                          <div
+                            class="session-metric-value"
+                            id="avgRequestsPerSession"
+                          >
+                            -
+                          </div>
+                          <div class="session-metric-detail">Average</div>
+                        </div>
+                      </div>
+
+                      <div class="session-metric-card">
+                        <div class="session-metric-icon">
+                          <i class="fas fa-bolt"></i>
+                        </div>
+                        <div class="session-metric-content">
+                          <div class="session-metric-label">
+                            Events per Session
+                          </div>
+                          <div
+                            class="session-metric-value"
+                            id="avgEventsPerSession"
+                          >
+                            -
+                          </div>
+                          <div class="session-metric-detail">Average</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Charts Section -->
+                  <div class="dashboard-charts">
+                    <div class="chart-section">
+                      <h3>
+                        <i class="fas fa-chart-line"></i> Request Volume Over
+                        Time
+                      </h3>
+                      <canvas id="dashboardVolumeChart"></canvas>
+                    </div>
+
+                    <div class="chart-row">
+                      <div class="chart-section half">
+                        <h3>
+                          <i class="fas fa-chart-pie"></i> Status Distribution
+                        </h3>
+                        <canvas id="dashboardStatusChart"></canvas>
+                      </div>
+
+                      <div class="chart-section half">
+                        <h3><i class="fas fa-chart-bar"></i> Top Domains</h3>
+                        <canvas id="dashboardDomainsChart"></canvas>
+                      </div>
+                    </div>
+
+                    <div class="chart-section">
+                      <h3>
+                        <i class="fas fa-chart-area"></i> Performance Trends
+                      </h3>
+                      <canvas id="dashboardPerformanceChart"></canvas>
+                    </div>
                   </div>
                 </div>
+                <!-- End Overview Tab -->
 
-                <div class="chart-section">
-                  <h3><i class="fas fa-chart-area"></i> Performance Trends</h3>
-                  <canvas id="dashboardPerformanceChart"></canvas>
-                </div>
-              </div>
-            </div>
-          </section>
+                <!-- Requests Tab -->
+                <div class="dashboard-tab-content" data-tab-content="requests">
+                  <!-- Requests Table Section -->
+                  <div class="chart-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 12px;
+                      "
+                    >
+                      <h3 style="margin: 0">
+                        <i class="fas fa-list"></i> Requests Table
+                      </h3>
+                      <button id="dashboardExportHAR" class="btn-secondary">
+                        <i class="fas fa-download"></i> Export HAR
+                      </button>
+                    </div>
+                    <p
+                      class="hint"
+                      style="
+                        font-size: 13px;
+                        color: var(--text-secondary-color);
+                        margin-bottom: 16px;
+                      "
+                    >
+                      View detailed request information with search, pagination,
+                      and cURL export capabilities.
+                    </p>
 
-          <!-- Analytics Tab -->
-          <section id="analytics" class="tab-content">
-            <div class="analytics-container">
-              <!-- Analytics Header with Filter Toggle -->
-              <div class="analytics-header">
-                <h2><i class="fas fa-chart-line"></i> Advanced Analytics</h2>
-                <div class="analytics-controls">
-                  <button
-                    id="analyticsFilterToggle"
-                    class="filter-toggle-btn"
-                    title="Toggle Filters"
-                  >
-                    <i class="fas fa-filter"></i> Filters
-                    <i class="fas fa-chevron-down toggle-icon"></i>
-                  </button>
-                  <button id="analyticsRefresh" class="btn-primary">
-                    <i class="fas fa-sync-alt"></i> Refresh Analytics
-                  </button>
-                </div>
-              </div>
-
-              <!-- Collapsible Analytics Filters -->
-              <div id="analyticsFilterPanel" class="filter-panel">
-                <div class="filter-panel-content">
-                  <div class="filter-group">
-                    <label>
-                      <span><i class="fas fa-globe"></i> Domain:</span>
-                      <select
-                        id="analyticsDomainFilter"
-                        style="min-width: 200px"
+                    <div
+                      class="table-controls"
+                      style="
+                        display: flex;
+                        gap: 12px;
+                        margin-bottom: 16px;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                      "
+                    >
+                      <div
+                        class="search-container"
+                        style="flex: 1; max-width: 400px"
                       >
-                        <option value="all">All Domains</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div class="filter-group">
-                    <label>
-                      <span><i class="fas fa-file"></i> Page:</span>
-                      <select id="analyticsPageFilter" style="min-width: 200px">
-                        <option value="">All Pages (Aggregated)</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div class="filter-group">
-                    <label>
-                      <span><i class="fas fa-filter"></i> Type:</span>
+                        <i class="fas fa-search"></i>
+                        <input
+                          type="text"
+                          id="dashboardSearchRequests"
+                          placeholder="Search URLs, methods, status..."
+                          class="search-input"
+                        />
+                      </div>
                       <select
-                        id="analyticsRequestTypeFilter"
-                        style="min-width: 120px"
+                        id="dashboardRequestsPerPage"
+                        class="filter-select"
                       >
-                        <option value="">All Types</option>
-                        <option value="xmlhttprequest">XHR/API</option>
-                        <option value="fetch">Fetch</option>
-                        <option value="script">Scripts</option>
-                        <option value="stylesheet">Stylesheets</option>
-                        <option value="image">Images</option>
-                        <option value="font">Fonts</option>
-                        <option value="document">Documents</option>
-                        <option value="other">Other</option>
+                        <option value="10">10 per page</option>
+                        <option value="25" selected>25 per page</option>
+                        <option value="50">50 per page</option>
+                        <option value="100">100 per page</option>
                       </select>
-                    </label>
-                  </div>
-                  <div class="filter-group">
-                    <label>
-                      <span><i class="fas fa-clock"></i> Time Range:</span>
-                      <select id="analyticsTimeRange">
-                        <option value="3600">Last Hour</option>
-                        <option value="21600">Last 6 Hours</option>
-                        <option value="86400" selected>Last 24 Hours</option>
-                        <option value="604800">Last 7 Days</option>
-                        <option value="2592000">Last 30 Days</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              </div>
+                    </div>
 
-              <!-- Percentiles Analysis -->
-              <div class="analytics-section">
-                <h3>
-                  <i class="fas fa-percentage"></i> Response Time Percentiles
-                </h3>
-                <div
-                  id="percentilesLoading"
-                  class="loading-indicator"
-                  style="display: none"
-                >
-                  <i class="fas fa-spinner fa-spin"></i> Loading percentiles...
-                </div>
-                <div class="percentiles-grid" id="percentilesGrid">
-                  <div class="percentile-card">
-                    <div class="percentile-label">P50 (Median)</div>
-                    <div class="percentile-value" id="p50Value">-</div>
-                    <div class="percentile-desc">50% of requests</div>
-                  </div>
-                  <div class="percentile-card">
-                    <div class="percentile-label">P75</div>
-                    <div class="percentile-value" id="p75Value">-</div>
-                    <div class="percentile-desc">75% of requests</div>
-                  </div>
-                  <div class="percentile-card">
-                    <div class="percentile-label">P90</div>
-                    <div class="percentile-value" id="p90Value">-</div>
-                    <div class="percentile-desc">90% of requests</div>
-                  </div>
-                  <div class="percentile-card">
-                    <div class="percentile-label">P95</div>
-                    <div class="percentile-value" id="p95Value">-</div>
-                    <div class="percentile-desc">95% of requests</div>
-                  </div>
-                  <div class="percentile-card">
-                    <div class="percentile-label">P99</div>
-                    <div class="percentile-value" id="p99Value">-</div>
-                    <div class="percentile-desc">99% of requests</div>
-                  </div>
-                  <div class="percentile-card">
-                    <div class="percentile-label">Max</div>
-                    <div class="percentile-value" id="maxValue">-</div>
-                    <div class="percentile-desc">Slowest request</div>
-                  </div>
-                </div>
-              </div>
+                    <div
+                      class="requests-table-container"
+                      style="overflow-x: auto"
+                    >
+                      <table
+                        id="dashboardRequestsTable"
+                        class="data-table"
+                        style="width: 100%; border-collapse: collapse"
+                      >
+                        <thead>
+                          <tr>
+                            <th>Method</th>
+                            <th>URL</th>
+                            <th>Status</th>
+                            <th>Type</th>
+                            <th>Time</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody id="dashboardRequestsTableBody">
+                          <tr class="no-data-row">
+                            <td
+                              colspan="7"
+                              style="
+                                text-align: center;
+                                padding: 24px;
+                                color: var(--text-secondary-color);
+                              "
+                            >
+                              No requests available. Select filters and refresh
+                              to load data.
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
 
-              <!-- Anomaly Detection -->
-              <div class="analytics-section">
-                <h3>
-                  <i class="fas fa-exclamation-circle"></i> Anomaly Detection
-                </h3>
-                <div
-                  id="anomaliesLoading"
-                  class="loading-indicator"
-                  style="display: none"
-                >
-                  <i class="fas fa-spinner fa-spin"></i> Detecting anomalies...
+                    <div
+                      id="dashboardTablePagination"
+                      class="table-pagination"
+                      style="
+                        margin-top: 16px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                      "
+                    ></div>
+                  </div>
                 </div>
-                <div id="anomaliesList" class="anomalies-list">
-                  <p class="placeholder">No anomalies detected</p>
-                </div>
-              </div>
+                <!-- End Requests Tab -->
 
-              <!-- Trend Analysis -->
-              <div class="analytics-section">
-                <h3><i class="fas fa-chart-line"></i> Trend Analysis</h3>
-                <div class="trend-controls">
-                  <label>
-                    <span>Compare:</span>
-                    <select id="trendCompareType">
-                      <option value="week">Week-over-Week</option>
-                      <option value="month">Month-over-Month</option>
-                    </select>
-                  </label>
-                  <button id="refreshTrendsBtn" class="btn-primary">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                  </button>
-                </div>
+                <!-- Performance Tab -->
                 <div
-                  id="trendsLoading"
-                  class="loading-indicator"
-                  style="display: none"
+                  class="dashboard-tab-content"
+                  data-tab-content="performance"
                 >
-                  <i class="fas fa-spinner fa-spin"></i> Analyzing trends...
-                </div>
-                <div class="trends-grid" id="trendsGrid">
-                  <div class="trend-card">
-                    <div class="trend-label">Request Volume</div>
-                    <div class="trend-value" id="trendRequests">-</div>
-                    <div class="trend-change" id="trendRequestsChange">-</div>
-                  </div>
-                  <div class="trend-card">
-                    <div class="trend-label">Avg Response Time</div>
-                    <div class="trend-value" id="trendDuration">-</div>
-                    <div class="trend-change" id="trendDurationChange">-</div>
-                  </div>
-                  <div class="trend-card">
-                    <div class="trend-label">Error Count</div>
-                    <div class="trend-value" id="trendErrors">-</div>
-                    <div class="trend-change" id="trendErrorsChange">-</div>
-                  </div>
-                  <div class="trend-card">
-                    <div class="trend-label">Data Transferred</div>
-                    <div class="trend-value" id="trendBytes">-</div>
-                    <div class="trend-change" id="trendBytesChange">-</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Heatmap -->
-              <div class="analytics-section">
-                <h3><i class="fas fa-th"></i> Activity Heatmap</h3>
-                <p class="description">
-                  Request activity by time of day and day of week
-                </p>
-                <div
-                  id="heatmapLoading"
-                  class="loading-indicator"
-                  style="display: none"
-                >
-                  <i class="fas fa-spinner fa-spin"></i> Generating heatmap...
-                </div>
-                <div id="heatmapContainer" class="heatmap-container">
-                  <canvas id="heatmapCanvas"></canvas>
-                </div>
-              </div>
-
-              <!-- Multi-Domain Comparison -->
-              <div class="analytics-section">
-                <h3>
-                  <i class="fas fa-balance-scale"></i> Multi-Domain Comparison
-                </h3>
-                <div class="comparison-controls">
-                  <div id="domainSelectors" class="domain-selectors">
-                    <select id="compareDomain1">
-                      <option value="">Select Domain 1</option>
-                    </select>
-                    <select id="compareDomain2">
-                      <option value="">Select Domain 2</option>
-                    </select>
-                    <select id="compareDomain3">
-                      <option value="">Select Domain 3</option>
-                    </select>
-                  </div>
-                  <button id="compareDomainsBtn" class="btn-primary">
-                    <i class="fas fa-chart-bar"></i> Compare
-                  </button>
-                </div>
-                <div
-                  id="comparisonLoading"
-                  class="loading-indicator"
-                  style="display: none"
-                >
-                  <i class="fas fa-spinner fa-spin"></i> Comparing domains...
-                </div>
-                <div id="comparisonResults" class="comparison-results">
-                  <canvas id="comparisonChart"></canvas>
-                </div>
-              </div>
-
-              <!-- Performance Insights -->
-              <div class="analytics-section">
-                <h3>
-                  <i class="fas fa-lightbulb"></i> Performance Insights &
-                  Recommendations
-                </h3>
-                <div
-                  id="insightsLoading"
-                  class="loading-indicator"
-                  style="display: none"
-                >
-                  <i class="fas fa-spinner fa-spin"></i> Generating insights...
-                </div>
-                <div id="insightsList" class="insights-list">
-                  <p class="placeholder">
-                    No insights available. Apply filters and refresh to generate
-                    recommendations.
+                  <p class="hint" style="margin-bottom: 16px">
+                    <i class="fas fa-info-circle"></i> Track endpoint
+                    performance, response times, and request trends over time.
                   </p>
+
+                  <!-- Endpoint Performance Over Time -->
+                  <div class="chart-section">
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 12px;
+                      "
+                    >
+                      <h3 style="margin: 0">
+                        <i class="fas fa-chart-line"></i> Endpoint Performance
+                        Over Time
+                      </h3>
+                    </div>
+                    <p
+                      class="hint"
+                      style="
+                        font-size: 13px;
+                        color: var(--text-secondary-color);
+                        margin-bottom: 16px;
+                      "
+                    >
+                      Track request types (fetch, xhr, script, etc.) or specific
+                      API endpoints performance over time.
+                    </p>
+
+                    <div
+                      class="history-controls"
+                      style="
+                        display: flex;
+                        gap: 12px;
+                        margin-bottom: 16px;
+                        flex-wrap: wrap;
+                      "
+                    >
+                      <div class="filter-group">
+                        <label
+                          ><i class="fas fa-filter"></i> Type Filter:</label
+                        >
+                        <select
+                          id="dashboardEndpointTypeFilter"
+                          class="filter-select"
+                        >
+                          <option value="">All Types</option>
+                          <option value="fetch">Fetch</option>
+                          <option value="xmlhttprequest">XHR/AJAX</option>
+                          <option value="script">Script</option>
+                          <option value="stylesheet">Stylesheet</option>
+                          <option value="image">Image</option>
+                          <option value="font">Font</option>
+                          <option value="document">Document</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      <div class="filter-group">
+                        <label
+                          ><i class="fas fa-link"></i> Endpoint Pattern:</label
+                        >
+                        <input
+                          type="text"
+                          id="dashboardEndpointPattern"
+                          placeholder="e.g., /api/login, /users/:id"
+                          class="filter-input"
+                          style="min-width: 250px"
+                        />
+                      </div>
+
+                      <div class="filter-group">
+                        <label
+                          ><i class="fas fa-calendar"></i> Time Bucket:</label
+                        >
+                        <select
+                          id="dashboardHistoryTimeBucket"
+                          class="filter-select"
+                        >
+                          <option value="hourly" selected>Hourly</option>
+                          <option value="daily">Daily</option>
+                        </select>
+                      </div>
+
+                      <button id="dashboardLoadHistoryBtn" class="btn-primary">
+                        <i class="fas fa-sync-alt"></i> Load History
+                      </button>
+                    </div>
+
+                    <div
+                      id="dashboardPerformanceHistoryChart"
+                      style="min-height: 300px; position: relative"
+                    >
+                      <canvas id="dashboardHistoryChartCanvas"></canvas>
+                    </div>
+                  </div>
                 </div>
+                <!-- End Performance Tab -->
+
+                <!-- Resources Tab -->
+                <div class="dashboard-tab-content" data-tab-content="resources">
+                  <!-- Resource Breakdown Section -->
+                  <div class="chart-section">
+                    <h3>
+                      <i class="fas fa-database"></i> Resource Size Breakdown
+                    </h3>
+                    <p
+                      class="hint"
+                      style="
+                        font-size: 13px;
+                        color: var(--text-secondary-color);
+                        margin-bottom: 16px;
+                      "
+                    >
+                      Analyze resource types, sizes, and potential compression
+                      savings for the selected domain.
+                    </p>
+
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 24px;
+                        margin-bottom: 24px;
+                      "
+                    >
+                      <div>
+                        <h4 style="margin-bottom: 12px">
+                          <i class="fas fa-chart-pie"></i> Size Distribution
+                        </h4>
+                        <div
+                          id="dashboardResourceChartContainer"
+                          style="min-height: 300px; position: relative"
+                        >
+                          <canvas id="dashboardResourcePieChart"></canvas>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 style="margin-bottom: 12px">
+                          <i class="fas fa-compress"></i> Compression Analysis
+                        </h4>
+                        <div
+                          id="dashboardCompressionStats"
+                          style="
+                            padding: 16px;
+                            background: var(--surface-color);
+                            border-radius: 8px;
+                          "
+                        >
+                          <p class="no-data">
+                            No data available. Refresh Dashboard to load
+                            resource stats.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      id="dashboardResourcesTable"
+                      class="resources-table"
+                    ></div>
+                  </div>
+                </div>
+                <!-- End Resources Tab -->
+
+                <!-- Errors Tab -->
+                <div class="dashboard-tab-content" data-tab-content="errors">
+                  <!-- Error Analysis Section -->
+                  <div class="chart-section">
+                    <h3><i class="fas fa-bug"></i> Error Analysis</h3>
+                    <p
+                      class="hint"
+                      style="
+                        font-size: 13px;
+                        color: var(--text-secondary-color);
+                        margin-bottom: 16px;
+                      "
+                    >
+                      Analyze failed requests (4xx client errors and 5xx server
+                      errors) for the selected domain.
+                    </p>
+
+                    <div
+                      id="dashboardErrorCategories"
+                      class="error-categories"
+                      style="margin-bottom: 24px"
+                    ></div>
+
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 2fr 1fr;
+                        gap: 24px;
+                        margin-bottom: 24px;
+                      "
+                    >
+                      <div>
+                        <h4 style="margin-bottom: 12px">
+                          <i class="fas fa-exclamation-triangle"></i> Failed
+                          Requests
+                        </h4>
+                        <div
+                          id="dashboardErrorsList"
+                          class="errors-list"
+                          style="max-height: 400px; overflow-y: auto"
+                        >
+                          <p class="no-data">
+                            No errors found. Refresh Dashboard to load error
+                            data.
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 style="margin-bottom: 12px">
+                          <i class="fas fa-chart-bar"></i> Error Distribution
+                        </h4>
+                        <div style="min-height: 300px; position: relative">
+                          <canvas id="dashboardErrorsChart"></canvas>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- End Errors Tab -->
+
+                <!-- Analytics Tab -->
+                <div class="dashboard-tab-content" data-tab-content="analytics">
+                  <p class="hint" style="margin-bottom: 16px">
+                    <i class="fas fa-info-circle"></i> Advanced analytics
+                    including percentiles, anomalies, trends, and domain
+                    comparisons.
+                  </p>
+
+                  <!-- Percentiles Analysis -->
+                  <div class="analytics-section">
+                    <h3>
+                      <i class="fas fa-percentage"></i> Response Time
+                      Percentiles
+                    </h3>
+                    <div
+                      id="percentilesLoading"
+                      class="loading-indicator"
+                      style="display: none"
+                    >
+                      <i class="fas fa-spinner fa-spin"></i> Loading
+                      percentiles...
+                    </div>
+                    <div class="percentiles-grid" id="percentilesGrid">
+                      <div class="percentile-card">
+                        <div class="percentile-label">P50 (Median)</div>
+                        <div class="percentile-value" id="p50Value">-</div>
+                        <div class="percentile-desc">50% of requests</div>
+                      </div>
+                      <div class="percentile-card">
+                        <div class="percentile-label">P75</div>
+                        <div class="percentile-value" id="p75Value">-</div>
+                        <div class="percentile-desc">75% of requests</div>
+                      </div>
+                      <div class="percentile-card">
+                        <div class="percentile-label">P90</div>
+                        <div class="percentile-value" id="p90Value">-</div>
+                        <div class="percentile-desc">90% of requests</div>
+                      </div>
+                      <div class="percentile-card">
+                        <div class="percentile-label">P95</div>
+                        <div class="percentile-value" id="p95Value">-</div>
+                        <div class="percentile-desc">95% of requests</div>
+                      </div>
+                      <div class="percentile-card">
+                        <div class="percentile-label">P99</div>
+                        <div class="percentile-value" id="p99Value">-</div>
+                        <div class="percentile-desc">99% of requests</div>
+                      </div>
+                      <div class="percentile-card">
+                        <div class="percentile-label">Max</div>
+                        <div class="percentile-value" id="maxValue">-</div>
+                        <div class="percentile-desc">Slowest request</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Anomaly Detection -->
+                  <div class="analytics-section">
+                    <h3>
+                      <i class="fas fa-exclamation-circle"></i> Anomaly
+                      Detection
+                    </h3>
+                    <div
+                      id="anomaliesLoading"
+                      class="loading-indicator"
+                      style="display: none"
+                    >
+                      <i class="fas fa-spinner fa-spin"></i> Detecting
+                      anomalies...
+                    </div>
+                    <div id="anomaliesList" class="anomalies-list">
+                      <p class="placeholder">No anomalies detected</p>
+                    </div>
+                  </div>
+
+                  <!-- Trend Analysis -->
+                  <div class="analytics-section">
+                    <h3><i class="fas fa-chart-line"></i> Trend Analysis</h3>
+                    <div class="trend-controls">
+                      <label>
+                        <span>Compare:</span>
+                        <select id="trendCompareType">
+                          <option value="week">Week-over-Week</option>
+                          <option value="month">Month-over-Month</option>
+                        </select>
+                      </label>
+                      <button id="refreshTrendsBtn" class="btn-primary">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                      </button>
+                    </div>
+                    <div
+                      id="trendsLoading"
+                      class="loading-indicator"
+                      style="display: none"
+                    >
+                      <i class="fas fa-spinner fa-spin"></i> Analyzing trends...
+                    </div>
+                    <div class="trends-grid" id="trendsGrid">
+                      <div class="trend-card">
+                        <div class="trend-label">Request Volume</div>
+                        <div class="trend-value" id="trendRequests">-</div>
+                        <div class="trend-change" id="trendRequestsChange">
+                          -
+                        </div>
+                      </div>
+                      <div class="trend-card">
+                        <div class="trend-label">Avg Response Time</div>
+                        <div class="trend-value" id="trendDuration">-</div>
+                        <div class="trend-change" id="trendDurationChange">
+                          -
+                        </div>
+                      </div>
+                      <div class="trend-card">
+                        <div class="trend-label">Error Count</div>
+                        <div class="trend-value" id="trendErrors">-</div>
+                        <div class="trend-change" id="trendErrorsChange">-</div>
+                      </div>
+                      <div class="trend-card">
+                        <div class="trend-label">Data Transferred</div>
+                        <div class="trend-value" id="trendBytes">-</div>
+                        <div class="trend-change" id="trendBytesChange">-</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Heatmap -->
+                  <div class="analytics-section">
+                    <h3><i class="fas fa-th"></i> Activity Heatmap</h3>
+                    <p class="description">
+                      Request activity by time of day and day of week
+                    </p>
+                    <div
+                      id="heatmapLoading"
+                      class="loading-indicator"
+                      style="display: none"
+                    >
+                      <i class="fas fa-spinner fa-spin"></i> Generating
+                      heatmap...
+                    </div>
+                    <div id="heatmapContainer" class="heatmap-container">
+                      <canvas id="heatmapCanvas"></canvas>
+                    </div>
+                  </div>
+
+                  <!-- Multi-Domain Comparison -->
+                  <div class="analytics-section">
+                    <h3>
+                      <i class="fas fa-balance-scale"></i> Multi-Domain
+                      Comparison
+                    </h3>
+                    <div class="comparison-controls">
+                      <div id="domainSelectors" class="domain-selectors">
+                        <select id="compareDomain1">
+                          <option value="">Select Domain 1</option>
+                        </select>
+                        <select id="compareDomain2">
+                          <option value="">Select Domain 2</option>
+                        </select>
+                        <select id="compareDomain3">
+                          <option value="">Select Domain 3</option>
+                        </select>
+                      </div>
+                      <button id="compareDomainsBtn" class="btn-primary">
+                        <i class="fas fa-chart-bar"></i> Compare
+                      </button>
+                    </div>
+                    <div
+                      id="comparisonLoading"
+                      class="loading-indicator"
+                      style="display: none"
+                    >
+                      <i class="fas fa-spinner fa-spin"></i> Comparing
+                      domains...
+                    </div>
+                    <div id="comparisonResults" class="comparison-results">
+                      <canvas id="comparisonChart"></canvas>
+                    </div>
+                  </div>
+
+                  <!-- Performance Insights -->
+                  <div class="analytics-section">
+                    <h3>
+                      <i class="fas fa-lightbulb"></i> Performance Insights &
+                      Recommendations
+                    </h3>
+                    <div
+                      id="insightsLoading"
+                      class="loading-indicator"
+                      style="display: none"
+                    >
+                      <i class="fas fa-spinner fa-spin"></i> Generating
+                      insights...
+                    </div>
+                    <div id="insightsList" class="insights-list">
+                      <p class="placeholder">
+                        No insights available. Apply filters and refresh to
+                        generate recommendations.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <!-- End Analytics Tab -->
               </div>
+              <!-- End Dashboard Tabs -->
             </div>
           </section>
 

@@ -529,6 +529,84 @@ button.secondary:hover {
   color: var(--error-color);
 }
 
+/* Dashboard Sub-Tabs */
+.dashboard-tabs {
+  margin-top: 24px;
+}
+
+.dashboard-tabs .tabs-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.dashboard-tab-btn {
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary-color);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-tab-btn i {
+  font-size: 14px;
+}
+
+.dashboard-tab-btn:hover {
+  color: var(--text-primary-color);
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.dashboard-tab-btn.active {
+  color: var(--primary-color);
+  background: rgba(76, 175, 80, 0.15);
+  font-weight: 600;
+}
+
+.dashboard-tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--primary-color);
+  border-radius: 3px 3px 0 0;
+}
+
+.dashboard-tab-content {
+  display: none !important;
+  opacity: 0;
+}
+
+.dashboard-tab-content.active {
+  display: block !important;
+  animation: fadeIn 0.3s ease forwards;
+  opacity: 1 !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Dashboard Charts */
 .dashboard-charts {
   margin-bottom: 30px;
