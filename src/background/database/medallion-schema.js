@@ -15,7 +15,7 @@ export async function createMedallionSchema(db) {
   await createBronzeSchema(db);
   await createSilverSchema(db);
   await createGoldSchema(db);
-  
+
   console.log("Medallion architecture schema created successfully");
   return true;
 }
@@ -123,9 +123,13 @@ function createConfigSchema(db) {
   `);
 
   // Indexes for config schema
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_config_app_settings_category ON config_app_settings(category)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_config_feature_flags_enabled ON config_feature_flags(enabled)`);
-  
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_config_app_settings_category ON config_app_settings(category)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_config_feature_flags_enabled ON config_feature_flags(enabled)`
+  );
+
   console.log("Config schema created");
 }
 
@@ -178,7 +182,7 @@ function createBronzeSchema(db) {
     )
   `);
 
-  // Request timings table
+  // Request timings table with Resource Timing API data
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_request_timings (
       request_id TEXT PRIMARY KEY,
@@ -197,6 +201,10 @@ function createBronzeSchema(db) {
       response_start INTEGER,
       response_end INTEGER,
       response_duration INTEGER,
+      transfer_size INTEGER,
+      encoded_size INTEGER,
+      decoded_size INTEGER,
+      from_cache BOOLEAN DEFAULT 0,
       created_at INTEGER NOT NULL,
       FOREIGN KEY(request_id) REFERENCES bronze_requests(id) ON DELETE CASCADE
     )
@@ -233,16 +241,38 @@ function createBronzeSchema(db) {
     )
   `);
 
+  // Web Vitals table - Core Web Vitals metrics
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bronze_web_vitals (
+      id TEXT PRIMARY KEY,
+      page_url TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      metric_name TEXT NOT NULL CHECK(metric_name IN ('LCP', 'FID', 'CLS', 'FCP', 'TTFB', 'TTI', 'DCL', 'Load')),
+      value REAL NOT NULL,
+      rating TEXT CHECK(rating IN ('good', 'needs-improvement', 'poor')),
+      timestamp INTEGER NOT NULL,
+      user_agent TEXT,
+      viewport_width INTEGER,
+      viewport_height INTEGER,
+      session_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(session_id) REFERENCES bronze_sessions(id) ON DELETE SET NULL
+    )
+  `);
+
   // User sessions table
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_sessions (
       id TEXT PRIMARY KEY,
+      domain TEXT,
       user_id TEXT,
       started_at INTEGER NOT NULL,
       ended_at INTEGER,
       duration INTEGER,
       events_count INTEGER DEFAULT 0,
       requests_count INTEGER DEFAULT 0,
+      pages_count INTEGER DEFAULT 0,
+      pages_visited TEXT,
       user_agent TEXT,
       metadata TEXT
     )
@@ -266,22 +296,70 @@ function createBronzeSchema(db) {
   `);
 
   // Indexes for bronze schema
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_timestamp ON bronze_requests(timestamp)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_domain ON bronze_requests(domain)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_status ON bronze_requests(status)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_type ON bronze_requests(type)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_method ON bronze_requests(method)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_tab_id ON bronze_requests(tab_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_headers_request_id ON bronze_request_headers(request_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_headers_type ON bronze_request_headers(header_type)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_timings_request_id ON bronze_request_timings(request_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_events_type ON bronze_events(event_type)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_events_timestamp ON bronze_events(timestamp)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_events_request_id ON bronze_events(request_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_errors_timestamp ON bronze_errors(timestamp)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_errors_severity ON bronze_errors(severity)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_errors_resolved ON bronze_errors(resolved)`);
-  
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_timestamp ON bronze_requests(timestamp)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_domain ON bronze_requests(domain)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_status ON bronze_requests(status)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_type ON bronze_requests(type)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_method ON bronze_requests(method)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_tab_id ON bronze_requests(tab_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_headers_request_id ON bronze_request_headers(request_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_headers_type ON bronze_request_headers(header_type)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_timings_request_id ON bronze_request_timings(request_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_events_type ON bronze_events(event_type)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_events_timestamp ON bronze_events(timestamp)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_events_request_id ON bronze_events(request_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_web_vitals_domain ON bronze_web_vitals(domain)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_web_vitals_page ON bronze_web_vitals(page_url)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_web_vitals_timestamp ON bronze_web_vitals(timestamp)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_web_vitals_metric ON bronze_web_vitals(metric_name)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_sessions_domain ON bronze_sessions(domain)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_sessions_started ON bronze_sessions(started_at)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_errors_timestamp ON bronze_errors(timestamp)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_errors_severity ON bronze_errors(severity)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_errors_resolved ON bronze_errors(resolved)`
+  );
+
   console.log("Bronze schema created");
 }
 
@@ -405,14 +483,28 @@ function createSilverSchema(db) {
   `);
 
   // Indexes for silver schema
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_requests_timestamp ON silver_requests(timestamp)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_requests_domain ON silver_requests(domain)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_requests_status ON silver_requests(status)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_requests_type ON silver_requests(type)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_requests_performance ON silver_requests(performance_score)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_domain_stats_requests ON silver_domain_stats(total_requests)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silver_hourly_timestamp ON silver_hourly_stats(hour_timestamp)`);
-  
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_requests_timestamp ON silver_requests(timestamp)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_requests_domain ON silver_requests(domain)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_requests_status ON silver_requests(status)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_requests_type ON silver_requests(type)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_requests_performance ON silver_requests(performance_score)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_domain_stats_requests ON silver_domain_stats(total_requests)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_silver_hourly_timestamp ON silver_hourly_stats(hour_timestamp)`
+  );
+
   console.log("Silver schema created");
 }
 
@@ -521,16 +613,34 @@ function createGoldSchema(db) {
   `);
 
   // Indexes for gold schema
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_daily_date ON gold_daily_analytics(date)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_insights_type ON gold_performance_insights(insight_type)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_insights_severity ON gold_performance_insights(severity)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_date ON gold_domain_performance(date)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_domain ON gold_domain_performance(domain)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_trends_metric ON gold_trends(metric_name)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_trends_date ON gold_trends(date)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_anomalies_severity ON gold_anomalies(severity)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_gold_anomalies_resolved ON gold_anomalies(resolved)`);
-  
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_daily_date ON gold_daily_analytics(date)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_insights_type ON gold_performance_insights(insight_type)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_insights_severity ON gold_performance_insights(severity)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_date ON gold_domain_performance(date)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_domain ON gold_domain_performance(domain)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_trends_metric ON gold_trends(metric_name)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_trends_date ON gold_trends(date)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_anomalies_severity ON gold_anomalies(severity)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_gold_anomalies_resolved ON gold_anomalies(resolved)`
+  );
+
   console.log("Gold schema created");
 }
 
@@ -540,31 +650,43 @@ function createGoldSchema(db) {
  */
 export async function initializeDefaultConfig(db) {
   const now = Date.now();
-  
+
   // Insert default extension config
-  db.exec(`
+  db.exec(
+    `
     INSERT OR IGNORE INTO config_extension (id, version, environment, installation_id, installed_at, last_updated)
     VALUES (1, '1.0.0', 'production', ?, ?, ?)
-  `, [generateInstallationId(), now, now]);
-  
+  `,
+    [generateInstallationId(), now, now]
+  );
+
   // Insert default performance settings
-  db.exec(`
+  db.exec(
+    `
     INSERT OR IGNORE INTO config_performance (id, updated_at)
     VALUES (1, ?)
-  `, [now]);
-  
+  `,
+    [now]
+  );
+
   // Insert default storage settings
-  db.exec(`
+  db.exec(
+    `
     INSERT OR IGNORE INTO config_storage (id, updated_at)
     VALUES (1, ?)
-  `, [now]);
-  
+  `,
+    [now]
+  );
+
   // Insert default export settings
-  db.exec(`
+  db.exec(
+    `
     INSERT OR IGNORE INTO config_export (id, updated_at)
     VALUES (1, ?)
-  `, [now]);
-  
+  `,
+    [now]
+  );
+
   console.log("Default configuration initialized");
 }
 
@@ -573,4 +695,97 @@ export async function initializeDefaultConfig(db) {
  */
 function generateInstallationId() {
   return `ura-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Validate and fix database schema
+ * Checks if tables have correct structure and recreates them if needed
+ */
+export async function validateAndFixSchema(db) {
+  console.log("Validating database schema...");
+
+  try {
+    // Check bronze_web_vitals table structure
+    const result = db.exec(`PRAGMA table_info(bronze_web_vitals)`);
+
+    if (result && result[0]?.values) {
+      const columns = result[0].values.map((col) => col[1]); // Get column names
+      console.log("bronze_web_vitals columns:", columns);
+
+      // Check if table has old 'metric_value' column instead of 'value'
+      if (columns.includes("metric_value") && !columns.includes("value")) {
+        console.warn(
+          "⚠️ Detected old schema with 'metric_value' column. Recreating bronze_web_vitals table..."
+        );
+
+        // Drop and recreate table with correct schema
+        db.exec(`DROP TABLE IF EXISTS bronze_web_vitals`);
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS bronze_web_vitals (
+            id TEXT PRIMARY KEY,
+            page_url TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            metric_name TEXT NOT NULL CHECK(metric_name IN ('LCP', 'FID', 'CLS', 'FCP', 'TTFB', 'TTI', 'DCL', 'Load')),
+            value REAL NOT NULL,
+            rating TEXT CHECK(rating IN ('good', 'needs-improvement', 'poor')),
+            timestamp INTEGER NOT NULL,
+            user_agent TEXT,
+            viewport_width INTEGER,
+            viewport_height INTEGER,
+            session_id TEXT,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES bronze_sessions(id) ON DELETE SET NULL
+          )
+        `);
+
+        console.log("✓ bronze_web_vitals table recreated with correct schema");
+      }
+    }
+
+    // Check bronze_performance_entries table
+    const perfResult = db.exec(`PRAGMA table_info(bronze_performance_entries)`);
+
+    if (perfResult && perfResult[0]?.values) {
+      const perfColumns = perfResult[0].values.map((col) => col[1]);
+      console.log("bronze_performance_entries columns:", perfColumns);
+
+      // Check if table has old 'metric_value' column
+      if (
+        perfColumns.includes("metric_value") &&
+        !perfColumns.includes("duration")
+      ) {
+        console.warn(
+          "⚠️ Detected old schema in bronze_performance_entries. Recreating table..."
+        );
+
+        db.exec(`DROP TABLE IF EXISTS bronze_performance_entries`);
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS bronze_performance_entries (
+            id TEXT PRIMARY KEY,
+            page_url TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            entry_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            start_time REAL,
+            duration REAL,
+            metrics TEXT,
+            timestamp INTEGER NOT NULL,
+            session_id TEXT,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES bronze_sessions(id) ON DELETE SET NULL
+          )
+        `);
+
+        console.log(
+          "✓ bronze_performance_entries table recreated with correct schema"
+        );
+      }
+    }
+
+    console.log("✓ Schema validation complete");
+    return true;
+  } catch (error) {
+    console.error("Schema validation error:", error);
+    return false;
+  }
 }

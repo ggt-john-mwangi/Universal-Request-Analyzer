@@ -56,8 +56,8 @@ async function handleMessage(message, sender) {
       case "getWebVitals":
         return await handleGetWebVitals(message.filters);
 
-      case "getSessionMetrics":
-        return await handleGetSessionMetrics(message.filters);
+      // getSessionMetrics removed - session engagement metrics are not meaningful
+      // for single-user browser extension (only tracks developer's own behavior)
 
       case "saveSettingToDb":
         return await handleSaveSettingToDb(message.key, message.value);
@@ -425,6 +425,24 @@ async function handleGetFilteredStats(filters) {
       }
     } catch (queryError) {
       console.error("Filtered stats query error:", queryError);
+
+      // Check if error is due to schema mismatch
+      if (queryError.message && queryError.message.includes("no such column")) {
+        console.error(
+          "⚠️ Database schema mismatch detected. Please clear extension data and reload."
+        );
+        return {
+          success: false,
+          error:
+            "Database schema outdated. Please clear extension data (Chrome Settings > Extensions > Universal Request Analyzer > Remove) and reinstall.",
+          totalRequests: 0,
+          timestamps: [],
+          responseTimes: [],
+          requestTypes: {},
+          statusCodes: {},
+        };
+      }
+
       return {
         success: false,
         error: queryError.message,
@@ -766,12 +784,11 @@ async function handleGetDomains(timeRange = 604800) {
 // Handle get pages by domain - returns list of pages under a specific domain
 async function handleGetPagesByDomain(domain, timeRange = 604800) {
   try {
+    console.log("handleGetPagesByDomain called with domain:", domain);
+
     if (!domain) {
       return { success: false, error: "Domain is required" };
     }
-
-    const timeRangeMs = parseInt(timeRange) * 1000;
-    const startTime = Date.now() - timeRangeMs;
 
     // Escape SQL strings
     const escapeStr = (val) => {
@@ -779,12 +796,14 @@ async function handleGetPagesByDomain(domain, timeRange = 604800) {
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
+    // Get ALL pages for this domain regardless of time
+    // Time filtering should only apply to the metrics displayed, not to available pages
     const query = `
       SELECT DISTINCT page_url, COUNT(*) as request_count
       FROM bronze_requests
       WHERE domain = ${escapeStr(
         domain
-      )} AND page_url IS NOT NULL AND page_url != '' AND timestamp > ${startTime}
+      )} AND page_url IS NOT NULL AND page_url != ''
       GROUP BY page_url
       ORDER BY request_count DESC
     `;
@@ -998,52 +1017,8 @@ async function handleGetWebVitals(filters = {}) {
   }
 }
 
-// Handle get Session Metrics - returns session statistics
-async function handleGetSessionMetrics(filters = {}) {
-  try {
-    const timeRange = filters.timeRange || 86400;
-    const timeRangeMs = parseInt(timeRange) * 1000;
-    const startTime = Date.now() - timeRangeMs;
-
-    const metrics = {
-      totalSessions: 0,
-      avgDuration: null,
-      avgRequests: null,
-      avgEvents: null,
-    };
-
-    // Query session statistics
-    const query = `
-      SELECT 
-        COUNT(*) as total_sessions,
-        AVG(duration) as avg_duration,
-        AVG(requests_count) as avg_requests,
-        AVG(events_count) as avg_events
-      FROM bronze_sessions
-      WHERE started_at > ?
-    `;
-
-    try {
-      if (dbManager?.executeQuery) {
-        const result = await dbManager.executeQuery(query, [startTime]);
-        if (result && result[0]?.values && result[0].values.length > 0) {
-          const row = result[0].values[0];
-          metrics.totalSessions = row[0] || 0;
-          metrics.avgDuration = row[1] || null;
-          metrics.avgRequests = row[2] || null;
-          metrics.avgEvents = row[3] || null;
-        }
-      }
-    } catch (queryError) {
-      console.error("Session metrics query error:", queryError);
-    }
-
-    return { success: true, metrics };
-  } catch (error) {
-    console.error("Get session metrics error:", error);
-    return { success: false, error: error.message };
-  }
-}
+// handleGetSessionMetrics removed - session engagement metrics not meaningful
+// for single-user browser extension (only tracks developer's own behavior)
 
 // Handle get request types - returns list of available request types
 async function handleGetRequestTypes() {

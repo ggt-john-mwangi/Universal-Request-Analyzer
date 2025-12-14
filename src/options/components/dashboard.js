@@ -6,18 +6,20 @@ import Chart from "../../lib/chart.min.js";
 class Dashboard {
   constructor() {
     this.charts = {};
+    this.comparisonChartInstance = null; // Store comparison chart instance
     this.refreshInterval = null;
     this.timeRange = 86400; // Default 24 hours
     this.currentRequests = []; // Store current requests for cURL export
     this.currentErrors = []; // Store current errors for actions
     this.searchTimeout = null; // Debounce search input
+    this.loadingPageFilter = false; // Prevent concurrent page filter loads
   }
 
   async initialize() {
     console.log("Initializing Dashboard...");
 
-    // Load domain filter first
-    await this.loadDomainFilter();
+    // Load domain filter first and check if domains exist
+    const hasData = await this.loadDomainFilter();
 
     // Setup event listeners
     this.setupEventListeners();
@@ -25,8 +27,12 @@ class Dashboard {
     // Initialize charts
     this.initializeCharts();
 
-    // Load initial data
-    await this.refreshDashboard();
+    // Load initial data only if domains exist
+    if (hasData) {
+      await this.refreshDashboard();
+    } else {
+      this.showNoDomainState();
+    }
 
     // Start auto-refresh
     this.startAutoRefresh();
@@ -178,6 +184,104 @@ class Dashboard {
           return;
         }
       });
+    }
+
+    // Request Details Modal event listeners
+    const requestDetailsModal = document.getElementById("requestDetailsModal");
+    if (requestDetailsModal) {
+      // Close button
+      const closeBtn = requestDetailsModal.querySelector(".modal-close");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          requestDetailsModal.style.display = "none";
+        });
+      }
+
+      // Footer close button
+      const footerCloseBtn = document.getElementById("closeRequestDetailsBtn");
+      if (footerCloseBtn) {
+        footerCloseBtn.addEventListener("click", () => {
+          requestDetailsModal.style.display = "none";
+        });
+      }
+
+      // Click outside to close
+      requestDetailsModal.addEventListener("click", (e) => {
+        if (e.target === requestDetailsModal) {
+          requestDetailsModal.style.display = "none";
+        }
+      });
+    }
+
+    // cURL Command Modal event listeners
+    const curlCommandModal = document.getElementById("curlCommandModal");
+    if (curlCommandModal) {
+      // Close button
+      const closeBtn = curlCommandModal.querySelector(".modal-close");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          curlCommandModal.style.display = "none";
+        });
+      }
+
+      // Footer close button
+      const footerCloseBtn = document.getElementById("closeCurlModalBtn");
+      if (footerCloseBtn) {
+        footerCloseBtn.addEventListener("click", () => {
+          curlCommandModal.style.display = "none";
+        });
+      }
+
+      // Copy button
+      const copyBtn = document.getElementById("copyCurlBtn");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", () => {
+          const curlText = document.getElementById("curlCommandText");
+          if (curlText) {
+            this.copyToClipboard(curlText.textContent);
+          }
+        });
+      }
+
+      // Click outside to close
+      curlCommandModal.addEventListener("click", (e) => {
+        if (e.target === curlCommandModal) {
+          curlCommandModal.style.display = "none";
+        }
+      });
+    }
+
+    // Analytics Tab event listeners removed - features provide no actionable value for developers
+
+    // Populate domain comparison dropdowns
+    const compareDomain1 = document.getElementById("compareDomain1");
+    const compareDomain2 = document.getElementById("compareDomain2");
+    const compareDomain3 = document.getElementById("compareDomain3");
+
+    if (compareDomain1 || compareDomain2 || compareDomain3) {
+      // Load domains for comparison dropdowns
+      chrome.runtime
+        .sendMessage({ action: "getAvailableDomains" })
+        .then((response) => {
+          if (response.success && response.domains) {
+            const options = response.domains
+              .map(
+                (d) =>
+                  `<option value="${d.domain}">${d.domain} (${d.count} requests)</option>`
+              )
+              .join("");
+
+            if (compareDomain1)
+              compareDomain1.innerHTML =
+                '<option value="">Select Domain 1</option>' + options;
+            if (compareDomain2)
+              compareDomain2.innerHTML =
+                '<option value="">Select Domain 2</option>' + options;
+            if (compareDomain3)
+              compareDomain3.innerHTML =
+                '<option value="">Select Domain 3</option>' + options;
+          }
+        });
     }
   }
 
@@ -358,6 +462,14 @@ class Dashboard {
   async refreshDashboard() {
     console.log("Refreshing dashboard...");
 
+    // Check if "All Domains" is selected
+    const domainFilter = document.getElementById("dashboardDomainFilter");
+    if (domainFilter && domainFilter.value === "all") {
+      this.showSelectDomainPrompt();
+      this.showLoadingState(false);
+      return;
+    }
+
     // Show loading state
     this.showLoadingState(true);
 
@@ -377,8 +489,12 @@ class Dashboard {
       // Update Core Web Vitals
       await this.updateWebVitals();
 
-      // Update Session Metrics
-      await this.updateSessionMetrics();
+      // Reload data for currently active tab
+      const activeTab = document.querySelector(".dashboard-tab-btn.active");
+      if (activeTab) {
+        const tabName = activeTab.dataset.tab;
+        await this.reloadActiveTabData(tabName);
+      }
 
       console.log("✓ Dashboard refreshed");
     } catch (error) {
@@ -387,6 +503,31 @@ class Dashboard {
     } finally {
       // Hide loading state
       this.showLoadingState(false);
+    }
+  }
+
+  async reloadActiveTabData(tabName) {
+    // Reload data for the active tab when filters change
+    switch (tabName) {
+      case "overview":
+        await this.loadWebVitals();
+        break;
+      case "requests":
+        await this.loadRequestsTable(1);
+        break;
+      case "performance":
+        await this.loadEndpointPerformanceHistory();
+        break;
+      case "resources":
+        await this.loadResourcesBreakdown();
+        break;
+      case "errors":
+        await this.loadErrorsAnalysis();
+        break;
+      case "analytics":
+        await this.loadAnalyticsPercentiles();
+        // Other analytics features removed - don't provide actionable insights for developers
+        break;
     }
   }
 
@@ -437,6 +578,156 @@ class Dashboard {
     }
   }
 
+  showNoDomainState() {
+    const dashboardContainer = document.querySelector(".dashboard-content");
+    if (!dashboardContainer) return;
+
+    const emptyStateHtml = `
+      <div class="dashboard-empty-state" style="
+        text-align: center;
+        padding: 80px 20px;
+        max-width: 600px;
+        margin: 0 auto;
+      ">
+        <div style="
+          font-size: 64px;
+          color: var(--text-tertiary, #ccc);
+          margin-bottom: 24px;
+        ">
+          <i class="fas fa-inbox"></i>
+        </div>
+        <h2 style="
+          color: var(--text-primary);
+          margin: 0 0 16px 0;
+          font-size: 24px;
+        ">No Data Captured Yet</h2>
+        <p style="
+          color: var(--text-secondary);
+          font-size: 16px;
+          line-height: 1.6;
+          margin: 0 0 32px 0;
+        ">
+          Start browsing websites with the extension enabled to see request analytics, 
+          performance metrics, and insights here.
+        </p>
+        <div style="
+          background: var(--surface-color);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 24px;
+          text-align: left;
+          max-width: 400px;
+          margin: 0 auto;
+        ">
+          <h3 style="
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            color: var(--text-primary);
+          ">
+            <i class="fas fa-lightbulb" style="color: var(--warning-color);"></i>
+            Getting Started
+          </h3>
+          <ol style="
+            margin: 0;
+            padding-left: 24px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+          ">
+            <li>Visit any website</li>
+            <li>Make sure request capture is enabled</li>
+            <li>Return here to see analytics</li>
+          </ol>
+        </div>
+      </div>
+    `;
+
+    // Hide all tab content and show empty state
+    const tabContents = document.querySelectorAll(".dashboard-tab-content");
+    tabContents.forEach((content) => {
+      content.style.display = "none";
+    });
+
+    // Insert empty state
+    const firstTabContent = document.querySelector(".dashboard-tab-content");
+    if (firstTabContent) {
+      const emptyStateDiv = document.createElement("div");
+      emptyStateDiv.className = "dashboard-empty-state-container";
+      emptyStateDiv.innerHTML = emptyStateHtml;
+      firstTabContent.parentNode.insertBefore(emptyStateDiv, firstTabContent);
+    }
+  }
+
+  showSelectDomainPrompt() {
+    const dashboardContainer = document.querySelector(".dashboard-content");
+    if (!dashboardContainer) return;
+
+    // Remove any existing prompt
+    const existing = document.querySelector(".dashboard-select-domain-prompt");
+    if (existing) existing.remove();
+
+    const promptHtml = `
+      <div class="dashboard-select-domain-prompt" style="
+        text-align: center;
+        padding: 60px 20px;
+        max-width: 500px;
+        margin: 0 auto;
+      ">
+        <div style="
+          font-size: 48px;
+          color: var(--primary-color);
+          margin-bottom: 24px;
+        ">
+          <i class="fas fa-filter"></i>
+        </div>
+        <h2 style="
+          color: var(--text-primary);
+          margin: 0 0 16px 0;
+          font-size: 22px;
+        ">Select a Domain to View Dashboard</h2>
+        <p style="
+          color: var(--text-secondary);
+          font-size: 15px;
+          line-height: 1.6;
+          margin: 0 0 24px 0;
+        ">
+          Please select a specific domain from the filter above to view detailed analytics, 
+          metrics, and performance data.
+        </p>
+        <div style="
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 16px;
+          display: inline-block;
+        ">
+          <i class="fas fa-arrow-up" style="color: var(--primary-color); margin-right: 8px;"></i>
+          <span style="color: var(--text-primary); font-weight: 500;">Use the Domain filter above</span>
+        </div>
+      </div>
+    `;
+
+    // Hide all tab content and show prompt
+    const tabContents = document.querySelectorAll(".dashboard-tab-content");
+    tabContents.forEach((content) => {
+      content.style.display = "none";
+    });
+
+    // Insert prompt
+    const firstTabContent = document.querySelector(".dashboard-tab-content");
+    if (firstTabContent) {
+      const promptDiv = document.createElement("div");
+      promptDiv.className = "dashboard-select-domain-prompt-container";
+      promptDiv.innerHTML = promptHtml;
+      firstTabContent.parentNode.insertBefore(promptDiv, firstTabContent);
+    }
+
+    // Also hide active filters banner since no specific domain is selected
+    const activeFiltersInfo = document.getElementById("dashboardActiveFilters");
+    if (activeFiltersInfo) {
+      activeFiltersInfo.style.display = "none";
+    }
+  }
+
   async getAggregatedStats() {
     const filters = this.getActiveFilters();
 
@@ -466,9 +757,12 @@ class Dashboard {
               avgResponse: 0,
               slowRequests: 0,
               errorCount: 0,
-              volumeTimeline: { labels: response.timestamps || [], values: [] },
+              volumeTimeline: {
+                labels: response.timestamps || [],
+                values: this.calculateVolumeValues(response.timestamps || []),
+              },
               statusDistribution: [0, 0, 0, 0],
-              topDomains: { labels: [], values: [] },
+              topDomains: this.extractTopDomains(response.requestTypes || {}),
               performanceTrend: {
                 labels: response.timestamps || [],
                 values: response.responseTimes || [],
@@ -511,6 +805,28 @@ class Dashboard {
         }
       );
     });
+  }
+
+  calculateVolumeValues(timestamps) {
+    // Group timestamps into buckets and count requests per bucket
+    const bucketCounts = {};
+    timestamps.forEach((timestamp) => {
+      bucketCounts[timestamp] = (bucketCounts[timestamp] || 0) + 1;
+    });
+    // Return counts in same order as labels
+    return timestamps.map((label) => bucketCounts[label] || 0);
+  }
+
+  extractTopDomains(requestTypes) {
+    // Convert requestTypes object to sorted array
+    const entries = Object.entries(requestTypes);
+    entries.sort((a, b) => b[1] - a[1]); // Sort by count descending
+    const top5 = entries.slice(0, 5);
+
+    return {
+      labels: top5.map(([type]) => type),
+      values: top5.map(([, count]) => count),
+    };
   }
 
   getDefaultStats() {
@@ -634,23 +950,119 @@ class Dashboard {
     console.log("✓ Dashboard auto-refresh started (30s interval)");
   }
 
+  async loadWebVitals() {
+    try {
+      const filters = this.getActiveFilters();
+
+      // Query for latest web vitals by metric name
+      let query = `
+        SELECT 
+          metric_name,
+          metric_value,
+          rating,
+          timestamp
+        FROM bronze_web_vitals
+        WHERE 1=1
+      `;
+
+      if (filters.domain) {
+        query += ` AND page_url LIKE '%${filters.domain}%'`;
+      }
+
+      if (filters.pageUrl) {
+        query += ` AND page_url = '${filters.pageUrl.replace(/'/g, "''")}'`;
+      }
+
+      query += `
+        ORDER BY timestamp DESC
+        LIMIT 100
+      `;
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: query,
+      });
+
+      if (response.success && response.data) {
+        // Group by metric name and get latest value
+        const vitals = {};
+        response.data.forEach((row) => {
+          if (!vitals[row.metric_name]) {
+            vitals[row.metric_name] = {
+              value: row.metric_value,
+              rating: row.rating || "needs-improvement",
+            };
+          }
+        });
+
+        // Update DOM elements
+        this.updateWebVitalCard("lcp", vitals.LCP);
+        this.updateWebVitalCard("fid", vitals.FID);
+        this.updateWebVitalCard("cls", vitals.CLS);
+        this.updateWebVitalCard("fcp", vitals.FCP);
+        this.updateWebVitalCard("ttfb", vitals.TTFB);
+        this.updateWebVitalCard("tti", vitals.TTI);
+        this.updateWebVitalCard("dcl", vitals.DCL);
+        this.updateWebVitalCard("load", vitals.Load);
+      }
+    } catch (error) {
+      console.error("Failed to load web vitals:", error);
+    }
+  }
+
+  updateWebVitalCard(metricKey, vitalData) {
+    const valueEl = document.getElementById(`${metricKey}Value`);
+    if (!valueEl) return;
+
+    if (vitalData) {
+      // Format value based on metric type
+      let displayValue;
+      if (metricKey === "cls") {
+        displayValue = vitalData.value.toFixed(3);
+      } else if (metricKey === "dcl" || metricKey === "load") {
+        displayValue = `${(vitalData.value / 1000).toFixed(2)}s`;
+      } else {
+        displayValue = `${Math.round(vitalData.value)}ms`;
+      }
+
+      valueEl.textContent = displayValue;
+
+      // Apply rating class (preserve existing vital-value class)
+      valueEl.className = "vital-value";
+      if (vitalData.rating === "good") {
+        valueEl.classList.add("vital-good");
+      } else if (vitalData.rating === "needs-improvement") {
+        valueEl.classList.add("vital-warning");
+      } else {
+        valueEl.classList.add("vital-poor");
+      }
+    } else {
+      valueEl.textContent = "-";
+      valueEl.className = "vital-value";
+    }
+  }
+
+  // Session metrics removed - they only tracked developer's own testing behavior,
+  // not representative of real user engagement. bronze_sessions table is kept
+  // for linking Web Vitals data.
+
   async loadEndpointPerformanceHistory() {
     try {
-      const domainFilter = document.getElementById("dashboardDomainFilter");
+      const activeFilters = this.getActiveFilters();
       const typeFilter = document.getElementById("dashboardEndpointTypeFilter");
       const endpointPattern = document.getElementById(
         "dashboardEndpointPattern"
       );
       const timeBucket = document.getElementById("dashboardHistoryTimeBucket");
 
-      const selectedDomain = domainFilter?.value || "all";
       const selectedType = typeFilter?.value || "";
       const pattern = endpointPattern?.value?.trim() || "";
       const bucket = timeBucket?.value || "hourly";
 
       const filters = {
-        domain: selectedDomain === "all" ? null : selectedDomain,
-        type: selectedType || null,
+        domain: activeFilters.domain || null,
+        pageUrl: activeFilters.pageUrl || null,
+        type: activeFilters.type || selectedType || null,
         endpoint: pattern || null,
         timeBucket: bucket,
         timeRange: this.timeRange,
@@ -747,17 +1159,16 @@ class Dashboard {
 
   async loadRequestsTable(page = 1) {
     try {
-      const domainFilter = document.getElementById("dashboardDomainFilter");
+      const activeFilters = this.getActiveFilters();
       const searchInput = document.getElementById("dashboardSearchRequests");
       const perPageSelect = document.getElementById("dashboardRequestsPerPage");
 
-      const selectedDomain = domainFilter?.value || "all";
       const searchQuery = searchInput?.value?.trim() || "";
       const perPage = perPageSelect ? parseInt(perPageSelect.value) : 25;
       const offset = (page - 1) * perPage;
 
       const filters = {
-        domain: selectedDomain === "all" ? null : selectedDomain,
+        ...activeFilters,
         searchQuery: searchQuery || null,
         timeRange: this.timeRange,
       };
@@ -914,67 +1325,50 @@ class Dashboard {
         return;
       }
 
-      const modal = document.createElement("div");
-      modal.className = "details-modal";
-      modal.innerHTML = `
-        <div class="modal-overlay"></div>
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3><i class="fas fa-info-circle"></i> Request Details</h3>
-            <button class="modal-close">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="detail-section">
-              <h4>General</h4>
-              <table class="details-table">
-                <tr><td>Method:</td><td><span class="method-badge">${
-                  request.method
-                }</span></td></tr>
-                <tr><td>URL:</td><td class="selectable">${request.url}</td></tr>
-                <tr><td>Status:</td><td>${request.status} ${
+      // Populate modal content
+      const modalBody = document.getElementById("requestDetailsBody");
+      if (!modalBody) return;
+
+      modalBody.innerHTML = `
+        <div class="detail-section">
+          <h4>General</h4>
+          <table class="details-table">
+            <tr><td>Method:</td><td><span class="method-badge">${
+              request.method
+            }</span></td></tr>
+            <tr><td>URL:</td><td class="selectable">${request.url}</td></tr>
+            <tr><td>Status:</td><td>${request.status} ${
         request.status_text || ""
       }</td></tr>
-                <tr><td>Type:</td><td>${request.type}</td></tr>
-                <tr><td>Domain:</td><td>${request.domain || "N/A"}</td></tr>
-                <tr><td>Page:</td><td>${request.page_url || "N/A"}</td></tr>
-              </table>
-            </div>
-            <div class="detail-section">
-              <h4>Performance</h4>
-              <table class="details-table">
-                <tr><td>Duration:</td><td>${
-                  request.duration ? Math.round(request.duration) + "ms" : "N/A"
-                }</td></tr>
-                <tr><td>Size:</td><td>${this.formatBytes(
-                  request.size_bytes || 0
-                )}</td></tr>
-                <tr><td>From Cache:</td><td>${
-                  request.from_cache ? "Yes" : "No"
-                }</td></tr>
-                <tr><td>Timestamp:</td><td>${new Date(
-                  request.timestamp
-                ).toLocaleString()}</td></tr>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-secondary modal-close-btn">Close</button>
-          </div>
+            <tr><td>Type:</td><td>${request.type}</td></tr>
+            <tr><td>Domain:</td><td>${request.domain || "N/A"}</td></tr>
+            <tr><td>Page:</td><td>${request.page_url || "N/A"}</td></tr>
+          </table>
+        </div>
+        <div class="detail-section">
+          <h4>Performance</h4>
+          <table class="details-table">
+            <tr><td>Duration:</td><td>${
+              request.duration ? Math.round(request.duration) + "ms" : "N/A"
+            }</td></tr>
+            <tr><td>Size:</td><td>${this.formatBytes(
+              request.size_bytes || 0
+            )}</td></tr>
+            <tr><td>From Cache:</td><td>${
+              request.from_cache ? "Yes" : "No"
+            }</td></tr>
+            <tr><td>Timestamp:</td><td>${new Date(
+              request.timestamp
+            ).toLocaleString()}</td></tr>
+          </table>
         </div>
       `;
 
-      const closeModal = () => modal.remove();
-      modal
-        .querySelector(".modal-overlay")
-        .addEventListener("click", closeModal);
-      modal.querySelector(".modal-close").addEventListener("click", closeModal);
-      modal
-        .querySelector(".modal-close-btn")
-        .addEventListener("click", closeModal);
-
-      document.body.appendChild(modal);
+      // Show modal
+      const modal = document.getElementById("requestDetailsModal");
+      if (modal) {
+        modal.style.display = "block";
+      }
     } catch (error) {
       console.error("Error showing request details:", error);
       this.showToast("Failed to load request details", "error");
@@ -992,7 +1386,17 @@ class Dashboard {
       curl += ` -H 'Accept: */*'`;
       curl += " --compressed";
 
-      this.copyToClipboard(curl);
+      // Populate modal with cURL command
+      const curlCommandText = document.getElementById("curlCommandText");
+      if (curlCommandText) {
+        curlCommandText.textContent = curl;
+      }
+
+      // Show modal
+      const modal = document.getElementById("curlCommandModal");
+      if (modal) {
+        modal.style.display = "block";
+      }
     } catch (error) {
       console.error("Error generating cURL:", error);
       this.showToast("Failed to generate cURL command", "error");
@@ -1070,11 +1474,10 @@ class Dashboard {
 
   async loadResourcesBreakdown() {
     try {
-      const domainFilter = document.getElementById("dashboardDomainFilter");
-      const selectedDomain = domainFilter?.value || "all";
+      const activeFilters = this.getActiveFilters();
 
       const filters = {
-        domain: selectedDomain === "all" ? null : selectedDomain,
+        ...activeFilters,
         timeRange: this.timeRange,
       };
 
@@ -1193,57 +1596,136 @@ class Dashboard {
     });
   }
 
-  renderCompressionAnalysis(breakdown, totalSize) {
-    const compressibleTypes = [
-      "script",
-      "stylesheet",
-      "xmlhttprequest",
-      "fetch",
-      "document",
-    ];
-    const compressibleSize = breakdown
-      .filter((b) => compressibleTypes.includes(b.type))
-      .reduce((sum, b) => sum + b.totalBytes, 0);
-
-    const potentialSavings = compressibleSize * 0.7; // Assume 70% compression ratio
-    const savingsPercentage =
-      totalSize > 0 ? ((potentialSavings / totalSize) * 100).toFixed(1) : 0;
-
-    const html = `
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-          <label>Compressible Resources:</label>
-          <span style="font-weight: 600;">${this.formatBytes(
-            compressibleSize
-          )}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-          <label>Potential Savings:</label>
-          <span style="font-weight: 600; color: var(--success-color);">${this.formatBytes(
-            potentialSavings
-          )}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-          <label>Compression Ratio:</label>
-          <span style="font-weight: 600;">${savingsPercentage}% of total</span>
-        </div>
-        <div style="margin-top: 8px; padding: 12px; background: var(--background-color); border-radius: 6px; font-size: 12px;">
-          <i class="fas fa-info-circle" style="color: var(--primary-color);"></i>
-          <span style="margin-left: 8px;">Assumes 70% compression for text-based resources (JS, CSS, HTML, JSON)</span>
-        </div>
-      </div>
-    `;
-
-    document.getElementById("dashboardCompressionStats").innerHTML = html;
-  }
-
-  async loadErrorsAnalysis() {
+  async renderCompressionAnalysis(breakdown, totalSize) {
     try {
       const domainFilter = document.getElementById("dashboardDomainFilter");
       const selectedDomain = domainFilter?.value || "all";
 
+      const statsResponse = await chrome.runtime.sendMessage({
+        action: "getResourceCompressionStats",
+        filters: {
+          domain: selectedDomain === "all" ? null : selectedDomain,
+          timeRange: this.timeRange,
+        },
+      });
+
+      if (statsResponse.success && statsResponse.data.resourceCount > 0) {
+        const stats = statsResponse.data;
+        const compressionRate = parseFloat(stats.compressionRate) || 0;
+
+        // Pre-compute values to avoid nested template literals
+        const compressedColor =
+          compressionRate > 50
+            ? "var(--success-color)"
+            : "var(--warning-color)";
+        const savingsColor =
+          stats.potentialSavings > 1000000
+            ? "var(--error-color)"
+            : "var(--success-color)";
+        const iconClass =
+          compressionRate > 50 ? "check-circle" : "exclamation-triangle";
+        const iconColor =
+          compressionRate > 50
+            ? "var(--success-color)"
+            : "var(--warning-color)";
+
+        let message;
+        if (compressionRate > 50) {
+          message = "Good compression rate! Resources are well optimized.";
+        } else if (stats.potentialSavings > 100000) {
+          message =
+            "Enable compression to save " +
+            this.formatBytes(stats.potentialSavings) +
+            ".";
+        } else {
+          message = "Resource sizes are optimized.";
+        }
+
+        const html = `
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Total Bytes:</label>
+              <span style="font-weight: 600;">${this.formatBytes(
+                stats.totalBytes
+              )}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Compressed Bytes:</label>
+              <span style="font-weight: 600; color: ${compressedColor};">${this.formatBytes(
+          stats.compressedBytes
+        )}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Potential Savings:</label>
+              <span style="font-weight: 600; color: ${savingsColor};">${this.formatBytes(
+          stats.potentialSavings
+        )}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Compression Rate:</label>
+              <span style="font-weight: 600;">${compressionRate}%</span>
+            </div>
+            <div style="margin-top: 8px; padding: 12px; background: var(--background-color); border-radius: 6px; font-size: 12px;">
+              <i class="fas fa-${iconClass}" style="color: ${iconColor};"></i>
+              <span style="margin-left: 8px;">${message}</span>
+            </div>
+          </div>
+        `;
+        document.getElementById("dashboardCompressionStats").innerHTML = html;
+      } else {
+        const compressibleTypes = [
+          "script",
+          "stylesheet",
+          "xmlhttprequest",
+          "fetch",
+          "document",
+        ];
+        const compressibleSize = breakdown
+          .filter((b) => compressibleTypes.includes(b.type))
+          .reduce((sum, b) => sum + b.totalBytes, 0);
+        const potentialSavings = compressibleSize * 0.7;
+        const savingsPercentage =
+          totalSize > 0 ? ((potentialSavings / totalSize) * 100).toFixed(1) : 0;
+
+        const html = `
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Compressible Resources:</label>
+              <span style="font-weight: 600;">${this.formatBytes(
+                compressibleSize
+              )}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Potential Savings (Est.):</label>
+              <span style="font-weight: 600; color: var(--warning-color);">${this.formatBytes(
+                potentialSavings
+              )}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <label>Compression Ratio (Est.):</label>
+              <span style="font-weight: 600;">${savingsPercentage}% of total</span>
+            </div>
+            <div style="margin-top: 8px; padding: 12px; background: var(--background-color); border-radius: 6px; font-size: 12px;">
+              <i class="fas fa-info-circle" style="color: var(--primary-color);"></i>
+              <span style="margin-left: 8px;">Estimated: Assumes 70% compression. Visit pages to collect real Resource Timing data.</span>
+            </div>
+          </div>
+        `;
+        document.getElementById("dashboardCompressionStats").innerHTML = html;
+      }
+    } catch (error) {
+      console.error("Failed to render compression analysis:", error);
+      document.getElementById("dashboardCompressionStats").innerHTML =
+        '<p class="no-data">Error loading compression data</p>';
+    }
+  }
+
+  async loadErrorsAnalysis() {
+    try {
+      const activeFilters = this.getActiveFilters();
+
       const filters = {
-        domain: selectedDomain === "all" ? null : selectedDomain,
+        ...activeFilters,
         timeRange: this.timeRange,
       };
 
@@ -1582,11 +2064,26 @@ class Dashboard {
           }
         });
         console.log(`Loaded ${response.domains.length} domains for dashboard`);
+
+        // Auto-select the first domain by default (instead of "All Domains")
+        const firstDomain = response.domains[0].domain;
+        domainSelect.value = firstDomain;
+        if (modalDomainSelect) {
+          modalDomainSelect.value = firstDomain;
+        }
+        console.log(`Auto-selected domain: ${firstDomain}`);
+
+        // Load pages for the auto-selected domain
+        await this.loadPageFilter(firstDomain);
+
+        return true; // Indicate that domains exist
       } else {
         console.warn("No domains found for dashboard");
+        return false; // Indicate no domains available
       }
     } catch (error) {
       console.error("Failed to load domain filter:", error);
+      return false;
     }
   }
 
@@ -1606,7 +2103,9 @@ class Dashboard {
     });
 
     // Load data for specific tabs when switched
-    if (tabName === "requests") {
+    if (tabName === "overview") {
+      this.loadWebVitals();
+    } else if (tabName === "requests") {
       this.loadRequestsTable(1);
     } else if (tabName === "performance") {
       this.loadEndpointPerformanceHistory();
@@ -1614,6 +2113,9 @@ class Dashboard {
       this.loadResourcesBreakdown();
     } else if (tabName === "errors") {
       this.loadErrorsAnalysis();
+    } else if (tabName === "analytics") {
+      this.loadAnalyticsPercentiles();
+      // Other analytics features removed - don't provide actionable insights for developers
     }
   }
 
@@ -1627,8 +2129,11 @@ class Dashboard {
     } else {
       // Clear page filter for "all domains"
       const pageSelect = document.getElementById("dashboardPageFilter");
-      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
-      pageSelect.disabled = true;
+      if (pageSelect) {
+        pageSelect.innerHTML =
+          '<option value="">All Pages (Aggregated)</option>';
+        pageSelect.disabled = true;
+      }
     }
 
     // Refresh dashboard with new filters
@@ -1636,9 +2141,19 @@ class Dashboard {
   }
 
   async loadPageFilter(domain) {
+    // Prevent concurrent calls
+    if (this.loadingPageFilter) {
+      return;
+    }
+
+    this.loadingPageFilter = true;
+
     try {
       const pageSelect = document.getElementById("dashboardPageFilter");
-      if (!pageSelect) return;
+
+      if (!pageSelect) {
+        return;
+      }
 
       // Reset page filter
       pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
@@ -1655,8 +2170,6 @@ class Dashboard {
         domain: domain,
         timeRange: 604800, // Last 7 days
       });
-
-      console.log("Pages for domain response:", response);
 
       if (
         response &&
@@ -1683,11 +2196,11 @@ class Dashboard {
         console.log(
           `Loaded ${response.pages.length} pages for domain ${domain}`
         );
-      } else {
-        console.warn(`No pages found for domain ${domain}`);
       }
     } catch (error) {
       console.error("Failed to load page filter:", error);
+    } finally {
+      this.loadingPageFilter = false;
     }
   }
 
@@ -1702,7 +2215,7 @@ class Dashboard {
 
     const filters = {};
 
-    // Add domain filter
+    // Add domain filter (if "all" is selected, no domain filter is added, showing all domains)
     if (domainFilter && domainFilter !== "all") {
       filters.domain = domainFilter;
     }
@@ -1717,7 +2230,46 @@ class Dashboard {
       filters.type = requestTypeFilter;
     }
 
+    // Update active filters display
+    this.updateActiveFiltersDisplay(
+      domainFilter,
+      pageFilter,
+      requestTypeFilter
+    );
+
     return filters;
+  }
+
+  updateActiveFiltersDisplay(domain, page, type) {
+    const infoBox = document.getElementById("dashboardActiveFilters");
+    const infoText = document.getElementById("activeFiltersText");
+
+    if (!infoBox || !infoText) return;
+
+    const parts = [];
+
+    if (domain && domain !== "all") {
+      parts.push(`<strong>Domain:</strong> ${domain}`);
+    } else {
+      parts.push(`<strong>Showing data from ALL domains</strong>`);
+    }
+
+    if (page && page !== "") {
+      try {
+        const url = new URL(page);
+        const displayPath = url.pathname + url.search || "/";
+        parts.push(`<strong>Page:</strong> ${displayPath}`);
+      } catch (e) {
+        parts.push(`<strong>Page:</strong> ${page}`);
+      }
+    }
+
+    if (type && type !== "") {
+      parts.push(`<strong>Type:</strong> ${type}`);
+    }
+
+    infoText.innerHTML = parts.join(" | ");
+    infoBox.style.display = "block";
   }
 
   async updateWebVitals() {
@@ -1808,69 +2360,873 @@ class Dashboard {
     }
   }
 
-  async updateSessionMetrics() {
+  // updateSessionMetrics() and formatDuration() removed - session engagement metrics
+  // not meaningful for single-user browser extension
+
+  async loadAnalyticsPercentiles() {
     try {
       const filters = this.getActiveFilters();
 
-      // Get Session Metrics from background
+      // Build WHERE clause
+      const whereConditions = ["duration IS NOT NULL"];
+      if (filters.domain) {
+        whereConditions.push(
+          `domain = '${filters.domain.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.pageUrl) {
+        whereConditions.push(
+          `page_url = '${filters.pageUrl.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.type) {
+        whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
+      }
+      const whereClause =
+        whereConditions.length > 0
+          ? `WHERE ${whereConditions.join(" AND ")}`
+          : "";
+
+      // Query for percentiles from gold_domain_stats or calculate from silver_requests
+      const query = `
+        SELECT 
+          MIN(duration) as min_duration,
+          MAX(duration) as max_duration,
+          AVG(duration) as avg_duration,
+          COUNT(*) as total_count
+        FROM silver_requests
+        ${whereClause}
+      `;
+
       const response = await chrome.runtime.sendMessage({
-        action: "getSessionMetrics",
-        filters: {
-          ...filters,
-          timeRange: this.timeRange,
-        },
+        action: "executeDirectQuery",
+        query: query,
       });
 
-      if (response && response.success && response.metrics) {
-        const metrics = response.metrics;
+      if (response.success && response.data && response.data.length > 0) {
+        const stats = response.data[0];
 
-        // Update Avg Session Duration
-        const avgDurationEl = document.getElementById("avgSessionDuration");
-        if (avgDurationEl && metrics.avgDuration !== null) {
-          avgDurationEl.textContent = this.formatDuration(metrics.avgDuration);
-        }
+        // Get percentiles with separate queries
+        const percentileQueries = [50, 75, 90, 95, 99].map((p) => {
+          const offset = Math.floor((stats.total_count * p) / 100);
+          return `
+            SELECT duration 
+            FROM silver_requests 
+            ${whereClause}
+            ORDER BY duration ASC
+            LIMIT 1 OFFSET ${offset}
+          `;
+        });
 
-        // Update Total Sessions
-        const totalSessionsEl = document.getElementById("totalSessions");
-        if (totalSessionsEl) {
-          totalSessionsEl.textContent = metrics.totalSessions || 0;
-        }
+        // Execute all percentile queries
+        const percentileResults = await Promise.all(
+          percentileQueries.map((q) =>
+            chrome.runtime.sendMessage({
+              action: "executeDirectQuery",
+              query: q,
+            })
+          )
+        );
 
-        // Update Avg Requests per Session
-        const avgRequestsEl = document.getElementById("avgRequestsPerSession");
-        if (avgRequestsEl && metrics.avgRequests !== null) {
-          avgRequestsEl.textContent = Math.round(metrics.avgRequests);
-        }
+        // Update UI with percentiles
+        const percentiles = {
+          p50: percentileResults[0]?.data?.[0]?.duration || 0,
+          p75: percentileResults[1]?.data?.[0]?.duration || 0,
+          p90: percentileResults[2]?.data?.[0]?.duration || 0,
+          p95: percentileResults[3]?.data?.[0]?.duration || 0,
+          p99: percentileResults[4]?.data?.[0]?.duration || 0,
+          max: stats.max_duration || 0,
+        };
 
-        // Update Avg Events per Session
-        const avgEventsEl = document.getElementById("avgEventsPerSession");
-        if (avgEventsEl && metrics.avgEvents !== null) {
-          avgEventsEl.textContent = Math.round(metrics.avgEvents);
-        }
+        document.getElementById("p50Value").textContent = `${Math.round(
+          percentiles.p50
+        )}ms`;
+        document.getElementById("p75Value").textContent = `${Math.round(
+          percentiles.p75
+        )}ms`;
+        document.getElementById("p90Value").textContent = `${Math.round(
+          percentiles.p90
+        )}ms`;
+        document.getElementById("p95Value").textContent = `${Math.round(
+          percentiles.p95
+        )}ms`;
+        document.getElementById("p99Value").textContent = `${Math.round(
+          percentiles.p99
+        )}ms`;
+        document.getElementById("maxValue").textContent = `${Math.round(
+          percentiles.max
+        )}ms`;
+
+        // Apply color coding based on thresholds
+        this.applyPercentileColors(percentiles);
       }
     } catch (error) {
-      console.error("Failed to update session metrics:", error);
+      console.error("Failed to load analytics percentiles:", error);
     }
   }
 
-  formatDuration(ms) {
-    if (!ms) return "-";
+  applyPercentileColors(percentiles) {
+    const thresholds = {
+      good: 200,
+      warning: 500,
+    };
 
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) {
-      return `${seconds}s`;
+    const applyColor = (elementId, value) => {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+
+      el.className = "percentile-value";
+      if (value < thresholds.good) {
+        el.classList.add("good");
+      } else if (value < thresholds.warning) {
+        el.classList.add("warning");
+      } else {
+        el.classList.add("danger");
+      }
+    };
+
+    applyColor("p50Value", percentiles.p50);
+    applyColor("p75Value", percentiles.p75);
+    applyColor("p90Value", percentiles.p90);
+    applyColor("p95Value", percentiles.p95);
+    applyColor("p99Value", percentiles.p99);
+    applyColor("maxValue", percentiles.max);
+  }
+
+  async loadAnomalyDetection() {
+    try {
+      const filters = this.getActiveFilters();
+
+      // Build WHERE clause
+      const whereConditions = ["duration IS NOT NULL"];
+      if (filters.domain) {
+        whereConditions.push(
+          `domain = '${filters.domain.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.pageUrl) {
+        whereConditions.push(
+          `page_url = '${filters.pageUrl.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.type) {
+        whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
+      }
+      const whereClause = whereConditions.join(" AND ");
+
+      // Get requests exceeding P99 threshold
+      const query = `
+        WITH percentiles AS (
+          SELECT duration 
+          FROM silver_requests 
+          WHERE ${whereClause}
+          ORDER BY duration DESC
+          LIMIT 1 OFFSET (
+            SELECT CAST(COUNT(*) * 0.01 AS INTEGER)
+            FROM silver_requests
+            WHERE ${whereClause}
+          )
+        )
+        SELECT 
+          r.url,
+          r.method,
+          r.duration,
+          r.status,
+          r.domain,
+          r.timestamp
+        FROM silver_requests r
+        CROSS JOIN percentiles p
+        WHERE r.duration > p.duration
+          AND (${whereClause})
+        ORDER BY r.duration DESC
+        LIMIT 20
+      `;
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: query,
+      });
+
+      const anomaliesList = document.getElementById("anomaliesList");
+
+      if (response.success && response.data && response.data.length > 0) {
+        let html = '<div style="max-height: 400px; overflow-y: auto;">';
+
+        response.data.forEach((anomaly) => {
+          const date = new Date(anomaly.timestamp);
+          html += `
+            <div class="anomaly-item" style="padding: 12px; margin-bottom: 8px; background: var(--surface-color); border-left: 3px solid var(--error-color); border-radius: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 600; margin-bottom: 4px;">
+                    <span class="method-badge ${anomaly.method}">${
+            anomaly.method
+          }</span>
+                    <span style="margin-left: 8px;">${anomaly.url}</span>
+                  </div>
+                  <div style="font-size: 12px; color: var(--text-secondary-color);">
+                    <span><i class="fas fa-server"></i> ${anomaly.domain}</span>
+                    <span style="margin-left: 12px;"><i class="fas fa-clock"></i> ${date.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 18px; font-weight: 700; color: var(--error-color);">
+                    ${Math.round(anomaly.duration)}ms
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">
+                    Status: ${anomaly.status || "N/A"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += "</div>";
+        html += `<p style="margin-top: 12px; font-size: 12px; color: var(--text-secondary-color);"><i class="fas fa-info-circle"></i> Showing top 20 slowest requests (P99 outliers)</p>`;
+        anomaliesList.innerHTML = html;
+      } else {
+        anomaliesList.innerHTML =
+          '<p class="placeholder" style="padding: 20px; text-align: center; color: var(--text-secondary-color);"><i class="fas fa-check-circle" style="color: var(--success-color);"></i> No anomalies detected - all requests performing within normal range</p>';
+      }
+    } catch (error) {
+      console.error("Failed to load anomaly detection:", error);
+      document.getElementById("anomaliesList").innerHTML =
+        '<p class="no-data">Error loading anomaly data</p>';
     }
+  }
 
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+  async loadTrendAnalysis() {
+    try {
+      const compareType =
+        document.getElementById("trendCompareType")?.value || "week";
+      const filters = this.getActiveFilters();
 
-    if (minutes < 60) {
-      return `${minutes}m ${remainingSeconds}s`;
+      // Calculate time ranges
+      const now = Date.now();
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const currentPeriodDays = compareType === "week" ? 7 : 30;
+      const currentStart = now - currentPeriodDays * msPerDay;
+      const previousStart = currentStart - currentPeriodDays * msPerDay;
+
+      // Build WHERE clause for filters
+      const buildWhereClause = (startTime, endTime) => {
+        const conditions = [
+          `timestamp >= ${startTime}`,
+          `timestamp < ${endTime}`,
+        ];
+        if (filters.domain) {
+          conditions.push(`domain = '${filters.domain.replace(/'/g, "''")}'`);
+        }
+        if (filters.pageUrl) {
+          conditions.push(
+            `page_url = '${filters.pageUrl.replace(/'/g, "''")}'`
+          );
+        }
+        if (filters.type) {
+          conditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
+        }
+        return conditions.join(" AND ");
+      };
+
+      // Query current period
+      const currentQuery = `
+        SELECT 
+          COUNT(*) as request_count,
+          AVG(duration) as avg_duration,
+          SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+          SUM(size_bytes) as total_bytes
+        FROM silver_requests
+        WHERE ${buildWhereClause(currentStart, now)}
+      `;
+
+      // Query previous period
+      const previousQuery = `
+        SELECT 
+          COUNT(*) as request_count,
+          AVG(duration) as avg_duration,
+          SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+          SUM(size_bytes) as total_bytes
+        FROM silver_requests
+        WHERE ${buildWhereClause(previousStart, currentStart)}
+      `;
+
+      const [currentResponse, previousResponse] = await Promise.all([
+        chrome.runtime.sendMessage({
+          action: "executeDirectQuery",
+          query: currentQuery,
+        }),
+        chrome.runtime.sendMessage({
+          action: "executeDirectQuery",
+          query: previousQuery,
+        }),
+      ]);
+
+      if (currentResponse.success && previousResponse.success) {
+        const current = currentResponse.data[0] || {
+          request_count: 0,
+          avg_duration: 0,
+          error_count: 0,
+          total_bytes: 0,
+        };
+        const previous = previousResponse.data[0] || {
+          request_count: 0,
+          avg_duration: 0,
+          error_count: 0,
+          total_bytes: 0,
+        };
+
+        // Calculate changes
+        const calcChange = (curr, prev) => {
+          if (!prev || prev === 0) return curr > 0 ? 100 : 0;
+          return ((curr - prev) / prev) * 100;
+        };
+
+        const requestChange = calcChange(
+          current.request_count,
+          previous.request_count
+        );
+        const durationChange = calcChange(
+          current.avg_duration,
+          previous.avg_duration
+        );
+        const errorChange = calcChange(
+          current.error_count,
+          previous.error_count
+        );
+        const bytesChange = calcChange(
+          current.total_bytes,
+          previous.total_bytes
+        );
+
+        // Update UI
+        document.getElementById("trendRequests").textContent =
+          current.request_count.toLocaleString();
+        document.getElementById("trendDuration").textContent = `${Math.round(
+          current.avg_duration || 0
+        )}ms`;
+        document.getElementById("trendErrors").textContent =
+          current.error_count.toLocaleString();
+        document.getElementById("trendBytes").textContent = this.formatBytes(
+          current.total_bytes || 0
+        );
+
+        // Update change indicators
+        const formatChange = (change, reverse = false) => {
+          const isPositive = reverse ? change < 0 : change > 0;
+          const icon = isPositive ? "fa-arrow-up" : "fa-arrow-down";
+          const color = isPositive
+            ? "var(--success-color)"
+            : "var(--error-color)";
+          return `<i class="fas ${icon}" style="color: ${color};"></i> ${Math.abs(
+            change
+          ).toFixed(1)}%`;
+        };
+
+        document.getElementById("trendRequestsChange").innerHTML =
+          formatChange(requestChange);
+        document.getElementById("trendDurationChange").innerHTML = formatChange(
+          durationChange,
+          true
+        ); // Reverse: lower is better
+        document.getElementById("trendErrorsChange").innerHTML = formatChange(
+          errorChange,
+          true
+        ); // Reverse: lower is better
+        document.getElementById("trendBytesChange").innerHTML = formatChange(
+          bytesChange,
+          true
+        ); // Reverse: lower is better
+      }
+    } catch (error) {
+      console.error("Failed to load trend analysis:", error);
     }
+  }
 
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
+  async loadActivityHeatmap() {
+    try {
+      const filters = this.getActiveFilters();
+
+      // Build WHERE clause
+      const whereConditions = ["timestamp IS NOT NULL"];
+      if (filters.domain) {
+        whereConditions.push(
+          `domain = '${filters.domain.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.pageUrl) {
+        whereConditions.push(
+          `page_url = '${filters.pageUrl.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.type) {
+        whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
+      }
+      const whereClause = whereConditions.join(" AND ");
+
+      // Query for request counts by hour and day of week
+      const query = `
+        SELECT 
+          CAST(strftime('%w', datetime(timestamp/1000, 'unixepoch')) AS INTEGER) as day_of_week,
+          CAST(strftime('%H', datetime(timestamp/1000, 'unixepoch')) AS INTEGER) as hour_of_day,
+          COUNT(*) as request_count
+        FROM silver_requests
+        WHERE ${whereClause}
+        GROUP BY day_of_week, hour_of_day
+        ORDER BY day_of_week, hour_of_day
+      `;
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: query,
+      });
+
+      if (response.success && response.data && response.data.length > 0) {
+        const canvas = document.getElementById("heatmapCanvas");
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        const cellSize = 30;
+        const padding = 40;
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const hours = Array.from({ length: 24 }, (_, i) => i);
+
+        canvas.width = padding + hours.length * cellSize;
+        canvas.height = padding + days.length * cellSize;
+
+        // Create heatmap data structure
+        const heatmapData = Array(7)
+          .fill(0)
+          .map(() => Array(24).fill(0));
+        let maxCount = 0;
+
+        response.data.forEach((row) => {
+          heatmapData[row.day_of_week][row.hour_of_day] = row.request_count;
+          maxCount = Math.max(maxCount, row.request_count);
+        });
+
+        // Clear canvas
+        ctx.fillStyle =
+          getComputedStyle(document.body).getPropertyValue(
+            "--background-color"
+          ) || "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw labels
+        ctx.font = "12px Arial";
+        ctx.fillStyle =
+          getComputedStyle(document.body).getPropertyValue(
+            "--text-primary-color"
+          ) || "#333";
+
+        // Day labels
+        days.forEach((day, i) => {
+          ctx.fillText(day, 5, padding + i * cellSize + 18);
+        });
+
+        // Hour labels (every 3 hours)
+        for (let h = 0; h < 24; h += 3) {
+          ctx.fillText(h.toString(), padding + h * cellSize + 5, 20);
+        }
+
+        // Draw heatmap cells
+        days.forEach((day, dayIndex) => {
+          hours.forEach((hour, hourIndex) => {
+            const count = heatmapData[dayIndex][hourIndex];
+            const intensity = maxCount > 0 ? count / maxCount : 0;
+
+            // Color gradient from light to dark based on activity
+            const r = Math.floor(255 - intensity * 150);
+            const g = Math.floor(255 - intensity * 100);
+            const b = Math.floor(255 - intensity * 50);
+
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.fillRect(
+              padding + hourIndex * cellSize,
+              padding + dayIndex * cellSize,
+              cellSize - 1,
+              cellSize - 1
+            );
+
+            // Add count text if significant
+            if (count > 0) {
+              ctx.fillStyle = intensity > 0.5 ? "#fff" : "#333";
+              ctx.font = "10px Arial";
+              ctx.textAlign = "center";
+              ctx.fillText(
+                count.toString(),
+                padding + hourIndex * cellSize + cellSize / 2,
+                padding + dayIndex * cellSize + cellSize / 2 + 3
+              );
+            }
+          });
+        });
+      } else {
+        // Show placeholder if no data
+        const canvas = document.getElementById("heatmapCanvas");
+        if (canvas) {
+          const ctx = canvas.getContext("2d");
+          canvas.width = 600;
+          canvas.height = 300;
+          ctx.fillStyle =
+            getComputedStyle(document.body).getPropertyValue(
+              "--text-secondary-color"
+            ) || "#999";
+          ctx.font = "14px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "No activity data available",
+            canvas.width / 2,
+            canvas.height / 2
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load activity heatmap:", error);
+    }
+  }
+
+  async loadDomainComparison() {
+    try {
+      const domain1 = document.getElementById("compareDomain1")?.value;
+      const domain2 = document.getElementById("compareDomain2")?.value;
+      const domain3 = document.getElementById("compareDomain3")?.value;
+
+      const domains = [domain1, domain2, domain3].filter((d) => d && d !== "");
+
+      if (domains.length < 2) {
+        document.getElementById("comparisonResults").innerHTML =
+          '<p class="placeholder" style="padding: 40px; text-align: center; color: var(--text-secondary-color);">Select at least 2 domains to compare</p>';
+        return;
+      }
+
+      // Query metrics for each domain
+      const queries = domains.map(
+        (domain) => `
+        SELECT 
+          '${domain.replace(/'/g, "''")}' as domain,
+          COUNT(*) as request_count,
+          AVG(duration) as avg_duration,
+          SUM(size_bytes) as total_bytes,
+          SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+          (SUM(CASE WHEN from_cache = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as cache_hit_rate
+        FROM silver_requests
+        WHERE domain = '${domain.replace(/'/g, "''")}'
+      `
+      );
+
+      const responses = await Promise.all(
+        queries.map((q) =>
+          chrome.runtime.sendMessage({ action: "executeDirectQuery", query: q })
+        )
+      );
+
+      const comparisonData = responses
+        .filter((r) => r.success && r.data && r.data.length > 0)
+        .map((r) => r.data[0]);
+
+      if (comparisonData.length < 2) {
+        document.getElementById("comparisonResults").innerHTML =
+          '<p class="placeholder">Not enough data for comparison</p>';
+        return;
+      }
+
+      // Create comparison chart
+      const canvas = document.getElementById("comparisonChart");
+      const ctx = canvas.getContext("2d");
+
+      // Destroy existing chart if it exists
+      if (this.comparisonChartInstance) {
+        this.comparisonChartInstance.destroy();
+      }
+
+      this.comparisonChartInstance = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: [
+            "Requests",
+            "Avg Duration (ms)",
+            "Errors",
+            "Cache Hit Rate (%)",
+          ],
+          datasets: comparisonData.map((data, index) => ({
+            label: data.domain,
+            data: [
+              data.request_count,
+              Math.round(data.avg_duration || 0),
+              data.error_count,
+              Math.round(data.cache_hit_rate || 0),
+            ],
+            backgroundColor: [
+              "rgba(54, 162, 235, 0.6)",
+              "rgba(255, 99, 132, 0.6)",
+              "rgba(75, 192, 192, 0.6)",
+            ][index],
+            borderColor: [
+              "rgba(54, 162, 235, 1)",
+              "rgba(255, 99, 132, 1)",
+              "rgba(75, 192, 192, 1)",
+            ][index],
+            borderWidth: 1,
+          })),
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: "top",
+              labels: {
+                color:
+                  getComputedStyle(document.body).getPropertyValue(
+                    "--text-primary-color"
+                  ) || "#333",
+              },
+            },
+            title: {
+              display: true,
+              text: "Domain Performance Comparison",
+              color:
+                getComputedStyle(document.body).getPropertyValue(
+                  "--text-primary-color"
+                ) || "#333",
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color:
+                  getComputedStyle(document.body).getPropertyValue(
+                    "--text-secondary-color"
+                  ) || "#666",
+              },
+              grid: {
+                color:
+                  getComputedStyle(document.body).getPropertyValue(
+                    "--border-color"
+                  ) || "#ddd",
+              },
+            },
+            x: {
+              ticks: {
+                color:
+                  getComputedStyle(document.body).getPropertyValue(
+                    "--text-secondary-color"
+                  ) || "#666",
+              },
+              grid: {
+                color:
+                  getComputedStyle(document.body).getPropertyValue(
+                    "--border-color"
+                  ) || "#ddd",
+              },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Failed to load domain comparison:", error);
+      document.getElementById("comparisonResults").innerHTML =
+        '<p class="no-data">Error loading comparison data</p>';
+    }
+  }
+
+  async loadPerformanceInsights() {
+    try {
+      const filters = this.getActiveFilters();
+
+      // Build WHERE clause
+      const whereConditions = ["duration IS NOT NULL"];
+      if (filters.domain) {
+        whereConditions.push(
+          `domain = '${filters.domain.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.pageUrl) {
+        whereConditions.push(
+          `page_url = '${filters.pageUrl.replace(/'/g, "''")}'`
+        );
+      }
+      if (filters.type) {
+        whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
+      }
+      const whereClause = whereConditions.join(" AND ");
+
+      // Query for insights data
+      const queries = {
+        slowRequests: `
+          SELECT COUNT(*) as count
+          FROM silver_requests
+          WHERE ${whereClause} AND duration > 1000
+        `,
+        largeRequests: `
+          SELECT COUNT(*) as count, SUM(size_bytes) as total_size
+          FROM silver_requests
+          WHERE ${whereClause} AND size_bytes > 1000000
+        `,
+        errors: `
+          SELECT COUNT(*) as count
+          FROM silver_requests
+          WHERE ${whereClause} AND status >= 400
+        `,
+        cacheHits: `
+          SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN from_cache = 1 THEN 1 ELSE 0 END) as cached
+          FROM silver_requests
+          WHERE ${whereClause}
+        `,
+      };
+
+      const responses = await Promise.all(
+        Object.values(queries).map((q) =>
+          chrome.runtime.sendMessage({ action: "executeDirectQuery", query: q })
+        )
+      );
+
+      const insights = [];
+      const [slowResp, largeResp, errorResp, cacheResp] = responses;
+
+      // Analyze slow requests
+      if (slowResp.success && slowResp.data[0]?.count > 0) {
+        const count = slowResp.data[0].count;
+        insights.push({
+          type: "warning",
+          title: "Slow Requests Detected",
+          description: `${count} request${
+            count > 1 ? "s" : ""
+          } took longer than 1 second to complete.`,
+          recommendation:
+            "Consider optimizing these endpoints or adding caching.",
+          priority: "high",
+        });
+      }
+
+      // Analyze large requests
+      if (largeResp.success && largeResp.data[0]?.count > 0) {
+        const count = largeResp.data[0].count;
+        const totalMB = (largeResp.data[0].total_size / 1048576).toFixed(2);
+        insights.push({
+          type: "info",
+          title: "Large Requests Found",
+          description: `${count} request${
+            count > 1 ? "s" : ""
+          } exceeded 1MB (total: ${totalMB}MB).`,
+          recommendation:
+            "Consider implementing compression or lazy loading for large resources.",
+          priority: "medium",
+        });
+      }
+
+      // Analyze errors
+      if (errorResp.success && errorResp.data[0]?.count > 0) {
+        const count = errorResp.data[0].count;
+        insights.push({
+          type: "error",
+          title: "Request Errors Detected",
+          description: `${count} request${
+            count > 1 ? "s" : ""
+          } failed with 4xx/5xx status codes.`,
+          recommendation:
+            "Review error logs and fix broken endpoints or network issues.",
+          priority: "high",
+        });
+      }
+
+      // Analyze cache performance
+      if (cacheResp.success && cacheResp.data[0]) {
+        const total = cacheResp.data[0].total;
+        const cached = cacheResp.data[0].cached;
+        const cacheRate = total > 0 ? ((cached / total) * 100).toFixed(1) : 0;
+
+        if (cacheRate < 30 && total > 10) {
+          insights.push({
+            type: "warning",
+            title: "Low Cache Hit Rate",
+            description: `Only ${cacheRate}% of requests are being served from cache.`,
+            recommendation:
+              "Improve caching strategy with appropriate Cache-Control headers.",
+            priority: "medium",
+          });
+        } else if (cacheRate >= 70) {
+          insights.push({
+            type: "success",
+            title: "Excellent Cache Performance",
+            description: `${cacheRate}% of requests are being served from cache.`,
+            recommendation: "Great job! Your caching strategy is working well.",
+            priority: "low",
+          });
+        }
+      }
+
+      // Display insights
+      const insightsList = document.getElementById("insightsList");
+      if (insights.length === 0) {
+        insightsList.innerHTML =
+          '<p class="placeholder" style="padding: 20px; text-align: center; color: var(--success-color);"><i class="fas fa-check-circle"></i> No issues detected - performance looks good!</p>';
+      } else {
+        let html = '<div style="display: grid; gap: 12px;">';
+
+        insights.forEach((insight) => {
+          const iconMap = {
+            error: "fa-exclamation-circle",
+            warning: "fa-exclamation-triangle",
+            info: "fa-info-circle",
+            success: "fa-check-circle",
+          };
+
+          const colorMap = {
+            error: "var(--error-color)",
+            warning: "var(--warning-color)",
+            info: "var(--info-color)",
+            success: "var(--success-color)",
+          };
+
+          const priorityBadge =
+            insight.priority === "high"
+              ? '<span style="background: var(--error-color); color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">HIGH</span>'
+              : insight.priority === "medium"
+              ? '<span style="background: var(--warning-color); color: #333; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">MEDIUM</span>'
+              : '<span style="background: var(--surface-color); color: var(--text-secondary-color); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">LOW</span>';
+
+          html += `
+            <div class="insight-card" style="
+              background: var(--surface-color);
+              border-left: 4px solid ${colorMap[insight.type]};
+              border-radius: 4px;
+              padding: 16px;
+            ">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <i class="fas ${iconMap[insight.type]}" style="color: ${
+            colorMap[insight.type]
+          };"></i>
+                  <h4 style="margin: 0; font-size: 16px; color: var(--text-primary-color);">${
+                    insight.title
+                  }</h4>
+                </div>
+                ${priorityBadge}
+              </div>
+              <p style="margin: 0 0 8px 0; color: var(--text-primary-color); font-size: 14px;">
+                ${insight.description}
+              </p>
+              <p style="margin: 0; color: var(--text-secondary-color); font-size: 13px;">
+                <i class="fas fa-lightbulb" style="color: var(--warning-color);"></i>
+                <strong>Recommendation:</strong> ${insight.recommendation}
+              </p>
+            </div>
+          `;
+        });
+
+        html += "</div>";
+        insightsList.innerHTML = html;
+      }
+    } catch (error) {
+      console.error("Failed to load performance insights:", error);
+      document.getElementById("insightsList").innerHTML =
+        '<p class="no-data">Error loading insights</p>';
+    }
   }
 }
 
@@ -1880,12 +3236,17 @@ export const dashboard = new Dashboard();
 // Initialize when dashboard tab is active
 document.addEventListener("DOMContentLoaded", () => {
   const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+  const dashboardContent = document.getElementById("dashboard");
+
   if (dashboardTab) {
+    // Attach to the tab click
     dashboardTab.addEventListener("click", async () => {
       // Delay initialization to ensure DOM is ready
       setTimeout(async () => {
         if (!dashboard.charts.volume) {
           await dashboard.initialize();
+        } else {
+          await dashboard.refreshDashboard();
         }
       }, 100);
     });
@@ -1896,5 +3257,27 @@ document.addEventListener("DOMContentLoaded", () => {
         await dashboard.initialize();
       }, 500);
     }
+  }
+
+  // Also observe the dashboard content becoming active (backup approach)
+  if (dashboardContent) {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "class"
+        ) {
+          if (dashboardContent.classList.contains("active")) {
+            setTimeout(async () => {
+              if (!dashboard.charts.volume) {
+                await dashboard.initialize();
+              }
+            }, 100);
+          }
+        }
+      });
+    });
+
+    observer.observe(dashboardContent, { attributes: true });
   }
 });

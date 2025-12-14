@@ -852,6 +852,425 @@ export class MedallionManager {
   }
 
   /**
+   * Insert Web Vital metric into Bronze layer
+   * @param {Object} metric - Web Vital data
+   * @returns {Promise<boolean>}
+   */
+  async insertWebVital(metric) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const id = `webvital_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    const domain = metric.url ? new URL(metric.url).hostname : "unknown";
+    const timestamp = metric.timestamp || Date.now();
+
+    try {
+      this.db.exec(`
+        INSERT INTO bronze_web_vitals (
+          id, page_url, domain, metric_name, value, rating,
+          timestamp, viewport_width, viewport_height, created_at
+        ) VALUES (
+          ${escapeStr(id)},
+          ${escapeStr(metric.url)},
+          ${escapeStr(domain)},
+          ${escapeStr(metric.metric)},
+          ${metric.value},
+          ${escapeStr(metric.rating)},
+          ${timestamp},
+          ${metric.viewport_width || "NULL"},
+          ${metric.viewport_height || "NULL"},
+          ${Date.now()}
+        )
+      `);
+      return true;
+    } catch (error) {
+      console.error("[Medallion] Error inserting web vital:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Insert or update session in Bronze layer
+   * @param {Object} session - Session data
+   * @returns {Promise<boolean>}
+   */
+  async upsertSession(session) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    try {
+      // Check if session exists
+      const existing = this.db.exec(`
+        SELECT id FROM bronze_sessions WHERE id = ${escapeStr(session.id)}
+      `);
+
+      if (existing && existing[0]?.values.length > 0) {
+        // Update existing session
+        this.db.exec(`
+          UPDATE bronze_sessions SET
+            domain = ${escapeStr(session.domain)},
+            ended_at = ${session.ended_at || "NULL"},
+            duration = ${session.duration || "NULL"},
+            events_count = ${session.events_count || 0},
+            requests_count = ${session.requests_count || 0},
+            pages_count = ${session.pages_count || 0},
+            pages_visited = ${escapeStr(session.pages_visited)},
+            metadata = ${escapeStr(session.metadata)}
+          WHERE id = ${escapeStr(session.id)}
+        `);
+      } else {
+        // Insert new session
+        this.db.exec(`
+          INSERT INTO bronze_sessions (
+            id, domain, user_id, started_at, ended_at, duration,
+            events_count, requests_count, pages_count, pages_visited,
+            user_agent, metadata
+          ) VALUES (
+            ${escapeStr(session.id)},
+            ${escapeStr(session.domain)},
+            ${escapeStr(session.user_id)},
+            ${session.started_at},
+            ${session.ended_at || "NULL"},
+            ${session.duration || "NULL"},
+            ${session.events_count || 0},
+            ${session.requests_count || 0},
+            ${session.pages_count || 0},
+            ${escapeStr(session.pages_visited)},
+            ${escapeStr(session.user_agent)},
+            ${escapeStr(session.metadata)}
+          )
+        `);
+      }
+      return true;
+    } catch (error) {
+      console.error("[Medallion] Error upserting session:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Insert session into Bronze layer
+   * @param {Object} session - Session data
+   * @returns {Promise<boolean>}
+   */
+  async insertSession(session) {
+    return this.upsertSession(session);
+  }
+
+  /**
+   * Insert event into Bronze layer
+   * @param {Object} event - Event data
+   * @returns {Promise<boolean>}
+   */
+  async insertEvent(event) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const timestamp = event.timestamp || Date.now();
+    const eventData =
+      typeof event.data === "object" ? JSON.stringify(event.data) : event.data;
+
+    try {
+      this.db.exec(`
+        INSERT INTO bronze_events (
+          event_type, event_name, source, data, session_id, timestamp
+        ) VALUES (
+          ${escapeStr(event.type)},
+          ${escapeStr(event.type)},
+          ${escapeStr("content_script")},
+          ${escapeStr(eventData)},
+          ${escapeStr(event.session_id)},
+          ${timestamp}
+        )
+      `);
+      return true;
+    } catch (error) {
+      console.error("[Medallion] Error inserting event:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Get Web Vitals stats for a domain
+   * @param {Object} filters - Query filters
+   * @returns {Promise<Object>}
+   */
+  async getWebVitalsStats(filters = {}) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    let whereClause = "1=1";
+    if (filters.domain) {
+      whereClause += ` AND domain = ${escapeStr(filters.domain)}`;
+    }
+    if (filters.timeRange) {
+      const since = Date.now() - filters.timeRange * 1000;
+      whereClause += ` AND timestamp >= ${since}`;
+    }
+
+    try {
+      const result = this.db.exec(`
+        SELECT 
+          metric_name,
+          AVG(value) as avg_value,
+          MIN(value) as min_value,
+          MAX(value) as max_value,
+          COUNT(*) as sample_count,
+          SUM(CASE WHEN rating = 'good' THEN 1 ELSE 0 END) as good_count,
+          SUM(CASE WHEN rating = 'needs-improvement' THEN 1 ELSE 0 END) as needs_improvement_count,
+          SUM(CASE WHEN rating = 'poor' THEN 1 ELSE 0 END) as poor_count
+        FROM bronze_web_vitals
+        WHERE ${whereClause}
+        GROUP BY metric_name
+      `);
+
+      if (!result || !result[0] || !result[0].values) {
+        return { metrics: {} };
+      }
+
+      const metrics = {};
+      result[0].values.forEach((row) => {
+        const metricName = row[0];
+        metrics[metricName] = {
+          avg: row[1],
+          min: row[2],
+          max: row[3],
+          count: row[4],
+          ratings: {
+            good: row[5],
+            needs_improvement: row[6],
+            poor: row[7],
+          },
+        };
+      });
+
+      return { success: true, metrics };
+    } catch (error) {
+      console.error("[Medallion] Error getting web vitals stats:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get session stats for a domain
+   * @param {Object} filters - Query filters
+   * @returns {Promise<Object>}
+   */
+  async getSessionStats(filters = {}) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    let whereClause = "1=1";
+    if (filters.domain) {
+      whereClause += ` AND domain = ${escapeStr(filters.domain)}`;
+    }
+    if (filters.timeRange) {
+      const since = Date.now() - filters.timeRange * 1000;
+      whereClause += ` AND started_at >= ${since}`;
+    }
+
+    try {
+      const result = this.db.exec(`
+        SELECT 
+          COUNT(*) as total_sessions,
+          AVG(duration) as avg_duration,
+          AVG(requests_count) as avg_requests,
+          AVG(events_count) as avg_events,
+          AVG(pages_count) as avg_pages,
+          SUM(requests_count) as total_requests,
+          SUM(events_count) as total_events
+        FROM bronze_sessions
+        WHERE ${whereClause} AND ended_at IS NOT NULL
+      `);
+
+      if (!result || !result[0] || !result[0].values || !result[0].values[0]) {
+        return { success: true, stats: {} };
+      }
+
+      const row = result[0].values[0];
+      return {
+        success: true,
+        stats: {
+          totalSessions: row[0] || 0,
+          avgDuration: row[1] || 0,
+          avgRequests: row[2] || 0,
+          avgEvents: row[3] || 0,
+          avgPages: row[4] || 0,
+          totalRequests: row[5] || 0,
+          totalEvents: row[6] || 0,
+        },
+      };
+    } catch (error) {
+      console.error("[Medallion] Error getting session stats:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Insert or update resource timing data from Resource Timing API
+   * @param {Object} timing - Resource timing data
+   * @returns {Promise<boolean>}
+   */
+  async insertResourceTiming(timing) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    try {
+      // Find matching bronze_request by URL to get request_id
+      const urlMatch = this.db.exec(`
+        SELECT id FROM bronze_requests 
+        WHERE url = ${escapeStr(timing.url)} 
+        AND page_url = ${escapeStr(timing.pageUrl)}
+        ORDER BY timestamp DESC LIMIT 1
+      `);
+
+      if (
+        !urlMatch ||
+        !urlMatch[0] ||
+        !urlMatch[0].values ||
+        !urlMatch[0].values[0]
+      ) {
+        // No matching request found, skip
+        return false;
+      }
+
+      const requestId = urlMatch[0].values[0][0];
+
+      // Insert or replace timing data
+      this.db.exec(`
+        INSERT OR REPLACE INTO bronze_request_timings (
+          request_id,
+          dns_duration,
+          tcp_duration,
+          ssl_duration,
+          request_duration,
+          response_duration,
+          transfer_size,
+          encoded_size,
+          decoded_size,
+          from_cache,
+          created_at
+        ) VALUES (
+          ${escapeStr(requestId)},
+          ${timing.dnsTime || 0},
+          ${timing.tcpTime || 0},
+          ${timing.tlsTime || 0},
+          ${timing.requestTime || 0},
+          ${timing.responseTime || 0},
+          ${timing.transferSize || 0},
+          ${timing.encodedSize || 0},
+          ${timing.decodedSize || 0},
+          ${timing.fromCache ? 1 : 0},
+          ${Date.now()}
+        )
+      `);
+
+      return true;
+    } catch (error) {
+      console.error("[Medallion] Error inserting resource timing:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Get resource compression stats
+   * @param {Object} filters - Query filters
+   * @returns {Promise<Object>}
+   */
+  async getResourceCompressionStats(filters = {}) {
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    let whereClause = "1=1";
+    if (filters.domain) {
+      whereClause += ` AND r.domain = ${escapeStr(filters.domain)}`;
+    }
+    if (filters.timeRange) {
+      const since = Date.now() - filters.timeRange * 1000;
+      whereClause += ` AND r.timestamp >= ${since}`;
+    }
+
+    try {
+      const result = this.db.exec(`
+        SELECT 
+          SUM(t.transfer_size) as total_bytes,
+          SUM(t.encoded_size) as compressible_bytes,
+          SUM(CASE WHEN t.transfer_size < t.encoded_size THEN t.transfer_size ELSE 0 END) as compressed_bytes,
+          SUM(t.decoded_size) as decoded_bytes,
+          COUNT(*) as resource_count,
+          SUM(CASE WHEN t.from_cache THEN 1 ELSE 0 END) as cached_count
+        FROM bronze_request_timings t
+        INNER JOIN bronze_requests r ON t.request_id = r.id
+        WHERE ${whereClause}
+      `);
+
+      if (!result || !result[0] || !result[0].values || !result[0].values[0]) {
+        return {
+          totalBytes: 0,
+          compressibleBytes: 0,
+          compressedBytes: 0,
+          decodedBytes: 0,
+          potentialSavings: 0,
+          compressionRate: 0,
+          resourceCount: 0,
+          cachedCount: 0,
+        };
+      }
+
+      const row = result[0].values[0];
+      const totalBytes = row[0] || 0;
+      const compressibleBytes = row[1] || 0;
+      const compressedBytes = row[2] || 0;
+      const decodedBytes = row[3] || 0;
+      const resourceCount = row[4] || 0;
+      const cachedCount = row[5] || 0;
+
+      const potentialSavings = compressibleBytes - compressedBytes;
+      const compressionRate =
+        compressibleBytes > 0 ? (compressedBytes / compressibleBytes) * 100 : 0;
+
+      return {
+        totalBytes,
+        compressibleBytes,
+        compressedBytes,
+        decodedBytes,
+        potentialSavings: Math.max(0, potentialSavings),
+        compressionRate: compressionRate.toFixed(1),
+        resourceCount,
+        cachedCount,
+      };
+    } catch (error) {
+      console.error("[Medallion] Error getting compression stats:", error);
+      return {
+        totalBytes: 0,
+        compressibleBytes: 0,
+        compressedBytes: 0,
+        decodedBytes: 0,
+        potentialSavings: 0,
+        compressionRate: 0,
+        resourceCount: 0,
+        cachedCount: 0,
+      };
+    }
+  }
+
+  /**
    * Helper to map SQL result to object
    */
   mapResultToObject(result) {

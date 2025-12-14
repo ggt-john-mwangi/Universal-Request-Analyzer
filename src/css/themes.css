@@ -25,6 +25,8 @@
   --sidebar-text: #ffffff;
   --primary-dark: #0052a3;
   --surface-secondary: #e9ecef;
+  --modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  --modal-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 /* Light theme explicit class - inherits from :root */
@@ -59,6 +61,8 @@ body.theme-dark {
   --sidebar-text: #e9ecef;
   --primary-dark: #0b5ed7;
   --surface-secondary: #495057;
+  --modal-overlay-bg: rgba(0, 0, 0, 0.75);
+  --modal-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* High Contrast theme */
@@ -87,6 +91,8 @@ body.theme-highContrast {
   --sidebar-text: #ffffff;
   --primary-dark: #eeeeee;
   --surface-secondary: #1a1a1a;
+  --modal-overlay-bg: rgba(255, 255, 255, 0.2);
+  --modal-shadow: 0 8px 32px rgba(255, 255, 255, 0.5);
 }
 
 /* Blue theme */
@@ -115,6 +121,8 @@ body.theme-blue {
   --sidebar-text: #ffffff;
   --primary-dark: #004d99;
   --surface-secondary: #d9ebff;
+  --modal-overlay-bg: rgba(0, 102, 204, 0.3);
+  --modal-shadow: 0 8px 32px rgba(0, 102, 204, 0.3);
 }
 
 /* Apply theme variables to elements */

@@ -2,10 +2,18 @@
 
 import { initSqlJs } from "./sql-js-loader.js";
 import { DatabaseError } from "../errors/error-types.js";
-import { createMedallionSchema, initializeDefaultConfig } from "./medallion-schema.js";
+import {
+  createMedallionSchema,
+  initializeDefaultConfig,
+  validateAndFixSchema,
+} from "./medallion-schema.js";
 import { createMedallionManager } from "./medallion-manager.js";
 import { createConfigSchemaManager } from "./config-schema-manager.js";
-import { migrateToMedallionArchitecture, isMedallionMigrationComplete, fixMissingDomains } from "./medallion-migration.js";
+import {
+  migrateToMedallionArchitecture,
+  isMedallionMigrationComplete,
+  fixMissingDomains,
+} from "./medallion-migration.js";
 
 let db = null;
 let medallionManager = null;
@@ -59,7 +67,7 @@ async function saveDatabaseToOPFS(data) {
 async function initializeDatabase() {
   try {
     const SQL = await initSqlJs();
-    
+
     // Load existing database or create new one
     const data = await loadDatabaseFromOPFS();
     const dbInstance = data ? new SQL.Database(data) : new SQL.Database();
@@ -69,17 +77,21 @@ async function initializeDatabase() {
 
     if (!migrationComplete) {
       console.log("Initializing medallion architecture...");
-      
+
       // Create medallion schema
       await createMedallionSchema(dbInstance);
       await initializeDefaultConfig(dbInstance);
-      
+
       // Migrate existing data if any
       await migrateToMedallionArchitecture(dbInstance, eventBus);
     } else {
       console.log("Medallion architecture already initialized");
     }
-    
+
+    // ALWAYS validate and fix schema (handles upgrades and schema changes)
+    console.log("Validating database schema...");
+    await validateAndFixSchema(dbInstance);
+
     // Fix any existing rows with missing domains (from before the fix)
     try {
       await fixMissingDomains(dbInstance);
@@ -121,7 +133,7 @@ export async function saveDatabase() {
     isSaving = true;
     const data = db.export();
     await saveDatabaseToOPFS(data);
-    
+
     eventBus?.publish("database:saved", { timestamp: Date.now() });
   } catch (error) {
     console.error("Failed to save database:", error);
@@ -146,7 +158,7 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
 
     // Initialize medallion manager
     medallionManager = createMedallionManager(db, eventBus);
-    
+
     // Initialize config manager
     configManager = createConfigSchemaManager(db, eventBus);
 
@@ -164,15 +176,15 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
       executeQuery,
       executeTransaction,
       saveDatabase,
-      
+
       // Medallion operations
       medallion: medallionManager,
       config: configManager,
-      
+
       // Legacy compatibility (delegates to medallion)
       getRequests: async (options) => getRequestsLegacy(options),
       saveRequest: async (request) => saveRequestLegacy(request),
-      
+
       // Database management
       getDatabaseSize,
       getDatabaseStats,
@@ -230,14 +242,10 @@ export function executeTransaction(queries) {
  * Legacy compatibility: Get requests
  */
 async function getRequestsLegacy(options = {}) {
-  const {
-    page = 1,
-    limit = 100,
-    filters = {}
-  } = options;
+  const { page = 1, limit = 100, filters = {} } = options;
 
   const offset = (page - 1) * limit;
-  
+
   // Query silver layer for enriched data
   let query = `
     SELECT * FROM silver_requests
@@ -276,7 +284,7 @@ async function getRequestsLegacy(options = {}) {
   params.push(limit, offset);
 
   const result = executeQuery(query, params);
-  
+
   if (!result || !result[0]) {
     return [];
   }
@@ -321,13 +329,19 @@ export function getDatabaseStats() {
     const stats = {
       size: getDatabaseSize(),
       tables: {},
-      lastModified: Date.now()
+      lastModified: Date.now(),
     };
 
     // Count rows in each layer
-    const bronzeCount = executeQuery("SELECT COUNT(*) as count FROM bronze_requests");
-    const silverCount = executeQuery("SELECT COUNT(*) as count FROM silver_requests");
-    const goldCount = executeQuery("SELECT COUNT(*) as count FROM gold_daily_analytics");
+    const bronzeCount = executeQuery(
+      "SELECT COUNT(*) as count FROM bronze_requests"
+    );
+    const silverCount = executeQuery(
+      "SELECT COUNT(*) as count FROM silver_requests"
+    );
+    const goldCount = executeQuery(
+      "SELECT COUNT(*) as count FROM gold_daily_analytics"
+    );
 
     stats.tables.bronze = bronzeCount[0]?.values[0]?.[0] || 0;
     stats.tables.silver = silverCount[0]?.values[0]?.[0] || 0;
@@ -368,12 +382,25 @@ export async function clearDatabase() {
   try {
     // Clear all data but keep schema
     const tables = [
-      'bronze_requests', 'bronze_request_headers', 'bronze_request_timings',
-      'bronze_performance_entries', 'bronze_events', 'bronze_sessions', 'bronze_errors',
-      'silver_requests', 'silver_request_metrics', 'silver_domain_stats',
-      'silver_resource_stats', 'silver_hourly_stats', 'silver_request_tags',
-      'gold_daily_analytics', 'gold_performance_insights', 'gold_domain_performance',
-      'gold_optimization_opportunities', 'gold_trends', 'gold_anomalies'
+      "bronze_requests",
+      "bronze_request_headers",
+      "bronze_request_timings",
+      "bronze_performance_entries",
+      "bronze_events",
+      "bronze_sessions",
+      "bronze_errors",
+      "silver_requests",
+      "silver_request_metrics",
+      "silver_domain_stats",
+      "silver_resource_stats",
+      "silver_hourly_stats",
+      "silver_request_tags",
+      "gold_daily_analytics",
+      "gold_performance_insights",
+      "gold_domain_performance",
+      "gold_optimization_opportunities",
+      "gold_trends",
+      "gold_anomalies",
     ];
 
     db.exec("BEGIN TRANSACTION");
@@ -392,7 +419,7 @@ export async function clearDatabase() {
     await saveDatabase();
 
     eventBus?.publish("database:cleared", { timestamp: Date.now() });
-    
+
     return true;
   } catch (error) {
     db.exec("ROLLBACK");
@@ -429,7 +456,7 @@ function mapResultToArray(result) {
     return [];
   }
 
-  return result.values.map(row => {
+  return result.values.map((row) => {
     const obj = {};
     result.columns.forEach((col, idx) => {
       obj[col] = row[idx];
@@ -468,7 +495,7 @@ export class DatabaseManagerMedallion {
 
   async initialize(config = {}, encryptionMgr = null, events = null) {
     if (this.initialized) {
-      console.warn('DatabaseManagerMedallion already initialized');
+      console.warn("DatabaseManagerMedallion already initialized");
       return this.dbApi;
     }
 
@@ -477,74 +504,74 @@ export class DatabaseManagerMedallion {
       this.initialized = true;
       return this.dbApi;
     } catch (error) {
-      console.error('Failed to initialize DatabaseManagerMedallion:', error);
+      console.error("Failed to initialize DatabaseManagerMedallion:", error);
       throw error;
     }
   }
 
   // Proxy methods to the API
   executeQuery(...args) {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.executeQuery(...args);
   }
 
   executeTransaction(...args) {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.executeTransaction(...args);
   }
 
   async saveDatabase() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.saveDatabase();
   }
 
   getRequests(...args) {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.getRequests(...args);
   }
 
   saveRequest(...args) {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.saveRequest(...args);
   }
 
   getDatabaseSize() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.getDatabaseSize();
   }
 
   getDatabaseStats() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.getDatabaseStats();
   }
 
   exportDatabase() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.exportDatabase();
   }
 
   clearDatabase() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.clearDatabase();
   }
 
   vacuumDatabase() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.vacuumDatabase();
   }
 
   get medallion() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.medallion;
   }
 
   get config() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.config;
   }
 
   get db() {
-    if (!this.initialized) throw new DatabaseError('Database not initialized');
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
     // Return the module-level db instance that was initialized
     return db;
   }
