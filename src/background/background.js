@@ -10,7 +10,6 @@ import { AnalyticsProcessor } from "./database/analytics-processor.js";
 import { ConfigSchemaManager } from "./database/config-schema-manager.js";
 import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
 import { migrateLegacyToMedallion } from "./database/medallion-migration.js";
-import SessionManager from "./session/session-manager.js";
 
 class IntegratedExtensionInitializer {
   constructor() {
@@ -21,9 +20,9 @@ class IntegratedExtensionInitializer {
     this.medallionManager = null;
     this.analyticsProcessor = null;
     this.requestCapture = null;
-    this.sessionManager = null;
     this.eventBus = this.createEventBus();
     this.scheduledTasks = [];
+    this.initialized = false; // Prevent multiple initializations
   }
 
   createEventBus() {
@@ -50,6 +49,12 @@ class IntegratedExtensionInitializer {
   }
 
   async initialize() {
+    // Prevent multiple initializations
+    if (this.initialized) {
+      console.log("⚠️ Already initialized, skipping...");
+      return true;
+    }
+
     try {
       console.log(
         "🚀 Initializing Universal Request Analyzer with Medallion Architecture..."
@@ -67,10 +72,7 @@ class IntegratedExtensionInitializer {
       // Step 4: Initialize medallion manager
       await this.initializeMedallionManager();
 
-      // Step 5: Initialize session manager
-      await this.initializeSessionManager();
-
-      // Step 6: Initialize analytics processor
+      // Step 5: Initialize analytics processor
       await this.initializeAnalyticsProcessor();
 
       // Step 7: Initialize request capture
@@ -82,12 +84,14 @@ class IntegratedExtensionInitializer {
       // Step 9: Schedule periodic tasks
       this.schedulePeriodicTasks();
 
+      this.initialized = true; // Mark as initialized
       console.log(
         "✅ Extension initialized successfully with medallion architecture!"
       );
       return true;
     } catch (error) {
       console.error("❌ Extension initialization failed:", error);
+      this.initialized = false; // Reset on failure
       return false;
     }
   }
@@ -182,14 +186,6 @@ class IntegratedExtensionInitializer {
     console.log("✓ Medallion Manager initialized");
   }
 
-  async initializeSessionManager() {
-    console.log("→ Initializing Session Manager...");
-
-    this.sessionManager = new SessionManager(this.medallionDb.db);
-
-    console.log("✓ Session Manager initialized");
-  }
-
   async initializeAnalyticsProcessor() {
     console.log("→ Initializing Analytics Processor...");
 
@@ -262,17 +258,19 @@ class IntegratedExtensionInitializer {
   async handleMedallionMessages(message, sender, sendResponse) {
     try {
       switch (message.action) {
-        case "processToSilver":
+        case "processToSilver": {
           const count = await this.medallionManager.processBronzeToSilver();
           sendResponse({ success: true, processed: count });
           break;
+        }
 
-        case "getDomainStats":
+        case "getDomainStats": {
           const stats = await this.medallionManager.getDomainStatistics(
             message.domain
           );
           sendResponse({ success: true, data: stats });
           break;
+        }
 
         case "executeDirectQuery":
           try {
@@ -312,6 +310,7 @@ class IntegratedExtensionInitializer {
             await this.medallionDb.clearDatabase();
             sendResponse({ success: true });
           } catch (clearError) {
+            console.error("Clear database error:", clearError);
             sendResponse({ success: false, error: clearError.message });
           }
           break;
@@ -321,7 +320,49 @@ class IntegratedExtensionInitializer {
             await this.medallionDb.resetDatabase();
             sendResponse({ success: true });
           } catch (resetError) {
+            console.error("Reset database error:", resetError);
             sendResponse({ success: false, error: resetError.message });
+          }
+          break;
+
+        case "performCleanup":
+          try {
+            const days = message.days || 30;
+            const stats = await this.medallionDb.cleanupOldRecords(days);
+            sendResponse({
+              success: true,
+              recordsDeleted: stats.recordsDeleted,
+              cutoffDate: stats.cutoffDate,
+            });
+          } catch (cleanupError) {
+            sendResponse({ success: false, error: cleanupError.message });
+          }
+          break;
+
+        case "previewCleanup":
+          try {
+            const days = message.days || 30;
+            const preview = this.medallionDb.previewCleanup(days);
+            sendResponse({
+              success: true,
+              ...preview,
+            });
+          } catch (previewError) {
+            sendResponse({ success: false, error: previewError.message });
+          }
+          break;
+
+        case "vacuumDatabase":
+          try {
+            console.log("[Background] Vacuum database requested");
+            await this.medallionDb.vacuumDatabase();
+            sendResponse({
+              success: true,
+              message: "Database compacted successfully",
+            });
+          } catch (vacuumError) {
+            console.error("[Background] Vacuum failed:", vacuumError);
+            sendResponse({ success: false, error: vacuumError.message });
           }
           break;
 
@@ -333,66 +374,148 @@ class IntegratedExtensionInitializer {
               success: true,
               size: size,
               records: stats?.totalRequests || 0,
+              oldestDate: stats?.oldestDate || null,
             });
           } catch (sizeError) {
             sendResponse({ success: false, error: sizeError.message });
           }
           break;
 
-        case "webVital":
+        case "createBackup": {
           try {
-            // Get or create session for this tab
-            const tabId = sender.tab?.id;
-            const url = message.url || sender.tab?.url || sender.url;
-            const session = await this.sessionManager.getOrCreateSession(
-              tabId,
-              url
-            );
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const filename = `ura_backup_${timestamp}.sqlite`;
 
-            // Store web vital with session association
+            const data = this.medallionDb.exportDatabase();
+
+            // Convert to base64 in chunks to avoid stack overflow
+            let binary = "";
+            const chunkSize = 8192;
+            for (let i = 0; i < data.length; i += chunkSize) {
+              const chunk = data.subarray(i, i + chunkSize);
+              binary += String.fromCharCode.apply(null, chunk);
+            }
+            const base64 = btoa(binary);
+            const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
+
+            await chrome.downloads.download({
+              url: dataUrl,
+              filename: filename,
+              saveAs: true,
+            });
+
+            sendResponse({
+              success: true,
+              filename: filename,
+              size: data.length,
+            });
+          } catch (backupError) {
+            console.error("Backup error:", backupError);
+            sendResponse({ success: false, error: backupError.message });
+          }
+          break;
+        }
+
+        case "exportDatabase": {
+          try {
+            console.log("[Background] Export raw database requested");
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const filename = `ura_export_${timestamp}.sqlite`;
+
+            // Export database as Uint8Array
+            const data = this.medallionDb.exportDatabase();
+
+            // Convert to base64 in chunks to avoid stack overflow
+            let binary = "";
+            const chunkSize = 8192;
+            for (let i = 0; i < data.length; i += chunkSize) {
+              const chunk = data.subarray(i, i + chunkSize);
+              binary += String.fromCharCode.apply(null, chunk);
+            }
+            const base64 = btoa(binary);
+            const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
+
+            await chrome.downloads.download({
+              url: dataUrl,
+              filename: filename,
+              saveAs: true,
+            });
+
+            sendResponse({
+              success: true,
+              filename: filename,
+              size: data.length,
+            });
+          } catch (exportError) {
+            console.error("[Background] Export error:", exportError);
+            sendResponse({ success: false, error: exportError.message });
+          }
+          break;
+        }
+
+        case "importDatabase": {
+          try {
+            console.log("[Background] Import database requested");
+
+            if (!message.data || !Array.isArray(message.data)) {
+              throw new Error("Invalid database data");
+            }
+
+            // Convert array back to Uint8Array
+            const uint8Array = new Uint8Array(message.data);
+
+            // Import database
+            await this.medallionDb.importDatabase(uint8Array);
+
+            sendResponse({
+              success: true,
+              message: "Database imported successfully",
+            });
+          } catch (importError) {
+            console.error("[Background] Import error:", importError);
+            sendResponse({ success: false, error: importError.message });
+          }
+          break;
+        }
+
+        case "webVital": {
+          try {
+            const url = message.url || sender.tab?.url || sender.url;
+
+            // Validate required fields
+            if (!message.name) {
+              console.error("Web vital missing 'name' field:", message);
+              sendResponse({ success: false, error: "Missing metric name" });
+              break;
+            }
+
+            // Store web vital - map to insertWebVital expected fields
             const vitalData = {
-              session_id: session.id,
-              page_url: url,
-              metric_name: message.name,
-              metric_value: message.value,
+              url: url,
+              metric: message.name,
+              value: message.value,
               rating: message.rating || "needs-improvement",
               timestamp: message.timestamp || Date.now(),
-              navigation_type: message.navigationType || "navigate",
-              metadata: {
-                delta: message.delta,
-                id: message.id,
-                entries: message.entries,
-              },
+              viewport_width: message.viewportWidth,
+              viewport_height: message.viewportHeight,
             };
 
             const result = await this.medallionManager.insertWebVital(
               vitalData
             );
-            sendResponse({ success: true, id: result, sessionId: session.id });
+            sendResponse({ success: true, id: result });
           } catch (vitalError) {
             console.error("Web vital capture error:", vitalError);
             sendResponse({ success: false, error: vitalError.message });
           }
           break;
+        }
 
-        case "userEvent":
+        case "userEvent": {
           try {
-            // Get or create session for this tab
-            const tabId = sender.tab?.id;
             const url = message.url || sender.tab?.url || sender.url;
-            const session = await this.sessionManager.getOrCreateSession(
-              tabId,
-              url
-            );
 
-            // Record event in session
-            await this.sessionManager.recordEvent(
-              session.id,
-              message.eventType,
-              message.eventData
-            );
-
-            // Store event in database
+            // Store event in database without session
             const eventData = {
               event_type: message.eventType,
               event_name: message.eventType,
@@ -400,56 +523,20 @@ class IntegratedExtensionInitializer {
               data: message.eventData,
               request_id: null,
               user_id: null,
-              session_id: session.id,
+              session_id: null,
               timestamp: message.timestamp || Date.now(),
             };
 
             const result = await this.medallionManager.insertEvent(eventData);
-            sendResponse({ success: true, id: result, sessionId: session.id });
+            sendResponse({ success: true, id: result });
           } catch (eventError) {
             console.error("User event capture error:", eventError);
             sendResponse({ success: false, error: eventError.message });
           }
           break;
+        }
 
-        case "startSession":
-          try {
-            const tabId = message.tabId || sender.tab?.id;
-            const url = message.url || sender.tab?.url || sender.url;
-            const session = await this.sessionManager.getOrCreateSession(
-              tabId,
-              url
-            );
-            sendResponse({ success: true, session });
-          } catch (sessionError) {
-            console.error("Start session error:", sessionError);
-            sendResponse({ success: false, error: sessionError.message });
-          }
-          break;
-
-        case "endSession":
-          try {
-            await this.sessionManager.endSession(message.sessionId);
-            sendResponse({ success: true });
-          } catch (endError) {
-            console.error("End session error:", endError);
-            sendResponse({ success: false, error: endError.message });
-          }
-          break;
-
-        case "getSessionData":
-          try {
-            const sessionData = await this.sessionManager.getSessionData(
-              message.sessionId
-            );
-            sendResponse({ success: true, data: sessionData });
-          } catch (getError) {
-            console.error("Get session data error:", getError);
-            sendResponse({ success: false, error: getError.message });
-          }
-          break;
-
-        case "recordResourceTiming":
+        case "recordResourceTiming": {
           try {
             const success = await this.medallionManager.insertResourceTiming(
               message.timing
@@ -460,8 +547,9 @@ class IntegratedExtensionInitializer {
             sendResponse({ success: false, error: timingError.message });
           }
           break;
+        }
 
-        case "getResourceCompressionStats":
+        case "getResourceCompressionStats": {
           try {
             const stats =
               await this.medallionManager.getResourceCompressionStats(
@@ -473,6 +561,7 @@ class IntegratedExtensionInitializer {
             sendResponse({ success: false, error: statsError.message });
           }
           break;
+        }
 
         default:
           sendResponse({ success: false, error: "Unknown action" });

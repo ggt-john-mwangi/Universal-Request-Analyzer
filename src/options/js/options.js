@@ -8,6 +8,10 @@ import "../components/capture-settings.js";
 import "../../lib/shared-components/chart-components.js";
 import "../../lib/shared-components/chart-renderer.js";
 import "../../lib/shared-components/data-filter-panel.js";
+import {
+  initializeDataManagement,
+  updateDatabaseSizeDisplay,
+} from "./data-management.js";
 import "../../lib/shared-components/data-loader.js";
 // Removed unused import: renderDataPurge - Data Retention section is now in HTML
 import "../../lib/shared-components/data-visualization.js";
@@ -121,6 +125,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("Options page: Loading options...");
     await loadOptions();
     console.log("Options page: Options loaded");
+
+    // Load profiles list
+    console.log("Options page: Loading profiles...");
+    await renderProfilesList();
+    console.log("Options page: Profiles loaded");
 
     // Add settings change listener
     settingsManager.addSettingsListener(handleSettingsChange);
@@ -379,8 +388,103 @@ async function resetOptions() {
   }
 }
 
+// Show export preview before downloading
+async function showExportPreview() {
+  try {
+    const exportData = settingsManager.exportSettings();
+    const exportString = JSON.stringify(exportData, null, 2);
+    const sizeInBytes = new Blob([exportString]).size;
+    const sizeInKB = (sizeInBytes / 1024).toFixed(2);
+
+    // Count sections and settings
+    const sections = Object.keys(exportData);
+    let totalSettings = 0;
+    const sectionCounts = {};
+
+    for (const [section, content] of Object.entries(exportData)) {
+      const count = Object.keys(content || {}).length;
+      sectionCounts[section] = count;
+      totalSettings += count;
+    }
+
+    // Show modal
+    const modal = document.getElementById("exportPreviewModal");
+    const sectionsCount = document.getElementById("exportSectionsCount");
+    const settingsCount = document.getElementById("exportSettingsCount");
+    const fileSize = document.getElementById("exportFileSize");
+    const sectionsList = document.getElementById("exportSectionsList");
+    const previewContent = document.getElementById("exportPreviewContent");
+    const downloadBtn = document.getElementById("confirmExport");
+
+    sectionsCount.textContent = sections.length;
+    settingsCount.textContent = totalSettings;
+    fileSize.textContent = `${sizeInKB} KB`;
+
+    // Populate sections list
+    sectionsList.innerHTML = sections
+      .map(
+        (section) =>
+          `<div class="section-item">
+            <span class="section-name">${section}</span>
+            <span class="section-count">${sectionCounts[section]} settings</span>
+          </div>`
+      )
+      .join("");
+
+    // Show preview (first 50 lines)
+    const lines = exportString.split("\n").slice(0, 50);
+    const preview =
+      lines.join("\n") + (exportString.split("\n").length > 50 ? "\n..." : "");
+    previewContent.textContent = preview;
+
+    modal.style.display = "block";
+
+    // Return promise that resolves when user clicks download
+    return new Promise((resolve) => {
+      const handleDownload = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      const handleCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      const cleanup = () => {
+        downloadBtn.removeEventListener("click", handleDownload);
+        modal
+          .querySelector(".close")
+          .removeEventListener("click", handleCancel);
+        document
+          .getElementById("cancelExport")
+          .removeEventListener("click", handleCancel);
+        modal.style.display = "none";
+      };
+
+      downloadBtn.addEventListener("click", handleDownload);
+      modal.querySelector(".close").addEventListener("click", handleCancel);
+      document
+        .getElementById("cancelExport")
+        .addEventListener("click", handleCancel);
+    });
+  } catch (error) {
+    console.error("Export preview error:", error);
+    showNotification("Failed to generate export preview", true);
+    return false;
+  }
+}
+
 // Export settings to file
-function exportSettings() {
+async function exportSettings() {
+  // Show preview first
+  const proceed = await showExportPreview();
+
+  if (!proceed) {
+    showNotification("Export cancelled");
+    return;
+  }
+
   const exportData = settingsManager.exportSettings();
   const blob = new Blob([JSON.stringify(exportData, null, 2)], {
     type: "application/json",
@@ -398,7 +502,228 @@ function exportSettings() {
   showNotification("Settings exported successfully!");
 }
 
-// Import settings from file
+// Validate import data
+function validateImportData(data) {
+  const errors = [];
+  const warnings = [];
+
+  // Basic structure validation
+  if (!data || typeof data !== "object") {
+    errors.push("Invalid settings file format");
+    return { valid: false, errors, warnings };
+  }
+
+  // Handle both flat structure and nested settings structure (from exportSettings)
+  const settingsData = data.settings || data;
+
+  // Check for at least one valid section
+  const knownSections = [
+    "general",
+    "capture",
+    "filters",
+    "export",
+    "themes",
+    "retention",
+    "monitoring",
+    "display",
+    "theme",
+  ];
+  const hasSections = knownSections.some((section) => settingsData[section]);
+  if (!hasSections) {
+    errors.push("No recognized settings sections found");
+  }
+
+  // Validate capture settings if present
+  if (settingsData.capture) {
+    const maxStored = settingsData.capture.maxStoredRequests;
+    if (
+      maxStored !== undefined &&
+      (typeof maxStored !== "number" || maxStored < 100 || maxStored > 1000000)
+    ) {
+      errors.push(
+        `Invalid maxStoredRequests: ${maxStored} (must be 100-1,000,000)`
+      );
+    }
+  }
+
+  // Validate filters if present
+  if (settingsData.filters) {
+    if (settingsData.filters.urlPattern) {
+      try {
+        new RegExp(settingsData.filters.urlPattern);
+      } catch (e) {
+        errors.push(`Invalid URL pattern regex: ${e.message}`);
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
+
+// Calculate diff between current and imported settings
+function calculateSettingsDiff(current, imported) {
+  const changes = [];
+
+  // Handle nested settings structure (from exportSettings)
+  const currentSettings = current.settings || current;
+  const importedSettings = imported.settings || imported;
+
+  for (const [section, sectionData] of Object.entries(importedSettings)) {
+    if (!currentSettings[section] || typeof sectionData !== "object") continue;
+
+    for (const [key, newValue] of Object.entries(sectionData)) {
+      const oldValue = currentSettings[section][key];
+
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        changes.push({
+          section,
+          key,
+          oldValue: formatValue(oldValue),
+          newValue: formatValue(newValue),
+        });
+      }
+    }
+  }
+
+  return changes;
+}
+
+// Format value for display
+function formatValue(value) {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "object")
+    return JSON.stringify(value, null, 2).substring(0, 100) + "...";
+  if (typeof value === "string" && value.length > 50)
+    return value.substring(0, 50) + "...";
+  return String(value);
+}
+
+// Show import preview modal
+// originalImportData: The raw imported JSON (may have nested structure from exportSettings)
+// dataToImport: Extracted/prepared settings to import (flat structure)
+// currentData: Current settings from exportSettings() (nested structure)
+function showImportPreview(
+  originalImportData,
+  dataToImport,
+  currentData,
+  isSelective
+) {
+  const modal = document.getElementById("importPreviewModal");
+  const validationStatus = document.getElementById("importValidationStatus");
+  const summary = document.getElementById("importSummary");
+  const errorsDiv = document.getElementById("importErrors");
+  const warningsDiv = document.getElementById("importWarnings");
+  const changesDiv = document.getElementById("importChanges");
+  const noChangesDiv = document.getElementById("importNoChanges");
+  const applyBtn = document.getElementById("applyImportBtn");
+
+  // Show modal
+  modal.style.display = "flex";
+
+  // Reset state
+  summary.style.display = "none";
+  errorsDiv.style.display = "none";
+  warningsDiv.style.display = "none";
+  changesDiv.style.display = "none";
+  noChangesDiv.style.display = "none";
+  applyBtn.disabled = true;
+
+  // Validate
+  setTimeout(() => {
+    // Validate the original import data (handles both flat and nested structures)
+    const validation = validateImportData(originalImportData);
+
+    // Calculate changes between current and what will be imported
+    // Wrap dataToImport in settings structure to match currentData format
+    const importDataForDiff = { settings: dataToImport };
+    const changes = calculateSettingsDiff(currentData, importDataForDiff);
+    const sections = [...new Set(changes.map((c) => c.section))];
+
+    // Update validation status
+    validationStatus.innerHTML = validation.valid
+      ? '<div class="validation-item"><i class="fas fa-check-circle text-success"></i><span>Validation successful</span></div>'
+      : '<div class="validation-item"><i class="fas fa-times-circle text-danger"></i><span>Validation failed</span></div>';
+
+    // Show summary
+    summary.style.display = "block";
+    document.getElementById("previewSectionsCount").textContent =
+      sections.length;
+    document.getElementById("previewChangesCount").textContent = changes.length;
+    document.getElementById("previewValidation").innerHTML = validation.valid
+      ? '<i class="fas fa-check-circle text-success"></i> Valid'
+      : '<i class="fas fa-times-circle text-danger"></i> Invalid';
+
+    // Show errors if any
+    if (validation.errors.length > 0) {
+      errorsDiv.style.display = "block";
+      const errorsList = document.getElementById("importErrorsList");
+      errorsList.innerHTML = validation.errors
+        .map((e) => `<li>${e}</li>`)
+        .join("");
+    }
+
+    // Show warnings if any
+    if (validation.warnings.length > 0) {
+      warningsDiv.style.display = "block";
+      const warningsList = document.getElementById("importWarningsList");
+      warningsList.innerHTML = validation.warnings
+        .map((w) => `<li>${w}</li>`)
+        .join("");
+    }
+
+    // Show changes or no changes message
+    if (changes.length === 0) {
+      noChangesDiv.style.display = "block";
+    } else {
+      changesDiv.style.display = "block";
+      const changesBody = document.getElementById("importChangesBody");
+      changesBody.innerHTML = changes
+        .map(
+          (change) => `
+        <tr>
+          <td><strong>${change.section}</strong></td>
+          <td>${change.key}</td>
+          <td><span class="change-value old">${change.oldValue}</span></td>
+          <td><span class="change-value new">${change.newValue}</span></td>
+        </tr>
+      `
+        )
+        .join("");
+    }
+
+    // Enable apply button if validation passed
+    if (validation.valid && changes.length > 0) {
+      applyBtn.disabled = false;
+    }
+  }, 500);
+
+  return new Promise((resolve) => {
+    applyBtn.onclick = () => {
+      modal.style.display = "none";
+      resolve(true);
+    };
+
+    const cancelBtn = document.getElementById("cancelImportBtn");
+    cancelBtn.onclick = () => {
+      modal.style.display = "none";
+      resolve(false);
+    };
+
+    const closeBtn = modal.querySelector(".modal-close");
+    closeBtn.onclick = () => {
+      modal.style.display = "none";
+      resolve(false);
+    };
+  });
+}
+
+// Import settings from file (updated with preview)
 async function importSettings(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -407,25 +732,55 @@ async function importSettings(event) {
   const selectiveImport = document.getElementById("selectiveImport");
   const isSelective = selectiveImport && selectiveImport.checked;
 
-  // Confirm import action
-  const confirmMsg = isSelective
-    ? "Import selected sections? Your current settings for these sections will be overwritten. A backup will be created automatically."
-    : "Import all settings? This will overwrite ALL current settings. A backup will be created automatically.";
-
-  if (!confirm(confirmMsg)) {
-    event.target.value = "";
-    return;
-  }
-
   try {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const importData = JSON.parse(e.target.result);
 
-        // Validate import data
-        if (!importData || typeof importData !== "object") {
-          throw new Error("Invalid settings file format");
+        // Get current settings
+        const currentData = settingsManager.exportSettings();
+
+        // Extract settings from nested structure if present (exported via exportSettings)
+        // This allows importing files exported with exportSettings() which has nested structure
+        const settingsToImport = importData.settings || importData;
+
+        // Handle selective import data preparation
+        let dataToImport = settingsToImport;
+        if (isSelective) {
+          const selectedSections = Array.from(
+            document.querySelectorAll('input[name="importSection"]:checked')
+          ).map((cb) => cb.value);
+
+          if (selectedSections.length === 0) {
+            showNotification("No sections selected for import", true);
+            event.target.value = "";
+            return;
+          }
+
+          // Merge: keep current data, override only selected sections
+          dataToImport = { ...currentData.settings };
+          selectedSections.forEach((section) => {
+            if (settingsToImport[section]) {
+              dataToImport[section] = settingsToImport[section];
+            }
+          });
+        }
+
+        // Show preview and wait for user decision
+        // Pass original importData for validation (handles nested structure)
+        // Pass extracted dataToImport for diff comparison
+        const proceed = await showImportPreview(
+          importData,
+          dataToImport,
+          currentData,
+          isSelective
+        );
+
+        if (!proceed) {
+          showNotification("Import cancelled");
+          event.target.value = "";
+          return;
         }
 
         // Create automatic backup before import
@@ -441,35 +796,8 @@ async function importSettings(event) {
         backupLink.click();
         URL.revokeObjectURL(backupUrl);
 
-        // Handle selective import
-        let dataToImport = importData;
-        if (isSelective) {
-          const selectedSections = Array.from(
-            document.querySelectorAll('input[name="importSection"]:checked')
-          ).map((cb) => cb.value);
-
-          if (selectedSections.length === 0) {
-            showNotification("No sections selected for import", true);
-            event.target.value = "";
-            return;
-          }
-
-          // Get current settings
-          const currentData = settingsManager.exportSettings();
-
-          // Merge: keep current data, override only selected sections
-          dataToImport = { ...currentData };
-          selectedSections.forEach((section) => {
-            if (importData[section]) {
-              dataToImport[section] = importData[section];
-            }
-          });
-
-          showNotification(
-            `Importing ${selectedSections.length} section(s)...`
-          );
-        }
-
+        // Apply import
+        showNotification("Applying settings...");
         const success = await settingsManager.importSettings(dataToImport);
 
         if (success) {
@@ -494,6 +822,401 @@ async function importSettings(event) {
   // Clear the file input for future imports
   event.target.value = "";
 }
+
+// ===============================================
+// Settings Profiles Management
+// ===============================================
+
+const PROFILES_KEY = "settingsProfiles";
+
+// Load profiles from storage
+async function loadProfiles() {
+  try {
+    const result = await chrome.storage.local.get(PROFILES_KEY);
+    return result[PROFILES_KEY] || [];
+  } catch (error) {
+    console.error("Failed to load profiles:", error);
+    return [];
+  }
+}
+
+// Save profiles to storage
+async function saveProfiles(profiles) {
+  try {
+    await chrome.storage.local.set({ [PROFILES_KEY]: profiles });
+    return true;
+  } catch (error) {
+    console.error("Failed to save profiles:", error);
+    return false;
+  }
+}
+
+// Save current settings as a profile
+async function saveCurrentAsProfile(name, description = "") {
+  try {
+    const currentSettings = settingsManager.exportSettings();
+    const profiles = await loadProfiles();
+
+    const newProfile = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      description: description.trim(),
+      settings: currentSettings,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    profiles.push(newProfile);
+    const success = await saveProfiles(profiles);
+
+    if (success) {
+      await renderProfilesList();
+      showNotification(`Profile "${name}" saved successfully!`);
+    } else {
+      showNotification("Failed to save profile", true);
+    }
+
+    return success;
+  } catch (error) {
+    console.error("Save profile error:", error);
+    showNotification("Failed to save profile", true);
+    return false;
+  }
+}
+
+// Load a profile
+async function loadProfile(profileId) {
+  try {
+    const profiles = await loadProfiles();
+    const profile = profiles.find((p) => p.id === profileId);
+
+    if (!profile) {
+      showNotification("Profile not found", true);
+      return false;
+    }
+
+    // Show confirmation
+    const confirmed = confirm(
+      `Load profile "${profile.name}"?\n\n` +
+        `This will replace your current settings.\n` +
+        `A backup will be created automatically.`
+    );
+
+    if (!confirmed) return false;
+
+    // Create backup
+    const backup = settingsManager.exportSettings();
+    const backupBlob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: "application/json",
+    });
+    const backupUrl = URL.createObjectURL(backupBlob);
+    const backupLink = document.createElement("a");
+    backupLink.href = backupUrl;
+    backupLink.download = `ura-backup-${Date.now()}.json`;
+    backupLink.click();
+    URL.revokeObjectURL(backupUrl);
+
+    // Apply profile settings
+    showNotification("Loading profile...");
+    const success = await settingsManager.importSettings(profile.settings);
+
+    if (success) {
+      await loadOptions();
+      showNotification(`Profile "${profile.name}" loaded successfully!`);
+    } else {
+      showNotification("Failed to load profile", true);
+    }
+
+    return success;
+  } catch (error) {
+    console.error("Load profile error:", error);
+    showNotification("Failed to load profile", true);
+    return false;
+  }
+}
+
+// Delete a profile
+async function deleteProfile(profileId) {
+  try {
+    const profiles = await loadProfiles();
+    const profile = profiles.find((p) => p.id === profileId);
+
+    if (!profile) {
+      showNotification("Profile not found", true);
+      return false;
+    }
+
+    const confirmed = confirm(
+      `Delete profile "${profile.name}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return false;
+
+    const updatedProfiles = profiles.filter((p) => p.id !== profileId);
+    const success = await saveProfiles(updatedProfiles);
+
+    if (success) {
+      await renderProfilesList();
+      showNotification(`Profile "${profile.name}" deleted`);
+    } else {
+      showNotification("Failed to delete profile", true);
+    }
+
+    return success;
+  } catch (error) {
+    console.error("Delete profile error:", error);
+    showNotification("Failed to delete profile", true);
+    return false;
+  }
+}
+
+// Rename a profile
+async function renameProfile(profileId, newName, newDescription) {
+  try {
+    const profiles = await loadProfiles();
+    const profile = profiles.find((p) => p.id === profileId);
+
+    if (!profile) {
+      showNotification("Profile not found", true);
+      return false;
+    }
+
+    profile.name = newName.trim();
+    profile.description = newDescription.trim();
+    profile.updatedAt = Date.now();
+
+    const success = await saveProfiles(profiles);
+
+    if (success) {
+      await renderProfilesList();
+      showNotification("Profile updated successfully!");
+    } else {
+      showNotification("Failed to update profile", true);
+    }
+
+    return success;
+  } catch (error) {
+    console.error("Rename profile error:", error);
+    showNotification("Failed to update profile", true);
+    return false;
+  }
+}
+
+// Render profiles list in quick load section
+async function renderProfilesList() {
+  const container = document.getElementById("profilesList");
+  if (!container) return;
+
+  const profiles = await loadProfiles();
+
+  if (profiles.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-layer-group fa-3x"></i>
+        <p>No profiles saved yet</p>
+        <p class="help-text">Click "Save Current as Profile" to create your first profile</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = profiles
+    .map(
+      (profile) => `
+    <div class="profile-card" data-id="${profile.id}">
+      <div class="profile-header">
+        <div class="profile-info">
+          <h4 class="profile-name">${escapeHtml(profile.name)}</h4>
+          ${
+            profile.description
+              ? `<p class="profile-description">${escapeHtml(
+                  profile.description
+                )}</p>`
+              : ""
+          }
+        </div>
+        <div class="profile-meta">
+          <span class="profile-date">${new Date(
+            profile.createdAt
+          ).toLocaleDateString()}</span>
+        </div>
+      </div>
+      <div class="profile-actions">
+        <button class="btn-primary btn-sm load-profile" data-id="${profile.id}">
+          <i class="fas fa-download"></i> Load
+        </button>
+        <button class="btn-secondary btn-sm" onclick="showManageProfiles()">
+          <i class="fas fa-cog"></i> Manage
+        </button>
+      </div>
+    </div>
+  `
+    )
+    .join("");
+
+  // Add event listeners
+  container.querySelectorAll(".load-profile").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const profileId = btn.getAttribute("data-id");
+      loadProfile(profileId);
+    });
+  });
+}
+
+// Helper to escape HTML
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Show save profile modal
+function showSaveProfileModal() {
+  const modal = document.getElementById("saveProfileModal");
+  const nameInput = document.getElementById("profileName");
+  const descriptionInput = document.getElementById("profileDescription");
+
+  nameInput.value = "";
+  descriptionInput.value = "";
+  modal.style.display = "block";
+
+  const confirmBtn = document.getElementById("confirmSaveProfile");
+  const cancelBtn = document.getElementById("cancelSaveProfile");
+  const closeBtn = modal.querySelector(".close");
+
+  const handleSave = async () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      showNotification("Profile name is required", true);
+      return;
+    }
+
+    const description = descriptionInput.value.trim();
+    const success = await saveCurrentAsProfile(name, description);
+
+    if (success) {
+      modal.style.display = "none";
+    }
+  };
+
+  const handleClose = () => {
+    modal.style.display = "none";
+  };
+
+  confirmBtn.onclick = handleSave;
+  cancelBtn.onclick = handleClose;
+  closeBtn.onclick = handleClose;
+}
+
+// Show manage profiles modal
+async function showManageProfiles() {
+  const modal = document.getElementById("manageProfilesModal");
+  const listContainer = document.getElementById("manageProfilesList");
+
+  const profiles = await loadProfiles();
+
+  if (profiles.length === 0) {
+    listContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-layer-group fa-3x"></i>
+        <p>No profiles to manage</p>
+      </div>
+    `;
+  } else {
+    listContainer.innerHTML = profiles
+      .map(
+        (profile) => `
+      <div class="manage-profile-item" data-id="${profile.id}">
+        <div class="profile-details">
+          <h4>${escapeHtml(profile.name)}</h4>
+          ${
+            profile.description
+              ? `<p class="description">${escapeHtml(profile.description)}</p>`
+              : ""
+          }
+          <div class="meta">
+            <span><i class="fas fa-calendar"></i> Created: ${new Date(
+              profile.createdAt
+            ).toLocaleDateString()}</span>
+            <span><i class="fas fa-clock"></i> Updated: ${new Date(
+              profile.updatedAt
+            ).toLocaleDateString()}</span>
+          </div>
+        </div>
+        <div class="profile-manage-actions">
+          <button class="btn-primary btn-sm" onclick="loadProfile('${
+            profile.id
+          }')">
+            <i class="fas fa-download"></i> Load
+          </button>
+          <button class="btn-secondary btn-sm" onclick="exportProfile('${
+            profile.id
+          }')">
+            <i class="fas fa-file-export"></i> Export
+          </button>
+          <button class="btn-danger btn-sm" onclick="deleteProfile('${
+            profile.id
+          }')">
+            <i class="fas fa-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+    `
+      )
+      .join("");
+  }
+
+  modal.style.display = "block";
+
+  const closeBtn = document.getElementById("closeManageProfiles");
+  const modalCloseBtn = modal.querySelector(".close");
+
+  const handleClose = () => {
+    modal.style.display = "none";
+  };
+
+  closeBtn.onclick = handleClose;
+  modalCloseBtn.onclick = handleClose;
+}
+
+// Export a profile to file
+async function exportProfile(profileId) {
+  try {
+    const profiles = await loadProfiles();
+    const profile = profiles.find((p) => p.id === profileId);
+
+    if (!profile) {
+      showNotification("Profile not found", true);
+      return;
+    }
+
+    const blob = new Blob([JSON.stringify(profile, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ura-profile-${profile.name.replace(
+      /[^a-z0-9]/gi,
+      "-"
+    )}-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showNotification(`Profile "${profile.name}" exported!`);
+  } catch (error) {
+    console.error("Export profile error:", error);
+    showNotification("Failed to export profile", true);
+  }
+}
+
+// Make functions globally available for inline event handlers
+window.loadProfile = loadProfile;
+window.deleteProfile = deleteProfile;
+window.showManageProfiles = showManageProfiles;
+window.exportProfile = exportProfile;
 
 // Selective import toggle
 const selectiveImportCheckbox = document.getElementById("selectiveImport");
@@ -774,7 +1497,18 @@ function setupEventListeners() {
     importSettingsBtn.addEventListener("click", () =>
       importSettingsFile.click()
     );
-    importSettingsFile.addEventListener("change", importSettingsWithValidation);
+    importSettingsFile.addEventListener("change", importSettings);
+  }
+
+  // Settings profiles
+  const saveProfileBtn = document.getElementById("saveProfile");
+  const manageProfilesBtn = document.getElementById("manageProfiles");
+
+  if (saveProfileBtn) {
+    saveProfileBtn.addEventListener("click", showSaveProfileModal);
+  }
+  if (manageProfilesBtn) {
+    manageProfilesBtn.addEventListener("click", showManageProfiles);
   }
 
   // Save All button
@@ -847,7 +1581,67 @@ function setupEventListeners() {
   );
   const dashboardFilterModal = document.getElementById("dashboardFilterModal");
   if (dashboardFilterToggle && dashboardFilterModal) {
-    dashboardFilterToggle.addEventListener("click", function () {
+    // Set up domain change listener for modal
+    const modalDomain = document.getElementById("dashboardModalDomainFilter");
+    const modalPage = document.getElementById("dashboardModalPageFilter");
+
+    if (modalDomain && modalPage) {
+      modalDomain.addEventListener("change", async function () {
+        const selectedDomain = modalDomain.value;
+
+        // Clear and disable page filter if "all" selected
+        if (!selectedDomain || selectedDomain === "all") {
+          modalPage.innerHTML =
+            '<option value="">All Pages (Aggregated)</option>';
+          modalPage.disabled = true;
+          return;
+        }
+
+        // Load pages for selected domain
+        modalPage.disabled = false;
+        modalPage.innerHTML = '<option value="">Loading pages...</option>';
+
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "getPagesByDomain",
+            domain: selectedDomain,
+            timeRange: 604800, // Last 7 days
+          });
+
+          // Reset with default option
+          modalPage.innerHTML =
+            '<option value="">All Pages (Aggregated)</option>';
+
+          if (
+            response &&
+            response.success &&
+            response.pages &&
+            response.pages.length > 0
+          ) {
+            response.pages.forEach((pageObj) => {
+              const pageUrl = pageObj.pageUrl;
+              if (pageUrl) {
+                const option = document.createElement("option");
+                option.value = pageUrl;
+                try {
+                  const url = new URL(pageUrl);
+                  const displayPath = url.pathname + url.search || "/";
+                  option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
+                } catch (e) {
+                  option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
+                }
+                modalPage.appendChild(option);
+              }
+            });
+          }
+        } catch (error) {
+          console.error("Failed to load pages:", error);
+          modalPage.innerHTML = '<option value="">Error loading pages</option>';
+        }
+      });
+    }
+
+    dashboardFilterToggle.addEventListener("click", async function () {
       // Sync current filter values to modal
       const currentDomain =
         document.getElementById("dashboardDomainFilter")?.value || "all";
@@ -865,6 +1659,11 @@ function setupEventListeners() {
       if (modalDomain) modalDomain.value = currentDomain;
       if (modalPage) modalPage.value = currentPage;
       if (modalType) modalType.value = currentType;
+
+      // Trigger domain change to load pages
+      if (modalDomain && currentDomain && currentDomain !== "all") {
+        modalDomain.dispatchEvent(new Event("change"));
+      }
 
       dashboardFilterModal.style.display = "flex";
     });
@@ -1014,24 +1813,8 @@ function setupEventListeners() {
     });
   }
 
-  // Data Safety Features
-  const previewCleanupBtn = document.getElementById("previewCleanupBtn");
-  if (previewCleanupBtn) {
-    previewCleanupBtn.addEventListener("click", previewCleanup);
-  }
-
-  const createBackupBtn = document.getElementById("createBackupBtn");
-  if (createBackupBtn) {
-    createBackupBtn.addEventListener("click", createBackupBeforeCleanup);
-  }
-
-  const executeCleanupBtn = document.getElementById("executeCleanupBtn");
-  if (executeCleanupBtn) {
-    executeCleanupBtn.addEventListener("click", performCleanupWithConfirmation);
-  }
-
-  // Initialize database size display
-  updateDatabaseSizeDisplay();
+  // Data Management Features
+  initializeDataManagement(showNotification);
 
   // Add validation to domain inputs
   const includeDomains = document.getElementById("includeDomains");
@@ -1317,20 +2100,96 @@ function initializeAdvancedTab() {
   // Export Raw DB
   const exportRawDbBtn = document.getElementById("exportRawDbBtn");
   if (exportRawDbBtn) {
-    exportRawDbBtn.addEventListener("click", async () => {
+    exportRawDbBtn.addEventListener(
+      "click",
+      async () => {
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "exportDatabase",
+            format: "sqlite",
+          });
+
+          if (response && response.success) {
+            showNotification("Database export initiated");
+          } else {
+            showNotification("Export failed", true);
+          }
+        } catch (error) {
+          showNotification("Failed to export database", true);
+        }
+      },
+      { once: true }
+    );
+  }
+
+  // Import Database
+  const importDbBtn = document.getElementById("importDbBtn");
+  const importDbFile = document.getElementById("importDbFile");
+
+  if (importDbBtn && importDbFile) {
+    importDbBtn.addEventListener(
+      "click",
+      () => {
+        importDbFile.click();
+      },
+      { once: false }
+    );
+
+    importDbFile.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (
+        !confirm(
+          "⚠️ WARNING: This will replace your current database!\n\n" +
+            "A backup will be created automatically before import.\n\n" +
+            "Continue with import?"
+        )
+      ) {
+        importDbFile.value = "";
+        return;
+      }
+
       try {
+        showNotification("Creating backup before import...");
+
+        // Create backup first
+        const backupResponse = await chrome.runtime.sendMessage({
+          action: "createBackup",
+        });
+
+        if (!backupResponse || !backupResponse.success) {
+          showNotification("Backup failed. Import cancelled.", true);
+          importDbFile.value = "";
+          return;
+        }
+
+        showNotification("Reading database file...");
+
+        // Read file as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // Send to background
         const response = await chrome.runtime.sendMessage({
-          action: "exportDatabase",
-          format: "sqlite",
+          action: "importDatabase",
+          data: Array.from(uint8Array),
         });
 
         if (response && response.success) {
-          showNotification("Database export initiated");
+          showNotification("Database imported successfully! Reloading...");
+          setTimeout(() => window.location.reload(), 1500);
         } else {
-          showNotification("Export failed", true);
+          showNotification(
+            "Import failed: " + (response?.error || "Unknown error"),
+            true
+          );
         }
       } catch (error) {
-        showNotification("Failed to export database", true);
+        console.error("Import error:", error);
+        showNotification("Failed to import database: " + error.message, true);
+      } finally {
+        importDbFile.value = "";
       }
     });
   }
@@ -2803,49 +3662,7 @@ async function initializeAlerts() {
 }
 
 // ===== DATA SAFETY FEATURES =====
-
-// Update database size display
-async function updateDatabaseSizeDisplay() {
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: "getDatabaseSize",
-    });
-
-    if (response && response.success) {
-      const sizeElement = document.getElementById("currentDbSize");
-      const recordsElement = document.getElementById("currentDbRecords");
-      const oldestElement = document.getElementById("oldestRecord");
-
-      if (sizeElement) {
-        const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
-        sizeElement.textContent = `${sizeMB} MB`;
-
-        // Color code based on size
-        if (sizeMB > 100) {
-          sizeElement.style.color = "#e53e3e";
-        } else if (sizeMB > 50) {
-          sizeElement.style.color = "#ed8936";
-        } else {
-          sizeElement.style.color = "#48bb78";
-        }
-      }
-
-      if (recordsElement) {
-        recordsElement.textContent = (response.records || 0).toLocaleString();
-      }
-
-      if (oldestElement && response.oldestDate) {
-        const date = new Date(response.oldestDate);
-        oldestElement.textContent = date.toLocaleDateString();
-      }
-
-      // Check storage limits and show warning
-      await checkStorageWarning(response.records || 0);
-    }
-  } catch (error) {
-    console.error("Failed to get database size:", error);
-  }
-}
+// (Data Management functions moved to data-management.js)
 
 // Check and display storage warning
 async function checkStorageWarning(currentRecords) {
@@ -2949,188 +3766,6 @@ function showStorageWarning(message, type = "warning") {
   }
 }
 
-// Preview cleanup (dry-run)
-async function previewCleanup() {
-  const cleanupAge = document.getElementById("cleanupAge");
-  const previewBox = document.getElementById("cleanupPreview");
-  const recordsCount = document.getElementById("previewRecordsCount");
-  const sizeFreed = document.getElementById("previewSizeFreed");
-  const recordsRemaining = document.getElementById("previewRecordsRemaining");
-
-  if (!cleanupAge || !previewBox) return;
-
-  const days = parseInt(cleanupAge.value);
-  if (isNaN(days) || days < 1) {
-    showNotification("Please enter a valid number of days", true);
-    return;
-  }
-
-  try {
-    showNotification("Calculating cleanup preview...");
-
-    const response = await chrome.runtime.sendMessage({
-      action: "previewCleanup",
-      days: days,
-    });
-
-    if (response && response.success) {
-      if (recordsCount)
-        recordsCount.textContent = response.recordsToDelete.toLocaleString();
-      if (sizeFreed)
-        sizeFreed.textContent =
-          (response.sizeFreed / (1024 * 1024)).toFixed(2) + " MB";
-      if (recordsRemaining)
-        recordsRemaining.textContent =
-          response.recordsRemaining.toLocaleString();
-
-      previewBox.style.display = "block";
-
-      if (response.recordsToDelete > 0) {
-        showNotification(
-          `Preview complete: ${response.recordsToDelete} records can be deleted`
-        );
-      } else {
-        showNotification("No records found matching cleanup criteria");
-      }
-    } else {
-      showNotification(
-        "Failed to preview cleanup: " + (response?.error || "Unknown error"),
-        true
-      );
-    }
-  } catch (error) {
-    console.error("Cleanup preview error:", error);
-    showNotification("Failed to preview cleanup", true);
-  }
-}
-
-// Create backup before cleanup
-async function createBackupBeforeCleanup() {
-  const btn = document.getElementById("createBackupBtn");
-  const lastBackup = document.getElementById("lastBackupTime");
-
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Backup...';
-  }
-
-  try {
-    showNotification("Creating backup...");
-
-    const response = await chrome.runtime.sendMessage({
-      action: "createBackup",
-      includeMetadata: true,
-    });
-
-    if (response && response.success) {
-      if (lastBackup) {
-        lastBackup.textContent = `Last backup: ${new Date().toLocaleString()}`;
-      }
-
-      showNotification(`Backup created successfully: ${response.filename}`);
-
-      // Enable cleanup button if preview was done
-      const executeBtn = document.getElementById("executeCleanupBtn");
-      if (executeBtn) {
-        executeBtn.disabled = false;
-      }
-    } else {
-      showNotification(
-        "Failed to create backup: " + (response?.error || "Unknown error"),
-        true
-      );
-    }
-  } catch (error) {
-    console.error("Backup error:", error);
-    showNotification("Failed to create backup", true);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML =
-        '<i class="fas fa-save"></i> Create Backup Before Cleanup';
-    }
-  }
-}
-
-// Perform cleanup with confirmation
-async function performCleanupWithConfirmation() {
-  const cleanupAge = document.getElementById("cleanupAge");
-  const previewBox = document.getElementById("cleanupPreview");
-  const recordsCount = document.getElementById("previewRecordsCount");
-
-  if (!cleanupAge || !previewBox) return;
-
-  // Check if preview was done
-  if (previewBox.style.display === "none") {
-    showNotification("Please preview cleanup first", true);
-    return;
-  }
-
-  const days = parseInt(cleanupAge.value);
-  const recordsToDelete = parseInt(
-    recordsCount?.textContent?.replace(/,/g, "") || "0"
-  );
-
-  // Confirmation dialog
-  const confirmed = confirm(
-    `⚠️ WARNING: This will permanently delete ${recordsToDelete.toLocaleString()} records older than ${days} days.\n\n` +
-      `Make sure you have created a backup first!\n\n` +
-      `This action cannot be undone. Continue?`
-  );
-
-  if (!confirmed) return;
-
-  // Second confirmation for large deletions
-  if (recordsToDelete > 10000) {
-    const doubleConfirm = confirm(
-      `⚠️ FINAL CONFIRMATION\n\n` +
-        `You are about to delete ${recordsToDelete.toLocaleString()} records.\n\n` +
-        `Are you absolutely sure?`
-    );
-
-    if (!doubleConfirm) return;
-  }
-
-  const executeBtn = document.getElementById("executeCleanupBtn");
-  if (executeBtn) {
-    executeBtn.disabled = true;
-    executeBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> Cleaning Up...';
-  }
-
-  try {
-    showNotification("Performing cleanup...");
-
-    const response = await chrome.runtime.sendMessage({
-      action: "performCleanup",
-      days: days,
-    });
-
-    if (response && response.success) {
-      showNotification(
-        `Cleanup complete: ${response.recordsDeleted.toLocaleString()} records deleted`
-      );
-
-      // Hide preview and refresh database info
-      previewBox.style.display = "none";
-      await updateDatabaseSizeDisplay();
-    } else {
-      showNotification(
-        "Failed to perform cleanup: " + (response?.error || "Unknown error"),
-        true
-      );
-    }
-  } catch (error) {
-    console.error("Cleanup error:", error);
-    showNotification("Failed to perform cleanup", true);
-  } finally {
-    if (executeBtn) {
-      executeBtn.disabled = false;
-      executeBtn.innerHTML = '<i class="fas fa-broom"></i> Execute Cleanup';
-    }
-  }
-}
-
 // Validate domain list
 function validateDomainList(inputElement) {
   if (!inputElement) return true;
@@ -3188,87 +3823,4 @@ function validateDomainList(inputElement) {
 }
 
 // Enhanced import settings with validation
-async function importSettingsWithValidation() {
-  const fileInput = document.getElementById("importSettingsFile");
-  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-    showNotification("Please select a file", true);
-    return;
-  }
-
-  const file = fileInput.files[0];
-
-  // Validate file type
-  if (!file.name.endsWith(".json")) {
-    showNotification("Invalid file type. Please select a JSON file", true);
-    return;
-  }
-
-  // Validate file size (max 50MB)
-  if (file.size > 50 * 1024 * 1024) {
-    showNotification("File too large. Maximum size is 50MB", true);
-    return;
-  }
-
-  try {
-    const text = await file.text();
-    const settings = JSON.parse(text);
-
-    // Validate settings structure
-    if (!settings || typeof settings !== "object") {
-      showNotification("Invalid settings file: not a valid JSON object", true);
-      return;
-    }
-
-    // Check for required fields or valid structure
-    const validKeys = [
-      "general",
-      "monitoring",
-      "filters",
-      "export",
-      "retention",
-      "security",
-      "theme",
-    ];
-    const hasValidKeys = Object.keys(settings).some((key) =>
-      validKeys.includes(key)
-    );
-
-    if (!hasValidKeys) {
-      showNotification(
-        "Invalid settings file: no recognized settings found",
-        true
-      );
-      return;
-    }
-
-    // Confirmation dialog
-    const settingsCount = Object.keys(settings).length;
-    const confirmed = confirm(
-      `Import ${settingsCount} setting(s)?\n\n` +
-        `This will overwrite your current settings.\n\n` +
-        `Categories: ${Object.keys(settings).join(", ")}`
-    );
-
-    if (!confirmed) return;
-
-    showNotification("Importing settings...");
-
-    // Import settings
-    await chrome.storage.local.set(settings);
-
-    // Reload options
-    await loadOptions();
-
-    showNotification("Settings imported successfully!");
-
-    // Clear file input
-    fileInput.value = "";
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      showNotification("Invalid JSON file: " + error.message, true);
-    } else {
-      console.error("Import error:", error);
-      showNotification("Failed to import settings", true);
-    }
-  }
-}
+// Legacy function removed - using new importSettings with preview

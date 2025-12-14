@@ -1301,6 +1301,7 @@ export class DatabaseManager {
     this.initialized = false;
     this.writeQueue = [];
     this.processingQueue = false;
+    this._backupWarningShown = false; // Track if backup warning has been shown
   }
 
   async initialize() {

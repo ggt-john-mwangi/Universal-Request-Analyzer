@@ -43,7 +43,7 @@
           </button>
           <button class="nav-item" data-tab="retention">
             <i class="fas fa-database"></i>
-            <span>Data Retention</span>
+            <span>Data Management</span>
           </button>
           <button class="nav-item" data-tab="security">
             <i class="fas fa-shield-alt"></i>
@@ -1423,8 +1423,43 @@ example.org/api/*"
           <!-- Data Retention Tab -->
           <section id="retention" class="tab-content">
             <div class="options-container">
+              <!-- Settings Profiles Section -->
               <div class="option-section">
-                <h2>Data Retention & Cleanup</h2>
+                <h2><i class="fas fa-layer-group"></i> Settings Profiles</h2>
+                <p class="section-description">
+                  Save and load preset configurations for different environments
+                  (Development, Production, Testing, etc.)
+                </p>
+
+                <div class="profiles-container">
+                  <div class="profile-actions">
+                    <button id="saveProfile" class="btn-primary">
+                      <i class="fas fa-save"></i> Save Current as Profile
+                    </button>
+                    <button id="manageProfiles" class="btn-secondary">
+                      <i class="fas fa-cog"></i> Manage Profiles
+                    </button>
+                  </div>
+
+                  <div class="profiles-grid">
+                    <h4>Quick Load Profiles</h4>
+                    <div id="profilesList" class="profiles-list">
+                      <!-- Populated dynamically -->
+                      <div class="empty-state">
+                        <i class="fas fa-layer-group fa-3x"></i>
+                        <p>No profiles saved yet</p>
+                        <p class="help-text">
+                          Click "Save Current as Profile" to create your first
+                          profile
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="option-section">
+                <h2>Data Management & Operations</h2>
 
                 <div class="info-box">
                   <h4>
@@ -1489,24 +1524,119 @@ example.org/api/*"
 
                 <div class="option-row">
                   <button id="createBackupBtn" class="btn-primary">
-                    <i class="fas fa-save"></i> Create Backup Before Cleanup
+                    <i class="fas fa-save"></i> Create Manual Backup
                   </button>
                   <span id="lastBackupTime" class="help-text"
                     >Last backup: Never</span
                   >
                 </div>
 
+                <h3><i class="fas fa-exchange-alt"></i> Database Operations</h3>
+                <p class="description" style="margin-bottom: 16px">
+                  Export, import, and manage your database.
+                  <strong>Import replaces your entire database</strong> - a
+                  backup is created automatically.
+                </p>
+
+                <div class="operations-grid">
+                  <!-- Export Database Card -->
+                  <div class="operation-card">
+                    <h4><i class="fas fa-download"></i> Export Database</h4>
+                    <p>
+                      Download your entire database as a SQLite file. Use this
+                      for backups or transferring data.
+                    </p>
+                    <button id="exportRawDbBtn" class="btn-primary">
+                      <i class="fas fa-download"></i> Export SQLite Database
+                    </button>
+                  </div>
+
+                  <!-- Import Database Card -->
+                  <div class="operation-card warning">
+                    <h4><i class="fas fa-upload"></i> Import Database</h4>
+                    <p>
+                      <strong>⚠️ Replaces current database completely.</strong
+                      ><br />
+                      Automatic backup created first. Choose a .sqlite or .db
+                      file.
+                    </p>
+                    <input
+                      type="file"
+                      id="importDbFile"
+                      accept=".sqlite,.db"
+                      style="display: none"
+                    />
+                    <button id="importDbBtn" class="warning-btn">
+                      <i class="fas fa-upload"></i> Import SQLite Database
+                    </button>
+                  </div>
+
+                  <!-- Vacuum Database Card -->
+                  <div class="operation-card">
+                    <h4><i class="fas fa-compress-alt"></i> Vacuum Database</h4>
+                    <p>
+                      Compact database to reclaim disk space. Recommended after
+                      cleanup or deletions.
+                    </p>
+                    <button id="vacuumDatabaseBtn" class="secondary-btn">
+                      <i class="fas fa-compress-alt"></i> Vacuum Database
+                    </button>
+                  </div>
+
+                  <!-- Clear Cache Card -->
+                  <div class="operation-card">
+                    <h4><i class="fas fa-eraser"></i> Clear Cache</h4>
+                    <p>
+                      Clear extension cache and force reload. Less destructive
+                      than reset.
+                    </p>
+                    <button id="clearCacheBtn" class="secondary-btn">
+                      <i class="fas fa-eraser"></i> Clear Extension Cache
+                    </button>
+                  </div>
+                </div>
+
                 <div class="danger-zone">
                   <h3>
                     <i class="fas fa-exclamation-triangle"></i> Danger Zone
                   </h3>
-                  <div class="option-row">
-                    <button id="executeCleanupBtn" class="danger-btn" disabled>
-                      <i class="fas fa-broom"></i> Execute Cleanup
-                    </button>
-                    <p class="description">
-                      ⚠️ This action cannot be undone. Create a backup first!
-                    </p>
+                  <p class="warning-text">
+                    <strong>⚠️ Warning:</strong> These operations permanently
+                    delete data. Always create a backup before proceeding!
+                  </p>
+
+                  <div class="operations-grid">
+                    <!-- Execute Cleanup Card -->
+                    <div class="operation-card danger">
+                      <h4><i class="fas fa-broom"></i> Delete Old Records</h4>
+                      <p>
+                        <strong>Removes records older than X days</strong> (you
+                        choose: 30, 60, 90 days).<br />
+                        Recent data is kept. Must preview first to see what will
+                        be deleted.
+                      </p>
+                      <button
+                        id="executeCleanupBtn"
+                        class="danger-btn"
+                        disabled
+                      >
+                        <i class="fas fa-broom"></i> Execute Cleanup
+                      </button>
+                    </div>
+
+                    <!-- Reset Database Card -->
+                    <div class="operation-card danger">
+                      <h4><i class="fas fa-trash-alt"></i> Complete Reset</h4>
+                      <p>
+                        <strong>Deletes EVERYTHING</strong> - all requests, all
+                        analytics, all history.<br />
+                        Like a fresh install. Cannot be undone! Double
+                        confirmation required.
+                      </p>
+                      <button id="resetDatabaseBtn" class="danger-btn">
+                        <i class="fas fa-trash-alt"></i> Reset Database
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1816,34 +1946,21 @@ example.org/api/*"
                   </div>
                 </div>
 
-                <h3><i class="fas fa-download"></i> Advanced Export</h3>
-                <div class="option-row">
-                  <button id="exportRawDbBtn" class="primary-btn">
-                    <i class="fas fa-download"></i> Export Raw SQLite Database
-                  </button>
-                  <p class="description">
-                    Download the entire database as SQLite file
+                <div class="info-box" style="margin-top: 20px">
+                  <h4>
+                    <i class="fas fa-info-circle"></i> Database Import/Export
+                  </h4>
+                  <p
+                    style="
+                      margin: 0;
+                      font-size: 14px;
+                      color: var(--text-secondary);
+                    "
+                  >
+                    Database import and export features have been moved to the
+                    <strong>Data Management</strong> tab for better organization
+                    and safety.
                   </p>
-                </div>
-
-                <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
-                <div class="danger-zone">
-                  <div class="option-row">
-                    <button id="resetDatabaseBtn" class="danger-btn">
-                      <i class="fas fa-trash-alt"></i> Reset Database
-                    </button>
-                    <p class="description">
-                      Delete all data and recreate database schema
-                    </p>
-                  </div>
-                  <div class="option-row">
-                    <button id="clearCacheBtn" class="danger-btn">
-                      <i class="fas fa-broom"></i> Clear Extension Cache
-                    </button>
-                    <p class="description">
-                      Clear all cached data and force reload
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1853,6 +1970,212 @@ example.org/api/*"
     </div>
 
     <div id="notification" class="notification"></div>
+
+    <!-- Settings Import Preview Modal -->
+    <div id="importPreviewModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 900px">
+        <div class="modal-header">
+          <h3><i class="fas fa-search"></i> Import Preview</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Validation Status -->
+          <div id="importValidationStatus" class="validation-status">
+            <div class="validation-item">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Validating settings...</span>
+            </div>
+          </div>
+
+          <!-- Summary Stats -->
+          <div id="importSummary" class="import-summary" style="display: none">
+            <div class="summary-stats">
+              <div class="stat-card">
+                <div class="stat-label">Sections</div>
+                <div class="stat-value" id="previewSectionsCount">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Changes</div>
+                <div class="stat-value" id="previewChangesCount">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Validation</div>
+                <div class="stat-value" id="previewValidation">
+                  <i class="fas fa-check-circle text-success"></i> Valid
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Errors Display -->
+          <div id="importErrors" class="import-errors" style="display: none">
+            <h4>
+              <i class="fas fa-exclamation-triangle"></i> Validation Errors
+            </h4>
+            <ul id="importErrorsList"></ul>
+          </div>
+
+          <!-- Warnings Display -->
+          <div
+            id="importWarnings"
+            class="import-warnings"
+            style="display: none"
+          >
+            <h4><i class="fas fa-exclamation-circle"></i> Warnings</h4>
+            <ul id="importWarningsList"></ul>
+          </div>
+
+          <!-- Changes Preview -->
+          <div id="importChanges" class="import-changes" style="display: none">
+            <h4><i class="fas fa-exchange-alt"></i> Changes Preview</h4>
+            <div class="changes-table-container">
+              <table class="changes-table">
+                <thead>
+                  <tr>
+                    <th>Section</th>
+                    <th>Setting</th>
+                    <th>Current Value</th>
+                    <th>New Value</th>
+                  </tr>
+                </thead>
+                <tbody id="importChangesBody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- No Changes Message -->
+          <div id="importNoChanges" class="info-message" style="display: none">
+            <i class="fas fa-info-circle"></i>
+            <p>
+              No changes detected. The imported settings are identical to your
+              current configuration.
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="applyImportBtn" class="btn-primary" disabled>
+            <i class="fas fa-check"></i> Apply Changes
+          </button>
+          <button id="cancelImportBtn" class="btn-secondary">
+            <i class="fas fa-times"></i> Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Save Modal -->
+    <div id="saveProfileModal" class="modal" style="display: none">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fas fa-save"></i> Save Settings Profile</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="profileName">
+              <i class="fas fa-tag"></i> Profile Name:
+            </label>
+            <input
+              type="text"
+              id="profileName"
+              placeholder="e.g., Development, Production, Testing"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="profileDescription">
+              <i class="fas fa-comment"></i> Description (optional):
+            </label>
+            <textarea
+              id="profileDescription"
+              rows="3"
+              placeholder="Describe when to use this profile..."
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="confirmSaveProfile" class="btn-primary">
+            <i class="fas fa-save"></i> Save Profile
+          </button>
+          <button id="cancelSaveProfile" class="btn-secondary">
+            <i class="fas fa-times"></i> Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Management Modal -->
+    <div id="manageProfilesModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 800px">
+        <div class="modal-header">
+          <h3><i class="fas fa-cog"></i> Manage Profiles</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div id="manageProfilesList" class="manage-profiles-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="closeManageProfiles" class="btn-secondary">
+            <i class="fas fa-times"></i> Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Preview Modal -->
+    <div id="exportPreviewModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 900px">
+        <div class="modal-header">
+          <h3><i class="fas fa-download"></i> Export Preview</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <!-- Summary Stats -->
+          <div class="export-summary">
+            <div class="summary-stats">
+              <div class="stat-card">
+                <div class="stat-label">Sections</div>
+                <div class="stat-value" id="exportSectionsCount">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Settings</div>
+                <div class="stat-value" id="exportSettingsCount">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">File Size</div>
+                <div class="stat-value" id="exportFileSize">0 KB</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sections List -->
+          <div class="export-sections">
+            <h4><i class="fas fa-list"></i> Sections to Export</h4>
+            <div id="exportSectionsList" class="sections-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Preview Content -->
+          <div class="export-preview">
+            <h4><i class="fas fa-code"></i> Preview (first 50 lines)</h4>
+            <pre id="exportPreviewContent" class="preview-content"></pre>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="confirmExport" class="btn-primary">
+            <i class="fas fa-download"></i> Download
+          </button>
+          <button id="cancelExport" class="btn-secondary">
+            <i class="fas fa-times"></i> Cancel
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Dashboard Filter Modal -->
     <div id="dashboardFilterModal" class="modal" style="display: none">

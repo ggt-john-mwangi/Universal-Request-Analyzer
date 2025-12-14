@@ -1,7 +1,7 @@
 // Dashboard Component
 // Manages the dashboard visualization and real-time metrics
 
-import Chart from "../../lib/chart.min.js";
+import Chart from '../../lib/chart.min.js';
 
 class Dashboard {
   constructor() {
@@ -16,7 +16,7 @@ class Dashboard {
   }
 
   async initialize() {
-    console.log("Initializing Dashboard...");
+    console.log('Initializing Dashboard...');
 
     // Load domain filter first and check if domains exist
     const hasData = await this.loadDomainFilter();
@@ -37,116 +37,116 @@ class Dashboard {
     // Start auto-refresh
     this.startAutoRefresh();
 
-    console.log("✓ Dashboard initialized");
+    console.log('✓ Dashboard initialized');
   }
 
   setupEventListeners() {
     // Dashboard Sub-Tabs Navigation
-    const tabButtons = document.querySelectorAll(".dashboard-tab-btn");
+    const tabButtons = document.querySelectorAll('.dashboard-tab-btn');
     tabButtons.forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
         this.switchDashboardTab(tab);
       });
     });
 
-    const domainFilter = document.getElementById("dashboardDomainFilter");
+    const domainFilter = document.getElementById('dashboardDomainFilter');
     if (domainFilter) {
-      domainFilter.addEventListener("change", () =>
+      domainFilter.addEventListener('change', () =>
         this.onDomainFilterChange()
       );
     }
 
-    const pageFilter = document.getElementById("dashboardPageFilter");
+    const pageFilter = document.getElementById('dashboardPageFilter');
     if (pageFilter) {
-      pageFilter.addEventListener("change", () => this.refreshDashboard());
+      pageFilter.addEventListener('change', () => this.refreshDashboard());
     }
 
     const requestTypeFilter = document.getElementById(
-      "dashboardRequestTypeFilter"
+      'dashboardRequestTypeFilter'
     );
     if (requestTypeFilter) {
-      requestTypeFilter.addEventListener("change", () =>
+      requestTypeFilter.addEventListener('change', () =>
         this.refreshDashboard()
       );
     }
 
-    const timeRangeSelect = document.getElementById("dashboardTimeRange");
+    const timeRangeSelect = document.getElementById('dashboardTimeRange');
     if (timeRangeSelect) {
-      timeRangeSelect.addEventListener("change", (e) => {
+      timeRangeSelect.addEventListener('change', (e) => {
         this.timeRange = parseInt(e.target.value);
         this.refreshDashboard();
       });
     }
 
-    const refreshBtn = document.getElementById("dashboardRefresh");
+    const refreshBtn = document.getElementById('dashboardRefresh');
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => this.refreshDashboard());
+      refreshBtn.addEventListener('click', () => this.refreshDashboard());
     }
 
     // Endpoint Performance Over Time controls
-    const loadHistoryBtn = document.getElementById("dashboardLoadHistoryBtn");
+    const loadHistoryBtn = document.getElementById('dashboardLoadHistoryBtn');
     if (loadHistoryBtn) {
-      loadHistoryBtn.addEventListener("click", () =>
+      loadHistoryBtn.addEventListener('click', () =>
         this.loadEndpointPerformanceHistory()
       );
     }
 
     const endpointTypeFilter = document.getElementById(
-      "dashboardEndpointTypeFilter"
+      'dashboardEndpointTypeFilter'
     );
     if (endpointTypeFilter) {
-      endpointTypeFilter.addEventListener("change", () =>
+      endpointTypeFilter.addEventListener('change', () =>
         this.loadEndpointPerformanceHistory()
       );
     }
 
-    const endpointPattern = document.getElementById("dashboardEndpointPattern");
+    const endpointPattern = document.getElementById('dashboardEndpointPattern');
     if (endpointPattern) {
-      endpointPattern.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") this.loadEndpointPerformanceHistory();
+      endpointPattern.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.loadEndpointPerformanceHistory();
       });
-      endpointPattern.addEventListener("blur", () => {
+      endpointPattern.addEventListener('blur', () => {
         const val = endpointPattern.value.trim();
         if (val) this.loadEndpointPerformanceHistory();
       });
     }
 
     // Requests Table controls
-    const searchRequests = document.getElementById("dashboardSearchRequests");
+    const searchRequests = document.getElementById('dashboardSearchRequests');
     if (searchRequests) {
-      searchRequests.addEventListener("input", () => {
+      searchRequests.addEventListener('input', () => {
         clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(() => this.loadRequestsTable(1), 500);
       });
     }
 
-    const requestsPerPage = document.getElementById("dashboardRequestsPerPage");
+    const requestsPerPage = document.getElementById('dashboardRequestsPerPage');
     if (requestsPerPage) {
-      requestsPerPage.addEventListener("change", () =>
+      requestsPerPage.addEventListener('change', () =>
         this.loadRequestsTable(1)
       );
     }
 
-    const exportHAR = document.getElementById("dashboardExportHAR");
+    const exportHAR = document.getElementById('dashboardExportHAR');
     if (exportHAR) {
-      exportHAR.addEventListener("click", () => this.exportAsHAR());
+      exportHAR.addEventListener('click', () => this.exportAsHAR());
     }
 
     // Requests table event delegation
     const requestsTableBody = document.getElementById(
-      "dashboardRequestsTableBody"
+      'dashboardRequestsTableBody'
     );
     if (requestsTableBody) {
-      requestsTableBody.addEventListener("click", (e) => {
-        const viewBtn = e.target.closest(".btn-view-details");
+      requestsTableBody.addEventListener('click', (e) => {
+        const viewBtn = e.target.closest('.btn-view-details');
         if (viewBtn) {
           const requestId = viewBtn.dataset.requestId;
           this.viewRequestDetails(requestId);
           return;
         }
 
-        const curlBtn = e.target.closest(".btn-copy-curl");
+        const curlBtn = e.target.closest('.btn-copy-curl');
         if (curlBtn) {
           const requestId = curlBtn.dataset.requestId;
           const requestData = this.currentRequests?.find(
@@ -161,10 +161,10 @@ class Dashboard {
     }
 
     // Errors list event delegation
-    const errorsList = document.getElementById("dashboardErrorsList");
+    const errorsList = document.getElementById('dashboardErrorsList');
     if (errorsList) {
-      errorsList.addEventListener("click", (e) => {
-        const detailsBtn = e.target.closest(".btn-error-details");
+      errorsList.addEventListener('click', (e) => {
+        const detailsBtn = e.target.closest('.btn-error-details');
         if (detailsBtn) {
           const requestId = detailsBtn.dataset.requestId;
           const request = this.currentErrors?.find((r) => r.id === requestId);
@@ -174,7 +174,7 @@ class Dashboard {
           return;
         }
 
-        const curlBtn = e.target.closest(".btn-error-curl");
+        const curlBtn = e.target.closest('.btn-error-curl');
         if (curlBtn) {
           const requestId = curlBtn.dataset.requestId;
           const request = this.currentErrors?.find((r) => r.id === requestId);
@@ -187,56 +187,56 @@ class Dashboard {
     }
 
     // Request Details Modal event listeners
-    const requestDetailsModal = document.getElementById("requestDetailsModal");
+    const requestDetailsModal = document.getElementById('requestDetailsModal');
     if (requestDetailsModal) {
       // Close button
-      const closeBtn = requestDetailsModal.querySelector(".modal-close");
+      const closeBtn = requestDetailsModal.querySelector('.modal-close');
       if (closeBtn) {
-        closeBtn.addEventListener("click", () => {
-          requestDetailsModal.style.display = "none";
+        closeBtn.addEventListener('click', () => {
+          requestDetailsModal.style.display = 'none';
         });
       }
 
       // Footer close button
-      const footerCloseBtn = document.getElementById("closeRequestDetailsBtn");
+      const footerCloseBtn = document.getElementById('closeRequestDetailsBtn');
       if (footerCloseBtn) {
-        footerCloseBtn.addEventListener("click", () => {
-          requestDetailsModal.style.display = "none";
+        footerCloseBtn.addEventListener('click', () => {
+          requestDetailsModal.style.display = 'none';
         });
       }
 
       // Click outside to close
-      requestDetailsModal.addEventListener("click", (e) => {
+      requestDetailsModal.addEventListener('click', (e) => {
         if (e.target === requestDetailsModal) {
-          requestDetailsModal.style.display = "none";
+          requestDetailsModal.style.display = 'none';
         }
       });
     }
 
     // cURL Command Modal event listeners
-    const curlCommandModal = document.getElementById("curlCommandModal");
+    const curlCommandModal = document.getElementById('curlCommandModal');
     if (curlCommandModal) {
       // Close button
-      const closeBtn = curlCommandModal.querySelector(".modal-close");
+      const closeBtn = curlCommandModal.querySelector('.modal-close');
       if (closeBtn) {
-        closeBtn.addEventListener("click", () => {
-          curlCommandModal.style.display = "none";
+        closeBtn.addEventListener('click', () => {
+          curlCommandModal.style.display = 'none';
         });
       }
 
       // Footer close button
-      const footerCloseBtn = document.getElementById("closeCurlModalBtn");
+      const footerCloseBtn = document.getElementById('closeCurlModalBtn');
       if (footerCloseBtn) {
-        footerCloseBtn.addEventListener("click", () => {
-          curlCommandModal.style.display = "none";
+        footerCloseBtn.addEventListener('click', () => {
+          curlCommandModal.style.display = 'none';
         });
       }
 
       // Copy button
-      const copyBtn = document.getElementById("copyCurlBtn");
+      const copyBtn = document.getElementById('copyCurlBtn');
       if (copyBtn) {
-        copyBtn.addEventListener("click", () => {
-          const curlText = document.getElementById("curlCommandText");
+        copyBtn.addEventListener('click', () => {
+          const curlText = document.getElementById('curlCommandText');
           if (curlText) {
             this.copyToClipboard(curlText.textContent);
           }
@@ -244,9 +244,9 @@ class Dashboard {
       }
 
       // Click outside to close
-      curlCommandModal.addEventListener("click", (e) => {
+      curlCommandModal.addEventListener('click', (e) => {
         if (e.target === curlCommandModal) {
-          curlCommandModal.style.display = "none";
+          curlCommandModal.style.display = 'none';
         }
       });
     }
@@ -254,14 +254,14 @@ class Dashboard {
     // Analytics Tab event listeners removed - features provide no actionable value for developers
 
     // Populate domain comparison dropdowns
-    const compareDomain1 = document.getElementById("compareDomain1");
-    const compareDomain2 = document.getElementById("compareDomain2");
-    const compareDomain3 = document.getElementById("compareDomain3");
+    const compareDomain1 = document.getElementById('compareDomain1');
+    const compareDomain2 = document.getElementById('compareDomain2');
+    const compareDomain3 = document.getElementById('compareDomain3');
 
     if (compareDomain1 || compareDomain2 || compareDomain3) {
       // Load domains for comparison dropdowns
       chrome.runtime
-        .sendMessage({ action: "getAvailableDomains" })
+        .sendMessage({ action: 'getAvailableDomains' })
         .then((response) => {
           if (response.success && response.domains) {
             const options = response.domains
@@ -269,7 +269,7 @@ class Dashboard {
                 (d) =>
                   `<option value="${d.domain}">${d.domain} (${d.count} requests)</option>`
               )
-              .join("");
+              .join('');
 
             if (compareDomain1)
               compareDomain1.innerHTML =
@@ -294,11 +294,11 @@ class Dashboard {
   // Get chart colors from theme
   getChartColors() {
     return {
-      success: this.getThemeColor("--success-color"),
-      info: this.getThemeColor("--info-color"),
-      warning: this.getThemeColor("--warning-color"),
-      error: this.getThemeColor("--error-color"),
-      primary: this.getThemeColor("--primary-color"),
+      success: this.getThemeColor('--success-color'),
+      info: this.getThemeColor('--info-color'),
+      warning: this.getThemeColor('--warning-color'),
+      error: this.getThemeColor('--error-color'),
+      primary: this.getThemeColor('--primary-color'),
     };
   }
 
@@ -306,19 +306,19 @@ class Dashboard {
     const colors = this.getChartColors();
 
     // Volume Chart - Line chart for request volume over time
-    const volumeCanvas = document.getElementById("dashboardVolumeChart");
+    const volumeCanvas = document.getElementById('dashboardVolumeChart');
     if (volumeCanvas) {
-      const ctx = volumeCanvas.getContext("2d");
+      const ctx = volumeCanvas.getContext('2d');
       this.charts.volume = new Chart(ctx, {
-        type: "line",
+        type: 'line',
         data: {
           labels: [],
           datasets: [
             {
-              label: "Requests",
+              label: 'Requests',
               data: [],
               borderColor: colors.success,
-              backgroundColor: "transparent",
+              backgroundColor: 'transparent',
               tension: 0.4,
               fill: false,
             },
@@ -330,7 +330,7 @@ class Dashboard {
           plugins: {
             legend: {
               display: true,
-              position: "top",
+              position: 'top',
             },
           },
           scales: {
@@ -338,7 +338,7 @@ class Dashboard {
               beginAtZero: true,
               title: {
                 display: true,
-                text: "Number of Requests",
+                text: 'Number of Requests',
               },
             },
           },
@@ -347,17 +347,17 @@ class Dashboard {
     }
 
     // Status Chart - Doughnut chart for status distribution
-    const statusCanvas = document.getElementById("dashboardStatusChart");
+    const statusCanvas = document.getElementById('dashboardStatusChart');
     if (statusCanvas) {
-      const ctx = statusCanvas.getContext("2d");
+      const ctx = statusCanvas.getContext('2d');
       this.charts.status = new Chart(ctx, {
-        type: "doughnut",
+        type: 'doughnut',
         data: {
           labels: [
-            "2xx Success",
-            "3xx Redirect",
-            "4xx Client Error",
-            "5xx Server Error",
+            '2xx Success',
+            '3xx Redirect',
+            '4xx Client Error',
+            '5xx Server Error',
           ],
           datasets: [
             {
@@ -376,7 +376,7 @@ class Dashboard {
           maintainAspectRatio: false,
           plugins: {
             legend: {
-              position: "right",
+              position: 'right',
             },
           },
         },
@@ -384,16 +384,16 @@ class Dashboard {
     }
 
     // Domains Chart - Horizontal bar chart for top domains
-    const domainsCanvas = document.getElementById("dashboardDomainsChart");
+    const domainsCanvas = document.getElementById('dashboardDomainsChart');
     if (domainsCanvas) {
-      const ctx = domainsCanvas.getContext("2d");
+      const ctx = domainsCanvas.getContext('2d');
       this.charts.domains = new Chart(ctx, {
-        type: "bar",
+        type: 'bar',
         data: {
           labels: [],
           datasets: [
             {
-              label: "Requests",
+              label: 'Requests',
               data: [],
               backgroundColor: colors.primary,
             },
@@ -402,7 +402,7 @@ class Dashboard {
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          indexAxis: "y",
+          indexAxis: 'y',
           plugins: {
             legend: {
               display: false,
@@ -418,19 +418,19 @@ class Dashboard {
     }
 
     // Performance Chart - Line chart for performance trends
-    const perfCanvas = document.getElementById("dashboardPerformanceChart");
+    const perfCanvas = document.getElementById('dashboardPerformanceChart');
     if (perfCanvas) {
-      const ctx = perfCanvas.getContext("2d");
+      const ctx = perfCanvas.getContext('2d');
       this.charts.performance = new Chart(ctx, {
-        type: "line",
+        type: 'line',
         data: {
           labels: [],
           datasets: [
             {
-              label: "Avg Response Time (ms)",
+              label: 'Avg Response Time (ms)',
               data: [],
               borderColor: colors.info,
-              backgroundColor: "transparent",
+              backgroundColor: 'transparent',
               tension: 0.4,
               fill: false,
             },
@@ -442,7 +442,7 @@ class Dashboard {
           plugins: {
             legend: {
               display: true,
-              position: "top",
+              position: 'top',
             },
           },
           scales: {
@@ -450,7 +450,7 @@ class Dashboard {
               beginAtZero: true,
               title: {
                 display: true,
-                text: "Response Time (ms)",
+                text: 'Response Time (ms)',
               },
             },
           },
@@ -460,11 +460,11 @@ class Dashboard {
   }
 
   async refreshDashboard() {
-    console.log("Refreshing dashboard...");
+    console.log('Refreshing dashboard...');
 
     // Check if "All Domains" is selected
-    const domainFilter = document.getElementById("dashboardDomainFilter");
-    if (domainFilter && domainFilter.value === "all") {
+    const domainFilter = document.getElementById('dashboardDomainFilter');
+    if (domainFilter && domainFilter.value === 'all') {
       this.showSelectDomainPrompt();
       this.showLoadingState(false);
       return;
@@ -490,16 +490,16 @@ class Dashboard {
       await this.updateWebVitals();
 
       // Reload data for currently active tab
-      const activeTab = document.querySelector(".dashboard-tab-btn.active");
+      const activeTab = document.querySelector('.dashboard-tab-btn.active');
       if (activeTab) {
         const tabName = activeTab.dataset.tab;
         await this.reloadActiveTabData(tabName);
       }
 
-      console.log("✓ Dashboard refreshed");
+      console.log('✓ Dashboard refreshed');
     } catch (error) {
-      console.error("Failed to refresh dashboard:", error);
-      this.showError("Failed to load dashboard data. Please try refreshing.");
+      console.error('Failed to refresh dashboard:', error);
+      this.showError('Failed to load dashboard data. Please try refreshing.');
     } finally {
       // Hide loading state
       this.showLoadingState(false);
@@ -509,22 +509,22 @@ class Dashboard {
   async reloadActiveTabData(tabName) {
     // Reload data for the active tab when filters change
     switch (tabName) {
-      case "overview":
+      case 'overview':
         await this.loadWebVitals();
         break;
-      case "requests":
+      case 'requests':
         await this.loadRequestsTable(1);
         break;
-      case "performance":
+      case 'performance':
         await this.loadEndpointPerformanceHistory();
         break;
-      case "resources":
+      case 'resources':
         await this.loadResourcesBreakdown();
         break;
-      case "errors":
+      case 'errors':
         await this.loadErrorsAnalysis();
         break;
-      case "analytics":
+      case 'analytics':
         await this.loadAnalyticsPercentiles();
         // Other analytics features removed - don't provide actionable insights for developers
         break;
@@ -532,18 +532,18 @@ class Dashboard {
   }
 
   showLoadingState(isLoading) {
-    const container = document.querySelector(".dashboard-container");
-    const metricsSection = document.querySelector(".metrics-grid");
-    const chartsSection = document.querySelector(".dashboard-charts");
+    const container = document.querySelector('.dashboard-container');
+    const metricsSection = document.querySelector('.metrics-grid');
+    const chartsSection = document.querySelector('.dashboard-charts');
 
     if (isLoading) {
-      container?.classList.add("loading");
-      if (metricsSection) metricsSection.style.opacity = "0.5";
-      if (chartsSection) chartsSection.style.opacity = "0.5";
+      container?.classList.add('loading');
+      if (metricsSection) metricsSection.style.opacity = '0.5';
+      if (chartsSection) chartsSection.style.opacity = '0.5';
     } else {
-      container?.classList.remove("loading");
-      if (metricsSection) metricsSection.style.opacity = "1";
-      if (chartsSection) chartsSection.style.opacity = "1";
+      container?.classList.remove('loading');
+      if (metricsSection) metricsSection.style.opacity = '1';
+      if (chartsSection) chartsSection.style.opacity = '1';
     }
   }
 
@@ -554,8 +554,8 @@ class Dashboard {
       this.errorTimeout = null;
     }
 
-    const errorContainer = document.createElement("div");
-    errorContainer.className = "dashboard-error";
+    const errorContainer = document.createElement('div');
+    errorContainer.className = 'dashboard-error';
     errorContainer.innerHTML = `
       <div class="error-message">
         <i class="fas fa-exclamation-triangle"></i>
@@ -563,9 +563,9 @@ class Dashboard {
       </div>
     `;
 
-    const container = document.querySelector(".dashboard-container");
+    const container = document.querySelector('.dashboard-container');
     if (container) {
-      const existing = container.querySelector(".dashboard-error");
+      const existing = container.querySelector('.dashboard-error');
       if (existing) existing.remove();
 
       container.insertBefore(errorContainer, container.firstChild);
@@ -579,7 +579,7 @@ class Dashboard {
   }
 
   showNoDomainState() {
-    const dashboardContainer = document.querySelector(".dashboard-content");
+    const dashboardContainer = document.querySelector('.dashboard-content');
     if (!dashboardContainer) return;
 
     const emptyStateHtml = `
@@ -642,27 +642,27 @@ class Dashboard {
     `;
 
     // Hide all tab content and show empty state
-    const tabContents = document.querySelectorAll(".dashboard-tab-content");
+    const tabContents = document.querySelectorAll('.dashboard-tab-content');
     tabContents.forEach((content) => {
-      content.style.display = "none";
+      content.style.display = 'none';
     });
 
     // Insert empty state
-    const firstTabContent = document.querySelector(".dashboard-tab-content");
+    const firstTabContent = document.querySelector('.dashboard-tab-content');
     if (firstTabContent) {
-      const emptyStateDiv = document.createElement("div");
-      emptyStateDiv.className = "dashboard-empty-state-container";
+      const emptyStateDiv = document.createElement('div');
+      emptyStateDiv.className = 'dashboard-empty-state-container';
       emptyStateDiv.innerHTML = emptyStateHtml;
       firstTabContent.parentNode.insertBefore(emptyStateDiv, firstTabContent);
     }
   }
 
   showSelectDomainPrompt() {
-    const dashboardContainer = document.querySelector(".dashboard-content");
+    const dashboardContainer = document.querySelector('.dashboard-content');
     if (!dashboardContainer) return;
 
     // Remove any existing prompt
-    const existing = document.querySelector(".dashboard-select-domain-prompt");
+    const existing = document.querySelector('.dashboard-select-domain-prompt');
     if (existing) existing.remove();
 
     const promptHtml = `
@@ -707,24 +707,24 @@ class Dashboard {
     `;
 
     // Hide all tab content and show prompt
-    const tabContents = document.querySelectorAll(".dashboard-tab-content");
+    const tabContents = document.querySelectorAll('.dashboard-tab-content');
     tabContents.forEach((content) => {
-      content.style.display = "none";
+      content.style.display = 'none';
     });
 
     // Insert prompt
-    const firstTabContent = document.querySelector(".dashboard-tab-content");
+    const firstTabContent = document.querySelector('.dashboard-tab-content');
     if (firstTabContent) {
-      const promptDiv = document.createElement("div");
-      promptDiv.className = "dashboard-select-domain-prompt-container";
+      const promptDiv = document.createElement('div');
+      promptDiv.className = 'dashboard-select-domain-prompt-container';
       promptDiv.innerHTML = promptHtml;
       firstTabContent.parentNode.insertBefore(promptDiv, firstTabContent);
     }
 
     // Also hide active filters banner since no specific domain is selected
-    const activeFiltersInfo = document.getElementById("dashboardActiveFilters");
+    const activeFiltersInfo = document.getElementById('dashboardActiveFilters');
     if (activeFiltersInfo) {
-      activeFiltersInfo.style.display = "none";
+      activeFiltersInfo.style.display = 'none';
     }
   }
 
@@ -734,7 +734,7 @@ class Dashboard {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
-          action: "getFilteredStats",
+          action: 'getFilteredStats',
           filters: {
             ...filters,
             timeRange: this.timeRange,
@@ -743,7 +743,7 @@ class Dashboard {
         (response) => {
           if (chrome.runtime.lastError) {
             console.error(
-              "Error getting dashboard stats:",
+              'Error getting dashboard stats:',
               chrome.runtime.lastError
             );
             resolve(this.getDefaultStats());
@@ -845,25 +845,25 @@ class Dashboard {
 
   updateMetricCards(stats) {
     // Total Requests
-    const totalEl = document.getElementById("dashTotalRequests");
+    const totalEl = document.getElementById('dashTotalRequests');
     if (totalEl) {
       totalEl.textContent = (stats.totalRequests || 0).toLocaleString();
     }
 
     // Avg Response Time
-    const avgEl = document.getElementById("dashAvgResponse");
+    const avgEl = document.getElementById('dashAvgResponse');
     if (avgEl) {
       avgEl.textContent = `${Math.round(stats.avgResponse || 0)}ms`;
     }
 
     // Slow Requests
-    const slowEl = document.getElementById("dashSlowRequests");
+    const slowEl = document.getElementById('dashSlowRequests');
     if (slowEl) {
       slowEl.textContent = (stats.slowRequests || 0).toLocaleString();
     }
 
     // Error Rate
-    const errorEl = document.getElementById("dashErrorRate");
+    const errorEl = document.getElementById('dashErrorRate');
     if (errorEl) {
       const rate =
         stats.totalRequests > 0
@@ -877,14 +877,14 @@ class Dashboard {
       const el = document.getElementById(id);
       if (el) {
         el.textContent = value >= 0 ? `+${value}%` : `${value}%`;
-        el.className = `metric-change ${value >= 0 ? "positive" : "negative"}`;
+        el.className = `metric-change ${value >= 0 ? 'positive' : 'negative'}`;
       }
     };
 
-    updateChange("dashTotalChange", 0);
-    updateChange("dashAvgChange", 0);
-    updateChange("dashSlowChange", 0);
-    updateChange("dashErrorChange", 0);
+    updateChange('dashTotalChange', 0);
+    updateChange('dashAvgChange', 0);
+    updateChange('dashSlowChange', 0);
+    updateChange('dashErrorChange', 0);
   }
 
   updateCharts(stats) {
@@ -919,9 +919,9 @@ class Dashboard {
   }
 
   updateLayerStatus(stats) {
-    const bronzeEl = document.getElementById("bronzeCount");
-    const silverEl = document.getElementById("silverCount");
-    const goldEl = document.getElementById("goldCount");
+    const bronzeEl = document.getElementById('bronzeCount');
+    const silverEl = document.getElementById('silverCount');
+    const goldEl = document.getElementById('goldCount');
 
     if (bronzeEl && stats.layerCounts) {
       bronzeEl.textContent = (stats.layerCounts.bronze || 0).toLocaleString();
@@ -947,7 +947,7 @@ class Dashboard {
       this.refreshDashboard();
     }, 30000);
 
-    console.log("✓ Dashboard auto-refresh started (30s interval)");
+    console.log('✓ Dashboard auto-refresh started (30s interval)');
   }
 
   async loadWebVitals() {
@@ -958,7 +958,7 @@ class Dashboard {
       let query = `
         SELECT 
           metric_name,
-          metric_value,
+          value,
           rating,
           timestamp
         FROM bronze_web_vitals
@@ -979,7 +979,7 @@ class Dashboard {
       `;
 
       const response = await chrome.runtime.sendMessage({
-        action: "executeDirectQuery",
+        action: 'executeDirectQuery',
         query: query,
       });
 
@@ -989,24 +989,24 @@ class Dashboard {
         response.data.forEach((row) => {
           if (!vitals[row.metric_name]) {
             vitals[row.metric_name] = {
-              value: row.metric_value,
-              rating: row.rating || "needs-improvement",
+              value: row.value,
+              rating: row.rating || 'needs-improvement',
             };
           }
         });
 
         // Update DOM elements
-        this.updateWebVitalCard("lcp", vitals.LCP);
-        this.updateWebVitalCard("fid", vitals.FID);
-        this.updateWebVitalCard("cls", vitals.CLS);
-        this.updateWebVitalCard("fcp", vitals.FCP);
-        this.updateWebVitalCard("ttfb", vitals.TTFB);
-        this.updateWebVitalCard("tti", vitals.TTI);
-        this.updateWebVitalCard("dcl", vitals.DCL);
-        this.updateWebVitalCard("load", vitals.Load);
+        this.updateWebVitalCard('lcp', vitals.LCP);
+        this.updateWebVitalCard('fid', vitals.FID);
+        this.updateWebVitalCard('cls', vitals.CLS);
+        this.updateWebVitalCard('fcp', vitals.FCP);
+        this.updateWebVitalCard('ttfb', vitals.TTFB);
+        this.updateWebVitalCard('tti', vitals.TTI);
+        this.updateWebVitalCard('dcl', vitals.DCL);
+        this.updateWebVitalCard('load', vitals.Load);
       }
     } catch (error) {
-      console.error("Failed to load web vitals:", error);
+      console.error('Failed to load web vitals:', error);
     }
   }
 
@@ -1017,9 +1017,9 @@ class Dashboard {
     if (vitalData) {
       // Format value based on metric type
       let displayValue;
-      if (metricKey === "cls") {
+      if (metricKey === 'cls') {
         displayValue = vitalData.value.toFixed(3);
-      } else if (metricKey === "dcl" || metricKey === "load") {
+      } else if (metricKey === 'dcl' || metricKey === 'load') {
         displayValue = `${(vitalData.value / 1000).toFixed(2)}s`;
       } else {
         displayValue = `${Math.round(vitalData.value)}ms`;
@@ -1028,17 +1028,17 @@ class Dashboard {
       valueEl.textContent = displayValue;
 
       // Apply rating class (preserve existing vital-value class)
-      valueEl.className = "vital-value";
-      if (vitalData.rating === "good") {
-        valueEl.classList.add("vital-good");
-      } else if (vitalData.rating === "needs-improvement") {
-        valueEl.classList.add("vital-warning");
+      valueEl.className = 'vital-value';
+      if (vitalData.rating === 'good') {
+        valueEl.classList.add('vital-good');
+      } else if (vitalData.rating === 'needs-improvement') {
+        valueEl.classList.add('vital-warning');
       } else {
-        valueEl.classList.add("vital-poor");
+        valueEl.classList.add('vital-poor');
       }
     } else {
-      valueEl.textContent = "-";
-      valueEl.className = "vital-value";
+      valueEl.textContent = '-';
+      valueEl.className = 'vital-value';
     }
   }
 
@@ -1049,15 +1049,15 @@ class Dashboard {
   async loadEndpointPerformanceHistory() {
     try {
       const activeFilters = this.getActiveFilters();
-      const typeFilter = document.getElementById("dashboardEndpointTypeFilter");
+      const typeFilter = document.getElementById('dashboardEndpointTypeFilter');
       const endpointPattern = document.getElementById(
-        "dashboardEndpointPattern"
+        'dashboardEndpointPattern'
       );
-      const timeBucket = document.getElementById("dashboardHistoryTimeBucket");
+      const timeBucket = document.getElementById('dashboardHistoryTimeBucket');
 
-      const selectedType = typeFilter?.value || "";
-      const pattern = endpointPattern?.value?.trim() || "";
-      const bucket = timeBucket?.value || "hourly";
+      const selectedType = typeFilter?.value || '';
+      const pattern = endpointPattern?.value?.trim() || '';
+      const bucket = timeBucket?.value || 'hourly';
 
       const filters = {
         domain: activeFilters.domain || null,
@@ -1070,8 +1070,8 @@ class Dashboard {
 
       const response = await chrome.runtime.sendMessage({
         action: selectedType
-          ? "getRequestTypePerformanceHistory"
-          : "getEndpointPerformanceHistory",
+          ? 'getRequestTypePerformanceHistory'
+          : 'getEndpointPerformanceHistory',
         filters,
       });
 
@@ -1079,15 +1079,15 @@ class Dashboard {
         this.renderEndpointPerformanceChart(response);
       }
     } catch (error) {
-      console.error("Failed to load endpoint performance history:", error);
+      console.error('Failed to load endpoint performance history:', error);
     }
   }
 
   renderEndpointPerformanceChart(response) {
-    const canvas = document.getElementById("dashboardHistoryChartCanvas");
+    const canvas = document.getElementById('dashboardHistoryChartCanvas');
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
 
     // Destroy existing chart
     if (this.charts.endpointHistory) {
@@ -1096,25 +1096,25 @@ class Dashboard {
 
     const groupedData = response.groupedByType || response.groupedByEndpoint;
     if (!groupedData) {
-      document.getElementById("dashboardPerformanceHistoryChart").innerHTML =
+      document.getElementById('dashboardPerformanceHistoryChart').innerHTML =
         '<p class="no-data">No performance data available</p>';
       return;
     }
 
     const groupKeys = Object.keys(groupedData);
     if (groupKeys.length === 0) {
-      document.getElementById("dashboardPerformanceHistoryChart").innerHTML =
+      document.getElementById('dashboardPerformanceHistoryChart').innerHTML =
         '<p class="no-data">No data found for selected filters</p>';
       return;
     }
 
     const colors = [
-      "#4CAF50",
-      "#2196F3",
-      "#FF9800",
-      "#F44336",
-      "#9C27B0",
-      "#00BCD4",
+      '#4CAF50',
+      '#2196F3',
+      '#FF9800',
+      '#F44336',
+      '#9C27B0',
+      '#00BCD4',
     ];
 
     const datasets = groupKeys.slice(0, 6).map((key, index) => {
@@ -1125,7 +1125,7 @@ class Dashboard {
         label: key,
         data: records.map((r) => ({ x: r.timeBucket, y: r.avgDuration })),
         borderColor: colors[index % colors.length],
-        backgroundColor: "transparent",
+        backgroundColor: 'transparent',
         tension: 0.4,
         fill: false,
         pointRadius: 4,
@@ -1134,22 +1134,22 @@ class Dashboard {
     });
 
     this.charts.endpointHistory = new Chart(ctx, {
-      type: "line",
+      type: 'line',
       data: { datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, position: "top" },
+          legend: { display: true, position: 'top' },
           title: {
             display: true,
             text: `Performance Over Time (${response.timeBucket})`,
           },
         },
         scales: {
-          x: { type: "category", title: { display: true, text: "Time" } },
+          x: { type: 'category', title: { display: true, text: 'Time' } },
           y: {
-            title: { display: true, text: "Avg Duration (ms)" },
+            title: { display: true, text: 'Avg Duration (ms)' },
             beginAtZero: true,
           },
         },
@@ -1160,10 +1160,10 @@ class Dashboard {
   async loadRequestsTable(page = 1) {
     try {
       const activeFilters = this.getActiveFilters();
-      const searchInput = document.getElementById("dashboardSearchRequests");
-      const perPageSelect = document.getElementById("dashboardRequestsPerPage");
+      const searchInput = document.getElementById('dashboardSearchRequests');
+      const perPageSelect = document.getElementById('dashboardRequestsPerPage');
 
-      const searchQuery = searchInput?.value?.trim() || "";
+      const searchQuery = searchInput?.value?.trim() || '';
       const perPage = perPageSelect ? parseInt(perPageSelect.value) : 25;
       const offset = (page - 1) * perPage;
 
@@ -1174,13 +1174,13 @@ class Dashboard {
       };
 
       const response = await chrome.runtime.sendMessage({
-        action: "getDetailedRequests",
+        action: 'getDetailedRequests',
         filters,
         limit: perPage,
         offset: offset,
       });
 
-      const tbody = document.getElementById("dashboardRequestsTableBody");
+      const tbody = document.getElementById('dashboardRequestsTableBody');
 
       if (
         !response.success ||
@@ -1189,7 +1189,7 @@ class Dashboard {
       ) {
         tbody.innerHTML =
           '<tr class="no-data-row"><td colspan="7" style="text-align: center; padding: 24px;">No requests available for selected filters</td></tr>';
-        document.getElementById("dashboardTablePagination").innerHTML = "";
+        document.getElementById('dashboardTablePagination').innerHTML = '';
         return;
       }
 
@@ -1197,42 +1197,42 @@ class Dashboard {
       this.currentRequests = response.requests;
 
       // Build table rows
-      let rows = "";
+      let rows = '';
       response.requests.forEach((req) => {
         const statusClass =
           req.status >= 400
-            ? "status-error"
+            ? 'status-error'
             : req.status >= 300
-            ? "status-warning"
-            : "status-success";
-        const size = req.size_bytes ? this.formatBytes(req.size_bytes) : "N/A";
-        const duration = req.duration ? `${Math.round(req.duration)}ms` : "N/A";
+              ? 'status-warning'
+              : 'status-success';
+        const size = req.size_bytes ? this.formatBytes(req.size_bytes) : 'N/A';
+        const duration = req.duration ? `${Math.round(req.duration)}ms` : 'N/A';
         const cacheIcon = req.from_cache
           ? '<i class="fas fa-hdd" title="From cache"></i>'
-          : "";
+          : '';
 
         rows += `
           <tr>
             <td><span class="method-badge">${req.method}</span></td>
             <td class="url-cell" title="${req.url}">${this.truncateUrl(
-          req.url,
-          50
-        )}</td>
+  req.url,
+  50
+)}</td>
             <td><span class="status-badge ${statusClass}">${
-          req.status || "N/A"
-        }</span></td>
-            <td>${req.type || "N/A"}</td>
+  req.status || 'N/A'
+}</span></td>
+            <td>${req.type || 'N/A'}</td>
             <td>${duration} ${cacheIcon}</td>
             <td>${size}</td>
             <td>
               <button class="btn-icon btn-view-details" data-request-id="${
-                req.id
-              }" title="View details">
+  req.id
+}" title="View details">
                 <i class="fas fa-info-circle"></i>
               </button>
               <button class="btn-icon btn-copy-curl" data-request-id="${
-                req.id
-              }" title="Copy as cURL">
+  req.id
+}" title="Copy as cURL">
                 <i class="fas fa-terminal"></i>
               </button>
             </td>
@@ -1243,23 +1243,23 @@ class Dashboard {
       tbody.innerHTML = rows;
       this.renderPagination(page, response.totalCount, perPage);
     } catch (error) {
-      console.error("Failed to load requests table:", error);
-      document.getElementById("dashboardRequestsTableBody").innerHTML =
+      console.error('Failed to load requests table:', error);
+      document.getElementById('dashboardRequestsTableBody').innerHTML =
         '<tr class="no-data-row"><td colspan="7" style="text-align: center;">Error loading requests</td></tr>';
     }
   }
 
   renderPagination(currentPage, totalCount, perPage) {
-    const container = document.getElementById("dashboardTablePagination");
+    const container = document.getElementById('dashboardTablePagination');
     if (!container || totalCount === 0) {
-      if (container) container.innerHTML = "";
+      if (container) container.innerHTML = '';
       return;
     }
 
     const totalPages = Math.ceil(totalCount / perPage);
     if (totalPages <= 1) {
       container.innerHTML = `<span class="pagination-info">Showing ${totalCount} request${
-        totalCount !== 1 ? "s" : ""
+        totalCount !== 1 ? 's' : ''
       }</span>`;
       return;
     }
@@ -1288,7 +1288,7 @@ class Dashboard {
       if (lastPage && p - lastPage > 1) {
         html += '<span class="pagination-ellipsis">...</span>';
       }
-      const activeClass = p === currentPage ? "active" : "";
+      const activeClass = p === currentPage ? 'active' : '';
       html += `<button class="pagination-btn ${activeClass}" data-page="${p}">${p}</button>`;
       lastPage = p;
     });
@@ -1300,12 +1300,12 @@ class Dashboard {
       }"><i class="fas fa-chevron-right"></i></button>`;
     }
 
-    html += "</div>";
+    html += '</div>';
     container.innerHTML = html;
 
     // Add click handlers
-    container.querySelectorAll(".pagination-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
+    container.querySelectorAll('.pagination-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
         const page = parseInt(btn.dataset.page);
         if (page) this.loadRequestsTable(page);
       });
@@ -1321,12 +1321,12 @@ class Dashboard {
       }
 
       if (!request) {
-        this.showToast("Request not found", "error");
+        this.showToast('Request not found', 'error');
         return;
       }
 
       // Populate modal content
-      const modalBody = document.getElementById("requestDetailsBody");
+      const modalBody = document.getElementById('requestDetailsBody');
       if (!modalBody) return;
 
       modalBody.innerHTML = `
@@ -1334,44 +1334,44 @@ class Dashboard {
           <h4>General</h4>
           <table class="details-table">
             <tr><td>Method:</td><td><span class="method-badge">${
-              request.method
-            }</span></td></tr>
+  request.method
+}</span></td></tr>
             <tr><td>URL:</td><td class="selectable">${request.url}</td></tr>
             <tr><td>Status:</td><td>${request.status} ${
-        request.status_text || ""
-      }</td></tr>
+  request.status_text || ''
+}</td></tr>
             <tr><td>Type:</td><td>${request.type}</td></tr>
-            <tr><td>Domain:</td><td>${request.domain || "N/A"}</td></tr>
-            <tr><td>Page:</td><td>${request.page_url || "N/A"}</td></tr>
+            <tr><td>Domain:</td><td>${request.domain || 'N/A'}</td></tr>
+            <tr><td>Page:</td><td>${request.page_url || 'N/A'}</td></tr>
           </table>
         </div>
         <div class="detail-section">
           <h4>Performance</h4>
           <table class="details-table">
             <tr><td>Duration:</td><td>${
-              request.duration ? Math.round(request.duration) + "ms" : "N/A"
-            }</td></tr>
+  request.duration ? Math.round(request.duration) + 'ms' : 'N/A'
+}</td></tr>
             <tr><td>Size:</td><td>${this.formatBytes(
-              request.size_bytes || 0
-            )}</td></tr>
+    request.size_bytes || 0
+  )}</td></tr>
             <tr><td>From Cache:</td><td>${
-              request.from_cache ? "Yes" : "No"
-            }</td></tr>
+  request.from_cache ? 'Yes' : 'No'
+}</td></tr>
             <tr><td>Timestamp:</td><td>${new Date(
-              request.timestamp
-            ).toLocaleString()}</td></tr>
+    request.timestamp
+  ).toLocaleString()}</td></tr>
           </table>
         </div>
       `;
 
       // Show modal
-      const modal = document.getElementById("requestDetailsModal");
+      const modal = document.getElementById('requestDetailsModal');
       if (modal) {
-        modal.style.display = "block";
+        modal.style.display = 'block';
       }
     } catch (error) {
-      console.error("Error showing request details:", error);
-      this.showToast("Failed to load request details", "error");
+      console.error('Error showing request details:', error);
+      this.showToast('Failed to load request details', 'error');
     }
   }
 
@@ -1379,27 +1379,27 @@ class Dashboard {
     try {
       let curl = `curl '${request.url}'`;
 
-      if (request.method && request.method !== "GET") {
+      if (request.method && request.method !== 'GET') {
         curl += ` -X ${request.method}`;
       }
 
       curl += ` -H 'Accept: */*'`;
-      curl += " --compressed";
+      curl += ' --compressed';
 
       // Populate modal with cURL command
-      const curlCommandText = document.getElementById("curlCommandText");
+      const curlCommandText = document.getElementById('curlCommandText');
       if (curlCommandText) {
         curlCommandText.textContent = curl;
       }
 
       // Show modal
-      const modal = document.getElementById("curlCommandModal");
+      const modal = document.getElementById('curlCommandModal');
       if (modal) {
-        modal.style.display = "block";
+        modal.style.display = 'block';
       }
     } catch (error) {
-      console.error("Error generating cURL:", error);
-      this.showToast("Failed to generate cURL command", "error");
+      console.error('Error generating cURL:', error);
+      this.showToast('Failed to generate cURL command', 'error');
     }
   }
 
@@ -1408,7 +1408,7 @@ class Dashboard {
       navigator.clipboard
         .writeText(text)
         .then(() =>
-          this.showToast("cURL command copied to clipboard!", "success")
+          this.showToast('cURL command copied to clipboard!', 'success')
         )
         .catch(() => this.copyToClipboardFallback(text));
     } else {
@@ -1418,57 +1418,57 @@ class Dashboard {
 
   copyToClipboardFallback(text) {
     try {
-      const textarea = document.createElement("textarea");
+      const textarea = document.createElement('textarea');
       textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
       document.body.appendChild(textarea);
       textarea.select();
 
-      const successful = document.execCommand("copy");
+      const successful = document.execCommand('copy');
       document.body.removeChild(textarea);
 
       if (successful) {
-        this.showToast("cURL command copied to clipboard!", "success");
+        this.showToast('cURL command copied to clipboard!', 'success');
       } else {
-        this.showToast("Failed to copy cURL command", "error");
+        this.showToast('Failed to copy cURL command', 'error');
       }
     } catch (err) {
-      console.error("Fallback copy failed:", err);
-      this.showToast("Failed to copy cURL command", "error");
+      console.error('Fallback copy failed:', err);
+      this.showToast('Failed to copy cURL command', 'error');
     }
   }
 
   async exportAsHAR() {
     try {
-      const domainFilter = document.getElementById("dashboardDomainFilter");
-      const selectedDomain = domainFilter?.value || "all";
+      const domainFilter = document.getElementById('dashboardDomainFilter');
+      const selectedDomain = domainFilter?.value || 'all';
 
       const response = await chrome.runtime.sendMessage({
-        action: "exportHAR",
+        action: 'exportHAR',
         filters: {
-          domain: selectedDomain === "all" ? null : selectedDomain,
+          domain: selectedDomain === 'all' ? null : selectedDomain,
           timeRange: this.timeRange,
         },
       });
 
       if (response && response.success && response.har) {
         const blob = new Blob([JSON.stringify(response.har, null, 2)], {
-          type: "application/json",
+          type: 'application/json',
         });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = `requests-${selectedDomain}-${Date.now()}.har`;
         a.click();
         URL.revokeObjectURL(url);
-        this.showToast("HAR file exported successfully", "success");
+        this.showToast('HAR file exported successfully', 'success');
       } else {
-        this.showToast("Failed to export HAR file", "error");
+        this.showToast('Failed to export HAR file', 'error');
       }
     } catch (error) {
-      console.error("Error exporting HAR:", error);
-      this.showToast("Failed to export HAR file", "error");
+      console.error('Error exporting HAR:', error);
+      this.showToast('Failed to export HAR file', 'error');
     }
   }
 
@@ -1482,11 +1482,11 @@ class Dashboard {
       };
 
       const response = await chrome.runtime.sendMessage({
-        action: "getResourceSizeBreakdown",
+        action: 'getResourceSizeBreakdown',
         filters,
       });
 
-      const resourcesTable = document.getElementById("dashboardResourcesTable");
+      const resourcesTable = document.getElementById('dashboardResourcesTable');
 
       if (
         !response.success ||
@@ -1495,7 +1495,7 @@ class Dashboard {
       ) {
         resourcesTable.innerHTML =
           '<p class="no-data">No resource data available for selected filters</p>';
-        document.getElementById("dashboardCompressionStats").innerHTML =
+        document.getElementById('dashboardCompressionStats').innerHTML =
           '<p class="no-data">No compression data available</p>';
         return;
       }
@@ -1506,8 +1506,8 @@ class Dashboard {
       // Render table
       let html = `
         <h5 style="margin-bottom: 12px;">Total Size: ${this.formatBytes(
-          response.totalSize
-        )} | Total Requests: ${response.totalCount}</h5>
+    response.totalSize
+  )} | Total Requests: ${response.totalCount}</h5>
         <table class="data-table" style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr>
@@ -1535,23 +1535,23 @@ class Dashboard {
         `;
       });
 
-      html += "</tbody></table>";
+      html += '</tbody></table>';
       resourcesTable.innerHTML = html;
 
       // Render compression analysis
       this.renderCompressionAnalysis(response.breakdown, response.totalSize);
     } catch (error) {
-      console.error("Failed to load resources breakdown:", error);
-      document.getElementById("dashboardResourcesTable").innerHTML =
+      console.error('Failed to load resources breakdown:', error);
+      document.getElementById('dashboardResourcesTable').innerHTML =
         '<p class="no-data">Error loading resource data</p>';
     }
   }
 
   renderResourcePieChart(breakdown) {
-    const canvas = document.getElementById("dashboardResourcePieChart");
+    const canvas = document.getElementById('dashboardResourcePieChart');
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
 
     if (this.charts.resources) {
       this.charts.resources.destroy();
@@ -1561,21 +1561,21 @@ class Dashboard {
     const data = breakdown.map((b) => b.totalBytes);
 
     this.charts.resources = new Chart(ctx, {
-      type: "pie",
+      type: 'pie',
       data: {
         labels,
         datasets: [
           {
             data,
             backgroundColor: [
-              "#4CAF50",
-              "#2196F3",
-              "#FF9800",
-              "#F44336",
-              "#9C27B0",
-              "#00BCD4",
-              "#FFEB3B",
-              "#795548",
+              '#4CAF50',
+              '#2196F3',
+              '#FF9800',
+              '#F44336',
+              '#9C27B0',
+              '#00BCD4',
+              '#FFEB3B',
+              '#795548',
             ],
           },
         ],
@@ -1585,11 +1585,11 @@ class Dashboard {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: "right",
+            position: 'right',
           },
           title: {
             display: true,
-            text: "Resource Size Distribution",
+            text: 'Resource Size Distribution',
           },
         },
       },
@@ -1598,13 +1598,13 @@ class Dashboard {
 
   async renderCompressionAnalysis(breakdown, totalSize) {
     try {
-      const domainFilter = document.getElementById("dashboardDomainFilter");
-      const selectedDomain = domainFilter?.value || "all";
+      const domainFilter = document.getElementById('dashboardDomainFilter');
+      const selectedDomain = domainFilter?.value || 'all';
 
       const statsResponse = await chrome.runtime.sendMessage({
-        action: "getResourceCompressionStats",
+        action: 'getResourceCompressionStats',
         filters: {
-          domain: selectedDomain === "all" ? null : selectedDomain,
+          domain: selectedDomain === 'all' ? null : selectedDomain,
           timeRange: this.timeRange,
         },
       });
@@ -1616,29 +1616,29 @@ class Dashboard {
         // Pre-compute values to avoid nested template literals
         const compressedColor =
           compressionRate > 50
-            ? "var(--success-color)"
-            : "var(--warning-color)";
+            ? 'var(--success-color)'
+            : 'var(--warning-color)';
         const savingsColor =
           stats.potentialSavings > 1000000
-            ? "var(--error-color)"
-            : "var(--success-color)";
+            ? 'var(--error-color)'
+            : 'var(--success-color)';
         const iconClass =
-          compressionRate > 50 ? "check-circle" : "exclamation-triangle";
+          compressionRate > 50 ? 'check-circle' : 'exclamation-triangle';
         const iconColor =
           compressionRate > 50
-            ? "var(--success-color)"
-            : "var(--warning-color)";
+            ? 'var(--success-color)'
+            : 'var(--warning-color)';
 
         let message;
         if (compressionRate > 50) {
-          message = "Good compression rate! Resources are well optimized.";
+          message = 'Good compression rate! Resources are well optimized.';
         } else if (stats.potentialSavings > 100000) {
           message =
-            "Enable compression to save " +
+            'Enable compression to save ' +
             this.formatBytes(stats.potentialSavings) +
-            ".";
+            '.';
         } else {
-          message = "Resource sizes are optimized.";
+          message = 'Resource sizes are optimized.';
         }
 
         const html = `
@@ -1646,20 +1646,20 @@ class Dashboard {
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Total Bytes:</label>
               <span style="font-weight: 600;">${this.formatBytes(
-                stats.totalBytes
-              )}</span>
+    stats.totalBytes
+  )}</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Compressed Bytes:</label>
               <span style="font-weight: 600; color: ${compressedColor};">${this.formatBytes(
-          stats.compressedBytes
-        )}</span>
+  stats.compressedBytes
+)}</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Potential Savings:</label>
               <span style="font-weight: 600; color: ${savingsColor};">${this.formatBytes(
-          stats.potentialSavings
-        )}</span>
+  stats.potentialSavings
+)}</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Compression Rate:</label>
@@ -1671,14 +1671,14 @@ class Dashboard {
             </div>
           </div>
         `;
-        document.getElementById("dashboardCompressionStats").innerHTML = html;
+        document.getElementById('dashboardCompressionStats').innerHTML = html;
       } else {
         const compressibleTypes = [
-          "script",
-          "stylesheet",
-          "xmlhttprequest",
-          "fetch",
-          "document",
+          'script',
+          'stylesheet',
+          'xmlhttprequest',
+          'fetch',
+          'document',
         ];
         const compressibleSize = breakdown
           .filter((b) => compressibleTypes.includes(b.type))
@@ -1692,14 +1692,14 @@ class Dashboard {
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Compressible Resources:</label>
               <span style="font-weight: 600;">${this.formatBytes(
-                compressibleSize
-              )}</span>
+    compressibleSize
+  )}</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Potential Savings (Est.):</label>
               <span style="font-weight: 600; color: var(--warning-color);">${this.formatBytes(
-                potentialSavings
-              )}</span>
+    potentialSavings
+  )}</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
               <label>Compression Ratio (Est.):</label>
@@ -1711,11 +1711,11 @@ class Dashboard {
             </div>
           </div>
         `;
-        document.getElementById("dashboardCompressionStats").innerHTML = html;
+        document.getElementById('dashboardCompressionStats').innerHTML = html;
       }
     } catch (error) {
-      console.error("Failed to render compression analysis:", error);
-      document.getElementById("dashboardCompressionStats").innerHTML =
+      console.error('Failed to render compression analysis:', error);
+      document.getElementById('dashboardCompressionStats').innerHTML =
         '<p class="no-data">Error loading compression data</p>';
     }
   }
@@ -1730,26 +1730,26 @@ class Dashboard {
       };
 
       // Get 4xx errors
-      const filters4xx = { ...filters, statusPrefix: "4xx" };
+      const filters4xx = { ...filters, statusPrefix: '4xx' };
       const response4xx = await chrome.runtime.sendMessage({
-        action: "getDetailedRequests",
+        action: 'getDetailedRequests',
         filters: filters4xx,
         limit: 50,
         offset: 0,
       });
 
       // Get 5xx errors
-      const filters5xx = { ...filters, statusPrefix: "5xx" };
+      const filters5xx = { ...filters, statusPrefix: '5xx' };
       const response5xx = await chrome.runtime.sendMessage({
-        action: "getDetailedRequests",
+        action: 'getDetailedRequests',
         filters: filters5xx,
         limit: 50,
         offset: 0,
       });
 
-      const errorsList = document.getElementById("dashboardErrorsList");
+      const errorsList = document.getElementById('dashboardErrorsList');
       const errorCategories = document.getElementById(
-        "dashboardErrorCategories"
+        'dashboardErrorCategories'
       );
 
       const errors4xx = response4xx.success ? response4xx.requests : [];
@@ -1759,7 +1759,7 @@ class Dashboard {
       if (totalErrors === 0) {
         errorsList.innerHTML =
           '<p class="no-data">No errors found for selected filters</p>';
-        errorCategories.innerHTML = "";
+        errorCategories.innerHTML = '';
 
         // Clear error chart
         if (this.charts.errors) {
@@ -1796,7 +1796,7 @@ class Dashboard {
         listHtml +=
           '<h5 style="margin: 16px 0 12px 0;"><i class="fas fa-exclamation-triangle" style="color: #FF9800;"></i> Client Errors (4xx)</h5>';
         errors4xx.forEach((err) => {
-          listHtml += this.renderErrorItem(err, "client");
+          listHtml += this.renderErrorItem(err, 'client');
         });
       }
 
@@ -1804,33 +1804,33 @@ class Dashboard {
         listHtml +=
           '<h5 style="margin: 16px 0 12px 0;"><i class="fas fa-times-circle" style="color: #F44336;"></i> Server Errors (5xx)</h5>';
         errors5xx.forEach((err) => {
-          listHtml += this.renderErrorItem(err, "server");
+          listHtml += this.renderErrorItem(err, 'server');
         });
       }
 
-      listHtml += "</div>";
+      listHtml += '</div>';
       errorsList.innerHTML = listHtml;
 
       // Render error distribution chart
       this.renderErrorChart(errors4xx, errors5xx);
     } catch (error) {
-      console.error("Failed to load errors analysis:", error);
-      document.getElementById("dashboardErrorsList").innerHTML =
+      console.error('Failed to load errors analysis:', error);
+      document.getElementById('dashboardErrorsList').innerHTML =
         '<p class="no-data">Error loading error analysis data</p>';
     }
   }
 
   renderErrorItem(err, type) {
-    const typeClass = type === "client" ? "error-client" : "error-server";
-    const borderColor = type === "client" ? "#FF9800" : "#F44336";
-    const domain = err.domain || "N/A";
-    const pageUrl = err.page_url || "N/A";
+    const typeClass = type === 'client' ? 'error-client' : 'error-server';
+    const borderColor = type === 'client' ? '#FF9800' : '#F44336';
+    const domain = err.domain || 'N/A';
+    const pageUrl = err.page_url || 'N/A';
 
     let pageDisplay = pageUrl;
-    if (pageUrl !== "N/A") {
+    if (pageUrl !== 'N/A') {
       try {
         const url = new URL(pageUrl);
-        pageDisplay = url.pathname + url.search || "/";
+        pageDisplay = url.pathname + url.search || '/';
       } catch (e) {
         pageDisplay = pageUrl;
       }
@@ -1841,35 +1841,35 @@ class Dashboard {
         <div class="error-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
           <span class="status-badge status-error">${err.status}</span>
           <span class="error-url" style="flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${
-            err.url
-          }">${this.truncateUrl(err.url, 60)}</span>
+  err.url
+}">${this.truncateUrl(err.url, 60)}</span>
           <span class="error-time" style="font-size: 12px; color: var(--text-secondary-color);">${new Date(
-            err.timestamp
-          ).toLocaleTimeString()}</span>
+    err.timestamp
+  ).toLocaleTimeString()}</span>
         </div>
         <div class="error-details" style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-secondary-color); margin-bottom: 8px;">
-          <span><i class="fas fa-code"></i> ${err.method || "GET"}</span>
-          <span><i class="fas fa-tag"></i> ${err.type || "unknown"}</span>
+          <span><i class="fas fa-code"></i> ${err.method || 'GET'}</span>
+          <span><i class="fas fa-tag"></i> ${err.type || 'unknown'}</span>
           <span><i class="fas fa-globe"></i> ${domain}</span>
           <span title="${pageUrl}"><i class="fas fa-file"></i> ${this.truncateUrl(
-      pageDisplay,
-      30
-    )}</span>
+  pageDisplay,
+  30
+)}</span>
           ${
-            err.error
-              ? `<span class="error-message" style="color: var(--error-color);"><i class="fas fa-info-circle"></i> ${err.error}</span>`
-              : ""
-          }
+  err.error
+    ? `<span class="error-message" style="color: var(--error-color);"><i class="fas fa-info-circle"></i> ${err.error}</span>`
+    : ''
+}
         </div>
         <div class="error-actions" style="display: flex; gap: 8px;">
           <button class="btn-icon btn-error-details" data-request-id="${
-            err.id
-          }" title="View details">
+  err.id
+}" title="View details">
             <i class="fas fa-info-circle"></i>
           </button>
           <button class="btn-icon btn-error-curl" data-request-id="${
-            err.id
-          }" title="Copy as cURL">
+  err.id
+}" title="Copy as cURL">
             <i class="fas fa-terminal"></i>
           </button>
         </div>
@@ -1878,10 +1878,10 @@ class Dashboard {
   }
 
   renderErrorChart(errors4xx, errors5xx) {
-    const canvas = document.getElementById("dashboardErrorsChart");
+    const canvas = document.getElementById('dashboardErrorsChart');
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
 
     if (this.charts.errors) {
       this.charts.errors.destroy();
@@ -1897,15 +1897,15 @@ class Dashboard {
     const data = labels.map((status) => statusCounts[status]);
 
     this.charts.errors = new Chart(ctx, {
-      type: "bar",
+      type: 'bar',
       data: {
         labels,
         datasets: [
           {
-            label: "Error Count",
+            label: 'Error Count',
             data,
             backgroundColor: labels.map((s) =>
-              parseInt(s) >= 500 ? "#F44336" : "#FF9800"
+              parseInt(s) >= 500 ? '#F44336' : '#FF9800'
             ),
           },
         ],
@@ -1919,7 +1919,7 @@ class Dashboard {
           },
           title: {
             display: true,
-            text: "Errors by Status Code",
+            text: 'Errors by Status Code',
           },
         },
         scales: {
@@ -1927,13 +1927,13 @@ class Dashboard {
             beginAtZero: true,
             title: {
               display: true,
-              text: "Count",
+              text: 'Count',
             },
           },
           x: {
             title: {
               display: true,
-              text: "Status Code",
+              text: 'Status Code',
             },
           },
         },
@@ -1943,33 +1943,33 @@ class Dashboard {
 
   truncateUrl(url, maxLength) {
     if (url.length <= maxLength) return url;
-    const parts = url.split("?");
+    const parts = url.split('?');
     const base = parts[0];
     if (base.length > maxLength) {
-      return base.substring(0, maxLength - 3) + "...";
+      return base.substring(0, maxLength - 3) + '...';
     }
-    return base + "?...";
+    return base + '?...';
   }
 
   formatBytes(bytes) {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 
-  showToast(message, type = "info") {
-    const toast = document.createElement("div");
+  showToast(message, type = 'info') {
+    const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `
       <i class="fas fa-${
-        type === "success"
-          ? "check-circle"
-          : type === "error"
-          ? "exclamation-circle"
-          : "info-circle"
-      }"></i>
+  type === 'success'
+    ? 'check-circle'
+    : type === 'error'
+      ? 'exclamation-circle'
+      : 'info-circle'
+}"></i>
       <span>${message}</span>
     `;
     toast.style.cssText = `
@@ -1990,7 +1990,7 @@ class Dashboard {
 
     document.body.appendChild(toast);
     setTimeout(() => {
-      toast.style.animation = "slideOut 0.3s ease";
+      toast.style.animation = 'slideOut 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
   }
@@ -1999,7 +1999,7 @@ class Dashboard {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
-      console.log("✓ Dashboard auto-refresh stopped");
+      console.log('✓ Dashboard auto-refresh stopped');
     }
   }
 
@@ -2009,7 +2009,7 @@ class Dashboard {
 
     // Destroy all charts
     Object.values(this.charts).forEach((chart) => {
-      if (chart && typeof chart.destroy === "function") {
+      if (chart && typeof chart.destroy === 'function') {
         chart.destroy();
       }
     });
@@ -2019,9 +2019,9 @@ class Dashboard {
 
   async loadDomainFilter() {
     try {
-      const domainSelect = document.getElementById("dashboardDomainFilter");
+      const domainSelect = document.getElementById('dashboardDomainFilter');
       const modalDomainSelect = document.getElementById(
-        "dashboardModalDomainFilter"
+        'dashboardModalDomainFilter'
       );
       if (!domainSelect) return;
 
@@ -2034,11 +2034,11 @@ class Dashboard {
 
       // Get all domains
       const response = await chrome.runtime.sendMessage({
-        action: "getDomains",
+        action: 'getDomains',
         timeRange: 604800, // Last 7 days
       });
 
-      console.log("Dashboard domain filter response:", response);
+      console.log('Dashboard domain filter response:', response);
 
       if (
         response &&
@@ -2049,14 +2049,14 @@ class Dashboard {
         response.domains.forEach((domainObj) => {
           const domain = domainObj.domain;
           if (domain) {
-            const option = document.createElement("option");
+            const option = document.createElement('option');
             option.value = domain;
             option.textContent = `${domain} (${domainObj.requestCount} requests)`;
             domainSelect.appendChild(option);
 
             // Also add to modal dropdown
             if (modalDomainSelect) {
-              const modalOption = document.createElement("option");
+              const modalOption = document.createElement('option');
               modalOption.value = domain;
               modalOption.textContent = `${domain} (${domainObj.requestCount} requests)`;
               modalDomainSelect.appendChild(modalOption);
@@ -2078,57 +2078,57 @@ class Dashboard {
 
         return true; // Indicate that domains exist
       } else {
-        console.warn("No domains found for dashboard");
+        console.warn('No domains found for dashboard');
         return false; // Indicate no domains available
       }
     } catch (error) {
-      console.error("Failed to load domain filter:", error);
+      console.error('Failed to load domain filter:', error);
       return false;
     }
   }
 
   switchDashboardTab(tabName) {
     // Update active button
-    const buttons = document.querySelectorAll(".dashboard-tab-btn");
+    const buttons = document.querySelectorAll('.dashboard-tab-btn');
     buttons.forEach((btn) => {
       const isActive = btn.dataset.tab === tabName;
-      btn.classList.toggle("active", isActive);
+      btn.classList.toggle('active', isActive);
     });
 
     // Update active content
-    const contents = document.querySelectorAll(".dashboard-tab-content");
+    const contents = document.querySelectorAll('.dashboard-tab-content');
     contents.forEach((content) => {
       const isActive = content.dataset.tabContent === tabName;
-      content.classList.toggle("active", isActive);
+      content.classList.toggle('active', isActive);
     });
 
     // Load data for specific tabs when switched
-    if (tabName === "overview") {
+    if (tabName === 'overview') {
       this.loadWebVitals();
-    } else if (tabName === "requests") {
+    } else if (tabName === 'requests') {
       this.loadRequestsTable(1);
-    } else if (tabName === "performance") {
+    } else if (tabName === 'performance') {
       this.loadEndpointPerformanceHistory();
-    } else if (tabName === "resources") {
+    } else if (tabName === 'resources') {
       this.loadResourcesBreakdown();
-    } else if (tabName === "errors") {
+    } else if (tabName === 'errors') {
       this.loadErrorsAnalysis();
-    } else if (tabName === "analytics") {
+    } else if (tabName === 'analytics') {
       this.loadAnalyticsPercentiles();
       // Other analytics features removed - don't provide actionable insights for developers
     }
   }
 
   async onDomainFilterChange() {
-    const domainSelect = document.getElementById("dashboardDomainFilter");
+    const domainSelect = document.getElementById('dashboardDomainFilter');
     const selectedDomain = domainSelect.value;
 
     // Load pages for selected domain
-    if (selectedDomain && selectedDomain !== "all") {
+    if (selectedDomain && selectedDomain !== 'all') {
       await this.loadPageFilter(selectedDomain);
     } else {
       // Clear page filter for "all domains"
-      const pageSelect = document.getElementById("dashboardPageFilter");
+      const pageSelect = document.getElementById('dashboardPageFilter');
       if (pageSelect) {
         pageSelect.innerHTML =
           '<option value="">All Pages (Aggregated)</option>';
@@ -2149,7 +2149,7 @@ class Dashboard {
     this.loadingPageFilter = true;
 
     try {
-      const pageSelect = document.getElementById("dashboardPageFilter");
+      const pageSelect = document.getElementById('dashboardPageFilter');
 
       if (!pageSelect) {
         return;
@@ -2159,14 +2159,14 @@ class Dashboard {
       pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
       pageSelect.disabled = false;
 
-      if (!domain || domain === "all") {
+      if (!domain || domain === 'all') {
         pageSelect.disabled = true;
         return;
       }
 
       // Get pages for this domain
       const response = await chrome.runtime.sendMessage({
-        action: "getPagesByDomain",
+        action: 'getPagesByDomain',
         domain: domain,
         timeRange: 604800, // Last 7 days
       });
@@ -2180,12 +2180,12 @@ class Dashboard {
         response.pages.forEach((pageObj) => {
           const pageUrl = pageObj.pageUrl;
           if (pageUrl) {
-            const option = document.createElement("option");
+            const option = document.createElement('option');
             option.value = pageUrl;
             // Extract path from full URL for display
             try {
               const url = new URL(pageUrl);
-              const displayPath = url.pathname + url.search || "/";
+              const displayPath = url.pathname + url.search || '/';
               option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
             } catch (e) {
               option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
@@ -2198,7 +2198,7 @@ class Dashboard {
         );
       }
     } catch (error) {
-      console.error("Failed to load page filter:", error);
+      console.error('Failed to load page filter:', error);
     } finally {
       this.loadingPageFilter = false;
     }
@@ -2206,27 +2206,27 @@ class Dashboard {
 
   getActiveFilters() {
     const domainFilter = document.getElementById(
-      "dashboardDomainFilter"
+      'dashboardDomainFilter'
     )?.value;
-    const pageFilter = document.getElementById("dashboardPageFilter")?.value;
+    const pageFilter = document.getElementById('dashboardPageFilter')?.value;
     const requestTypeFilter = document.getElementById(
-      "dashboardRequestTypeFilter"
+      'dashboardRequestTypeFilter'
     )?.value;
 
     const filters = {};
 
     // Add domain filter (if "all" is selected, no domain filter is added, showing all domains)
-    if (domainFilter && domainFilter !== "all") {
+    if (domainFilter && domainFilter !== 'all') {
       filters.domain = domainFilter;
     }
 
     // Add page filter (if specific page selected)
-    if (pageFilter && pageFilter !== "") {
+    if (pageFilter && pageFilter !== '') {
       filters.pageUrl = pageFilter;
     }
 
     // Add request type filter
-    if (requestTypeFilter && requestTypeFilter !== "") {
+    if (requestTypeFilter && requestTypeFilter !== '') {
       filters.type = requestTypeFilter;
     }
 
@@ -2241,86 +2241,86 @@ class Dashboard {
   }
 
   updateActiveFiltersDisplay(domain, page, type) {
-    const infoBox = document.getElementById("dashboardActiveFilters");
-    const infoText = document.getElementById("activeFiltersText");
+    const infoBox = document.getElementById('dashboardActiveFilters');
+    const infoText = document.getElementById('activeFiltersText');
 
     if (!infoBox || !infoText) return;
 
     const parts = [];
 
-    if (domain && domain !== "all") {
+    if (domain && domain !== 'all') {
       parts.push(`<strong>Domain:</strong> ${domain}`);
     } else {
       parts.push(`<strong>Showing data from ALL domains</strong>`);
     }
 
-    if (page && page !== "") {
+    if (page && page !== '') {
       try {
         const url = new URL(page);
-        const displayPath = url.pathname + url.search || "/";
+        const displayPath = url.pathname + url.search || '/';
         parts.push(`<strong>Page:</strong> ${displayPath}`);
       } catch (e) {
         parts.push(`<strong>Page:</strong> ${page}`);
       }
     }
 
-    if (type && type !== "") {
+    if (type && type !== '') {
       parts.push(`<strong>Type:</strong> ${type}`);
     }
 
-    infoText.innerHTML = parts.join(" | ");
-    infoBox.style.display = "block";
+    infoText.innerHTML = parts.join(' | ');
+    infoBox.style.display = 'block';
   }
 
   async updateWebVitals() {
     try {
       const filters = this.getActiveFilters();
 
-      console.log("[Dashboard] Requesting Web Vitals with filters:", filters);
+      console.log('[Dashboard] Requesting Web Vitals with filters:', filters);
 
       // Get Web Vitals from background
       const response = await chrome.runtime.sendMessage({
-        action: "getWebVitals",
+        action: 'getWebVitals',
         filters: {
           ...filters,
           timeRange: this.timeRange,
         },
       });
 
-      console.log("[Dashboard] Web Vitals response:", response);
+      console.log('[Dashboard] Web Vitals response:', response);
 
       if (response && response.success && response.vitals) {
         const vitals = response.vitals;
-        console.log("[Dashboard] Processing vitals:", vitals);
+        console.log('[Dashboard] Processing vitals:', vitals);
 
         // Update LCP
-        this.updateVitalCard("lcp", vitals.LCP);
+        this.updateVitalCard('lcp', vitals.LCP);
 
         // Update FID
-        this.updateVitalCard("fid", vitals.FID);
+        this.updateVitalCard('fid', vitals.FID);
 
         // Update CLS
-        this.updateVitalCard("cls", vitals.CLS);
+        this.updateVitalCard('cls', vitals.CLS);
 
         // Update FCP
-        this.updateVitalCard("fcp", vitals.FCP);
+        this.updateVitalCard('fcp', vitals.FCP);
 
         // Update TTFB
-        this.updateVitalCard("ttfb", vitals.TTFB);
+        this.updateVitalCard('ttfb', vitals.TTFB);
 
         // Update TTI
-        this.updateVitalCard("tti", vitals.TTI);
+        this.updateVitalCard('tti', vitals.TTI);
 
         // Update DCL
-        this.updateVitalCard("dcl", vitals.DCL);
+        this.updateVitalCard('dcl', vitals.DCL);
 
         // Update Load
-        this.updateVitalCard("load", vitals.Load);
+        this.updateVitalCard('load', vitals.Load);
       } else {
-        console.log("[Dashboard] No vitals data received or request failed");
+        console.log('[Dashboard] No vitals data received or request failed');
       }
     } catch (error) {
-      console.error("[Dashboard] Failed to update web vitals:", error);
+      console.error('[Dashboard] Failed to update web vitals:', error);
     }
   }
 
@@ -2338,9 +2338,9 @@ class Dashboard {
     if (!valueEl || !ratingEl || !cardEl) return;
 
     // Format value based on metric type
-    let displayValue = "-";
+    let displayValue = '-';
     if (data.value !== null && data.value !== undefined) {
-      if (metric === "cls") {
+      if (metric === 'cls') {
         displayValue = data.value.toFixed(3);
       } else {
         displayValue = `${Math.round(data.value)}ms`;
@@ -2351,11 +2351,11 @@ class Dashboard {
 
     // Update rating
     if (data.rating) {
-      ratingEl.textContent = data.rating.replace("-", " ");
+      ratingEl.textContent = data.rating.replace('-', ' ');
       ratingEl.className = `vital-rating ${data.rating}`;
 
       // Update card border
-      cardEl.classList.remove("good", "needs-improvement", "poor");
+      cardEl.classList.remove('good', 'needs-improvement', 'poor');
       cardEl.classList.add(data.rating);
     }
   }
@@ -2368,7 +2368,7 @@ class Dashboard {
       const filters = this.getActiveFilters();
 
       // Build WHERE clause
-      const whereConditions = ["duration IS NOT NULL"];
+      const whereConditions = ['duration IS NOT NULL'];
       if (filters.domain) {
         whereConditions.push(
           `domain = '${filters.domain.replace(/'/g, "''")}'`
@@ -2384,8 +2384,8 @@ class Dashboard {
       }
       const whereClause =
         whereConditions.length > 0
-          ? `WHERE ${whereConditions.join(" AND ")}`
-          : "";
+          ? `WHERE ${whereConditions.join(' AND ')}`
+          : '';
 
       // Query for percentiles from gold_domain_stats or calculate from silver_requests
       const query = `
@@ -2399,7 +2399,7 @@ class Dashboard {
       `;
 
       const response = await chrome.runtime.sendMessage({
-        action: "executeDirectQuery",
+        action: 'executeDirectQuery',
         query: query,
       });
 
@@ -2422,7 +2422,7 @@ class Dashboard {
         const percentileResults = await Promise.all(
           percentileQueries.map((q) =>
             chrome.runtime.sendMessage({
-              action: "executeDirectQuery",
+              action: 'executeDirectQuery',
               query: q,
             })
           )
@@ -2438,22 +2438,22 @@ class Dashboard {
           max: stats.max_duration || 0,
         };
 
-        document.getElementById("p50Value").textContent = `${Math.round(
+        document.getElementById('p50Value').textContent = `${Math.round(
           percentiles.p50
         )}ms`;
-        document.getElementById("p75Value").textContent = `${Math.round(
+        document.getElementById('p75Value').textContent = `${Math.round(
           percentiles.p75
         )}ms`;
-        document.getElementById("p90Value").textContent = `${Math.round(
+        document.getElementById('p90Value').textContent = `${Math.round(
           percentiles.p90
         )}ms`;
-        document.getElementById("p95Value").textContent = `${Math.round(
+        document.getElementById('p95Value').textContent = `${Math.round(
           percentiles.p95
         )}ms`;
-        document.getElementById("p99Value").textContent = `${Math.round(
+        document.getElementById('p99Value').textContent = `${Math.round(
           percentiles.p99
         )}ms`;
-        document.getElementById("maxValue").textContent = `${Math.round(
+        document.getElementById('maxValue').textContent = `${Math.round(
           percentiles.max
         )}ms`;
 
@@ -2461,7 +2461,7 @@ class Dashboard {
         this.applyPercentileColors(percentiles);
       }
     } catch (error) {
-      console.error("Failed to load analytics percentiles:", error);
+      console.error('Failed to load analytics percentiles:', error);
     }
   }
 
@@ -2475,22 +2475,22 @@ class Dashboard {
       const el = document.getElementById(elementId);
       if (!el) return;
 
-      el.className = "percentile-value";
+      el.className = 'percentile-value';
       if (value < thresholds.good) {
-        el.classList.add("good");
+        el.classList.add('good');
       } else if (value < thresholds.warning) {
-        el.classList.add("warning");
+        el.classList.add('warning');
       } else {
-        el.classList.add("danger");
+        el.classList.add('danger');
       }
     };
 
-    applyColor("p50Value", percentiles.p50);
-    applyColor("p75Value", percentiles.p75);
-    applyColor("p90Value", percentiles.p90);
-    applyColor("p95Value", percentiles.p95);
-    applyColor("p99Value", percentiles.p99);
-    applyColor("maxValue", percentiles.max);
+    applyColor('p50Value', percentiles.p50);
+    applyColor('p75Value', percentiles.p75);
+    applyColor('p90Value', percentiles.p90);
+    applyColor('p95Value', percentiles.p95);
+    applyColor('p99Value', percentiles.p99);
+    applyColor('maxValue', percentiles.max);
   }
 
   async loadAnomalyDetection() {
@@ -2498,7 +2498,7 @@ class Dashboard {
       const filters = this.getActiveFilters();
 
       // Build WHERE clause
-      const whereConditions = ["duration IS NOT NULL"];
+      const whereConditions = ['duration IS NOT NULL'];
       if (filters.domain) {
         whereConditions.push(
           `domain = '${filters.domain.replace(/'/g, "''")}'`
@@ -2512,7 +2512,7 @@ class Dashboard {
       if (filters.type) {
         whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
       }
-      const whereClause = whereConditions.join(" AND ");
+      const whereClause = whereConditions.join(' AND ');
 
       // Get requests exceeding P99 threshold
       const query = `
@@ -2543,11 +2543,11 @@ class Dashboard {
       `;
 
       const response = await chrome.runtime.sendMessage({
-        action: "executeDirectQuery",
+        action: 'executeDirectQuery',
         query: query,
       });
 
-      const anomaliesList = document.getElementById("anomaliesList");
+      const anomaliesList = document.getElementById('anomaliesList');
 
       if (response.success && response.data && response.data.length > 0) {
         let html = '<div style="max-height: 400px; overflow-y: auto;">';
@@ -2560,8 +2560,8 @@ class Dashboard {
                 <div style="flex: 1;">
                   <div style="font-weight: 600; margin-bottom: 4px;">
                     <span class="method-badge ${anomaly.method}">${
-            anomaly.method
-          }</span>
+  anomaly.method
+}</span>
                     <span style="margin-left: 8px;">${anomaly.url}</span>
                   </div>
                   <div style="font-size: 12px; color: var(--text-secondary-color);">
@@ -2574,7 +2574,7 @@ class Dashboard {
                     ${Math.round(anomaly.duration)}ms
                   </div>
                   <div style="font-size: 11px; color: var(--text-secondary-color);">
-                    Status: ${anomaly.status || "N/A"}
+                    Status: ${anomaly.status || 'N/A'}
                   </div>
                 </div>
               </div>
@@ -2582,7 +2582,7 @@ class Dashboard {
           `;
         });
 
-        html += "</div>";
+        html += '</div>';
         html += `<p style="margin-top: 12px; font-size: 12px; color: var(--text-secondary-color);"><i class="fas fa-info-circle"></i> Showing top 20 slowest requests (P99 outliers)</p>`;
         anomaliesList.innerHTML = html;
       } else {
@@ -2590,8 +2590,8 @@ class Dashboard {
           '<p class="placeholder" style="padding: 20px; text-align: center; color: var(--text-secondary-color);"><i class="fas fa-check-circle" style="color: var(--success-color);"></i> No anomalies detected - all requests performing within normal range</p>';
       }
     } catch (error) {
-      console.error("Failed to load anomaly detection:", error);
-      document.getElementById("anomaliesList").innerHTML =
+      console.error('Failed to load anomaly detection:', error);
+      document.getElementById('anomaliesList').innerHTML =
         '<p class="no-data">Error loading anomaly data</p>';
     }
   }
@@ -2599,13 +2599,13 @@ class Dashboard {
   async loadTrendAnalysis() {
     try {
       const compareType =
-        document.getElementById("trendCompareType")?.value || "week";
+        document.getElementById('trendCompareType')?.value || 'week';
       const filters = this.getActiveFilters();
 
       // Calculate time ranges
       const now = Date.now();
       const msPerDay = 24 * 60 * 60 * 1000;
-      const currentPeriodDays = compareType === "week" ? 7 : 30;
+      const currentPeriodDays = compareType === 'week' ? 7 : 30;
       const currentStart = now - currentPeriodDays * msPerDay;
       const previousStart = currentStart - currentPeriodDays * msPerDay;
 
@@ -2626,7 +2626,7 @@ class Dashboard {
         if (filters.type) {
           conditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
         }
-        return conditions.join(" AND ");
+        return conditions.join(' AND ');
       };
 
       // Query current period
@@ -2653,11 +2653,11 @@ class Dashboard {
 
       const [currentResponse, previousResponse] = await Promise.all([
         chrome.runtime.sendMessage({
-          action: "executeDirectQuery",
+          action: 'executeDirectQuery',
           query: currentQuery,
         }),
         chrome.runtime.sendMessage({
-          action: "executeDirectQuery",
+          action: 'executeDirectQuery',
           query: previousQuery,
         }),
       ]);
@@ -2700,46 +2700,46 @@ class Dashboard {
         );
 
         // Update UI
-        document.getElementById("trendRequests").textContent =
+        document.getElementById('trendRequests').textContent =
           current.request_count.toLocaleString();
-        document.getElementById("trendDuration").textContent = `${Math.round(
+        document.getElementById('trendDuration').textContent = `${Math.round(
           current.avg_duration || 0
         )}ms`;
-        document.getElementById("trendErrors").textContent =
+        document.getElementById('trendErrors').textContent =
           current.error_count.toLocaleString();
-        document.getElementById("trendBytes").textContent = this.formatBytes(
+        document.getElementById('trendBytes').textContent = this.formatBytes(
           current.total_bytes || 0
         );
 
         // Update change indicators
         const formatChange = (change, reverse = false) => {
           const isPositive = reverse ? change < 0 : change > 0;
-          const icon = isPositive ? "fa-arrow-up" : "fa-arrow-down";
+          const icon = isPositive ? 'fa-arrow-up' : 'fa-arrow-down';
           const color = isPositive
-            ? "var(--success-color)"
-            : "var(--error-color)";
+            ? 'var(--success-color)'
+            : 'var(--error-color)';
           return `<i class="fas ${icon}" style="color: ${color};"></i> ${Math.abs(
             change
           ).toFixed(1)}%`;
         };
 
-        document.getElementById("trendRequestsChange").innerHTML =
+        document.getElementById('trendRequestsChange').innerHTML =
           formatChange(requestChange);
-        document.getElementById("trendDurationChange").innerHTML = formatChange(
+        document.getElementById('trendDurationChange').innerHTML = formatChange(
           durationChange,
           true
         ); // Reverse: lower is better
-        document.getElementById("trendErrorsChange").innerHTML = formatChange(
+        document.getElementById('trendErrorsChange').innerHTML = formatChange(
           errorChange,
           true
         ); // Reverse: lower is better
-        document.getElementById("trendBytesChange").innerHTML = formatChange(
+        document.getElementById('trendBytesChange').innerHTML = formatChange(
           bytesChange,
           true
         ); // Reverse: lower is better
       }
     } catch (error) {
-      console.error("Failed to load trend analysis:", error);
+      console.error('Failed to load trend analysis:', error);
     }
   }
 
@@ -2748,7 +2748,7 @@ class Dashboard {
       const filters = this.getActiveFilters();
 
       // Build WHERE clause
-      const whereConditions = ["timestamp IS NOT NULL"];
+      const whereConditions = ['timestamp IS NOT NULL'];
       if (filters.domain) {
         whereConditions.push(
           `domain = '${filters.domain.replace(/'/g, "''")}'`
@@ -2762,7 +2762,7 @@ class Dashboard {
       if (filters.type) {
         whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
       }
-      const whereClause = whereConditions.join(" AND ");
+      const whereClause = whereConditions.join(' AND ');
 
       // Query for request counts by hour and day of week
       const query = `
@@ -2777,18 +2777,18 @@ class Dashboard {
       `;
 
       const response = await chrome.runtime.sendMessage({
-        action: "executeDirectQuery",
+        action: 'executeDirectQuery',
         query: query,
       });
 
       if (response.success && response.data && response.data.length > 0) {
-        const canvas = document.getElementById("heatmapCanvas");
+        const canvas = document.getElementById('heatmapCanvas');
         if (!canvas) return;
 
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext('2d');
         const cellSize = 30;
         const padding = 40;
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const hours = Array.from({ length: 24 }, (_, i) => i);
 
         canvas.width = padding + hours.length * cellSize;
@@ -2808,16 +2808,16 @@ class Dashboard {
         // Clear canvas
         ctx.fillStyle =
           getComputedStyle(document.body).getPropertyValue(
-            "--background-color"
-          ) || "#fff";
+            '--background-color'
+          ) || '#fff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Draw labels
-        ctx.font = "12px Arial";
+        ctx.font = '12px Arial';
         ctx.fillStyle =
           getComputedStyle(document.body).getPropertyValue(
-            "--text-primary-color"
-          ) || "#333";
+            '--text-primary-color'
+          ) || '#333';
 
         // Day labels
         days.forEach((day, i) => {
@@ -2850,9 +2850,9 @@ class Dashboard {
 
             // Add count text if significant
             if (count > 0) {
-              ctx.fillStyle = intensity > 0.5 ? "#fff" : "#333";
-              ctx.font = "10px Arial";
-              ctx.textAlign = "center";
+              ctx.fillStyle = intensity > 0.5 ? '#fff' : '#333';
+              ctx.font = '10px Arial';
+              ctx.textAlign = 'center';
               ctx.fillText(
                 count.toString(),
                 padding + hourIndex * cellSize + cellSize / 2,
@@ -2863,39 +2863,39 @@ class Dashboard {
         });
       } else {
         // Show placeholder if no data
-        const canvas = document.getElementById("heatmapCanvas");
+        const canvas = document.getElementById('heatmapCanvas');
         if (canvas) {
-          const ctx = canvas.getContext("2d");
+          const ctx = canvas.getContext('2d');
           canvas.width = 600;
           canvas.height = 300;
           ctx.fillStyle =
             getComputedStyle(document.body).getPropertyValue(
-              "--text-secondary-color"
-            ) || "#999";
-          ctx.font = "14px Arial";
-          ctx.textAlign = "center";
+              '--text-secondary-color'
+            ) || '#999';
+          ctx.font = '14px Arial';
+          ctx.textAlign = 'center';
           ctx.fillText(
-            "No activity data available",
+            'No activity data available',
             canvas.width / 2,
             canvas.height / 2
           );
         }
       }
     } catch (error) {
-      console.error("Failed to load activity heatmap:", error);
+      console.error('Failed to load activity heatmap:', error);
     }
   }
 
   async loadDomainComparison() {
     try {
-      const domain1 = document.getElementById("compareDomain1")?.value;
-      const domain2 = document.getElementById("compareDomain2")?.value;
-      const domain3 = document.getElementById("compareDomain3")?.value;
+      const domain1 = document.getElementById('compareDomain1')?.value;
+      const domain2 = document.getElementById('compareDomain2')?.value;
+      const domain3 = document.getElementById('compareDomain3')?.value;
 
-      const domains = [domain1, domain2, domain3].filter((d) => d && d !== "");
+      const domains = [domain1, domain2, domain3].filter((d) => d && d !== '');
 
       if (domains.length < 2) {
-        document.getElementById("comparisonResults").innerHTML =
+        document.getElementById('comparisonResults').innerHTML =
           '<p class="placeholder" style="padding: 40px; text-align: center; color: var(--text-secondary-color);">Select at least 2 domains to compare</p>';
         return;
       }
@@ -2917,7 +2917,7 @@ class Dashboard {
 
       const responses = await Promise.all(
         queries.map((q) =>
-          chrome.runtime.sendMessage({ action: "executeDirectQuery", query: q })
+          chrome.runtime.sendMessage({ action: 'executeDirectQuery', query: q })
         )
       );
 
@@ -2926,14 +2926,14 @@ class Dashboard {
         .map((r) => r.data[0]);
 
       if (comparisonData.length < 2) {
-        document.getElementById("comparisonResults").innerHTML =
+        document.getElementById('comparisonResults').innerHTML =
           '<p class="placeholder">Not enough data for comparison</p>';
         return;
       }
 
       // Create comparison chart
-      const canvas = document.getElementById("comparisonChart");
-      const ctx = canvas.getContext("2d");
+      const canvas = document.getElementById('comparisonChart');
+      const ctx = canvas.getContext('2d');
 
       // Destroy existing chart if it exists
       if (this.comparisonChartInstance) {
@@ -2941,13 +2941,13 @@ class Dashboard {
       }
 
       this.comparisonChartInstance = new Chart(ctx, {
-        type: "bar",
+        type: 'bar',
         data: {
           labels: [
-            "Requests",
-            "Avg Duration (ms)",
-            "Errors",
-            "Cache Hit Rate (%)",
+            'Requests',
+            'Avg Duration (ms)',
+            'Errors',
+            'Cache Hit Rate (%)',
           ],
           datasets: comparisonData.map((data, index) => ({
             label: data.domain,
@@ -2958,14 +2958,14 @@ class Dashboard {
               Math.round(data.cache_hit_rate || 0),
             ],
             backgroundColor: [
-              "rgba(54, 162, 235, 0.6)",
-              "rgba(255, 99, 132, 0.6)",
-              "rgba(75, 192, 192, 0.6)",
+              'rgba(54, 162, 235, 0.6)',
+              'rgba(255, 99, 132, 0.6)',
+              'rgba(75, 192, 192, 0.6)',
             ][index],
             borderColor: [
-              "rgba(54, 162, 235, 1)",
-              "rgba(255, 99, 132, 1)",
-              "rgba(75, 192, 192, 1)",
+              'rgba(54, 162, 235, 1)',
+              'rgba(255, 99, 132, 1)',
+              'rgba(75, 192, 192, 1)',
             ][index],
             borderWidth: 1,
           })),
@@ -2975,21 +2975,21 @@ class Dashboard {
           maintainAspectRatio: true,
           plugins: {
             legend: {
-              position: "top",
+              position: 'top',
               labels: {
                 color:
                   getComputedStyle(document.body).getPropertyValue(
-                    "--text-primary-color"
-                  ) || "#333",
+                    '--text-primary-color'
+                  ) || '#333',
               },
             },
             title: {
               display: true,
-              text: "Domain Performance Comparison",
+              text: 'Domain Performance Comparison',
               color:
                 getComputedStyle(document.body).getPropertyValue(
-                  "--text-primary-color"
-                ) || "#333",
+                  '--text-primary-color'
+                ) || '#333',
             },
           },
           scales: {
@@ -2998,36 +2998,36 @@ class Dashboard {
               ticks: {
                 color:
                   getComputedStyle(document.body).getPropertyValue(
-                    "--text-secondary-color"
-                  ) || "#666",
+                    '--text-secondary-color'
+                  ) || '#666',
               },
               grid: {
                 color:
                   getComputedStyle(document.body).getPropertyValue(
-                    "--border-color"
-                  ) || "#ddd",
+                    '--border-color'
+                  ) || '#ddd',
               },
             },
             x: {
               ticks: {
                 color:
                   getComputedStyle(document.body).getPropertyValue(
-                    "--text-secondary-color"
-                  ) || "#666",
+                    '--text-secondary-color'
+                  ) || '#666',
               },
               grid: {
                 color:
                   getComputedStyle(document.body).getPropertyValue(
-                    "--border-color"
-                  ) || "#ddd",
+                    '--border-color'
+                  ) || '#ddd',
               },
             },
           },
         },
       });
     } catch (error) {
-      console.error("Failed to load domain comparison:", error);
-      document.getElementById("comparisonResults").innerHTML =
+      console.error('Failed to load domain comparison:', error);
+      document.getElementById('comparisonResults').innerHTML =
         '<p class="no-data">Error loading comparison data</p>';
     }
   }
@@ -3037,7 +3037,7 @@ class Dashboard {
       const filters = this.getActiveFilters();
 
       // Build WHERE clause
-      const whereConditions = ["duration IS NOT NULL"];
+      const whereConditions = ['duration IS NOT NULL'];
       if (filters.domain) {
         whereConditions.push(
           `domain = '${filters.domain.replace(/'/g, "''")}'`
@@ -3051,7 +3051,7 @@ class Dashboard {
       if (filters.type) {
         whereConditions.push(`type = '${filters.type.replace(/'/g, "''")}'`);
       }
-      const whereClause = whereConditions.join(" AND ");
+      const whereClause = whereConditions.join(' AND ');
 
       // Query for insights data
       const queries = {
@@ -3081,7 +3081,7 @@ class Dashboard {
 
       const responses = await Promise.all(
         Object.values(queries).map((q) =>
-          chrome.runtime.sendMessage({ action: "executeDirectQuery", query: q })
+          chrome.runtime.sendMessage({ action: 'executeDirectQuery', query: q })
         )
       );
 
@@ -3092,14 +3092,14 @@ class Dashboard {
       if (slowResp.success && slowResp.data[0]?.count > 0) {
         const count = slowResp.data[0].count;
         insights.push({
-          type: "warning",
-          title: "Slow Requests Detected",
+          type: 'warning',
+          title: 'Slow Requests Detected',
           description: `${count} request${
-            count > 1 ? "s" : ""
+            count > 1 ? 's' : ''
           } took longer than 1 second to complete.`,
           recommendation:
-            "Consider optimizing these endpoints or adding caching.",
-          priority: "high",
+            'Consider optimizing these endpoints or adding caching.',
+          priority: 'high',
         });
       }
 
@@ -3108,14 +3108,14 @@ class Dashboard {
         const count = largeResp.data[0].count;
         const totalMB = (largeResp.data[0].total_size / 1048576).toFixed(2);
         insights.push({
-          type: "info",
-          title: "Large Requests Found",
+          type: 'info',
+          title: 'Large Requests Found',
           description: `${count} request${
-            count > 1 ? "s" : ""
+            count > 1 ? 's' : ''
           } exceeded 1MB (total: ${totalMB}MB).`,
           recommendation:
-            "Consider implementing compression or lazy loading for large resources.",
-          priority: "medium",
+            'Consider implementing compression or lazy loading for large resources.',
+          priority: 'medium',
         });
       }
 
@@ -3123,14 +3123,14 @@ class Dashboard {
       if (errorResp.success && errorResp.data[0]?.count > 0) {
         const count = errorResp.data[0].count;
         insights.push({
-          type: "error",
-          title: "Request Errors Detected",
+          type: 'error',
+          title: 'Request Errors Detected',
           description: `${count} request${
-            count > 1 ? "s" : ""
+            count > 1 ? 's' : ''
           } failed with 4xx/5xx status codes.`,
           recommendation:
-            "Review error logs and fix broken endpoints or network issues.",
-          priority: "high",
+            'Review error logs and fix broken endpoints or network issues.',
+          priority: 'high',
         });
       }
 
@@ -3142,26 +3142,26 @@ class Dashboard {
 
         if (cacheRate < 30 && total > 10) {
           insights.push({
-            type: "warning",
-            title: "Low Cache Hit Rate",
+            type: 'warning',
+            title: 'Low Cache Hit Rate',
             description: `Only ${cacheRate}% of requests are being served from cache.`,
             recommendation:
-              "Improve caching strategy with appropriate Cache-Control headers.",
-            priority: "medium",
+              'Improve caching strategy with appropriate Cache-Control headers.',
+            priority: 'medium',
           });
         } else if (cacheRate >= 70) {
           insights.push({
-            type: "success",
-            title: "Excellent Cache Performance",
+            type: 'success',
+            title: 'Excellent Cache Performance',
             description: `${cacheRate}% of requests are being served from cache.`,
-            recommendation: "Great job! Your caching strategy is working well.",
-            priority: "low",
+            recommendation: 'Great job! Your caching strategy is working well.',
+            priority: 'low',
           });
         }
       }
 
       // Display insights
-      const insightsList = document.getElementById("insightsList");
+      const insightsList = document.getElementById('insightsList');
       if (insights.length === 0) {
         insightsList.innerHTML =
           '<p class="placeholder" style="padding: 20px; text-align: center; color: var(--success-color);"><i class="fas fa-check-circle"></i> No issues detected - performance looks good!</p>';
@@ -3170,25 +3170,25 @@ class Dashboard {
 
         insights.forEach((insight) => {
           const iconMap = {
-            error: "fa-exclamation-circle",
-            warning: "fa-exclamation-triangle",
-            info: "fa-info-circle",
-            success: "fa-check-circle",
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle',
+            success: 'fa-check-circle',
           };
 
           const colorMap = {
-            error: "var(--error-color)",
-            warning: "var(--warning-color)",
-            info: "var(--info-color)",
-            success: "var(--success-color)",
+            error: 'var(--error-color)',
+            warning: 'var(--warning-color)',
+            info: 'var(--info-color)',
+            success: 'var(--success-color)',
           };
 
           const priorityBadge =
-            insight.priority === "high"
+            insight.priority === 'high'
               ? '<span style="background: var(--error-color); color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">HIGH</span>'
-              : insight.priority === "medium"
-              ? '<span style="background: var(--warning-color); color: #333; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">MEDIUM</span>'
-              : '<span style="background: var(--surface-color); color: var(--text-secondary-color); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">LOW</span>';
+              : insight.priority === 'medium'
+                ? '<span style="background: var(--warning-color); color: #333; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">MEDIUM</span>'
+                : '<span style="background: var(--surface-color); color: var(--text-secondary-color); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">LOW</span>';
 
           html += `
             <div class="insight-card" style="
@@ -3200,11 +3200,11 @@ class Dashboard {
               <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <i class="fas ${iconMap[insight.type]}" style="color: ${
-            colorMap[insight.type]
-          };"></i>
+  colorMap[insight.type]
+};"></i>
                   <h4 style="margin: 0; font-size: 16px; color: var(--text-primary-color);">${
-                    insight.title
-                  }</h4>
+  insight.title
+}</h4>
                 </div>
                 ${priorityBadge}
               </div>
@@ -3219,12 +3219,12 @@ class Dashboard {
           `;
         });
 
-        html += "</div>";
+        html += '</div>';
         insightsList.innerHTML = html;
       }
     } catch (error) {
-      console.error("Failed to load performance insights:", error);
-      document.getElementById("insightsList").innerHTML =
+      console.error('Failed to load performance insights:', error);
+      document.getElementById('insightsList').innerHTML =
         '<p class="no-data">Error loading insights</p>';
     }
   }
@@ -3234,13 +3234,13 @@ class Dashboard {
 export const dashboard = new Dashboard();
 
 // Initialize when dashboard tab is active
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener('DOMContentLoaded', () => {
   const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-  const dashboardContent = document.getElementById("dashboard");
+  const dashboardContent = document.getElementById('dashboard');
 
   if (dashboardTab) {
     // Attach to the tab click
-    dashboardTab.addEventListener("click", async () => {
+    dashboardTab.addEventListener('click', async () => {
       // Delay initialization to ensure DOM is ready
       setTimeout(async () => {
         if (!dashboard.charts.volume) {
@@ -3252,7 +3252,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // If dashboard tab is active by default, initialize immediately
-    if (dashboardTab.classList.contains("active")) {
+    if (dashboardTab.classList.contains('active')) {
       setTimeout(async () => {
         await dashboard.initialize();
       }, 500);
@@ -3264,10 +3264,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (
-          mutation.type === "attributes" &&
-          mutation.attributeName === "class"
+          mutation.type === 'attributes' &&
+          mutation.attributeName === 'class'
         ) {
-          if (dashboardContent.classList.contains("active")) {
+          if (dashboardContent.classList.contains('active')) {
             setTimeout(async () => {
               if (!dashboard.charts.volume) {
                 await dashboard.initialize();

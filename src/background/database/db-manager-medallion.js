@@ -189,7 +189,11 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
       getDatabaseSize,
       getDatabaseStats,
       exportDatabase,
+      importDatabase,
       clearDatabase,
+      resetDatabase,
+      cleanupOldRecords,
+      previewCleanup,
       vacuumDatabase,
     };
   } catch (error) {
@@ -347,6 +351,23 @@ export function getDatabaseStats() {
     stats.tables.silver = silverCount[0]?.values[0]?.[0] || 0;
     stats.tables.gold = goldCount[0]?.values[0]?.[0] || 0;
 
+    // Calculate total requests across all layers
+    stats.totalRequests =
+      stats.tables.bronze + stats.tables.silver + stats.tables.gold;
+
+    // Get oldest record timestamp
+    try {
+      const oldestResult = executeQuery(
+        "SELECT MIN(timestamp) as oldest FROM bronze_requests"
+      );
+      const oldestTimestamp = oldestResult[0]?.values[0]?.[0];
+      if (oldestTimestamp) {
+        stats.oldestDate = oldestTimestamp;
+      }
+    } catch (oldestError) {
+      console.warn("Failed to get oldest record:", oldestError);
+    }
+
     return stats;
   } catch (error) {
     console.error("Failed to get database stats:", error);
@@ -368,6 +389,37 @@ export function exportDatabase() {
   } catch (error) {
     console.error("Failed to export database:", error);
     throw new DatabaseError("Export failed", error);
+  }
+}
+
+/**
+ * Import database from Uint8Array
+ */
+export async function importDatabase(uint8Array) {
+  if (!SQL || !dbConfig) {
+    throw new DatabaseError("Database not initialized");
+  }
+
+  try {
+    console.log("[DB] Importing database...");
+
+    // Close current database
+    if (db) {
+      db.close();
+    }
+
+    // Create new database from imported data
+    db = new SQL.Database(uint8Array);
+
+    // Save to OPFS
+    await saveToOPFS(db.export());
+
+    console.log("[DB] Database imported successfully");
+
+    return true;
+  } catch (error) {
+    console.error("Failed to import database:", error);
+    throw new DatabaseError("Import failed", error);
   }
 }
 
@@ -429,6 +481,70 @@ export async function clearDatabase() {
 }
 
 /**
+ * Reset database - completely drop all tables and recreate schema
+ * This is more destructive than clearDatabase (which only deletes data)
+ */
+export async function resetDatabase() {
+  if (!db) {
+    return false;
+  }
+
+  try {
+    console.log("Resetting database...");
+
+    // Get list of all tables
+    const tablesResult = db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+    `);
+
+    if (tablesResult[0]?.values) {
+      db.exec("BEGIN TRANSACTION");
+
+      // Drop all tables
+      for (const [tableName] of tablesResult[0].values) {
+        try {
+          db.exec(`DROP TABLE IF EXISTS ${tableName}`);
+          console.log(`Dropped table: ${tableName}`);
+        } catch (error) {
+          console.warn(`Failed to drop table ${tableName}:`, error);
+        }
+      }
+
+      db.exec("COMMIT");
+    }
+
+    // Recreate schema
+    console.log("Recreating medallion schema...");
+    createMedallionSchema(db);
+
+    // Initialize default configuration
+    console.log("Initializing default configuration...");
+    initializeDefaultConfig(db);
+
+    // Recreate managers
+    medallionManager = createMedallionManager(db);
+    configManager = createConfigSchemaManager(db);
+
+    // Save to OPFS
+    await saveDatabase();
+
+    eventBus?.publish("database:reset", { timestamp: Date.now() });
+
+    console.log("Database reset complete");
+    return true;
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Failed to rollback:", rollbackError);
+    }
+    console.error("Failed to reset database:", error);
+    throw new DatabaseError("Reset failed", error);
+  }
+}
+
+/**
  * Vacuum database to optimize storage
  */
 export function vacuumDatabase() {
@@ -445,6 +561,174 @@ export function vacuumDatabase() {
       error: "vacuum_failed",
       message: error.message,
     });
+  }
+}
+
+/**
+ * Delete records older than specified number of days
+ * @param {number} days - Age threshold in days
+ * @returns {Object} - Stats about deleted records
+ */
+export async function cleanupOldRecords(days) {
+  if (!db) {
+    throw new DatabaseError("Database not initialized");
+  }
+
+  try {
+    const cutoffTimestamp = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    // First, count records that will be deleted (Bronze + Silver + Gold layers)
+    const cutoffDate = new Date(cutoffTimestamp).toISOString().split("T")[0];
+    const countQuery = `
+      SELECT 
+        (SELECT COUNT(*) FROM bronze_requests WHERE timestamp < ${cutoffTimestamp}) as bronze_count,
+        (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}) as vitals_count,
+        (SELECT COUNT(*) FROM silver_requests WHERE timestamp < ${cutoffTimestamp}) as silver_count,
+        (SELECT COUNT(*) FROM gold_daily_analytics WHERE date < '${cutoffDate}') +
+        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_trends WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_anomalies WHERE detected_at < ${cutoffTimestamp}) as gold_count
+    `;
+
+    const countResult = db.exec(countQuery);
+    const counts = countResult[0]?.values?.[0] || [0, 0, 0, 0];
+    const totalToDelete = counts[0] + counts[1] + counts[2] + counts[3];
+
+    console.log(
+      `Cleaning up ${totalToDelete} records older than ${days} days (Bronze: ${counts[0]}, Silver: ${counts[2]}, Gold: ${counts[3]})`
+    );
+
+    // Begin transaction
+    db.exec("BEGIN TRANSACTION");
+
+    // Delete from bronze layer
+    db.exec(`DELETE FROM bronze_requests WHERE timestamp < ${cutoffTimestamp}`);
+    db.exec(
+      `DELETE FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}`
+    );
+    db.exec(
+      `DELETE FROM bronze_request_headers WHERE request_id NOT IN (SELECT id FROM bronze_requests)`
+    );
+    db.exec(
+      `DELETE FROM bronze_request_timings WHERE request_id NOT IN (SELECT id FROM bronze_requests)`
+    );
+
+    // Delete from silver layer
+    db.exec(`DELETE FROM silver_requests WHERE timestamp < ${cutoffTimestamp}`);
+
+    // Delete from gold layer (analytics)
+    // Note: gold_daily_analytics uses date string, not timestamp
+    db.exec(`DELETE FROM gold_daily_analytics WHERE date < '${cutoffDate}'`);
+    db.exec(
+      `DELETE FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}`
+    );
+    db.exec(
+      `DELETE FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}`
+    );
+    db.exec(
+      `DELETE FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}`
+    );
+    db.exec(`DELETE FROM gold_trends WHERE created_at < ${cutoffTimestamp}`);
+    db.exec(
+      `DELETE FROM gold_anomalies WHERE detected_at < ${cutoffTimestamp}`
+    );
+
+    // Commit transaction
+    db.exec("COMMIT");
+
+    // Save database
+    await saveDatabase();
+
+    // Vacuum to reclaim space
+    vacuumDatabase();
+
+    const stats = {
+      recordsDeleted: totalToDelete,
+      cutoffDate: new Date(cutoffTimestamp).toISOString(),
+      timestamp: Date.now(),
+    };
+
+    eventBus?.publish("database:cleanup", stats);
+
+    return stats;
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Failed to rollback:", rollbackError);
+    }
+    console.error("Failed to cleanup old records:", error);
+    throw new DatabaseError("Cleanup failed", error);
+  }
+}
+
+/**
+ * Preview cleanup - count records that would be deleted
+ * @param {number} days - Age threshold in days
+ * @returns {Object} - Preview stats
+ */
+export function previewCleanup(days) {
+  if (!db) {
+    throw new DatabaseError("Database not initialized");
+  }
+
+  try {
+    const cutoffTimestamp = Date.now() - days * 24 * 60 * 60 * 1000;
+    const cutoffDate = new Date(cutoffTimestamp).toISOString().split("T")[0];
+
+    const query = `
+      SELECT 
+        (SELECT COUNT(*) FROM bronze_requests WHERE timestamp < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM silver_requests WHERE timestamp < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_daily_analytics WHERE date < '${cutoffDate}') +
+        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_trends WHERE created_at < ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_anomalies WHERE detected_at < ${cutoffTimestamp}) as records_to_delete,
+        (SELECT COUNT(*) FROM bronze_requests WHERE timestamp >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM silver_requests WHERE timestamp >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_daily_analytics WHERE date >= '${cutoffDate}') +
+        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_trends WHERE created_at >= ${cutoffTimestamp}) +
+        (SELECT COUNT(*) FROM gold_anomalies WHERE detected_at >= ${cutoffTimestamp}) as records_remaining,
+        (SELECT MIN(timestamp) FROM bronze_requests) as oldest_timestamp
+    `;
+
+    const result = db.exec(query);
+    if (!result[0]?.values?.[0]) {
+      return {
+        recordsToDelete: 0,
+        recordsRemaining: 0,
+        oldestRecord: null,
+        sizeFreed: 0,
+      };
+    }
+
+    const [recordsToDelete, recordsRemaining, oldestTimestamp] =
+      result[0].values[0];
+
+    // Estimate size freed (average 1KB per record)
+    const estimatedSizeFreed = (recordsToDelete || 0) * 1024;
+
+    return {
+      recordsToDelete: recordsToDelete || 0,
+      recordsRemaining: recordsRemaining || 0,
+      oldestRecord: oldestTimestamp
+        ? new Date(oldestTimestamp).toISOString()
+        : null,
+      cutoffDate: new Date(cutoffTimestamp).toISOString(),
+      sizeFreed: estimatedSizeFreed,
+    };
+  } catch (error) {
+    console.error("Failed to preview cleanup:", error);
+    throw new DatabaseError("Preview failed", error);
   }
 }
 
@@ -550,6 +834,14 @@ export class DatabaseManagerMedallion {
     return this.dbApi.exportDatabase();
   }
 
+  async importDatabase(...args) {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    const result = await this.dbApi.importDatabase(...args);
+    // Reinitialize API after import
+    this.dbApi = await initDatabase(null, null, this.eventBus);
+    return result;
+  }
+
   clearDatabase() {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.clearDatabase();
@@ -558,6 +850,24 @@ export class DatabaseManagerMedallion {
   vacuumDatabase() {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.vacuumDatabase();
+  }
+
+  async resetDatabase() {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    const result = await this.dbApi.resetDatabase();
+    // Reinitialize to get fresh API with updated managers
+    this.dbApi = await initDatabase(null, null, eventBus);
+    return result;
+  }
+
+  async cleanupOldRecords(days) {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    return await this.dbApi.cleanupOldRecords(days);
+  }
+
+  previewCleanup(days) {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    return this.dbApi.previewCleanup(days);
   }
 
   get medallion() {
