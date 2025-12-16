@@ -1368,6 +1368,11 @@ export class DevToolsPanel {
               }" title="Copy as cURL">
                 <i class="fas fa-terminal"></i>
               </button>
+              <button class="btn-icon btn-copy-fetch" data-request-id="${
+                req.id
+              }" title="Copy as Fetch">
+                <i class="fas fa-code"></i>
+              </button>
               ${errorIcon}
             </td>
           </tr>
@@ -1418,6 +1423,21 @@ export class DevToolsPanel {
                 method: requestData.method,
               });
               this.copyAsCurl(requestData);
+            } else {
+              console.error("Request data not found for id:", requestId);
+              this.showToast("Request data not available", "error");
+            }
+            return;
+          }
+
+          const fetchBtn = e.target.closest(".btn-copy-fetch");
+          if (fetchBtn) {
+            const requestId = fetchBtn.dataset.requestId;
+            const requestData = this.currentRequests?.find(
+              (r) => r.id === requestId
+            );
+            if (requestData) {
+              this.copyAsFetch(requestData);
             } else {
               console.error("Request data not found for id:", requestId);
               this.showToast("Request data not available", "error");
@@ -1597,8 +1617,11 @@ export class DevToolsPanel {
 
   // Copy request as cURL command
   // Note: Headers are stored in a separate table and not included in basic cURL export
-  copyAsCurl(request) {
+  async copyAsCurl(request) {
     try {
+      // Fetch headers from database
+      const headers = await this.getRequestHeaders(request.id);
+
       let curl = `curl '${request.url}'`;
 
       // Add method if not GET
@@ -1606,10 +1629,19 @@ export class DevToolsPanel {
         curl += ` -X ${request.method}`;
       }
 
-      // Note: Headers are stored in bronze_request_headers table
-      // and not fetched for performance reasons
-      // Add common headers manually
-      curl += ` -H 'Accept: */*'`;
+      // Add headers
+      if (headers && headers.length > 0) {
+        headers.forEach((header) => {
+          // Skip some headers that curl sets automatically
+          const name = header.name.toLowerCase();
+          if (!["host", "connection", "content-length"].includes(name)) {
+            curl += ` -H '${header.name}: ${header.value.replace(
+              /'/g,
+              "'\\''"
+            )}'`;
+          }
+        });
+      }
 
       // Add compressed flag
       curl += " --compressed";
@@ -1620,6 +1652,90 @@ export class DevToolsPanel {
       console.error("Error generating cURL:", error);
       this.showToast("Failed to generate cURL command", "error");
     }
+  }
+
+  // Fetch headers for a request from database
+  async getRequestHeaders(requestId) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT name, value
+          FROM bronze_request_headers
+          WHERE request_id = '${requestId}' AND header_type = 'request'
+          ORDER BY name
+        `,
+      });
+
+      if (response && response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching headers:", error);
+      return [];
+    }
+  }
+
+  // Copy request as Fetch API call
+  async copyAsFetch(request) {
+    try {
+      // Fetch headers from database
+      const headers = await this.getRequestHeaders(request.id);
+
+      const fetchCode = this.generateFetchCode(request, headers);
+
+      // Use textarea fallback method (Clipboard API is blocked in extension contexts)
+      this.copyToClipboardFallback(
+        fetchCode,
+        "Fetch code copied to clipboard!"
+      );
+    } catch (error) {
+      console.error("Failed to copy as Fetch:", error);
+      this.showToast("Failed to copy to clipboard", "error");
+    }
+  }
+
+  // Generate Fetch API code
+  generateFetchCode(request, headers = []) {
+    const options = {
+      method: request.method || "GET",
+    };
+
+    // Add headers
+    if (headers && headers.length > 0) {
+      options.headers = {};
+      headers.forEach((header) => {
+        const name = header.name.toLowerCase();
+        // Skip some headers that fetch sets automatically
+        if (
+          !["host", "connection", "content-length", "user-agent"].includes(name)
+        ) {
+          options.headers[header.name] = header.value;
+        }
+      });
+    }
+
+    // Note: Body data would need to be captured separately
+    // For now, just add a comment
+    const hasBody = request.method && !["GET", "HEAD"].includes(request.method);
+
+    let code = `fetch('${request.url}'`;
+
+    if (
+      Object.keys(options.headers || {}).length > 0 ||
+      options.method !== "GET"
+    ) {
+      code += `, ${JSON.stringify(options, null, 2)}`;
+    }
+
+    code += `)\n  .then(response => response.json())\n  .then(data => console.log(data))\n  .catch(error => console.error('Error:', error));`;
+
+    if (hasBody) {
+      code = `// Note: Request body not captured\n` + code;
+    }
+
+    return code;
   }
 
   // Copy text to clipboard with fallback for different browsers
@@ -3055,6 +3171,16 @@ export class DevToolsPanel {
             }
             return;
           }
+
+          const fetchBtn = e.target.closest(".btn-error-fetch");
+          if (fetchBtn) {
+            const requestId = fetchBtn.dataset.requestId;
+            const request = this.currentErrors.find((r) => r.id === requestId);
+            if (request) {
+              this.copyAsFetch(request);
+            }
+            return;
+          }
         });
       }
 
@@ -3117,6 +3243,11 @@ export class DevToolsPanel {
             err.id
           }" title="Copy as cURL">
             <i class="fas fa-terminal"></i>
+          </button>
+          <button class="btn-icon btn-error-fetch" data-request-id="${
+            err.id
+          }" title="Copy as Fetch">
+            <i class="fas fa-code"></i>
           </button>
         </div>
       </div>
