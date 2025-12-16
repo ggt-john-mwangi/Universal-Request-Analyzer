@@ -13,6 +13,8 @@ class Dashboard {
     this.currentErrors = []; // Store current errors for actions
     this.searchTimeout = null; // Debounce search input
     this.loadingPageFilter = false; // Prevent concurrent page filter loads
+    this.runnerProgressInterval = null; // Runner progress polling
+    this.runnerResults = null; // Cache runner results for table
   }
 
   async initialize() {
@@ -207,6 +209,9 @@ class Dashboard {
         }
       });
     }
+
+    // Request Runner event listeners
+    this.setupRunnerEventListeners();
 
     // Request Details Modal event listeners
     const requestDetailsModal = document.getElementById("requestDetailsModal");
@@ -1559,12 +1564,12 @@ class Dashboard {
         response.requests.length === 0
       ) {
         tbody.innerHTML =
-          '<tr class="no-data-row"><td colspan="7" style="text-align: center; padding: 24px;">No requests available for selected filters</td></tr>';
+          '<tr class="no-data-row"><td colspan="8" style="text-align: center; padding: 24px;">No requests available for selected filters</td></tr>';
         document.getElementById("dashboardTablePagination").innerHTML = "";
         return;
       }
 
-      // Store requests for cURL export
+      // Store requests for cURL export and runner
       this.currentRequests = response.requests;
 
       // Build table rows
@@ -1584,6 +1589,11 @@ class Dashboard {
 
         rows += `
           <tr>
+            <td>
+              <input type="checkbox" class="request-checkbox" data-request-id="${
+                req.id
+              }" />
+            </td>
             <td><span class="method-badge">${req.method}</span></td>
             <td class="url-cell" title="${req.url}">${this.truncateUrl(
           req.url,
@@ -1621,7 +1631,7 @@ class Dashboard {
     } catch (error) {
       console.error("Failed to load requests table:", error);
       document.getElementById("dashboardRequestsTableBody").innerHTML =
-        '<tr class="no-data-row"><td colspan="7" style="text-align: center;">Error loading requests</td></tr>';
+        '<tr class="no-data-row"><td colspan="8" style="text-align: center;">Error loading requests</td></tr>';
     }
   }
 
@@ -2844,6 +2854,633 @@ class Dashboard {
     }
     return base + "?...";
   }
+
+  // ============================================================
+  // REQUEST RUNNER METHODS
+  // ============================================================
+
+  setupRunnerEventListeners() {
+    // Select all checkbox
+    const selectAllCheckbox = document.getElementById("selectAllRequests");
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener("change", (e) => {
+        const checkboxes = document.querySelectorAll(".request-checkbox");
+        checkboxes.forEach((cb) => (cb.checked = e.target.checked));
+        this.updateRunnerControls();
+      });
+    }
+
+    // Individual checkboxes (event delegation)
+    const requestsTable = document.getElementById("dashboardRequestsTable");
+    if (requestsTable) {
+      requestsTable.addEventListener("change", (e) => {
+        if (e.target.classList.contains("request-checkbox")) {
+          this.updateRunnerControls();
+        }
+      });
+    }
+
+    // Runner control buttons
+    const btnRunSelected = document.getElementById("btnRunSelectedRequests");
+    if (btnRunSelected) {
+      btnRunSelected.addEventListener("click", () => this.openRunnerConfig());
+    }
+
+    const btnClearSelection = document.getElementById("btnClearSelection");
+    if (btnClearSelection) {
+      btnClearSelection.addEventListener("click", () => {
+        document
+          .querySelectorAll(".request-checkbox")
+          .forEach((cb) => (cb.checked = false));
+        document.getElementById("selectAllRequests").checked = false;
+        this.updateRunnerControls();
+      });
+    }
+
+    const btnRunnerHistory = document.getElementById("btnRunnerHistory");
+    if (btnRunnerHistory) {
+      btnRunnerHistory.addEventListener("click", () =>
+        this.showRunnerHistory()
+      );
+    }
+
+    // Runner config modal
+    const runnerMode = document.getElementById("runnerMode");
+    if (runnerMode) {
+      runnerMode.addEventListener("change", (e) => {
+        const delayGroup = document.getElementById("runnerDelayGroup");
+        if (delayGroup) {
+          delayGroup.style.display =
+            e.target.value === "sequential" ? "block" : "none";
+        }
+      });
+    }
+
+    const closeRunnerConfigModal = document.getElementById(
+      "closeRunnerConfigModal"
+    );
+    if (closeRunnerConfigModal) {
+      closeRunnerConfigModal.addEventListener("click", () => {
+        document.getElementById("runnerConfigModal").style.display = "none";
+      });
+    }
+
+    const cancelRunnerBtn = document.getElementById("cancelRunnerBtn");
+    if (cancelRunnerBtn) {
+      cancelRunnerBtn.addEventListener("click", () => {
+        document.getElementById("runnerConfigModal").style.display = "none";
+      });
+    }
+
+    const startRunnerBtn = document.getElementById("startRunnerBtn");
+    if (startRunnerBtn) {
+      startRunnerBtn.addEventListener("click", () => this.startRunner());
+    }
+
+    // Variable checkbox toggle
+    const runnerUseVariables = document.getElementById("runnerUseVariables");
+    if (runnerUseVariables) {
+      runnerUseVariables.addEventListener("change", (e) => {
+        const previewContainer = document.getElementById(
+          "runnerVariablesPreview"
+        );
+        if (previewContainer) {
+          previewContainer.style.display = e.target.checked ? "block" : "none";
+        }
+      });
+    }
+
+    // Runner progress modal
+    const closeRunnerProgressModal = document.getElementById(
+      "closeRunnerProgressModal"
+    );
+    if (closeRunnerProgressModal) {
+      closeRunnerProgressModal.addEventListener("click", () => {
+        if (this.runnerProgressInterval) {
+          clearInterval(this.runnerProgressInterval);
+        }
+        document.getElementById("runnerProgressModal").style.display = "none";
+      });
+    }
+
+    const cancelRunnerProgressBtn = document.getElementById(
+      "cancelRunnerProgressBtn"
+    );
+    if (cancelRunnerProgressBtn) {
+      cancelRunnerProgressBtn.addEventListener("click", () =>
+        this.cancelRunner()
+      );
+    }
+
+    const closeRunnerResultsBtn = document.getElementById(
+      "closeRunnerResultsBtn"
+    );
+    if (closeRunnerResultsBtn) {
+      closeRunnerResultsBtn.addEventListener("click", () => {
+        if (this.runnerProgressInterval) {
+          clearInterval(this.runnerProgressInterval);
+        }
+        document.getElementById("runnerProgressModal").style.display = "none";
+      });
+    }
+
+    // Runner history modal
+    const closeRunnerHistoryModal = document.getElementById(
+      "closeRunnerHistoryModal"
+    );
+    if (closeRunnerHistoryModal) {
+      closeRunnerHistoryModal.addEventListener("click", () => {
+        document.getElementById("runnerHistoryModal").style.display = "none";
+      });
+    }
+
+    const closeHistoryBtn = document.getElementById("closeHistoryBtn");
+    if (closeHistoryBtn) {
+      closeHistoryBtn.addEventListener("click", () => {
+        document.getElementById("runnerHistoryModal").style.display = "none";
+      });
+    }
+  }
+
+  updateRunnerControls() {
+    const checkboxes = document.querySelectorAll(".request-checkbox:checked");
+    const count = checkboxes.length;
+    const controls = document.getElementById("runnerControls");
+    const countSpan = document.getElementById("selectedRequestsCount");
+
+    if (controls) {
+      controls.style.display = count > 0 ? "block" : "none";
+    }
+
+    if (countSpan) {
+      countSpan.textContent = count;
+    }
+  }
+
+  getSelectedRequests() {
+    const checkboxes = document.querySelectorAll(".request-checkbox:checked");
+    const requestIds = Array.from(checkboxes).map((cb) => cb.dataset.requestId);
+
+    // Debug log
+    console.log("Selected checkbox count:", checkboxes.length);
+    console.log("Request IDs from checkboxes:", requestIds);
+    console.log("Current requests:", this.currentRequests?.length || 0);
+
+    if (!this.currentRequests || this.currentRequests.length === 0) {
+      console.warn("No current requests available");
+      return [];
+    }
+
+    // Filter by matching IDs (convert both to strings for comparison)
+    const selected = this.currentRequests.filter((req) =>
+      requestIds.includes(String(req.id))
+    );
+
+    console.log("Matched requests:", selected.length);
+    return selected;
+  }
+
+  async openRunnerConfig() {
+    const selectedRequests = this.getSelectedRequests();
+    if (selectedRequests.length === 0) {
+      this.showToast("No requests selected", "error");
+      return;
+    }
+
+    // Store selected requests for runner execution
+    this.selectedRunnerRequests = selectedRequests;
+    console.log("Stored runner requests:", this.selectedRunnerRequests.length);
+
+    document.getElementById("runnerRequestCount").textContent =
+      selectedRequests.length;
+
+    // Load and display variables
+    await this.loadRunnerVariables();
+
+    document.getElementById("runnerConfigModal").style.display = "flex";
+  }
+
+  async loadRunnerVariables() {
+    try {
+      // Fetch settings from background
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings",
+      });
+
+      if (!response || !response.success) {
+        console.warn("Failed to load settings for variables");
+        return;
+      }
+
+      const variables = response.settings?.variables?.list || [];
+      const variableCount = variables.length;
+
+      // Update count
+      document.getElementById(
+        "runnerVariableCount"
+      ).textContent = `${variableCount} variable${
+        variableCount !== 1 ? "s" : ""
+      }`;
+
+      // Build variable list HTML
+      const listContainer = document.getElementById("runnerVariablesList");
+      if (variableCount === 0) {
+        listContainer.innerHTML = `
+          <div style="color: var(--text-secondary); font-style: italic; padding: 8px;">
+            No variables configured. Add variables in Settings to use them in headers.
+          </div>
+        `;
+      } else {
+        const listHTML = variables
+          .map((v) => {
+            // Mask sensitive values (show first and last 4 characters)
+            let displayValue = v.value || "";
+            if (v.sensitive && displayValue.length > 8) {
+              displayValue = `${displayValue.substring(
+                0,
+                4
+              )}...${displayValue.substring(displayValue.length - 4)}`;
+            } else if (displayValue.length > 50) {
+              displayValue = displayValue.substring(0, 50) + "...";
+            }
+
+            return `
+              <div style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">
+                <strong style="color: var(--primary-color);">\${${
+                  v.name
+                }}</strong>
+                <span style="color: var(--text-secondary);"> → </span>
+                <span style="color: var(--text-primary);">${this.escapeHtml(
+                  displayValue
+                )}</span>
+                ${
+                  v.sensitive
+                    ? '<span style="margin-left: 8px; color: var(--warning-color); font-size: 0.9em;">(masked)</span>'
+                    : ""
+                }
+              </div>
+            `;
+          })
+          .join("");
+        listContainer.innerHTML = listHTML;
+      }
+
+      // Show preview if checkbox is checked
+      const useVariablesCheckbox =
+        document.getElementById("runnerUseVariables");
+      const previewContainer = document.getElementById(
+        "runnerVariablesPreview"
+      );
+      previewContainer.style.display = useVariablesCheckbox.checked
+        ? "block"
+        : "none";
+    } catch (error) {
+      console.error("Error loading runner variables:", error);
+    }
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  async startRunner() {
+    // Use stored selected requests from when modal opened
+    const selectedRequests = this.selectedRunnerRequests;
+    console.log("Starting runner with requests:", selectedRequests?.length);
+
+    if (!selectedRequests || selectedRequests.length === 0) {
+      this.showToast("No requests selected", "error");
+      return;
+    }
+
+    // Get configuration
+    const mode = document.getElementById("runnerMode").value;
+    const delay = parseInt(document.getElementById("runnerDelay").value) || 0;
+    const followRedirects = document.getElementById(
+      "runnerFollowRedirects"
+    ).checked;
+    const validateStatus = document.getElementById(
+      "runnerValidateStatus"
+    ).checked;
+    const useVariables = document.getElementById("runnerUseVariables").checked;
+    const headersText = document.getElementById("runnerHeaders").value.trim();
+
+    let headerOverrides = {};
+    if (headersText) {
+      try {
+        headerOverrides = JSON.parse(headersText);
+      } catch (error) {
+        this.showToast("Invalid JSON in custom headers", "error");
+        return;
+      }
+    }
+
+    const config = {
+      mode,
+      delay,
+      followRedirects,
+      validateStatus,
+      useVariables,
+      headerOverrides,
+    };
+
+    // Close config modal
+    document.getElementById("runnerConfigModal").style.display = "none";
+
+    // Show progress modal
+    document.getElementById("runnerProgressModal").style.display = "flex";
+    
+    // Reset spinner icon
+    const progressIcon = document.getElementById("runnerProgressIcon");
+    progressIcon.className = "fas fa-spinner fa-pulse";
+    progressIcon.style.color = "";
+    
+    document.getElementById("runnerProgressText").textContent = "Starting...";
+    document.getElementById("runnerProgressPercent").textContent = "0%";
+    document.getElementById("runnerSuccessCount").textContent = "0";
+    document.getElementById("runnerFailureCount").textContent = "0";
+    document.getElementById("runnerElapsedTime").textContent = "0s";
+    document.getElementById(
+      "runnerProgressCount"
+    ).textContent = `0 / ${selectedRequests.length}`;
+    document.getElementById("runnerProgressBar").style.width = "0%";
+    document.getElementById("runnerResultsTableBody").innerHTML =
+      "<tr><td colspan='5' style='text-align: center; padding: 16px;'>Waiting for results...</td></tr>";
+    document.getElementById("cancelRunnerProgressBtn").style.display =
+      "inline-flex";
+    document.getElementById("closeRunnerResultsBtn").style.display = "none";
+
+    try {
+      // Start the runner
+      const response = await chrome.runtime.sendMessage({
+        action: "runRequests",
+        config,
+        requests: selectedRequests,
+      });
+
+      if (!response.success) {
+        this.showToast("Failed to start runner: " + response.error, "error");
+        document.getElementById("runnerProgressModal").style.display = "none";
+        return;
+      }
+
+      // Poll for progress
+      this.runnerProgressInterval = setInterval(
+        () => this.updateRunnerProgress(),
+        500
+      );
+    } catch (error) {
+      console.error("Failed to start runner:", error);
+      this.showToast("Failed to start runner", "error");
+      document.getElementById("runnerProgressModal").style.display = "none";
+    }
+  }
+
+  async updateRunnerProgress() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerProgress",
+      });
+
+      if (!response.success || !response.progress) {
+        console.log('No progress data available');
+        return;
+      }
+
+      const progress = response.progress;
+      console.log('Runner progress:', progress.status, progress.completedRequests, '/', progress.totalRequests);
+
+      // Update progress stats
+      document.getElementById(
+        "runnerProgressPercent"
+      ).textContent = `${progress.progress}%`;
+      document.getElementById("runnerSuccessCount").textContent =
+        progress.successCount;
+      document.getElementById("runnerFailureCount").textContent =
+        progress.failureCount;
+      document.getElementById(
+        "runnerProgressCount"
+      ).textContent = `${progress.completedRequests} / ${progress.totalRequests}`;
+      document.getElementById(
+        "runnerProgressBar"
+      ).style.width = `${progress.progress}%`;
+
+      // Update elapsed time
+      const elapsedSeconds = Math.floor(progress.elapsedTime / 1000);
+      document.getElementById(
+        "runnerElapsedTime"
+      ).textContent = `${elapsedSeconds}s`;
+
+      // Update current request
+      if (progress.currentRequest) {
+        const currentReqDiv = document.getElementById("runnerCurrentRequest");
+        currentReqDiv.style.display = "block";
+        document.getElementById("runnerCurrentMethod").textContent =
+          progress.currentRequest.method;
+        document.getElementById("runnerCurrentUrl").textContent =
+          progress.currentRequest.url;
+      }
+
+      // Update progress text
+      if (progress.status === "running") {
+        document.getElementById(
+          "runnerProgressText"
+        ).textContent = `Running (${progress.mode})...`;
+      } else if (progress.status === "completed") {
+        console.log('Runner completed - calling completeRunner()');
+        document.getElementById("runnerProgressText").textContent =
+          "✓ Completed";
+        document.getElementById("runnerCurrentRequest").style.display = "none";
+        
+        // Change spinner to checkmark
+        const progressIcon = document.getElementById("runnerProgressIcon");
+        progressIcon.className = "fas fa-check-circle";
+        progressIcon.style.color = "var(--success-color)";
+        
+        this.completeRunner();
+      } else if (progress.status === "cancelled") {
+        console.log('Runner cancelled - calling completeRunner()');
+        document.getElementById("runnerProgressText").textContent =
+          "✗ Cancelled";
+        document.getElementById("runnerCurrentRequest").style.display = "none";
+        this.completeRunner();
+      } else if (progress.status === "failed") {
+        console.log('Runner failed - calling completeRunner()');
+        document.getElementById("runnerProgressText").textContent = "✗ Failed";
+        document.getElementById("runnerCurrentRequest").style.display = "none";
+        this.completeRunner();
+      }
+
+      // Build results table (show completed requests)
+      await this.updateRunnerResultsTable();
+    } catch (error) {
+      console.error("Failed to get runner progress:", error);
+    }
+  }
+
+  async updateRunnerResultsTable() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerProgress",
+      });
+
+      if (!response.success || !response.progress) {
+        return;
+      }
+
+      const results = response.progress.currentRequest
+        ? [...(this.runnerResults || []), response.progress.currentRequest]
+        : this.runnerResults || [];
+
+      // Store results for table building
+      if (response.progress.currentRequest) {
+        this.runnerResults = results;
+      }
+
+      if (results.length === 0) {
+        return;
+      }
+
+      let rows = "";
+      results.forEach((result) => {
+        const statusClass = result.success ? "status-success" : "status-error";
+        const statusText = result.status || "N/A";
+        const duration = result.duration ? `${result.duration}ms` : "N/A";
+
+        rows += `
+          <tr>
+            <td>${result.index + 1}</td>
+            <td><span class="method-badge">${result.method}</span></td>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${
+              result.url
+            }">${result.url}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            <td>${duration}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("runnerResultsTableBody").innerHTML = rows;
+    } catch (error) {
+      console.error("Failed to update runner results table:", error);
+    }
+  }
+
+  completeRunner() {
+    console.log('completeRunner() called - stopping interval');
+    if (this.runnerProgressInterval) {
+      clearInterval(this.runnerProgressInterval);
+      this.runnerProgressInterval = null;
+      console.log('Progress interval cleared');
+    }
+
+    // Show done button, hide cancel button
+    document.getElementById("cancelRunnerProgressBtn").style.display = "none";
+    document.getElementById("closeRunnerResultsBtn").style.display =
+      "inline-flex";
+
+    // Clear results cache
+    this.runnerResults = null;
+  }
+
+  async cancelRunner() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "cancelRun",
+      });
+
+      if (response.success) {
+        this.showToast("Runner cancelled", "info");
+      }
+    } catch (error) {
+      console.error("Failed to cancel runner:", error);
+      this.showToast("Failed to cancel runner", "error");
+    }
+  }
+
+  async showRunnerHistory() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunHistory",
+        limit: 20,
+      });
+
+      if (!response.success || !response.history) {
+        this.showToast("Failed to load runner history", "error");
+        return;
+      }
+
+      const history = response.history;
+      const container = document.getElementById("runnerHistoryContainer");
+
+      if (history.length === 0) {
+        container.innerHTML =
+          '<p style="text-align: center; padding: 24px; color: var(--text-secondary-color);">No runner history available.</p>';
+      } else {
+        let html =
+          '<div style="display: flex; flex-direction: column; gap: 12px;">';
+
+        history.forEach((run) => {
+          const statusIcon =
+            run.status === "completed"
+              ? '<i class="fas fa-check-circle" style="color: var(--success-color);"></i>'
+              : run.status === "cancelled"
+              ? '<i class="fas fa-ban" style="color: var(--warning-color);"></i>'
+              : '<i class="fas fa-exclamation-circle" style="color: var(--error-color);"></i>';
+
+          const date = new Date(run.startTime).toLocaleString();
+          const duration = run.duration
+            ? `${Math.round(run.duration / 1000)}s`
+            : "N/A";
+
+          html += `
+            <div style="padding: 16px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  ${statusIcon}
+                  <strong style="text-transform: capitalize;">${run.status}</strong>
+                  <span style="color: var(--text-secondary-color); font-size: 13px;">• ${run.mode}</span>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary-color);">${date}</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Total Requests</div>
+                  <div style="font-weight: 600; color: var(--text-color);">${run.totalRequests}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Successful</div>
+                  <div style="font-weight: 600; color: var(--success-color);">${run.successCount}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Failed</div>
+                  <div style="font-weight: 600; color: var(--error-color);">${run.failureCount}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Duration</div>
+                  <div style="font-weight: 600; color: var(--text-color);">${duration}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += "</div>";
+        container.innerHTML = html;
+      }
+
+      document.getElementById("runnerHistoryModal").style.display = "flex";
+    } catch (error) {
+      console.error("Failed to load runner history:", error);
+      this.showToast("Failed to load runner history", "error");
+    }
+  }
+
+  // ============================================================
+  // END REQUEST RUNNER METHODS
+  // ============================================================
 
   formatBytes(bytes) {
     if (bytes === 0) return "0 B";

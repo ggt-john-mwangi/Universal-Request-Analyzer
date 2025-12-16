@@ -501,6 +501,54 @@
                       </select>
                     </div>
 
+                    <!-- Request Runner Controls -->
+                    <div
+                      id="runnerControls"
+                      style="
+                        display: none;
+                        margin: 16px 0;
+                        padding: 12px;
+                        background: var(--surface-color);
+                        border: 1px solid var(--border-color);
+                        border-radius: 8px;
+                      "
+                    >
+                      <div
+                        style="
+                          display: flex;
+                          align-items: center;
+                          gap: 12px;
+                          flex-wrap: wrap;
+                        "
+                      >
+                        <span style="font-weight: 600"
+                          ><span id="selectedRequestsCount">0</span>
+                          selected</span
+                        >
+                        <button
+                          id="btnRunSelectedRequests"
+                          class="btn-primary"
+                          style="margin: 0"
+                        >
+                          <i class="fas fa-play"></i> Run Selected
+                        </button>
+                        <button
+                          id="btnClearSelection"
+                          class="btn-secondary"
+                          style="margin: 0"
+                        >
+                          <i class="fas fa-times"></i> Clear Selection
+                        </button>
+                        <button
+                          id="btnRunnerHistory"
+                          class="btn-secondary"
+                          style="margin: 0"
+                        >
+                          <i class="fas fa-history"></i> History
+                        </button>
+                      </div>
+                    </div>
+
                     <div
                       class="requests-table-container"
                       style="overflow-x: auto"
@@ -512,6 +560,13 @@
                       >
                         <thead>
                           <tr>
+                            <th style="width: 40px">
+                              <input
+                                type="checkbox"
+                                id="selectAllRequests"
+                                title="Select all"
+                              />
+                            </th>
                             <th>Method</th>
                             <th>URL</th>
                             <th>Status</th>
@@ -2871,6 +2926,419 @@ fetch('https://api.example.com/data', {
           <button id="saveVariableBtn" class="btn-primary">
             <i class="fas fa-save"></i> Save
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request Runner Configuration Modal -->
+    <div id="runnerConfigModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 600px">
+        <div class="modal-header">
+          <h2><i class="fas fa-play-circle"></i> Configure Request Runner</h2>
+          <button class="modal-close" id="closeRunnerConfigModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom: 20px; color: var(--text-secondary-color)">
+            Run <strong id="runnerRequestCount">0</strong> selected requests
+            with configurable options.
+          </p>
+
+          <div class="form-group">
+            <label> <i class="fas fa-bolt"></i> Execution Mode </label>
+            <select id="runnerMode" class="filter-select" style="width: 100%">
+              <option value="sequential">Sequential (one at a time)</option>
+              <option value="parallel">Parallel (all at once)</option>
+            </select>
+            <small
+              >Sequential runs requests in order with delays. Parallel executes
+              all simultaneously.</small
+            >
+          </div>
+
+          <div class="form-group" id="runnerDelayGroup">
+            <label>
+              <i class="fas fa-clock"></i> Delay Between Requests (ms)
+            </label>
+            <input
+              type="number"
+              id="runnerDelay"
+              value="1000"
+              min="0"
+              step="100"
+              class="filter-select"
+              style="width: 100%"
+            />
+            <small
+              >Time to wait between each request (only for sequential
+              mode).</small
+            >
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerFollowRedirects" checked />
+              <span>Follow Redirects</span>
+            </label>
+            <small>Automatically follow HTTP 3xx redirects.</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerValidateStatus" />
+              <span>Validate Status Codes</span>
+            </label>
+            <small>Mark requests with 4xx/5xx status as failures.</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <i class="fas fa-code"></i> Custom Headers (optional)
+            </label>
+            <textarea
+              id="runnerHeaders"
+              rows="4"
+              placeholder='{"Authorization": "Bearer YOUR_TOKEN", "X-Custom-Header": "value"}'
+              style="
+                width: 100%;
+                font-family: monospace;
+                font-size: 13px;
+                padding: 8px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                background: var(--surface-color);
+              "
+            ></textarea>
+            <small
+              >JSON object of headers to add/override. Leave empty to use
+              original headers.</small
+            >
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerUseVariables" checked />
+              <span>Use Variables</span>
+            </label>
+            <small>Automatically substitute ${VAR_NAME} placeholders with actual values from Variables Manager.</small>
+          </div>
+
+          <!-- Variables Preview -->
+          <div id="runnerVariablesPreview" style="display: none; padding: 12px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="font-size: 14px;"><i class="fas fa-dollar-sign"></i> Available Variables</strong>
+              <span style="font-size: 12px; color: var(--text-secondary-color);" id="runnerVariableCount">0 variables</span>
+            </div>
+            <div id="runnerVariablesList" style="max-height: 150px; overflow-y: auto; font-size: 13px; font-family: monospace;">
+              <!-- Variables will be populated here -->
+            </div>
+          </div>
+
+          <div
+            style="
+              padding: 12px;
+              background: var(--warning-light, #fff3cd);
+              border: 1px solid var(--warning-color, #ffc107);
+              border-radius: 6px;
+              margin-top: 16px;
+            "
+          >
+            <p style="margin: 0; font-size: 14px">
+              <i
+                class="fas fa-exclamation-triangle"
+                style="color: var(--warning-color, #ffc107)"
+              ></i>
+              <strong>Warning:</strong> This will send real HTTP requests to the
+              original URLs. Be careful when replaying requests to production
+              APIs.
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelRunnerBtn" class="secondary-btn">Cancel</button>
+          <button id="startRunnerBtn" class="btn-primary">
+            <i class="fas fa-play"></i> Start Runner
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request Runner Progress Modal -->
+    <div id="runnerProgressModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 700px">
+        <div class="modal-header">
+          <h2>
+            <i id="runnerProgressIcon" class="fas fa-spinner fa-pulse"></i> Request Runner Progress
+          </h2>
+          <button class="modal-close" id="closeRunnerProgressModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Progress Stats -->
+          <div
+            style="
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+              gap: 16px;
+              margin-bottom: 20px;
+            "
+          >
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--primary-color);
+                "
+                id="runnerProgressPercent"
+              >
+                0%
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Progress
+              </div>
+            </div>
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--success-color);
+                "
+                id="runnerSuccessCount"
+              >
+                0
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Successful
+              </div>
+            </div>
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--error-color);
+                "
+                id="runnerFailureCount"
+              >
+                0
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Failed
+              </div>
+            </div>
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--text-color);
+                "
+                id="runnerElapsedTime"
+              >
+                0s
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Elapsed Time
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div style="margin-bottom: 20px">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 8px;
+              "
+            >
+              <span id="runnerProgressText">Preparing...</span>
+              <span id="runnerProgressCount">0 / 0</span>
+            </div>
+            <div
+              style="
+                width: 100%;
+                height: 8px;
+                background: var(--surface-color);
+                border-radius: 4px;
+                overflow: hidden;
+              "
+            >
+              <div
+                id="runnerProgressBar"
+                style="
+                  width: 0%;
+                  height: 100%;
+                  background: var(--primary-color);
+                  transition: width 0.3s;
+                "
+              ></div>
+            </div>
+          </div>
+
+          <!-- Current Request -->
+          <div
+            id="runnerCurrentRequest"
+            style="
+              padding: 12px;
+              background: var(--surface-color);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              margin-bottom: 16px;
+              display: none;
+            "
+          >
+            <div style="font-weight: 600; margin-bottom: 8px">
+              Current Request:
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center">
+              <span class="method-badge" id="runnerCurrentMethod">GET</span>
+              <span
+                style="
+                  flex: 1;
+                  font-size: 13px;
+                  color: var(--text-secondary-color);
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                "
+                id="runnerCurrentUrl"
+              ></span>
+            </div>
+          </div>
+
+          <!-- Results Table -->
+          <div
+            style="
+              max-height: 300px;
+              overflow-y: auto;
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+            "
+          >
+            <table class="data-table" style="width: 100%; margin: 0">
+              <thead
+                style="
+                  position: sticky;
+                  top: 0;
+                  background: var(--surface-color);
+                  z-index: 1;
+                "
+              >
+                <tr>
+                  <th style="width: 40px">#</th>
+                  <th style="width: 80px">Method</th>
+                  <th>URL</th>
+                  <th style="width: 80px">Status</th>
+                  <th style="width: 100px">Time</th>
+                </tr>
+              </thead>
+              <tbody id="runnerResultsTableBody">
+                <tr>
+                  <td
+                    colspan="5"
+                    style="
+                      text-align: center;
+                      padding: 16px;
+                      color: var(--text-secondary-color);
+                    "
+                  >
+                    Waiting for results...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelRunnerProgressBtn" class="btn-error">
+            <i class="fas fa-stop"></i> Cancel Run
+          </button>
+          <button
+            id="closeRunnerResultsBtn"
+            class="btn-primary"
+            style="display: none"
+          >
+            <i class="fas fa-check"></i> Done
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runner History Modal -->
+    <div id="runnerHistoryModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 800px">
+        <div class="modal-header">
+          <h2><i class="fas fa-history"></i> Runner History</h2>
+          <button class="modal-close" id="closeRunnerHistoryModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="runnerHistoryContainer"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="closeHistoryBtn" class="secondary-btn">Close</button>
         </div>
       </div>
     </div>
