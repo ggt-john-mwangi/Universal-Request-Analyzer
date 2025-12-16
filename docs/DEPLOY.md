@@ -11,6 +11,7 @@ Use this checklist to deploy your GitHub Pages site in under 5 minutes!
 ## 📋 Deployment Steps
 
 ### Step 1: Push to GitHub
+
 ```bash
 git add .
 git commit -m "Add GitHub Pages site"
@@ -18,6 +19,7 @@ git push origin main
 ```
 
 ### Step 2: Enable GitHub Pages
+
 1. Go to: `https://github.com/ModernaCyber/Universal-Request-Analyzer/settings/pages`
 2. Under **Source**:
    - Branch: `main` ✓
@@ -25,11 +27,13 @@ git push origin main
 3. Click **Save** 💾
 
 ### Step 3: Wait for Deployment
+
 - Check **Actions** tab for green checkmark ✅
 - Usually takes 1-2 minutes
 - Refresh until you see "pages build and deployment" succeeded
 
 ### Step 4: Verify
+
 - Visit: https://ModernaCyber.github.io/Universal-Request-Analyzer/
 - All screenshots should load correctly
 - Navigation should work smoothly
@@ -45,19 +49,24 @@ git push origin main
 ## 🎨 Optional Customizations
 
 ### Change Theme (Easy)
+
 Edit `docs/_config.yml`:
+
 ```yaml
-theme: jekyll-theme-slate  # or minimal, midnight, architect
+theme: jekyll-theme-slate # or minimal, midnight, architect
 ```
 
 ### Add Custom Domain (If you own one)
+
 1. Add domain to `docs/CNAME`: `echo "yourdomain.com" > docs/CNAME`
 2. Configure DNS CNAME: `ModernaCyber.github.io`
 3. Enable in Settings → Pages → Custom domain
 4. Check "Enforce HTTPS"
 
 ### Add Google Analytics
+
 Edit `docs/_config.yml`:
+
 ```yaml
 google_analytics: UA-XXXXXXXXX-X
 ```
@@ -65,16 +74,19 @@ google_analytics: UA-XXXXXXXXX-X
 ## 🆘 Troubleshooting
 
 ### Images Not Showing
+
 - Check path: `../src/assets/images/filename.png`
 - Verify files are committed: `git status`
 - Wait 2-3 minutes for CDN cache
 
 ### 404 Error
+
 - Verify Settings → Pages → Source is set to `main` branch and `/docs`
 - Check Actions tab for build errors
 - Wait for green checkmark in Actions
 
 ### Theme Not Loading
+
 - Check `docs/_config.yml` has correct baseurl
 - Clear browser cache
 - Try incognito/private window
@@ -88,6 +100,7 @@ After deployment, share your site:
 ```
 
 Add to:
+
 - [ ] Repository description (About section)
 - [ ] README.md badges section
 - [ ] Social media posts

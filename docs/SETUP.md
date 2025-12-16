@@ -45,6 +45,7 @@ You'll see a green checkmark when it's ready! ✅
 ### Test Your Site
 
 Once deployed, visit:
+
 - **Homepage**: https://ModernaCyber.github.io/Universal-Request-Analyzer/
 - **Images**: Should load automatically from `src/assets/images/`
 
@@ -57,6 +58,7 @@ Test the site on your computer before pushing:
 ### Install Jekyll (One-time setup)
 
 **Windows:**
+
 ```powershell
 # Install Ruby (download from https://rubyinstaller.org/)
 # Then install Jekyll
@@ -64,6 +66,7 @@ gem install bundler jekyll
 ```
 
 **Mac/Linux:**
+
 ```bash
 # Install Ruby (if not installed)
 sudo apt-get install ruby-full  # Ubuntu/Debian
@@ -95,7 +98,7 @@ Press `Ctrl+C` to stop the server.
 Edit `docs/_config.yml`:
 
 ```yaml
-theme: jekyll-theme-slate  # Dark theme
+theme: jekyll-theme-slate # Dark theme
 # Options: cayman, slate, minimal, midnight, architect, tactile, time-machine
 ```
 
@@ -106,11 +109,13 @@ theme: jekyll-theme-slate  # Dark theme
 If you own a domain (e.g., `ura.yourdomain.com`):
 
 1. **Update CNAME file:**
+
    ```bash
    echo "ura.yourdomain.com" > docs/CNAME
    ```
 
 2. **Configure DNS** (at your domain provider):
+
    ```
    Type: CNAME
    Name: ura (or your subdomain)
@@ -118,6 +123,7 @@ If you own a domain (e.g., `ura.yourdomain.com`):
    ```
 
 3. **Enable in GitHub:**
+
    - Go to Settings → Pages
    - Enter your custom domain
    - Check "Enforce HTTPS"
@@ -129,7 +135,7 @@ If you own a domain (e.g., `ura.yourdomain.com`):
 Edit `docs/_config.yml`:
 
 ```yaml
-google_analytics: UA-XXXXXXXXX-X  # Your tracking ID
+google_analytics: UA-XXXXXXXXX-X # Your tracking ID
 ```
 
 Get tracking ID: https://analytics.google.com/
@@ -143,6 +149,7 @@ Get tracking ID: https://analytics.google.com/
 **Problem:** Screenshots show broken image icons
 
 **Solution:** Verify image paths in `docs/index.md`:
+
 ```markdown
 ![Image](../src/assets/images/filename.png)
 ```
@@ -154,10 +161,11 @@ The `..` goes up one level from `docs/` to the root.
 **Problem:** Site shows 404 error
 
 **Solutions:**
+
 1. **Check GitHub Pages settings:**
    - Settings → Pages → Source should be `main` branch and `/docs` folder
-   
 2. **Wait for deployment:**
+
    - Check Actions tab for build status
    - Can take 1-2 minutes after enabling
 
@@ -170,8 +178,9 @@ The `..` goes up one level from `docs/` to the root.
 **Problem:** Site looks plain, no theme styling
 
 **Solution:** Check `docs/_config.yml`:
+
 ```yaml
-baseurl: "/Universal-Request-Analyzer"  # Must match repo name
+baseurl: "/Universal-Request-Analyzer" # Must match repo name
 theme: jekyll-theme-cayman
 ```
 
@@ -182,12 +191,14 @@ theme: jekyll-theme-cayman
 **Solutions:**
 
 1. **Install dependencies:**
+
    ```bash
    cd docs
    bundle install
    ```
 
 2. **Update bundler:**
+
    ```bash
    gem install bundler
    bundle update
@@ -205,43 +216,49 @@ theme: jekyll-theme-cayman
 ### Create Custom Layout
 
 1. **Create layout file:**
+
    ```bash
    mkdir -p docs/_layouts
    ```
 
 2. **Add `docs/_layouts/default.html`:**
+
    ```html
    <!DOCTYPE html>
    <html lang="en">
-   <head>
-     <meta charset="UTF-8">
-     <title>{{ page.title }} - {{ site.title }}</title>
-     <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
-   </head>
-   <body>
-     <header>
-       <h1>{{ site.title }}</h1>
-       <p>{{ site.description }}</p>
-     </header>
-     <main>
-       {{ content }}
-     </main>
-     <footer>
-       <p>&copy; 2025 {{ site.github_username }}</p>
-     </footer>
-   </body>
+     <head>
+       <meta charset="UTF-8" />
+       <title>{{ page.title }} - {{ site.title }}</title>
+       <link
+         rel="stylesheet"
+         href="{{ '/assets/css/style.css' | relative_url }}"
+       />
+     </head>
+     <body>
+       <header>
+         <h1>{{ site.title }}</h1>
+         <p>{{ site.description }}</p>
+       </header>
+       <main>{{ content }}</main>
+       <footer>
+         <p>&copy; 2025 {{ site.github_username }}</p>
+       </footer>
+     </body>
    </html>
    ```
 
 3. **Add custom CSS:**
+
    ```bash
    mkdir -p docs/assets/css
    ```
 
 4. **Add `docs/assets/css/style.scss`:**
+
    ```scss
    ---
    ---
+
    @import "{{ site.theme }}";
 
    /* Your custom styles */

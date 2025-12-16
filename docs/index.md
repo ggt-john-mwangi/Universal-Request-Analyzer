@@ -18,59 +18,65 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 ## 📸 Screenshots
 
 ### DevTools Panel
+
 ![DevTools Overview](../src/assets/images/devtools_overview.png)
-*Real-time network monitoring with advanced filtering*
+_Real-time network monitoring with advanced filtering_
 
 ![Request Waterfall](../src/assets/images/devtools_waterfall.png)
-*Performance waterfall visualization with timing breakdown*
+_Performance waterfall visualization with timing breakdown_
 
 ---
 
 ### Dashboard & Analytics
+
 ![Dashboard Analytics](../src/assets/images/dashboard_analytics.png)
-*Comprehensive performance analytics and trends over time*
+_Comprehensive performance analytics and trends over time_
 
 ![Request Details](../src/assets/images/dashborard_request_details.png)
-*Detailed request inspection with complete timing information*
+_Detailed request inspection with complete timing information_
 
 ---
 
 ### Request Actions
+
 ![Copy as Fetch](../src/assets/images/dashboard_requests_fetch_action.png)
-*Copy as Fetch API code with integrated Run button to execute requests directly*
+_Copy as Fetch API code with integrated Run button to execute requests directly_
 
 ![Copy as cURL](../src/assets/images/dashboard_requests_curl_action.png)
-*Export requests as cURL commands for terminal reproduction*
+_Export requests as cURL commands for terminal reproduction_
 
 ---
 
 ### Data Management
+
 ![Data Management Overview](../src/assets/images/dashboard_data_management.png)
-*Complete data management dashboard with cleanup and retention controls*
+_Complete data management dashboard with cleanup and retention controls_
 
 ![Advanced Database](../src/assets/images/dashboard_advanced_db_interaction.png)
-*Direct SQL query interface for advanced database operations*
+_Direct SQL query interface for advanced database operations_
 
 ![Export Settings](../src/assets/images/dashboard_export_settings.png)
-*Flexible data export options (HAR, JSON, CSV)*
+_Flexible data export options (HAR, JSON, CSV)_
 
 ![Import Settings](../src/assets/images/dashboard_import_yous_settings.png)
-*Import/export configuration settings for easy sharing*
+_Import/export configuration settings for easy sharing_
 
 ---
 
 ### Error Tracking & Monitoring
+
 ![Error Tracking](../src/assets/images/dashboard_error_tracking.png)
-*Track and analyze failed requests with detailed error information*
+_Track and analyze failed requests with detailed error information_
 
 ![Alerts](../src/assets/images/Alerts.png)
-*Real-time alert notifications for critical events*
+_Real-time alert notifications for critical events_
 
 ---
 
 ### Customization
+
 ![Theme Settings](../src/assets/images/dashboard_theme.png)
-*Light/Dark theme support with CSS variables for full customization*
+_Light/Dark theme support with CSS variables for full customization_
 
 ---
 
@@ -108,6 +114,7 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 </div>
 
 ### Perfect For:
+
 - 🐛 Debugging intermittent API issues that are hard to reproduce
 - ⚡ Performance optimization and regression detection
 - 🔍 Analyzing third-party service impact on your site
@@ -131,17 +138,17 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 
 ## 📊 More Than DevTools
 
-| Feature | DevTools | Universal Request Analyzer |
-|---------|----------|---------------------------|
-| Request Inspection | ✅ | ✅ |
-| Performance Timing | ✅ | ✅ Enhanced |
-| Filtering & Search | ✅ | ✅ Advanced |
-| **Data Persistence** | ❌ Lost on close | ✅ **Saved forever** |
-| **Historical Analysis** | ❌ | ✅ **Days/weeks of data** |
-| **Cross-Page Analytics** | ❌ | ✅ **All domains** |
-| **Performance Trending** | ❌ | ✅ **Track over time** |
-| **Third-Party Impact** | ❌ | ✅ **Auto-categorized** |
-| **Export/Share** | HAR only | ✅ **Multiple formats** |
+| Feature                  | DevTools         | Universal Request Analyzer |
+| ------------------------ | ---------------- | -------------------------- |
+| Request Inspection       | ✅               | ✅                         |
+| Performance Timing       | ✅               | ✅ Enhanced                |
+| Filtering & Search       | ✅               | ✅ Advanced                |
+| **Data Persistence**     | ❌ Lost on close | ✅ **Saved forever**       |
+| **Historical Analysis**  | ❌               | ✅ **Days/weeks of data**  |
+| **Cross-Page Analytics** | ❌               | ✅ **All domains**         |
+| **Performance Trending** | ❌               | ✅ **Track over time**     |
+| **Third-Party Impact**   | ❌               | ✅ **Auto-categorized**    |
+| **Export/Share**         | HAR only         | ✅ **Multiple formats**    |
 
 ---
 
@@ -150,10 +157,12 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 ### Installation
 
 **From Browser Store:**
+
 - **Chrome/Edge:** [Chrome Web Store](https://chrome.google.com/webstore) - Search for "Universal Request Analyzer"
 - **Firefox:** [Firefox Add-ons](https://addons.mozilla.org) - Search for "Universal Request Analyzer"
 
 **Manual Installation (Developers):**
+
 1. Clone the repository
 2. Run `npm install` and `npm run build`
 3. Load the `dist` folder as an unpacked extension
@@ -174,6 +183,7 @@ No configuration needed. No complex setup. Just install and it works.
 For developers and performance engineers:
 
 ### Advanced Analytics Architecture
+
 - **Medallion Architecture**: Bronze (raw) → Silver (validated) → Gold (analytics) data layers
 - **Star Schema**: Dimensional analytics with fact/dimension tables
 - **OHLC Performance**: Financial-style candlestick charts for response times
@@ -181,6 +191,7 @@ For developers and performance engineers:
 - **SCD Type 2**: Historical tracking of domain attributes over time
 
 ### Built With
+
 - SQLite (via sql.js) for local data storage
 - Chart.js for visualizations
 - Webpack for bundling
@@ -191,6 +202,7 @@ For developers and performance engineers:
 ## 🌐 Browser Compatibility
 
 Fully compatible with:
+
 - ✅ Google Chrome (v88+)
 - ✅ Mozilla Firefox (v109+)
 - ✅ Microsoft Edge (v88+)

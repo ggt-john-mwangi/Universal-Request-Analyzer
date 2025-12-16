@@ -37,12 +37,13 @@ The site will be available at: https://ModernaCyber.github.io/Universal-Request-
 Edit `_config.yml` and change the `theme` line:
 
 ```yaml
-theme: jekyll-theme-slate  # or minimal, midnight, architect, etc.
+theme: jekyll-theme-slate # or minimal, midnight, architect, etc.
 ```
 
 ### Custom Domain
 
 If you have a custom domain:
+
 1. Add it to the `CNAME` file
 2. Configure DNS with your domain provider
 3. Enable custom domain in repository Settings → Pages

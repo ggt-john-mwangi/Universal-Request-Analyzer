@@ -14,55 +14,62 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 ## Screenshots
 
 ### DevTools Panel
+
 ![DevTools Overview](src/assets/images/devtools_overview.png)
-*Real-time network monitoring with advanced filtering*
+_Real-time network monitoring with advanced filtering_
 
 ![Request Waterfall](src/assets/images/devtools_waterfall.png)
-*Performance waterfall visualization*
+_Performance waterfall visualization_
 
 ### Dashboard & Analytics
+
 ![Dashboard Analytics](src/assets/images/dashboard_analytics.png)
-*Comprehensive performance analytics and trends*
+_Comprehensive performance analytics and trends_
 
 ![Request Details](src/assets/images/dashborard_request_details.png)
-*Detailed request inspection with timing breakdown*
+_Detailed request inspection with timing breakdown_
 
 ### Request Actions
+
 ![Copy as Fetch](src/assets/images/dashboard_requests_fetch_action.png)
-*Copy as Fetch API code with Run button to execute requests*
+_Copy as Fetch API code with Run button to execute requests_
 
 ![Copy as cURL](src/assets/images/dashboard_requests_curl_action.png)
-*Export requests as cURL commands*
+_Export requests as cURL commands_
 
 ### Data Management
+
 ![Data Management Overview](src/assets/images/dashboard_data_management.png)
-*Complete data management dashboard with cleanup and retention controls*
+_Complete data management dashboard with cleanup and retention controls_
 
 ![Advanced Database](src/assets/images/dashboard_advanced_db_interaction.png)
-*Direct SQL query interface for advanced users*
+_Direct SQL query interface for advanced users_
 
 ![Export Settings](src/assets/images/dashboard_export_settings.png)
-*Flexible data export options*
+_Flexible data export options_
 
 ![Import Settings](src/assets/images/dashboard_import_yous_settings.png)
-*Import/export configuration settings*
+_Import/export configuration settings_
 
 ### Error Tracking & Monitoring
+
 ![Error Tracking](src/assets/images/dashboard_error_tracking.png)
-*Track and analyze failed requests*
+_Track and analyze failed requests_
 
 ![Alerts](src/assets/images/Alerts.png)
-*Real-time alert notifications*
+_Real-time alert notifications_
 
 ### Customization
+
 ![Theme Settings](src/assets/images/dashboard_theme.png)
-*Light/Dark theme support with CSS variables*
+_Light/Dark theme support with CSS variables_
 
 ## Why Use Universal Request Analyzer?
 
 **The Problem:** Chrome DevTools is great for real-time debugging, but your data disappears when you close the tab. You can't track performance over time, compare different sessions, or analyze historical patterns.
 
 **The Solution:** Universal Request Analyzer gives you:
+
 - 🕐 **Persistent Data** - Your request data survives tab/browser closes
 - 📊 **Historical Analytics** - Track performance trends over days and weeks
 - 🔍 **Advanced Search** - Find any request across all your browsing history
@@ -70,6 +77,7 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 - 💾 **Export Anywhere** - HAR, JSON, CSV formats for sharing and analysis
 
 ### Perfect For:
+
 - 🐛 Debugging intermittent API issues that are hard to reproduce
 - ⚡ Performance optimization and regression detection
 - 🔍 Analyzing third-party service impact on your site
@@ -92,12 +100,14 @@ Never lose your network debugging data again. Universal Request Analyzer capture
 The extension provides consistent filtering across three interfaces:
 
 ### Popup
+
 - **Auto-filtered by current domain**: Automatically shows metrics for the current tab's domain
 - **Request type filter**: Filter by XHR/API, Fetch, Scripts, Stylesheets, Images, Fonts, Documents
 - **Aggregated metrics**: Shows combined statistics across all pages within the domain
 - **Quick insights**: View total requests, average response time, errors, and data transferred
 
 ### DevTools Panel
+
 - **Domain filter**: Select current domain, all domains, or specific tracked domains
 - **Page filter**: Choose specific pages or view aggregated data for the domain
 - **Request type filter**: Filter by resource type
@@ -107,6 +117,7 @@ The extension provides consistent filtering across three interfaces:
 - **Real-time updates**: Auto-refresh every 5 seconds with instant filter application
 
 ### Dashboard
+
 - **All domains**: View metrics across all tracked domains
 - **Domain → Page hierarchy**: Select domain first, then choose specific pages
 - **Request type filtering**: Filter by resource type
@@ -137,7 +148,7 @@ The extension captures detailed performance monitoring:
 - Total request duration
 - P95, P99 percentiles
 
-*Note: Performance metrics are disabled by default to minimize performance impact. Enable them in extension settings when needed.*
+_Note: Performance metrics are disabled by default to minimize performance impact. Enable them in extension settings when needed._
 
 ### Performance Monitoring Configuration
 
@@ -155,10 +166,12 @@ The extension captures detailed performance monitoring:
 ### Installation
 
 **From Browser Store:**
+
 - **Chrome/Edge:** [Chrome Web Store](https://chrome.google.com/webstore) - Search for "Universal Request Analyzer"
 - **Firefox:** [Firefox Add-ons](https://addons.mozilla.org) - Search for "Universal Request Analyzer"
 
 **Manual Installation (Developers):**
+
 1. Clone this repository
 2. Run `npm install` and `npm run build`
 3. Load the `dist` folder as an unpacked extension
@@ -175,12 +188,14 @@ No configuration needed. No complex setup. Just install and it works.
 ## Usage
 
 ### Popup Interface
+
 1. Click the extension icon to open the popup
 2. View current domain's aggregated metrics
 3. Use the request type filter to focus on specific resource types
 4. Click "Analytics" to open the DevTools Panel or "Dashboard" for full view
 
 ### DevTools Panel
+
 1. Open Chrome DevTools (F12)
 2. Navigate to the "Request Analyzer" tab
 3. Use filters to narrow down requests:
@@ -198,6 +213,7 @@ No configuration needed. No complex setup. Just install and it works.
 5. Click "History" to access time-travel feature
 
 ### Dashboard
+
 1. Open the extension options/settings page
 2. Navigate to the Dashboard tab
 3. Select domain and optionally a specific page
@@ -213,28 +229,30 @@ Dashboard: [Domain] → [Page] → [Request Type] → [Time Range]
 ```
 
 **Aggregation behavior:**
+
 - When no specific page is selected: Shows aggregated metrics across all pages in the domain
 - When a page is selected: Shows metrics only for that specific page
 
 ## More Than DevTools
 
-| Feature | DevTools | Universal Request Analyzer |
-|---------|----------|---------------------------|
-| Request Inspection | ✅ | ✅ |
-| Performance Timing | ✅ | ✅ Enhanced |
-| Filtering & Search | ✅ | ✅ Advanced |
-| **Data Persistence** | ❌ Lost on close | ✅ **Saved forever** |
-| **Historical Analysis** | ❌ | ✅ **Days/weeks of data** |
-| **Cross-Page Analytics** | ❌ | ✅ **All domains** |
-| **Performance Trending** | ❌ | ✅ **Track over time** |
-| **Third-Party Impact** | ❌ | ✅ **Auto-categorized** |
-| **Export/Share** | HAR only | ✅ **Multiple formats** |
+| Feature                  | DevTools         | Universal Request Analyzer |
+| ------------------------ | ---------------- | -------------------------- |
+| Request Inspection       | ✅               | ✅                         |
+| Performance Timing       | ✅               | ✅ Enhanced                |
+| Filtering & Search       | ✅               | ✅ Advanced                |
+| **Data Persistence**     | ❌ Lost on close | ✅ **Saved forever**       |
+| **Historical Analysis**  | ❌               | ✅ **Days/weeks of data**  |
+| **Cross-Page Analytics** | ❌               | ✅ **All domains**         |
+| **Performance Trending** | ❌               | ✅ **Track over time**     |
+| **Third-Party Impact**   | ❌               | ✅ **Auto-categorized**    |
+| **Export/Share**         | HAR only         | ✅ **Multiple formats**    |
 
 ## Configuration
 
 ### Simple Setup (Recommended)
 
 Just install and use! The extension works out of the box with smart defaults:
+
 - ✅ Request capture enabled
 - ✅ 7-day data retention
 - ✅ Auto-refresh every 5 seconds
@@ -243,6 +261,7 @@ Just install and use! The extension works out of the box with smart defaults:
 ### Advanced Configuration (Optional)
 
 Access via extension options for power users:
+
 - **Performance Metrics**: Enable detailed timing breakdown (DNS, TCP, SSL, etc.)
 - **Data Retention**: Adjust from 1 to 30 days
 - **Sampling Rate**: Reduce overhead for high-traffic sites
@@ -267,6 +286,7 @@ Fully compatible with:
 ## Development
 
 **Quick Start:**
+
 ```bash
 git clone https://github.com/ModernaCyber/Universal-Request-Analyzer.git
 cd Universal-Request-Analyzer
@@ -277,6 +297,7 @@ npm run build
 Then load the `dist` folder as an unpacked extension.
 
 **Available Commands:**
+
 - `npm run dev` - Development mode with watch
 - `npm run build` - Production build
 - `npm test` - Run tests
@@ -289,6 +310,7 @@ See [Development Guide](docs/DEVELOPMENT.md) for detailed instructions.
 For developers and performance engineers who want to dive deep:
 
 ### Advanced Analytics Architecture
+
 - **Medallion Architecture**: Bronze (raw) → Silver (validated) → Gold (analytics) data layers
 - **Star Schema**: Dimensional analytics with fact/dimension tables
 - **OHLC Performance**: Financial-style candlestick charts for response times
@@ -296,6 +318,7 @@ For developers and performance engineers who want to dive deep:
 - **SCD Type 2**: Historical tracking of domain attributes over time
 
 ### Built With
+
 - SQLite (via sql.js) for local data storage
 - Chart.js for visualizations
 - Webpack for bundling
@@ -305,14 +328,15 @@ See [Architecture Documentation](docs/ARCHITECTURE.md) for technical deep dive.
 
 ## Comparison with Other Tools
 
-| Tool | Best For | Universal Request Analyzer Advantage |
-|------|----------|-------------------------------------|
-| Chrome DevTools | Real-time debugging | We add: Data persistence, historical analysis |
-| Requestly | Request modification | We add: Analytics, performance tracking |
-| HTTP Toolkit | API testing | We add: Lightweight, browser-only, free |
-| Charles Proxy | Professional debugging | We add: Browser integration, simpler setup |
+| Tool            | Best For               | Universal Request Analyzer Advantage          |
+| --------------- | ---------------------- | --------------------------------------------- |
+| Chrome DevTools | Real-time debugging    | We add: Data persistence, historical analysis |
+| Requestly       | Request modification   | We add: Analytics, performance tracking       |
+| HTTP Toolkit    | API testing            | We add: Lightweight, browser-only, free       |
+| Charles Proxy   | Professional debugging | We add: Browser integration, simpler setup    |
 
 **When to use URA:**
+
 - ✅ You need to track performance over time
 - ✅ You're debugging intermittent issues
 - ✅ You want to analyze third-party impact
@@ -320,6 +344,7 @@ See [Architecture Documentation](docs/ARCHITECTURE.md) for technical deep dive.
 - ✅ You want a free, lightweight solution
 
 **When to use something else:**
+
 - ❌ You need to modify requests (use Requestly)
 - ❌ You need system-wide traffic capture (use HTTP Toolkit)
 - ❌ You only need current tab inspection (use DevTools)
