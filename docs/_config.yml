@@ -1,0 +1,34 @@
+title: Universal Request Analyzer
+description: DevTools-like network inspection with history, analytics, and performance tracking
+theme: jekyll-theme-cayman
+baseurl: "/Universal-Request-Analyzer"
+url: "https://ModernaCyber.github.io"
+
+# Social links
+github_username: ModernaCyber
+repository: ModernaCyber/Universal-Request-Analyzer
+
+# Analytics (optional - add your tracking ID)
+# google_analytics: UA-XXXXXXXXX-X
+
+# Build settings
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+  - jekyll-seo-tag
+
+# Relative links settings
+relative_links:
+  enabled: true
+  collections: true
+
+# Exclude from processing
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/

@@ -2,7 +2,61 @@
 
 > **DevTools-like network inspection with history, analytics, and performance tracking**
 
+[![GitHub Pages](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://ModernaCyber.github.io/Universal-Request-Analyzer/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome-Web%20Store-brightgreen)](https://chrome.google.com/webstore)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox-Add--ons-orange)](https://addons.mozilla.org)
+
 Never lose your network debugging data again. Universal Request Analyzer captures every network request and lets you analyze it anytime — like Chrome DevTools, but with data persistence, historical analysis, and powerful analytics.
+
+**🌐 [View Full Documentation & Screenshots](https://ModernaCyber.github.io/Universal-Request-Analyzer/)**
+
+## Screenshots
+
+### DevTools Panel
+![DevTools Overview](src/assets/images/devtools_overview.png)
+*Real-time network monitoring with advanced filtering*
+
+![Request Waterfall](src/assets/images/devtools_waterfall.png)
+*Performance waterfall visualization*
+
+### Dashboard & Analytics
+![Dashboard Analytics](src/assets/images/dashboard_analytics.png)
+*Comprehensive performance analytics and trends*
+
+![Request Details](src/assets/images/dashborard_request_details.png)
+*Detailed request inspection with timing breakdown*
+
+### Request Actions
+![Copy as Fetch](src/assets/images/dashboard_requests_fetch_action.png)
+*Copy as Fetch API code with Run button to execute requests*
+
+![Copy as cURL](src/assets/images/dashboard_requests_curl_action.png)
+*Export requests as cURL commands*
+
+### Data Management
+![Data Management Overview](src/assets/images/dashboard_data_management.png)
+*Complete data management dashboard with cleanup and retention controls*
+
+![Advanced Database](src/assets/images/dashboard_advanced_db_interaction.png)
+*Direct SQL query interface for advanced users*
+
+![Export Settings](src/assets/images/dashboard_export_settings.png)
+*Flexible data export options*
+
+![Import Settings](src/assets/images/dashboard_import_yous_settings.png)
+*Import/export configuration settings*
+
+### Error Tracking & Monitoring
+![Error Tracking](src/assets/images/dashboard_error_tracking.png)
+*Track and analyze failed requests*
+
+![Alerts](src/assets/images/Alerts.png)
+*Real-time alert notifications*
+
+### Customization
+![Theme Settings](src/assets/images/dashboard_theme.png)
+*Light/Dark theme support with CSS variables*
 
 ## Why Use Universal Request Analyzer?
 
@@ -282,6 +336,36 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **[Charles Proxy](https://www.charlesproxy.com/)** / **[Fiddler](https://www.telerik.com/fiddler)** - Best for professional-grade desktop debugging
 
 Use Universal Request Analyzer when you need persistent data, historical analysis, and performance tracking without complex setup.
+
+## 🌐 GitHub Pages Site
+
+This repository has a **fully configured GitHub Pages site** with all screenshots and documentation!
+
+**🌟 View Live Site:** [https://ModernaCyber.github.io/Universal-Request-Analyzer/](https://ModernaCyber.github.io/Universal-Request-Analyzer/)
+
+### Enable GitHub Pages
+
+The site is **ready to deploy**. Just follow these steps:
+
+1. **Go to your repository Settings** → **Pages**
+2. **Under Source**, select:
+   - Branch: `main`
+   - Folder: `/docs`
+3. **Click Save**
+4. **Wait 1-2 minutes** for deployment
+
+Your site will be live at: `https://ModernaCyber.github.io/Universal-Request-Analyzer/`
+
+### What's Included
+
+✅ Professional homepage with all screenshots  
+✅ Jekyll theme (Cayman) with custom styling  
+✅ Responsive design for mobile/desktop  
+✅ SEO optimized with meta tags  
+✅ Ready for custom domain  
+✅ Google Analytics support (optional)
+
+**📖 Full Setup Guide:** See [`docs/SETUP.md`](docs/SETUP.md) for detailed instructions, customization options, and troubleshooting.
 
 ## License
 
