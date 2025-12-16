@@ -3191,12 +3191,12 @@ class Dashboard {
 
     // Show progress modal
     document.getElementById("runnerProgressModal").style.display = "flex";
-    
+
     // Reset spinner icon
     const progressIcon = document.getElementById("runnerProgressIcon");
     progressIcon.className = "fas fa-spinner fa-pulse";
     progressIcon.style.color = "";
-    
+
     document.getElementById("runnerProgressText").textContent = "Starting...";
     document.getElementById("runnerProgressPercent").textContent = "0%";
     document.getElementById("runnerSuccessCount").textContent = "0";
@@ -3245,12 +3245,18 @@ class Dashboard {
       });
 
       if (!response.success || !response.progress) {
-        console.log('No progress data available');
+        console.log("No progress data available");
         return;
       }
 
       const progress = response.progress;
-      console.log('Runner progress:', progress.status, progress.completedRequests, '/', progress.totalRequests);
+      console.log(
+        "Runner progress:",
+        progress.status,
+        progress.completedRequests,
+        "/",
+        progress.totalRequests
+      );
 
       // Update progress stats
       document.getElementById(
@@ -3289,25 +3295,25 @@ class Dashboard {
           "runnerProgressText"
         ).textContent = `Running (${progress.mode})...`;
       } else if (progress.status === "completed") {
-        console.log('Runner completed - calling completeRunner()');
+        console.log("Runner completed - calling completeRunner()");
         document.getElementById("runnerProgressText").textContent =
           "✓ Completed";
         document.getElementById("runnerCurrentRequest").style.display = "none";
-        
+
         // Change spinner to checkmark
         const progressIcon = document.getElementById("runnerProgressIcon");
         progressIcon.className = "fas fa-check-circle";
         progressIcon.style.color = "var(--success-color)";
-        
+
         this.completeRunner();
       } else if (progress.status === "cancelled") {
-        console.log('Runner cancelled - calling completeRunner()');
+        console.log("Runner cancelled - calling completeRunner()");
         document.getElementById("runnerProgressText").textContent =
           "✗ Cancelled";
         document.getElementById("runnerCurrentRequest").style.display = "none";
         this.completeRunner();
       } else if (progress.status === "failed") {
-        console.log('Runner failed - calling completeRunner()');
+        console.log("Runner failed - calling completeRunner()");
         document.getElementById("runnerProgressText").textContent = "✗ Failed";
         document.getElementById("runnerCurrentRequest").style.display = "none";
         this.completeRunner();
@@ -3369,11 +3375,11 @@ class Dashboard {
   }
 
   completeRunner() {
-    console.log('completeRunner() called - stopping interval');
+    console.log("completeRunner() called - stopping interval");
     if (this.runnerProgressInterval) {
       clearInterval(this.runnerProgressInterval);
       this.runnerProgressInterval = null;
-      console.log('Progress interval cleared');
+      console.log("Progress interval cleared");
     }
 
     // Show done button, hide cancel button

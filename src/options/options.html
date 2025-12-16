@@ -3021,16 +3021,50 @@ fetch('https://api.example.com/data', {
               <input type="checkbox" id="runnerUseVariables" checked />
               <span>Use Variables</span>
             </label>
-            <small>Automatically substitute ${VAR_NAME} placeholders with actual values from Variables Manager.</small>
+            <small
+              >Automatically substitute ${VAR_NAME} placeholders with actual
+              values from Variables Manager.</small
+            >
           </div>
 
           <!-- Variables Preview -->
-          <div id="runnerVariablesPreview" style="display: none; padding: 12px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <strong style="font-size: 14px;"><i class="fas fa-dollar-sign"></i> Available Variables</strong>
-              <span style="font-size: 12px; color: var(--text-secondary-color);" id="runnerVariableCount">0 variables</span>
+          <div
+            id="runnerVariablesPreview"
+            style="
+              display: none;
+              padding: 12px;
+              background: var(--surface-color);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              margin-bottom: 16px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+              "
+            >
+              <strong style="font-size: 14px"
+                ><i class="fas fa-dollar-sign"></i> Available Variables</strong
+              >
+              <span
+                style="font-size: 12px; color: var(--text-secondary-color)"
+                id="runnerVariableCount"
+                >0 variables</span
+              >
             </div>
-            <div id="runnerVariablesList" style="max-height: 150px; overflow-y: auto; font-size: 13px; font-family: monospace;">
+            <div
+              id="runnerVariablesList"
+              style="
+                max-height: 150px;
+                overflow-y: auto;
+                font-size: 13px;
+                font-family: monospace;
+              "
+            >
               <!-- Variables will be populated here -->
             </div>
           </div>
@@ -3069,7 +3103,8 @@ fetch('https://api.example.com/data', {
       <div class="modal-content" style="max-width: 700px">
         <div class="modal-header">
           <h2>
-            <i id="runnerProgressIcon" class="fas fa-spinner fa-pulse"></i> Request Runner Progress
+            <i id="runnerProgressIcon" class="fas fa-spinner fa-pulse"></i>
+            Request Runner Progress
           </h2>
           <button class="modal-close" id="closeRunnerProgressModal">
             <i class="fas fa-times"></i>
