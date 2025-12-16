@@ -1316,14 +1316,17 @@ class Dashboard {
   }
 
   renderEndpointPerformanceChart(response) {
-    const chartContainer = document.getElementById("dashboardPerformanceHistoryChart");
+    const chartContainer = document.getElementById(
+      "dashboardPerformanceHistoryChart"
+    );
     if (!chartContainer) return;
 
     let canvas = document.getElementById("dashboardHistoryChartCanvas");
-    
+
     // Recreate canvas if it was removed
     if (!canvas) {
-      chartContainer.innerHTML = '<canvas id="dashboardHistoryChartCanvas"></canvas>';
+      chartContainer.innerHTML =
+        '<canvas id="dashboardHistoryChartCanvas"></canvas>';
       canvas = document.getElementById("dashboardHistoryChartCanvas");
     }
 
@@ -1353,7 +1356,8 @@ class Dashboard {
 
     // Ensure canvas exists after checks
     if (!canvas) {
-      chartContainer.innerHTML = '<canvas id="dashboardHistoryChartCanvas"></canvas>';
+      chartContainer.innerHTML =
+        '<canvas id="dashboardHistoryChartCanvas"></canvas>';
       canvas = document.getElementById("dashboardHistoryChartCanvas");
     }
 
@@ -1455,9 +1459,9 @@ class Dashboard {
         },
         title: {
           display: true,
-          text: `Endpoint Performance Over Time (${selectedKeys.length} endpoint${
-            selectedKeys.length !== 1 ? "s" : ""
-          })`,
+          text: `Endpoint Performance Over Time (${
+            selectedKeys.length
+          } endpoint${selectedKeys.length !== 1 ? "s" : ""})`,
           font: { size: 14, weight: "bold" },
         },
         tooltip: {
