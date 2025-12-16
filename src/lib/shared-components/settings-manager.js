@@ -102,16 +102,25 @@ class SettingsManager {
           vacuumInterval: 3600000,
         },
       },
+      variables: {
+        enabled: true,
+        autoDetect: true,
+        list: [
+          // Example: { id: '1', name: 'API_TOKEN', value: '', description: 'API authentication token', createdAt: Date.now() }
+        ],
+      },
     };
 
     // Add event listeners for settings changes
     if (browserAPI && browserAPI.runtime) {
-      browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.action === "settingsUpdated") {
-          this.handleSettingsUpdate(message.settings);
-          sendResponse({ success: true });
+      browserAPI.runtime.onMessage.addListener(
+        (message, sender, sendResponse) => {
+          if (message.action === "settingsUpdated") {
+            this.handleSettingsUpdate(message.settings);
+            sendResponse({ success: true });
+          }
         }
-      });
+      );
     }
   }
 
@@ -125,14 +134,14 @@ class SettingsManager {
    */
   setDatabaseManager(dbManager) {
     configSchemaManager = dbManager;
-    console.log('Settings-manager: Database manager injected');
+    console.log("Settings-manager: Database manager injected");
   }
 
   async initialize() {
     try {
       // Load saved settings from storage first (fast)
       const data = await this.loadFromStorage();
-      
+
       // If database is available, load from there as source of truth
       if (configSchemaManager) {
         try {
@@ -142,13 +151,13 @@ class SettingsManager {
             this.settings = this.mergeSettings(this.settings, dbSettings);
             // Sync to storage for content script access
             await this.saveToStorage();
-            console.log('Settings loaded from database and synced to storage');
+            console.log("Settings loaded from database and synced to storage");
           } else if (data && data.settings) {
             // No DB settings yet, use storage
             this.settings = this.mergeSettings(this.settings, data.settings);
           }
         } catch (dbError) {
-          console.warn('Failed to load from database, using storage:', dbError);
+          console.warn("Failed to load from database, using storage:", dbError);
           if (data && data.settings) {
             this.settings = this.mergeSettings(this.settings, data.settings);
           }
@@ -215,7 +224,7 @@ class SettingsManager {
     if (!browserAPI || !browserAPI.storage) {
       return null;
     }
-    
+
     return new Promise((resolve) => {
       browserAPI.storage.local.get("settings", (data) => {
         resolve(data.settings || null);
@@ -237,36 +246,44 @@ class SettingsManager {
         capture: {},
         general: {},
         display: {},
-        advanced: {}
+        advanced: {},
       };
 
       // Load capture settings
-      const captureSettings = await configSchemaManager.getSettingsByCategory('capture');
+      const captureSettings = await configSchemaManager.getSettingsByCategory(
+        "capture"
+      );
       if (captureSettings && Object.keys(captureSettings).length > 0) {
         settings.capture = captureSettings;
       }
 
       // Load general settings
-      const generalSettings = await configSchemaManager.getSettingsByCategory('general');
+      const generalSettings = await configSchemaManager.getSettingsByCategory(
+        "general"
+      );
       if (generalSettings && Object.keys(generalSettings).length > 0) {
         settings.general = generalSettings;
       }
 
       // Load display settings
-      const displaySettings = await configSchemaManager.getSettingsByCategory('display');
+      const displaySettings = await configSchemaManager.getSettingsByCategory(
+        "display"
+      );
       if (displaySettings && Object.keys(displaySettings).length > 0) {
         settings.display = displaySettings;
       }
 
       // Load advanced settings
-      const advancedSettings = await configSchemaManager.getSettingsByCategory('advanced');
+      const advancedSettings = await configSchemaManager.getSettingsByCategory(
+        "advanced"
+      );
       if (advancedSettings && Object.keys(advancedSettings).length > 0) {
         settings.advanced = advancedSettings;
       }
 
       return settings;
     } catch (error) {
-      console.error('Failed to load settings from database:', error);
+      console.error("Failed to load settings from database:", error);
       return null;
     }
   }
@@ -279,7 +296,7 @@ class SettingsManager {
     if (!browserAPI || !browserAPI.storage) {
       return;
     }
-    
+
     // Save to storage (for content script access)
     await new Promise((resolve) => {
       browserAPI.storage.local.set(
@@ -309,19 +326,19 @@ class SettingsManager {
     try {
       // Save each category of settings to database
       for (const [category, values] of Object.entries(this.settings)) {
-        if (typeof values === 'object' && values !== null) {
+        if (typeof values === "object" && values !== null) {
           for (const [key, value] of Object.entries(values)) {
             const fullKey = `${category}.${key}`;
             await configSchemaManager.setAppSetting(fullKey, value, {
               category,
-              description: `${category} setting: ${key}`
+              description: `${category} setting: ${key}`,
             });
           }
         }
       }
-      console.log('Settings saved to database');
+      console.log("Settings saved to database");
     } catch (error) {
-      console.error('Failed to save settings to database:', error);
+      console.error("Failed to save settings to database:", error);
     }
   }
 
@@ -696,6 +713,193 @@ class SettingsManager {
   handleThemeUpdate(themeData) {
     console.log("Theme updated:", themeData);
     // You can add additional logic here if needed
+  }
+
+  /**
+   * Get all variables
+   * @returns {Array} List of variables
+   */
+  getVariables() {
+    return this.settings.variables?.list || [];
+  }
+
+  /**
+   * Add a new variable
+   * @param {Object} variable - Variable object { name, value, description }
+   * @returns {Promise<boolean>} Success status
+   */
+  async addVariable(variable) {
+    try {
+      if (!variable.name || !this.isValidVariableName(variable.name)) {
+        throw new Error(
+          "Invalid variable name. Use alphanumeric characters and underscores only."
+        );
+      }
+
+      // Check for duplicates
+      const existingIndex = this.settings.variables.list.findIndex(
+        (v) => v.name === variable.name
+      );
+
+      if (existingIndex !== -1) {
+        throw new Error(`Variable "${variable.name}" already exists`);
+      }
+
+      const newVariable = {
+        id: `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: variable.name,
+        value: variable.value || "",
+        description: variable.description || "",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      this.settings.variables.list.push(newVariable);
+      await this.saveToStorage();
+      await this.broadcastSettingsUpdate(this.settings);
+
+      return true;
+    } catch (error) {
+      console.error("Failed to add variable:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing variable
+   * @param {string} id - Variable ID
+   * @param {Object} updates - Updates to apply
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateVariable(id, updates) {
+    try {
+      const index = this.settings.variables.list.findIndex((v) => v.id === id);
+
+      if (index === -1) {
+        throw new Error(`Variable with ID "${id}" not found`);
+      }
+
+      // If changing name, validate and check for duplicates
+      if (
+        updates.name &&
+        updates.name !== this.settings.variables.list[index].name
+      ) {
+        if (!this.isValidVariableName(updates.name)) {
+          throw new Error("Invalid variable name");
+        }
+
+        const duplicate = this.settings.variables.list.find(
+          (v) => v.name === updates.name && v.id !== id
+        );
+
+        if (duplicate) {
+          throw new Error(`Variable "${updates.name}" already exists`);
+        }
+      }
+
+      this.settings.variables.list[index] = {
+        ...this.settings.variables.list[index],
+        ...updates,
+        updatedAt: Date.now(),
+      };
+
+      await this.saveToStorage();
+      await this.broadcastSettingsUpdate(this.settings);
+
+      return true;
+    } catch (error) {
+      console.error("Failed to update variable:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a variable
+   * @param {string} id - Variable ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async deleteVariable(id) {
+    try {
+      const index = this.settings.variables.list.findIndex((v) => v.id === id);
+
+      if (index === -1) {
+        throw new Error(`Variable with ID "${id}" not found`);
+      }
+
+      this.settings.variables.list.splice(index, 1);
+
+      await this.saveToStorage();
+      await this.broadcastSettingsUpdate(this.settings);
+
+      return true;
+    } catch (error) {
+      console.error("Failed to delete variable:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate variable name format
+   * @param {string} name - Variable name to validate
+   * @returns {boolean} Whether the name is valid
+   */
+  isValidVariableName(name) {
+    // Allow alphanumeric characters and underscores, must start with letter or underscore
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
+  }
+
+  /**
+   * Substitute variables in text
+   * @param {string} text - Text containing ${VAR_NAME} placeholders
+   * @returns {string} Text with variables substituted
+   */
+  substituteVariables(text) {
+    if (!text) return text;
+
+    let result = text;
+    const variables = this.getVariables();
+
+    variables.forEach((variable) => {
+      const placeholder = `\${${variable.name}}`;
+      const regex = new RegExp(
+        placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "g"
+      );
+      result = result.replace(regex, variable.value);
+    });
+
+    return result;
+  }
+
+  /**
+   * Detect and create variable placeholders in text
+   * @param {string} text - Text to analyze
+   * @param {Array} patterns - Patterns to detect { regex, variableName }
+   * @returns {string} Text with sensitive values replaced by ${VAR_NAME}
+   */
+  createVariablePlaceholders(text, patterns = []) {
+    if (!text) return text;
+
+    let result = text;
+    const variables = this.getVariables();
+
+    // Replace known variable values with placeholders
+    variables.forEach((variable) => {
+      if (variable.value && variable.value.length > 0) {
+        const escaped = variable.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(escaped, "g");
+        result = result.replace(regex, `\${${variable.name}}`);
+      }
+    });
+
+    // Apply custom patterns
+    patterns.forEach((pattern) => {
+      result = result.replace(pattern.regex, (match) => {
+        return `\${${pattern.variableName}}`;
+      });
+    });
+
+    return result;
   }
 }
 

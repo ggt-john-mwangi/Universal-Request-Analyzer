@@ -316,7 +316,7 @@ function setupQuickFilterChips() {
 
 /**
  * Apply quick filter
- * @param {string} filterType - Filter type
+ * @param {string} filterType - Filter type (all, 2xx, 4xx, 5xx, xhr, fetch, js, css, img)
  */
 async function applyQuickFilter(filterType) {
   setCurrentQuickFilter(filterType);
@@ -328,7 +328,17 @@ async function applyQuickFilter(filterType) {
     if (requestTypeFilter) requestTypeFilter.value = "";
   } else if (filterType === "xhr") {
     if (requestTypeFilter) requestTypeFilter.value = "xmlhttprequest";
+  } else if (filterType === "fetch") {
+    if (requestTypeFilter) requestTypeFilter.value = "fetch";
+  } else if (filterType === "js") {
+    if (requestTypeFilter) requestTypeFilter.value = "script";
+  } else if (filterType === "css") {
+    if (requestTypeFilter) requestTypeFilter.value = "stylesheet";
+  } else if (filterType === "img") {
+    if (requestTypeFilter) requestTypeFilter.value = "image";
   }
+  // For status filters (2xx, 4xx, 5xx), we keep the type filter as-is
+  // The backend will handle status filtering via currentQuickFilter
 
   await loadPageSummary();
 }
