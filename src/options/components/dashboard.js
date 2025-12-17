@@ -2196,6 +2196,14 @@ class Dashboard {
         return;
       }
 
+      // Apply variable substitution if enabled
+      let code = fetchText.value;
+      const useVariablesToggle = document.getElementById("fetchUseVariables");
+      if (useVariablesToggle && useVariablesToggle.checked) {
+        code = await this.applyVariableSubstitution(code);
+        console.log("Applied variable substitution to fetch code");
+      }
+
       // Show loading state
       const responseSection = document.getElementById("fetchResponseSection");
       const responseText = document.getElementById("fetchResponseText");
@@ -2210,7 +2218,6 @@ class Dashboard {
       }
 
       // Extract fetch URL and options from the code
-      const code = fetchText.value;
       const fetchMatch = code.match(/fetch\('([^']+)'(?:,\s*({[\s\S]+?}))?\)/);
 
       if (!fetchMatch) {
@@ -4814,11 +4821,15 @@ class Dashboard {
         action: "getSettings",
       });
 
-      if (!response || !response.settings || !response.settings.variables) {
+      console.log("Settings response for variables:", response);
+
+      if (!response || !response.success) {
+        console.warn("Failed to get settings for variables");
         return;
       }
 
-      const variables = response.settings.variables.list || [];
+      const variables = response.settings?.variables?.list || [];
+      console.log("Variables found:", variables.length);
       const selectId =
         type === "curl" ? "curlVariableSelect" : "fetchVariableSelect";
       const select = document.getElementById(selectId);
