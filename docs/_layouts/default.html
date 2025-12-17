@@ -12,13 +12,15 @@
     />
 
     <!-- Mermaid.js for diagram rendering -->
-    <script type="module">
-      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
-      mermaid.initialize({
-        startOnLoad: true,
-        theme: "default",
-        securityLevel: "loose",
-        fontFamily: "Arial, sans-serif",
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        mermaid.initialize({
+          startOnLoad: true,
+          theme: "default",
+          securityLevel: "loose",
+          fontFamily: "Arial, sans-serif",
+        });
       });
     </script>
   </head>

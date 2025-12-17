@@ -831,7 +831,11 @@ class RunnersManager {
         alert("Please select a domain");
         return;
       }
-      if (this.wizardState.selectedRequests.length === 0) {
+      // Check actual DOM state for selected checkboxes
+      const checkedBoxes = document.querySelectorAll(
+        '#wizardRequestList input[type="checkbox"]:checked'
+      );
+      if (checkedBoxes.length === 0) {
         alert("Please select at least one request");
         return;
       }
@@ -858,28 +862,41 @@ class RunnersManager {
     }
 
     // Collect all configuration
+    const now = Date.now();
     const definition = {
+      id: `runner_${now}_${Math.random().toString(36).substr(2, 9)}`,
       name: name,
       description: document
         .getElementById("wizardRunnerDescription")
         .value.trim(),
       is_temporary: !document.getElementById("wizardSaveAsPermanent").checked,
       execution_mode: document.getElementById("wizardMode").value,
-      request_delay:
-        parseInt(document.getElementById("wizardDelay").value) || 1000,
+      delay_ms: parseInt(document.getElementById("wizardDelay").value) || 1000,
       follow_redirects: document.getElementById("wizardFollowRedirects")
         .checked,
       validate_status: document.getElementById("wizardValidateStatus").checked,
       use_variables: document.getElementById("wizardUseVariables").checked,
-      created_at: Date.now(),
+      header_overrides: null,
+      is_active: true,
+      created_at: now,
+      updated_at: now,
     };
 
     const requests = this.wizardState.selectedRequests.map((req, idx) => ({
+      id: `req_${now}_${idx}`,
+      runner_id: definition.id,
       url: req.url,
       method: req.method,
       sequence_order: idx + 1,
       domain: this.wizardState.selectedDomain,
       page_url: this.wizardState.selectedPage || null,
+      headers: null,
+      body: null,
+      captured_request_id: null,
+      assertions: null,
+      description: null,
+      is_enabled: true,
+      created_at: now,
     }));
 
     // Show loading state
