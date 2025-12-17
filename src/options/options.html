@@ -29,6 +29,10 @@
             <i class="fas fa-chart-line"></i>
             <span>Dashboard</span>
           </button>
+          <button class="nav-item" data-tab="runners">
+            <i class="fas fa-play-circle"></i>
+            <span>Runners</span>
+          </button>
           <button class="nav-item" data-tab="general">
             <i class="fas fa-cog"></i>
             <span>General</span>
@@ -1177,6 +1181,72 @@
                       Cancel
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Runners Tab -->
+          <section id="runners" class="tab-content">
+            <div class="dashboard-container" style="max-width: 1400px">
+              <!-- Runners Header -->
+              <div class="dashboard-header">
+                <h2><i class="fas fa-play-circle"></i> Request Runners</h2>
+                <p style="margin: 8px 0 0 0; color: var(--text-secondary)">
+                  Manage and execute saved runners and recent quick runs
+                </p>
+              </div>
+
+              <!-- Runners Controls -->
+              <div class="dashboard-controls" style="margin-bottom: 24px">
+                <div style="display: flex; gap: 12px; flex: 1">
+                  <input
+                    type="text"
+                    id="runnerSearch"
+                    placeholder="Search runners..."
+                    class="filter-select"
+                    style="flex: 1; max-width: 400px"
+                  />
+                  <select
+                    id="runnerTypeFilter"
+                    class="filter-select"
+                    style="width: 150px"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="saved">Saved Only</option>
+                    <option value="temporary">Quick Runs Only</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 8px">
+                  <button
+                    id="btnRefreshRunners"
+                    class="secondary-btn"
+                    title="Refresh"
+                  >
+                    <i class="fas fa-sync-alt"></i>
+                  </button>
+                  <button id="btnCreateRunner" class="btn-primary">
+                    <i class="fas fa-plus"></i> Create Runner
+                  </button>
+                </div>
+              </div>
+
+              <!-- Runners Grid -->
+              <div id="runnersGrid" class="runners-grid">
+                <!-- Runners will be loaded here -->
+                <div
+                  style="
+                    grid-column: 1 / -1;
+                    text-align: center;
+                    padding: 60px 20px;
+                    color: var(--text-secondary);
+                  "
+                >
+                  <i
+                    class="fas fa-spinner fa-pulse"
+                    style="font-size: 48px; margin-bottom: 16px"
+                  ></i>
+                  <p>Loading runners...</p>
                 </div>
               </div>
             </div>
@@ -2945,6 +3015,61 @@ fetch('https://api.example.com/data', {
             with configurable options.
           </p>
 
+          <!-- Runner Name & Description -->
+          <div class="form-group">
+            <label>
+              <i class="fas fa-signature"></i> Runner Name (optional)
+            </label>
+            <input
+              type="text"
+              id="runnerName"
+              placeholder="e.g., Quick API Test"
+              class="filter-select"
+              style="width: 100%"
+            />
+            <small>Give this runner a name to save and reuse it later.</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <i class="fas fa-comment-alt"></i> Description (optional)
+            </label>
+            <textarea
+              id="runnerDescription"
+              rows="2"
+              placeholder="Describe what this runner does..."
+              style="
+                width: 100%;
+                font-family: inherit;
+                font-size: 14px;
+                padding: 8px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                background: var(--surface-color);
+              "
+            ></textarea>
+            <small>Add notes about this runner's purpose.</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerSaveAsPermanent" />
+              <span><strong>Save as Permanent Runner</strong></span>
+            </label>
+            <small
+              >Keep this runner in your library for future use. Unchecked
+              runners are temporary and auto-deleted after 7 days.</small
+            >
+          </div>
+
+          <hr
+            style="
+              border: none;
+              border-top: 1px solid var(--border-color);
+              margin: 20px 0;
+            "
+          />
+
           <div class="form-group">
             <label> <i class="fas fa-bolt"></i> Execution Mode </label>
             <select id="runnerMode" class="filter-select" style="width: 100%">
@@ -3093,6 +3218,316 @@ fetch('https://api.example.com/data', {
           <button id="cancelRunnerBtn" class="secondary-btn">Cancel</button>
           <button id="startRunnerBtn" class="btn-primary">
             <i class="fas fa-play"></i> Start Runner
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runner Creation Wizard Modal -->
+    <div id="runnerWizardModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 700px">
+        <div class="modal-header">
+          <h2><i class="fas fa-magic"></i> Create Runner</h2>
+          <button class="modal-close" id="closeRunnerWizard">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <!-- Wizard Progress -->
+        <div
+          style="
+            padding: 20px 30px 0;
+            border-bottom: 1px solid var(--border-color);
+          "
+        >
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 16px;
+            "
+          >
+            <div class="wizard-step active" data-step="1">
+              <div class="wizard-step-number">1</div>
+              <div class="wizard-step-label">Source</div>
+            </div>
+            <div class="wizard-step" data-step="2">
+              <div class="wizard-step-number">2</div>
+              <div class="wizard-step-label">Configure</div>
+            </div>
+            <div class="wizard-step" data-step="3">
+              <div class="wizard-step-number">3</div>
+              <div class="wizard-step-label">Name</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-body" style="min-height: 400px; padding: 30px">
+          <!-- Step 1: Source Selection -->
+          <div id="wizardStep1" class="wizard-content active">
+            <h3 style="margin-top: 0">Select Request Source</h3>
+
+            <div class="form-group">
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  font-size: 16px;
+                  margin-bottom: 20px;
+                "
+              >
+                <input
+                  type="radio"
+                  name="sourceType"
+                  value="captured"
+                  checked
+                  style="margin-right: 10px; width: 18px; height: 18px"
+                />
+                <strong>From Captured Requests</strong>
+              </label>
+
+              <div id="capturedSourceFilters" style="margin-left: 30px">
+                <div class="form-group">
+                  <label><i class="fas fa-globe"></i> Domain</label>
+                  <select
+                    id="wizardDomainSelect"
+                    class="filter-select"
+                    style="width: 100%"
+                  >
+                    <option value="">Loading domains...</option>
+                  </select>
+                  <small>Select which domain's requests to include</small>
+                </div>
+
+                <div class="form-group">
+                  <label><i class="fas fa-file"></i> Page URL (optional)</label>
+                  <select
+                    id="wizardPageSelect"
+                    class="filter-select"
+                    style="width: 100%"
+                    disabled
+                  >
+                    <option value="">All pages</option>
+                  </select>
+                  <small>Filter by specific page</small>
+                </div>
+
+                <div class="form-group">
+                  <label><i class="fas fa-filter"></i> Request Type</label>
+                  <select
+                    id="wizardTypeSelect"
+                    class="filter-select"
+                    style="width: 100%"
+                    disabled
+                  >
+                    <option value="">All types</option>
+                    <option value="xhr">XHR</option>
+                    <option value="fetch">Fetch</option>
+                    <option value="script">Script</option>
+                    <option value="stylesheet">Stylesheet</option>
+                  </select>
+                  <small>Filter by request type</small>
+                </div>
+
+                <div class="form-group">
+                  <label><i class="fas fa-list"></i> Select Requests</label>
+                  <div
+                    id="wizardRequestList"
+                    style="
+                      border: 1px solid var(--border-color);
+                      border-radius: 4px;
+                      max-height: 250px;
+                      overflow-y: auto;
+                      background: var(--surface-color);
+                    "
+                  >
+                    <div
+                      style="
+                        padding: 20px;
+                        text-align: center;
+                        color: var(--text-secondary);
+                      "
+                    >
+                      Select a domain to view available requests
+                    </div>
+                  </div>
+                  <small id="wizardRequestCount">0 requests selected</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px">
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  font-size: 16px;
+                  opacity: 0.5;
+                "
+              >
+                <input
+                  type="radio"
+                  name="sourceType"
+                  value="manual"
+                  disabled
+                  style="margin-right: 10px; width: 18px; height: 18px"
+                />
+                <strong>Manual Definition</strong>
+                <span
+                  style="
+                    margin-left: 8px;
+                    font-size: 12px;
+                    color: var(--text-secondary);
+                  "
+                  >(Coming soon)</span
+                >
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 2: Configuration -->
+          <div id="wizardStep2" class="wizard-content" style="display: none">
+            <h3 style="margin-top: 0">Execution Configuration</h3>
+
+            <div class="form-group">
+              <label><i class="fas fa-bolt"></i> Execution Mode</label>
+              <select id="wizardMode" class="filter-select" style="width: 100%">
+                <option value="sequential">Sequential (one at a time)</option>
+                <option value="parallel">Parallel (all at once)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="wizardDelayGroup">
+              <label
+                ><i class="fas fa-clock"></i> Delay Between Requests (ms)</label
+              >
+              <input
+                type="number"
+                id="wizardDelay"
+                value="1000"
+                min="0"
+                step="100"
+                class="filter-select"
+                style="width: 100%"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="wizardFollowRedirects" checked />
+                <span>Follow Redirects</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="wizardValidateStatus" />
+                <span>Validate Status Codes (200-399)</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="wizardUseVariables" checked />
+                <span>Use Variables</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 3: Name & Save -->
+          <div id="wizardStep3" class="wizard-content" style="display: none">
+            <h3 style="margin-top: 0">Name Your Runner</h3>
+
+            <div class="form-group">
+              <label><i class="fas fa-signature"></i> Runner Name *</label>
+              <input
+                type="text"
+                id="wizardRunnerName"
+                placeholder="e.g., GitHub API Test"
+                class="filter-select"
+                style="width: 100%"
+              />
+              <small>Give your runner a descriptive name</small>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-comment-alt"></i> Description</label>
+              <textarea
+                id="wizardRunnerDescription"
+                rows="3"
+                placeholder="Describe what this runner does..."
+                style="
+                  width: 100%;
+                  padding: 8px;
+                  border: 1px solid var(--border-color);
+                  border-radius: 4px;
+                  background: var(--surface-color);
+                  font-family: inherit;
+                "
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="wizardSaveAsPermanent" checked />
+                <span><strong>Save as Permanent Runner</strong></span>
+              </label>
+              <small
+                >Uncheck to create a temporary runner (auto-deleted after 7
+                days)</small
+              >
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="modal-footer"
+          style="display: flex; justify-content: space-between"
+        >
+          <button
+            id="wizardPrevBtn"
+            class="secondary-btn"
+            style="display: none"
+          >
+            <i class="fas fa-arrow-left"></i> Previous
+          </button>
+          <div style="flex: 1"></div>
+          <button id="wizardCancelBtn" class="secondary-btn">Cancel</button>
+          <button id="wizardNextBtn" class="btn-primary">
+            Next <i class="fas fa-arrow-right"></i>
+          </button>
+          <button
+            id="wizardCreateBtn"
+            class="btn-primary"
+            style="display: none"
+          >
+            <i class="fas fa-check"></i> Create Runner
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runner Details Modal -->
+    <div id="runnerDetailsModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 900px; max-height: 80vh">
+        <div class="modal-header">
+          <h2><i class="fas fa-info-circle"></i> Runner Details</h2>
+          <button
+            class="modal-close"
+            onclick="document.getElementById('runnerDetailsModal').style.display='none'"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto">
+          <!-- Content populated by JavaScript -->
+        </div>
+        <div class="modal-footer">
+          <button
+            class="secondary-btn"
+            onclick="document.getElementById('runnerDetailsModal').style.display='none'"
+          >
+            Close
           </button>
         </div>
       </div>

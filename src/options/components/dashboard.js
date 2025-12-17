@@ -3061,6 +3061,20 @@ class Dashboard {
     document.getElementById("runnerRequestCount").textContent =
       selectedRequests.length;
 
+    // Auto-generate runner name
+    const now = new Date();
+    const timestamp = now.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const autoName = `Quick Run - ${timestamp}`;
+    document.getElementById("runnerName").value = autoName;
+    document.getElementById("runnerDescription").value = "";
+    document.getElementById("runnerSaveAsPermanent").checked = false;
+
     // Load and display variables
     await this.loadRunnerVariables();
 
@@ -3162,6 +3176,15 @@ class Dashboard {
       return;
     }
 
+    // Get runner metadata
+    const runnerName = document.getElementById("runnerName").value.trim();
+    const runnerDescription = document
+      .getElementById("runnerDescription")
+      .value.trim();
+    const saveAsPermanent = document.getElementById(
+      "runnerSaveAsPermanent"
+    ).checked;
+
     // Get configuration
     const mode = document.getElementById("runnerMode").value;
     const delay = parseInt(document.getElementById("runnerDelay").value) || 0;
@@ -3185,6 +3208,9 @@ class Dashboard {
     }
 
     const config = {
+      name: runnerName || `Quick Run - ${new Date().toLocaleString()}`,
+      description: runnerDescription,
+      isTemporary: !saveAsPermanent,
       mode,
       delay,
       followRedirects,

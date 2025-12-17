@@ -195,6 +195,22 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
       cleanupOldRecords,
       previewCleanup,
       vacuumDatabase,
+
+      // Runner operations
+      runner: {
+        createRunner,
+        getRunnerDefinition,
+        getRunnerRequests,
+        createRunnerExecution,
+        createRunnerExecutionResult,
+        updateRunnerExecution,
+        updateRunnerDefinition,
+        getAllRunners,
+        getRunnerExecutions,
+        getExecutionResults,
+        cleanupTemporaryRunners,
+        deleteRunner,
+      },
     };
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -769,6 +785,534 @@ export async function cleanup() {
 }
 
 /**
+ * Runner Database Operations
+ */
+
+// Helper function for SQL escaping
+const escapeStr = (val) => {
+  if (val === undefined || val === null) return "NULL";
+  return `'${String(val).replace(/'/g, "''")}'`;
+};
+
+/**
+ * Create a new runner definition and its requests
+ */
+async function createRunner(definition, requests) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    // Insert runner definition
+    const defQuery = `
+      INSERT INTO config_runner_definitions (
+        id, name, description, is_temporary, execution_mode,
+        delay_ms, follow_redirects, validate_status, use_variables,
+        header_overrides, is_active, created_at, updated_at, run_count
+      ) VALUES (
+        ${escapeStr(definition.id)},
+        ${escapeStr(definition.name)},
+        ${escapeStr(definition.description)},
+        ${definition.is_temporary ? 1 : 0},
+        ${escapeStr(definition.execution_mode)},
+        ${definition.delay_ms || 0},
+        ${definition.follow_redirects ? 1 : 0},
+        ${definition.validate_status ? 1 : 0},
+        ${definition.use_variables ? 1 : 0},
+        ${escapeStr(definition.header_overrides)},
+        1,
+        ${definition.created_at},
+        ${definition.updated_at},
+        0
+      )
+    `;
+
+    db.exec(defQuery);
+
+    // Insert runner requests
+    for (const req of requests) {
+      const reqQuery = `
+        INSERT INTO config_runner_requests (
+          id, runner_id, sequence_order, url, method,
+          headers, body, domain, page_url, captured_request_id,
+          assertions, description, is_enabled, created_at
+        ) VALUES (
+          ${escapeStr(req.id)},
+          ${escapeStr(req.runner_id)},
+          ${req.sequence_order},
+          ${escapeStr(req.url)},
+          ${escapeStr(req.method)},
+          ${escapeStr(req.headers)},
+          ${escapeStr(req.body)},
+          ${escapeStr(req.domain)},
+          ${escapeStr(req.page_url)},
+          ${escapeStr(req.captured_request_id)},
+          ${escapeStr(req.assertions)},
+          ${escapeStr(req.description)},
+          1,
+          ${req.created_at}
+        )
+      `;
+
+      db.exec(reqQuery);
+    }
+
+    await saveDatabaseToOPFS(db.export());
+    console.log(
+      `[Runner] Created runner: ${definition.name} with ${requests.length} requests`
+    );
+
+    return { success: true, runnerId: definition.id };
+  } catch (error) {
+    console.error("[Runner] Failed to create runner:", error);
+    throw new DatabaseError(`Failed to create runner: ${error.message}`);
+  }
+}
+
+/**
+ * Get runner definition by ID
+ */
+async function getRunnerDefinition(runnerId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      SELECT * FROM config_runner_definitions
+      WHERE id = ${escapeStr(runnerId)}
+    `;
+
+    const result = db.exec(query);
+    if (
+      !result ||
+      result.length === 0 ||
+      !result[0].values ||
+      result[0].values.length === 0
+    ) {
+      return null;
+    }
+
+    const columns = result[0].columns;
+    const values = result[0].values[0];
+    const runner = {};
+
+    columns.forEach((col, idx) => {
+      runner[col] = values[idx];
+    });
+
+    return runner;
+  } catch (error) {
+    console.error("[Runner] Failed to get runner definition:", error);
+    throw new DatabaseError(`Failed to get runner: ${error.message}`);
+  }
+}
+
+/**
+ * Get all requests for a runner
+ */
+async function getRunnerRequests(runnerId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      SELECT * FROM config_runner_requests
+      WHERE runner_id = ${escapeStr(runnerId)}
+      ORDER BY sequence_order ASC
+    `;
+
+    const result = db.exec(query);
+    if (!result || result.length === 0 || !result[0].values) {
+      return [];
+    }
+
+    const columns = result[0].columns;
+    const requests = result[0].values.map((values) => {
+      const req = {};
+      columns.forEach((col, idx) => {
+        req[col] = values[idx];
+      });
+      return req;
+    });
+
+    return requests;
+  } catch (error) {
+    console.error("[Runner] Failed to get runner requests:", error);
+    throw new DatabaseError(`Failed to get runner requests: ${error.message}`);
+  }
+}
+
+/**
+ * Create a new runner execution record
+ */
+async function createRunnerExecution(execution) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      INSERT INTO bronze_runner_executions (
+        id, runner_id, runner_name, status, execution_mode,
+        start_time, total_requests, completed_requests,
+        success_count, failure_count, created_at
+      ) VALUES (
+        ${escapeStr(execution.id)},
+        ${escapeStr(execution.runner_id)},
+        ${escapeStr(execution.runner_name)},
+        ${escapeStr(execution.status)},
+        ${escapeStr(execution.execution_mode)},
+        ${execution.start_time},
+        ${execution.total_requests},
+        0,
+        0,
+        0,
+        ${execution.created_at}
+      )
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[Runner] Created execution: ${execution.id}`);
+    return { success: true };
+  } catch (error) {
+    console.error("[Runner] Failed to create execution:", error);
+    throw new DatabaseError(`Failed to create execution: ${error.message}`);
+  }
+}
+
+/**
+ * Create a runner execution result
+ */
+async function createRunnerExecutionResult(result) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      INSERT INTO bronze_runner_execution_results (
+        execution_id, runner_request_id, logged_request_id,
+        sequence_order, url, method, status, duration,
+        success, assertion_results, validation_errors,
+        error_message, timestamp
+      ) VALUES (
+        ${escapeStr(result.execution_id)},
+        ${escapeStr(result.runner_request_id)},
+        ${escapeStr(result.logged_request_id)},
+        ${result.sequence_order},
+        ${escapeStr(result.url)},
+        ${escapeStr(result.method)},
+        ${result.status || 0},
+        ${result.duration || 0},
+        ${result.success ? 1 : 0},
+        ${escapeStr(result.assertion_results)},
+        ${escapeStr(result.validation_errors)},
+        ${escapeStr(result.error_message)},
+        ${result.timestamp}
+      )
+    `;
+
+    db.exec(query);
+    return { success: true };
+  } catch (error) {
+    console.error("[Runner] Failed to create execution result:", error);
+    throw new DatabaseError(
+      `Failed to create execution result: ${error.message}`
+    );
+  }
+}
+
+/**
+ * Update runner execution status and stats
+ */
+async function updateRunnerExecution(executionId, updates) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const sets = [];
+
+    if (updates.status) sets.push(`status = ${escapeStr(updates.status)}`);
+    if (updates.end_time) sets.push(`end_time = ${updates.end_time}`);
+    if (updates.duration) sets.push(`duration = ${updates.duration}`);
+    if (updates.completed_requests !== undefined)
+      sets.push(`completed_requests = ${updates.completed_requests}`);
+    if (updates.success_count !== undefined)
+      sets.push(`success_count = ${updates.success_count}`);
+    if (updates.failure_count !== undefined)
+      sets.push(`failure_count = ${updates.failure_count}`);
+    if (updates.error_message)
+      sets.push(`error_message = ${escapeStr(updates.error_message)}`);
+    if (updates.metadata)
+      sets.push(`metadata = ${escapeStr(updates.metadata)}`);
+
+    if (sets.length === 0) return { success: true };
+
+    const query = `
+      UPDATE bronze_runner_executions
+      SET ${sets.join(", ")}
+      WHERE id = ${escapeStr(executionId)}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    return { success: true };
+  } catch (error) {
+    console.error("[Runner] Failed to update execution:", error);
+    throw new DatabaseError(`Failed to update execution: ${error.message}`);
+  }
+}
+
+/**
+ * Update runner definition
+ */
+async function updateRunnerDefinition(runnerId, updates) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const sets = [];
+
+    if (updates.name) sets.push(`name = ${escapeStr(updates.name)}`);
+    if (updates.description !== undefined)
+      sets.push(`description = ${escapeStr(updates.description)}`);
+    if (updates.is_temporary !== undefined)
+      sets.push(`is_temporary = ${updates.is_temporary ? 1 : 0}`);
+    if (updates.collection_id)
+      sets.push(`collection_id = ${escapeStr(updates.collection_id)}`);
+    if (updates.last_run_at) sets.push(`last_run_at = ${updates.last_run_at}`);
+    if (updates.run_count !== undefined)
+      sets.push(`run_count = ${updates.run_count}`);
+
+    sets.push(`updated_at = ${Date.now()}`);
+
+    const query = `
+      UPDATE config_runner_definitions
+      SET ${sets.join(", ")}
+      WHERE id = ${escapeStr(runnerId)}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    return { success: true };
+  } catch (error) {
+    console.error("[Runner] Failed to update runner definition:", error);
+    throw new DatabaseError(`Failed to update runner: ${error.message}`);
+  }
+}
+
+/**
+ * Check if runner tables exist and create them if missing
+ */
+async function ensureRunnerTablesExist() {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    // Check if config_runner_definitions exists
+    const checkQuery = `
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='config_runner_definitions'
+    `;
+    const result = db.exec(checkQuery);
+
+    if (
+      !result ||
+      result.length === 0 ||
+      !result[0].values ||
+      result[0].values.length === 0
+    ) {
+      console.log("[Runner] Runner tables missing, creating them now...");
+
+      // Create runner tables
+      await createMedallionSchema(db);
+      await saveDatabaseToOPFS(db.export());
+
+      console.log("[Runner] Runner tables created successfully");
+    }
+  } catch (error) {
+    console.error("[Runner] Failed to ensure runner tables:", error);
+    throw new DatabaseError(`Failed to create runner tables: ${error.message}`);
+  }
+}
+
+/**
+ * Get all runners (including temporary ones < 7 days old)
+ */
+async function getAllRunners() {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    // Ensure tables exist first
+    await ensureRunnerTablesExist();
+
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const query = `
+      SELECT
+        rd.*,
+        COUNT(DISTINCT re.id) as execution_count,
+        MAX(re.start_time) as last_execution_time
+      FROM config_runner_definitions rd
+      LEFT JOIN bronze_runner_executions re ON rd.id = re.runner_id
+      WHERE
+        rd.is_temporary = 0
+        OR rd.created_at > ${sevenDaysAgo}
+      GROUP BY rd.id
+      ORDER BY rd.last_run_at DESC, rd.created_at DESC
+    `;
+
+    const result = db.exec(query);
+    if (!result || result.length === 0 || !result[0].values) {
+      return [];
+    }
+
+    const columns = result[0].columns;
+    const runners = result[0].values.map((values) => {
+      const runner = {};
+      columns.forEach((col, idx) => {
+        runner[col] = values[idx];
+      });
+      return runner;
+    });
+
+    return runners;
+  } catch (error) {
+    console.error("[Runner] Failed to get all runners:", error);
+    throw new DatabaseError(`Failed to get runners: ${error.message}`);
+  }
+}
+
+/**
+ * Get execution history for a runner
+ */
+async function getRunnerExecutions(runnerId, limit = 50) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      SELECT
+        re.*,
+        COUNT(rer.id) as result_count
+      FROM bronze_runner_executions re
+      LEFT JOIN bronze_runner_execution_results rer ON re.id = rer.execution_id
+      WHERE re.runner_id = ${escapeStr(runnerId)}
+      GROUP BY re.id
+      ORDER BY re.start_time DESC
+      LIMIT ${limit}
+    `;
+
+    const result = db.exec(query);
+    if (!result || result.length === 0 || !result[0].values) {
+      return [];
+    }
+
+    const columns = result[0].columns;
+    const executions = result[0].values.map((values) => {
+      const exec = {};
+      columns.forEach((col, idx) => {
+        exec[col] = values[idx];
+      });
+      return exec;
+    });
+
+    return executions;
+  } catch (error) {
+    console.error("[Runner] Failed to get runner executions:", error);
+    throw new DatabaseError(`Failed to get executions: ${error.message}`);
+  }
+}
+
+/**
+ * Get detailed results for a specific execution
+ */
+async function getExecutionResults(executionId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      SELECT
+        rer.*,
+        br.status as http_status,
+        br.duration as actual_duration,
+        br.size_bytes,
+        br.domain,
+        br.page_url
+      FROM bronze_runner_execution_results rer
+      LEFT JOIN bronze_requests br ON rer.logged_request_id = br.id
+      WHERE rer.execution_id = ${escapeStr(executionId)}
+      ORDER BY rer.sequence_order
+    `;
+
+    const result = db.exec(query);
+    if (!result || result.length === 0 || !result[0].values) {
+      return [];
+    }
+
+    const columns = result[0].columns;
+    const results = result[0].values.map((values) => {
+      const res = {};
+      columns.forEach((col, idx) => {
+        res[col] = values[idx];
+      });
+      return res;
+    });
+
+    return results;
+  } catch (error) {
+    console.error("[Runner] Failed to get execution results:", error);
+    throw new DatabaseError(
+      `Failed to get execution results: ${error.message}`
+    );
+  }
+}
+
+/**
+ * Cleanup old temporary runners (older than specified days)
+ */
+async function cleanupTemporaryRunners(daysOld = 7) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const cutoffTime = Date.now() - daysOld * 24 * 60 * 60 * 1000;
+
+    const query = `
+      DELETE FROM config_runner_definitions
+      WHERE is_temporary = 1
+        AND created_at < ${cutoffTime}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(
+      `[Runner] Cleaned up temporary runners older than ${daysOld} days`
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("[Runner] Failed to cleanup temporary runners:", error);
+    throw new DatabaseError(`Failed to cleanup runners: ${error.message}`);
+  }
+}
+
+/**
+ * Delete a runner and all its related data (CASCADE)
+ */
+async function deleteRunner(runnerId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    // Delete runner definition (CASCADE will delete related tables)
+    const query = `
+      DELETE FROM config_runner_definitions
+      WHERE id = ${escapeStr(runnerId)}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[Runner] Deleted runner: ${runnerId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("[Runner] Failed to delete runner:", error);
+    throw new DatabaseError(`Failed to delete runner: ${error.message}`);
+  }
+}
+
+/**
  * Class wrapper for backward compatibility
  */
 export class DatabaseManagerMedallion {
@@ -888,6 +1432,12 @@ export class DatabaseManagerMedallion {
 
   get isReady() {
     return this.initialized && this.dbApi !== null && db !== null;
+  }
+
+  // Runner operations proxy
+  get runner() {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    return this.dbApi.runner;
   }
 
   async cleanup() {

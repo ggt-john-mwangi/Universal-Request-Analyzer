@@ -216,6 +216,47 @@ async function handleMessage(message, sender) {
       case "deleteRunnerAlert":
         return await handleDeleteRunnerAlert(message.alertId);
 
+      // Runner Database Operations (Unified Architecture)
+      case "createRunner":
+        return await handleCreateRunner(message.definition, message.requests);
+
+      case "getRunnerDefinition":
+        return await handleGetRunnerDefinition(message.runnerId);
+
+      case "getAllRunners":
+        return await handleGetAllRunners();
+
+      case "ensureRunnerTables":
+        return await handleEnsureRunnerTables();
+
+      case "runRunner":
+        return await handleRunRunner(message.runnerId);
+
+      case "getRunnerHistory":
+        return await handleGetRunnerHistory(message.runnerId, message.limit);
+
+      case "getExecutionResults":
+        return await handleGetExecutionResults(message.executionId);
+
+      case "convertToSavedRunner":
+        return await handleConvertToSavedRunner(message.runnerId);
+
+      case "updateRunnerMetadata":
+        return await handleUpdateRunnerMetadata(
+          message.runnerId,
+          message.name,
+          message.description
+        );
+
+      case "cleanupTemporaryRunners":
+        return await handleCleanupTemporaryRunners(message.daysOld);
+
+      case "deleteRunner":
+        return await handleDeleteRunner(message.runnerId);
+
+      case "getRequestsByFilters":
+        return await handleGetRequestsByFilters(message.filters);
+
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -3894,5 +3935,439 @@ async function handleDeleteRunnerAlert(alertId) {
   } catch (error) {
     console.error("Delete runner alert error:", error);
     return { success: false, error: error.message };
+  }
+}
+
+// ============================================================
+// RUNNER DATABASE OPERATIONS (Unified Architecture)
+// ============================================================
+
+/**
+ * Create a new runner definition with requests
+ */
+async function handleCreateRunner(definition, requests) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const runnerId = await dbManager.runner.createRunner(definition, requests);
+
+    return {
+      success: true,
+      runnerId,
+    };
+  } catch (error) {
+    console.error("Create runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get runner definition by ID
+ */
+async function handleGetRunnerDefinition(runnerId) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const runner = await dbManager.runner.getRunnerDefinition(runnerId);
+
+    if (!runner) {
+      return { success: false, error: "Runner not found" };
+    }
+
+    return {
+      success: true,
+      runner,
+    };
+  } catch (error) {
+    console.error("Get runner definition error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all runners (permanent + recent temporary)
+ */
+async function handleGetAllRunners() {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const runners = await dbManager.runner.getAllRunners();
+
+    return {
+      success: true,
+      runners,
+    };
+  } catch (error) {
+    console.error("Get all runners error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Run a runner by ID (loads from database and executes)
+ */
+async function handleRunRunner(runnerId) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    // Use request-runner to execute by ID
+    const result = await requestRunner.runRunner(runnerId, (progress) => {
+      // Progress updates available via getRunnerProgress
+    });
+
+    return {
+      success: true,
+      executionId: result.id,
+      status: result.status,
+    };
+  } catch (error) {
+    console.error("Run runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get execution history for a runner
+ */
+async function handleGetRunnerHistory(runnerId, limit = 10) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const executions = await dbManager.runner.getRunnerExecutions(
+      runnerId,
+      limit
+    );
+
+    return {
+      success: true,
+      executions,
+    };
+  } catch (error) {
+    console.error("Get runner history error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get detailed results for an execution
+ */
+async function handleGetExecutionResults(executionId) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const results = await dbManager.runner.getExecutionResults(executionId);
+
+    return {
+      success: true,
+      results,
+    };
+  } catch (error) {
+    console.error("Get execution results error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Convert a temporary runner to a saved runner
+ */
+async function handleConvertToSavedRunner(runnerId) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    await dbManager.runner.updateRunnerDefinition(runnerId, {
+      is_temporary: false,
+    });
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Convert to saved runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update runner name and description
+ */
+async function handleUpdateRunnerMetadata(runnerId, name, description) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+
+    await dbManager.runner.updateRunnerDefinition(runnerId, updates);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Update runner metadata error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Clean up old temporary runners
+ */
+async function handleCleanupTemporaryRunners(daysOld = 7) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const count = await dbManager.runner.cleanupTemporaryRunners(daysOld);
+
+    return {
+      success: true,
+      deletedCount: count,
+    };
+  } catch (error) {
+    console.error("Cleanup temporary runners error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete a runner definition and all its executions
+ */
+async function handleDeleteRunner(runnerId) {
+  try {
+    if (!dbManager || !dbManager.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    // Delete runner and cascade to related tables
+    await dbManager.runner.deleteRunner(runnerId);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Delete runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Ensure runner tables exist (manual trigger)
+ */
+async function handleEnsureRunnerTables() {
+  try {
+    if (!dbManager || !dbManager.executeQuery) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    // Try to query runner tables to see if they exist
+    try {
+      dbManager.executeQuery("SELECT COUNT(*) FROM config_runner_definitions");
+      return { success: true, message: "Runner tables already exist" };
+    } catch (e) {
+      // Tables don't exist, create them
+      console.log("[Runners] Creating runner tables manually...");
+
+      // Create runner tables
+      const createQueries = [
+        `CREATE TABLE IF NOT EXISTS config_runner_definitions (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          is_temporary BOOLEAN DEFAULT 0,
+          execution_mode TEXT NOT NULL CHECK(execution_mode IN ('sequential', 'parallel')),
+          delay_ms INTEGER DEFAULT 0,
+          follow_redirects BOOLEAN DEFAULT 1,
+          validate_status BOOLEAN DEFAULT 0,
+          use_variables BOOLEAN DEFAULT 1,
+          header_overrides TEXT,
+          collection_id TEXT,
+          run_count INTEGER DEFAULT 0,
+          last_run_at INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_runner_definitions_temporary ON config_runner_definitions(is_temporary, created_at)`,
+        `CREATE TABLE IF NOT EXISTS config_runner_requests (
+          id TEXT PRIMARY KEY,
+          runner_id TEXT NOT NULL,
+          sequence_order INTEGER NOT NULL,
+          url TEXT NOT NULL,
+          method TEXT NOT NULL DEFAULT 'GET',
+          headers TEXT,
+          body TEXT,
+          domain TEXT NOT NULL,
+          page_url TEXT NOT NULL,
+          captured_request_id TEXT,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE,
+          UNIQUE(runner_id, sequence_order)
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_runner_requests_runner ON config_runner_requests(runner_id, sequence_order)`,
+        `CREATE TABLE IF NOT EXISTS bronze_runner_executions (
+          id TEXT PRIMARY KEY,
+          runner_id TEXT NOT NULL,
+          runner_name TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+          execution_mode TEXT NOT NULL,
+          start_time INTEGER NOT NULL,
+          end_time INTEGER,
+          duration INTEGER,
+          total_requests INTEGER NOT NULL,
+          completed_requests INTEGER DEFAULT 0,
+          success_count INTEGER DEFAULT 0,
+          failure_count INTEGER DEFAULT 0,
+          error_message TEXT,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_runner_executions_runner ON bronze_runner_executions(runner_id, start_time DESC)`,
+        `CREATE TABLE IF NOT EXISTS bronze_runner_execution_results (
+          id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          runner_request_id TEXT NOT NULL,
+          logged_request_id TEXT,
+          status INTEGER,
+          duration INTEGER,
+          success BOOLEAN NOT NULL,
+          error_message TEXT,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY(execution_id) REFERENCES bronze_runner_executions(id) ON DELETE CASCADE,
+          FOREIGN KEY(runner_request_id) REFERENCES config_runner_requests(id) ON DELETE CASCADE,
+          FOREIGN KEY(logged_request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_runner_results_execution ON bronze_runner_execution_results(execution_id)`,
+      ];
+
+      for (const query of createQueries) {
+        dbManager.executeQuery(query);
+      }
+
+      // Save to OPFS
+      if (dbManager.saveDatabase) {
+        await dbManager.saveDatabase();
+      }
+
+      console.log("[Runners] ✓ Runner tables created successfully");
+      return { success: true, message: "Runner tables created" };
+    }
+  } catch (error) {
+    console.error("Ensure runner tables error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get distinct domains from bronze_requests
+ * Note: Prefer using getDomains with timeRange for better performance
+ */
+async function handleGetDistinctDomains() {
+  try {
+    if (!dbManager || !dbManager.executeQuery) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const query = `
+      SELECT DISTINCT domain, COUNT(*) as request_count
+      FROM bronze_requests 
+      WHERE domain IS NOT NULL AND domain != ''
+      GROUP BY domain
+      ORDER BY request_count DESC
+    `;
+
+    const result = dbManager.executeQuery(query);
+    let domains = [];
+
+    if (result && result[0]?.values) {
+      domains = result[0].values.map((row) => ({
+        domain: row[0],
+        requestCount: row[1],
+      }));
+    }
+
+    return { success: true, domains: domains };
+  } catch (error) {
+    console.error("Get distinct domains error:", error);
+    return { success: false, error: error.message, domains: [] };
+  }
+}
+
+/**
+ * Get requests filtered by domain, page, and type
+ */
+async function handleGetRequestsByFilters(filters) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const { domain, pageUrl, type } = filters;
+
+    if (!domain) {
+      return { success: false, error: "Domain is required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    // Add time filter to get recent requests (last 7 days)
+    const timeRangeMs = 7 * 24 * 60 * 60 * 1000;
+    const startTime = Date.now() - timeRangeMs;
+
+    let query = `
+      SELECT id, url, method, type, timestamp, status, duration, page_url
+      FROM bronze_requests 
+      WHERE domain = ${escapeStr(domain)}
+        AND timestamp > ${startTime}
+    `;
+
+    if (pageUrl) {
+      query += ` AND page_url = ${escapeStr(pageUrl)}`;
+    }
+
+    if (type) {
+      query += ` AND type = ${escapeStr(type)}`;
+    }
+
+    query += ` ORDER BY timestamp DESC LIMIT 500`;
+
+    // Execute query and parse SQL.js result format
+    const result = dbManager.db.exec(query);
+    let requests = [];
+
+    if (result && result[0]?.values) {
+      // Map SQL.js result format to objects
+      const columns = result[0].columns;
+      requests = result[0].values.map((row) => {
+        const obj = {};
+        columns.forEach((col, idx) => {
+          obj[col] = row[idx];
+        });
+        return obj;
+      });
+    }
+
+    return { success: true, requests: requests };
+  } catch (error) {
+    console.error("Get requests by filters error:", error);
+    return { success: false, error: error.message, requests: [] };
   }
 }

@@ -225,3 +225,28 @@ a:hover {
 h3 {
   line-height: 1.6;
 }
+/* Mermaid diagram styling */
+.mermaid {
+  background-color: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 20px;
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+/* Dark mode support for mermaid */
+@media (prefers-color-scheme: dark) {
+  .mermaid {
+    background-color: #0d1117;
+    border-color: #30363d;
+  }
+}
+
+/* Center mermaid diagrams */
+.mermaid svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}

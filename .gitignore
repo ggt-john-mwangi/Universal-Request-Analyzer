@@ -35,3 +35,6 @@ yarn-error.log*
 *.tmp
 *.temp
 
+# Confidential documents (kept locally only)
+.CONFIDENTIAL_*
+**/ADOPTION_ANALYSIS*.md

@@ -281,7 +281,6 @@ Fully compatible with:
 - **[User Guide](docs/USER_GUIDE.md)** - Comprehensive guide for all features
 - **[Development Guide](docs/DEVELOPMENT.md)** - Setup, building, testing, contributing
 - **[Architecture](docs/ARCHITECTURE.md)** - Technical architecture and design
-- **[Adoption Analysis](docs/ADOPTION_ANALYSIS.md)** - Market analysis and roadmap
 
 ## Development
 
