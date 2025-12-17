@@ -32,6 +32,55 @@ export class DevToolsPanel {
     this.startMetricsCollection();
   }
 
+  setupQuickFilterChips() {
+    const filterChips = document.querySelectorAll(".filter-chip");
+    filterChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const filterType = chip.dataset.filter;
+        this.applyQuickFilter(filterType);
+
+        // Update active state
+        filterChips.forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+      });
+    });
+  }
+
+  applyQuickFilter(filterType) {
+    console.log("Applying quick filter:", filterType);
+
+    const requestTypeFilter = document.getElementById("requestTypeFilter");
+    const statusFilter = document.getElementById("statusFilter");
+
+    // Reset filters first
+    if (requestTypeFilter) requestTypeFilter.value = "";
+    if (statusFilter) statusFilter.value = "";
+
+    // Apply filter based on type
+    if (filterType === "all") {
+      // Clear all filters
+    } else if (filterType === "2xx") {
+      if (statusFilter) statusFilter.value = "200";
+    } else if (filterType === "4xx") {
+      if (statusFilter) statusFilter.value = "4xx";
+    } else if (filterType === "5xx") {
+      if (statusFilter) statusFilter.value = "5xx";
+    } else if (filterType === "xhr") {
+      if (requestTypeFilter) requestTypeFilter.value = "xmlhttprequest";
+    } else if (filterType === "fetch") {
+      if (requestTypeFilter) requestTypeFilter.value = "fetch";
+    } else if (filterType === "js") {
+      if (requestTypeFilter) requestTypeFilter.value = "script";
+    } else if (filterType === "css") {
+      if (requestTypeFilter) requestTypeFilter.value = "stylesheet";
+    } else if (filterType === "img") {
+      if (requestTypeFilter) requestTypeFilter.value = "image";
+    }
+
+    // Refresh metrics with new filters
+    this.refreshMetrics();
+  }
+
   setupUI() {
     const container = document.getElementById("panel-container");
     container.innerHTML = `
@@ -103,6 +152,39 @@ export class DevToolsPanel {
               <i class="fas fa-pause"></i> Pause
             </button>
           </div>
+        </div>
+        
+        <!-- Quick Filter Chips -->
+        <div class="quick-filters">
+          <div class="filter-group-label">Status:</div>
+          <button class="filter-chip active" data-filter="all" data-filter-type="all">
+            <i class="fas fa-globe"></i> All
+          </button>
+          <button class="filter-chip" data-filter="2xx" data-filter-type="status">
+            <i class="fas fa-check-circle"></i> 2xx
+          </button>
+          <button class="filter-chip" data-filter="4xx" data-filter-type="status">
+            <i class="fas fa-exclamation-triangle"></i> 4xx
+          </button>
+          <button class="filter-chip" data-filter="5xx" data-filter-type="status">
+            <i class="fas fa-times-circle"></i> 5xx
+          </button>
+          <div class="filter-group-label">Type:</div>
+          <button class="filter-chip" data-filter="xhr" data-filter-type="type">
+            <i class="fas fa-exchange-alt"></i> XHR
+          </button>
+          <button class="filter-chip" data-filter="fetch" data-filter-type="type">
+            <i class="fas fa-satellite-dish"></i> Fetch
+          </button>
+          <button class="filter-chip" data-filter="js" data-filter-type="type">
+            <i class="fab fa-js-square"></i> JS
+          </button>
+          <button class="filter-chip" data-filter="css" data-filter-type="type">
+            <i class="fab fa-css3-alt"></i> CSS
+          </button>
+          <button class="filter-chip" data-filter="img" data-filter-type="type">
+            <i class="fas fa-image"></i> IMG
+          </button>
         </div>
         
         <!-- Active Filters Display -->
@@ -485,7 +567,59 @@ export class DevToolsPanel {
     `;
   }
 
+  setupQuickFilterChips() {
+    const filterChips = document.querySelectorAll(".filter-chip");
+    filterChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const filterType = chip.dataset.filter;
+        this.applyQuickFilter(filterType);
+
+        // Update active state
+        filterChips.forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+      });
+    });
+  }
+
+  applyQuickFilter(filterType) {
+    console.log("Applying quick filter:", filterType);
+
+    const requestTypeFilter = document.getElementById("requestTypeFilter");
+    const statusFilter = document.getElementById("statusFilter");
+
+    // Reset filters first
+    if (requestTypeFilter) requestTypeFilter.value = "";
+    if (statusFilter) statusFilter.value = "";
+
+    // Apply filter based on type
+    if (filterType === "all") {
+      // Clear all filters - already done above
+    } else if (filterType === "2xx") {
+      if (statusFilter) statusFilter.value = "200";
+    } else if (filterType === "4xx") {
+      if (statusFilter) statusFilter.value = "4xx";
+    } else if (filterType === "5xx") {
+      if (statusFilter) statusFilter.value = "5xx";
+    } else if (filterType === "xhr") {
+      if (requestTypeFilter) requestTypeFilter.value = "xmlhttprequest";
+    } else if (filterType === "fetch") {
+      if (requestTypeFilter) requestTypeFilter.value = "fetch";
+    } else if (filterType === "js") {
+      if (requestTypeFilter) requestTypeFilter.value = "script";
+    } else if (filterType === "css") {
+      if (requestTypeFilter) requestTypeFilter.value = "stylesheet";
+    } else if (filterType === "img") {
+      if (requestTypeFilter) requestTypeFilter.value = "image";
+    }
+
+    // Refresh metrics with new filters
+    this.refreshMetrics();
+  }
+
   setupEventListeners() {
+    // Quick filter chips
+    this.setupQuickFilterChips();
+
     // Filter controls
     const pageFilter = document.getElementById("pageFilter");
     const timeRange = document.getElementById("timeRange");
@@ -1657,12 +1791,18 @@ export class DevToolsPanel {
   // Fetch headers for a request from database
   async getRequestHeaders(requestId) {
     try {
+      // Escape requestId to prevent SQL injection
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
       const response = await chrome.runtime.sendMessage({
         action: "executeDirectQuery",
         query: `
           SELECT name, value
           FROM bronze_request_headers
-          WHERE request_id = '${requestId}' AND header_type = 'request'
+          WHERE request_id = ${escapeStr(requestId)} AND header_type = 'request'
           ORDER BY name
         `,
       });
@@ -1677,13 +1817,46 @@ export class DevToolsPanel {
     }
   }
 
+  // Fetch request body from database
+  async getRequestBody(requestId) {
+    try {
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT request_body
+          FROM bronze_requests
+          WHERE id = ${escapeStr(requestId)}
+        `,
+      });
+
+      if (
+        response &&
+        response.success &&
+        response.data &&
+        response.data.length > 0
+      ) {
+        return response.data[0].request_body;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching request body:", error);
+      return null;
+    }
+  }
+
   // Copy request as Fetch API call
   async copyAsFetch(request) {
     try {
-      // Fetch headers from database
+      // Fetch headers and body from database
       const headers = await this.getRequestHeaders(request.id);
+      const requestBody = await this.getRequestBody(request.id);
 
-      const fetchCode = this.generateFetchCode(request, headers);
+      const fetchCode = this.generateFetchCode(request, headers, requestBody);
 
       // Use textarea fallback method (Clipboard API is blocked in extension contexts)
       this.copyToClipboardFallback(
@@ -1697,43 +1870,113 @@ export class DevToolsPanel {
   }
 
   // Generate Fetch API code
-  generateFetchCode(request, headers = []) {
+  generateFetchCode(request, headers = [], requestBody = null) {
     const options = {
       method: request.method || "GET",
     };
+
+    let hasCookies = false;
 
     // Add headers
     if (headers && headers.length > 0) {
       options.headers = {};
       headers.forEach((header) => {
         const name = header.name.toLowerCase();
-        // Skip some headers that fetch sets automatically
+
+        // Track cookies for credentials option
+        if (name === "cookie") {
+          hasCookies = true;
+        }
+
+        // Skip some headers that fetch sets automatically or handles differently
         if (
-          !["host", "connection", "content-length", "user-agent"].includes(name)
+          ![
+            "host",
+            "connection",
+            "content-length",
+            "user-agent",
+            "cookie",
+          ].includes(name)
         ) {
           options.headers[header.name] = header.value;
         }
       });
     }
 
-    // Note: Body data would need to be captured separately
-    // For now, just add a comment
-    const hasBody = request.method && !["GET", "HEAD"].includes(request.method);
+    // Add credentials if cookies present
+    if (hasCookies) {
+      options.credentials = "include";
+    }
 
-    let code = `fetch('${request.url}'`;
-
+    // Add request body for POST/PUT/PATCH/DELETE
     if (
-      Object.keys(options.headers || {}).length > 0 ||
-      options.method !== "GET"
+      requestBody &&
+      request.method &&
+      !["GET", "HEAD"].includes(request.method)
     ) {
-      code += `, ${JSON.stringify(options, null, 2)}`;
+      try {
+        const bodyObj = JSON.parse(requestBody);
+
+        if (bodyObj.formData) {
+          // FormData - will be formatted separately
+          options.body = "formData";
+          options._formDataParts = [];
+          for (const [key, values] of Object.entries(bodyObj.formData)) {
+            values.forEach((value) => {
+              options._formDataParts.push(
+                `  formData.append('${key}', '${value}');`
+              );
+            });
+          }
+        } else if (bodyObj.raw) {
+          options.body = "'<binary data>'";
+        } else {
+          options.body = JSON.stringify(bodyObj);
+        }
+      } catch (e) {
+        options.body = requestBody;
+      }
     }
 
-    code += `)\n  .then(response => response.json())\n  .then(data => console.log(data))\n  .catch(error => console.error('Error:', error));`;
+    // Format the code
+    let code = "";
 
-    if (hasBody) {
-      code = `// Note: Request body not captured\n` + code;
+    // Handle FormData separately
+    if (options._formDataParts) {
+      code += "const formData = new FormData();\n";
+      code += options._formDataParts.join("\n") + "\n\n";
+      delete options._formDataParts;
+      delete options.body;
+      code += `fetch('${request.url}', ${JSON.stringify(
+        { ...options, body: "formData" },
+        null,
+        2
+      ).replace(/"formData"/, "formData")})`;
+    } else {
+      code += `fetch('${request.url}'`;
+
+      if (
+        Object.keys(options.headers || {}).length > 0 ||
+        options.method !== "GET" ||
+        options.body ||
+        options.credentials
+      ) {
+        code += `, ${JSON.stringify(options, null, 2)}`;
+      }
+
+      code += ")";
     }
+
+    // Add flexible response handling
+    code += `\n  .then(response => {\n`;
+    code += `    if (!response.ok) throw new Error(\`HTTP error! status: \${response.status}\`)  ;\n`;
+    code += `    const contentType = response.headers.get('content-type');\n`;
+    code += `    if (contentType && contentType.includes('application/json')) return response.json();\n`;
+    code += `    if (contentType && (contentType.includes('image/') || contentType.includes('video/'))) return response.blob();\n`;
+    code += `    return response.text();\n`;
+    code += `  })\n`;
+    code += `  .then(data => console.log(data))\n`;
+    code += `  .catch(error => console.error('Error:', error));`;
 
     return code;
   }

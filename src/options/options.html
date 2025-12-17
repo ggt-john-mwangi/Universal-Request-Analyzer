@@ -53,6 +53,10 @@
             <i class="fas fa-palette"></i>
             <span>Themes</span>
           </button>
+          <button class="nav-item" data-tab="variables">
+            <i class="fas fa-dollar-sign"></i>
+            <span>Variables</span>
+          </button>
           <button class="nav-item" data-tab="advanced">
             <i class="fas fa-code"></i>
             <span>Advanced</span>
@@ -110,10 +114,13 @@
                     <span>Auto-refresh</span>
                   </label>
                   <select id="dashboardTimeRange">
-                    <option value="3600">Last Hour</option>
-                    <option value="21600">Last 6 Hours</option>
-                    <option value="86400" selected>Last 24 Hours</option>
-                    <option value="604800">Last 7 Days</option>
+                    <option value="1800">Last 30 minutes</option>
+                    <option value="3600">Last 1 hour</option>
+                    <option value="21600">Last 6 hours</option>
+                    <option value="86400" selected>Last 24 hours</option>
+                    <option value="604800">Last 7 days</option>
+                    <option value="2592000">Last 30 days</option>
+                    <option value="7776000">Last 3 months</option>
                   </select>
                   <button id="dashboardRefresh" class="btn-primary">
                     <i class="fas fa-sync-alt"></i> Refresh
@@ -413,7 +420,9 @@
                       </div>
 
                       <div class="chart-section half">
-                        <h3><i class="fas fa-chart-bar"></i> Top Domains</h3>
+                        <h3 id="dashboardDomainsChartLabel">
+                          <i class="fas fa-chart-bar"></i> Top Domains
+                        </h3>
                         <canvas id="dashboardDomainsChart"></canvas>
                       </div>
                     </div>
@@ -492,6 +501,54 @@
                       </select>
                     </div>
 
+                    <!-- Request Runner Controls -->
+                    <div
+                      id="runnerControls"
+                      style="
+                        display: none;
+                        margin: 16px 0;
+                        padding: 12px;
+                        background: var(--surface-color);
+                        border: 1px solid var(--border-color);
+                        border-radius: 8px;
+                      "
+                    >
+                      <div
+                        style="
+                          display: flex;
+                          align-items: center;
+                          gap: 12px;
+                          flex-wrap: wrap;
+                        "
+                      >
+                        <span style="font-weight: 600"
+                          ><span id="selectedRequestsCount">0</span>
+                          selected</span
+                        >
+                        <button
+                          id="btnRunSelectedRequests"
+                          class="btn-primary"
+                          style="margin: 0"
+                        >
+                          <i class="fas fa-play"></i> Run Selected
+                        </button>
+                        <button
+                          id="btnClearSelection"
+                          class="btn-secondary"
+                          style="margin: 0"
+                        >
+                          <i class="fas fa-times"></i> Clear Selection
+                        </button>
+                        <button
+                          id="btnRunnerHistory"
+                          class="btn-secondary"
+                          style="margin: 0"
+                        >
+                          <i class="fas fa-history"></i> History
+                        </button>
+                      </div>
+                    </div>
+
                     <div
                       class="requests-table-container"
                       style="overflow-x: auto"
@@ -503,6 +560,13 @@
                       >
                         <thead>
                           <tr>
+                            <th style="width: 40px">
+                              <input
+                                type="checkbox"
+                                id="selectAllRequests"
+                                title="Select all"
+                              />
+                            </th>
                             <th>Method</th>
                             <th>URL</th>
                             <th>Status</th>
@@ -584,19 +648,54 @@
                     <div
                       class="history-controls"
                       style="
-                        display: flex;
-                        gap: 12px;
-                        margin-bottom: 16px;
-                        flex-wrap: wrap;
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 16px;
+                        margin-bottom: 20px;
                       "
                     >
+                      <!-- Row 1: Time Controls -->
                       <div class="filter-group">
                         <label
-                          ><i class="fas fa-filter"></i> Type Filter:</label
+                          style="
+                            display: block;
+                            margin-bottom: 6px;
+                            font-weight: 500;
+                            font-size: 13px;
+                          "
                         >
+                          <i class="fas fa-clock"></i> Time Range
+                        </label>
+                        <select
+                          id="dashboardEndpointTimeRange"
+                          class="filter-select"
+                          style="width: 100%"
+                        >
+                          <option value="30">Last 30 minutes</option>
+                          <option value="60">Last 1 hour</option>
+                          <option value="360">Last 6 hours</option>
+                          <option value="1440" selected>Last 24 hours</option>
+                          <option value="10080">Last 7 days</option>
+                          <option value="43200">Last 30 days</option>
+                          <option value="129600">Last 3 months</option>
+                        </select>
+                      </div>
+
+                      <div class="filter-group">
+                        <label
+                          style="
+                            display: block;
+                            margin-bottom: 6px;
+                            font-weight: 500;
+                            font-size: 13px;
+                          "
+                        >
+                          <i class="fas fa-filter"></i> Resource Type
+                        </label>
                         <select
                           id="dashboardEndpointTypeFilter"
                           class="filter-select"
+                          style="width: 100%"
                         >
                           <option value="">All Types</option>
                           <option value="fetch">Fetch</option>
@@ -610,39 +709,156 @@
                         </select>
                       </div>
 
+                      <!-- Row 2: Sorting & Filtering -->
                       <div class="filter-group">
                         <label
-                          ><i class="fas fa-link"></i> Endpoint Pattern:</label
+                          style="
+                            display: block;
+                            margin-bottom: 6px;
+                            font-weight: 500;
+                            font-size: 13px;
+                          "
                         >
-                        <input
-                          type="text"
-                          id="dashboardEndpointPattern"
-                          placeholder="e.g., /api/login, /users/:id"
-                          class="modern-input"
-                          style="min-width: 250px"
-                        />
-                      </div>
-
-                      <div class="filter-group">
-                        <label
-                          ><i class="fas fa-calendar"></i> Time Bucket:</label
-                        >
+                          <i class="fas fa-sort"></i> Sort By
+                        </label>
                         <select
-                          id="dashboardHistoryTimeBucket"
+                          id="dashboardEndpointSortBy"
                           class="filter-select"
+                          style="width: 100%"
                         >
-                          <option value="hourly" selected>Hourly</option>
-                          <option value="daily">Daily</option>
+                          <option value="requests" selected>
+                            Most Requests
+                          </option>
+                          <option value="slowest">Slowest Avg</option>
+                          <option value="errors">Most Errors</option>
+                          <option value="size">Largest Size</option>
                         </select>
                       </div>
 
-                      <button
-                        id="dashboardLoadHistoryBtn"
-                        class="btn-primary"
-                        style="padding: 8px 16px"
+                      <div class="filter-group">
+                        <label
+                          style="
+                            display: block;
+                            margin-bottom: 6px;
+                            font-weight: 500;
+                            font-size: 13px;
+                          "
+                        >
+                          <i class="fas fa-list-ol"></i> Show Top
+                        </label>
+                        <select
+                          id="dashboardEndpointTopN"
+                          class="filter-select"
+                          style="width: 100%"
+                        >
+                          <option value="5">Top 5</option>
+                          <option value="10" selected>Top 10</option>
+                          <option value="15">Top 15</option>
+                          <option value="20">Top 20</option>
+                          <option value="all">All Endpoints</option>
+                        </select>
+                      </div>
+
+                      <div class="filter-group">
+                        <label
+                          style="
+                            display: block;
+                            margin-bottom: 6px;
+                            font-weight: 500;
+                            font-size: 13px;
+                          "
+                        >
+                          <i class="fas fa-sync-alt"></i> Action
+                        </label>
+                        <button
+                          id="dashboardLoadHistoryBtn"
+                          class="btn-primary"
+                          style="width: 100%; padding: 8px 16px; height: 36px"
+                        >
+                          <i class="fas fa-sync-alt"></i> Load Data
+                        </button>
+                      </div>
+
+                      <!-- Row 3: Search (spans all columns) -->
+                      <div class="filter-group" style="grid-column: span 3">
+                        <label
+                          style="
+                            display: block;
+                            margin-bottom: 6px;
+                            font-weight: 500;
+                            font-size: 13px;
+                          "
+                        >
+                          <i class="fas fa-search"></i> Search Endpoint
+                        </label>
+                        <input
+                          type="text"
+                          id="dashboardEndpointPattern"
+                          placeholder="Filter by URL pattern (e.g., /api/users, /login, /products/:id)"
+                          class="modern-input"
+                          style="width: 100%; padding: 8px 12px"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Endpoint Selection Panel (shows after loading) -->
+                    <div
+                      id="dashboardEndpointSelector"
+                      style="
+                        display: none;
+                        margin-bottom: 16px;
+                        padding: 12px;
+                        background: var(--bg-secondary);
+                        border-radius: 6px;
+                        border: 1px solid var(--border-color);
+                      "
+                    >
+                      <div
+                        style="
+                          display: flex;
+                          justify-content: space-between;
+                          align-items: center;
+                          margin-bottom: 8px;
+                        "
                       >
-                        <i class="fas fa-sync-alt"></i> Load History
-                      </button>
+                        <label
+                          style="font-weight: 500; color: var(--text-primary)"
+                        >
+                          <i class="fas fa-chart-line"></i> Select Endpoints to
+                          Plot (click to toggle):
+                        </label>
+                        <div style="display: flex; gap: 8px">
+                          <button
+                            id="dashboardSelectAllEndpoints"
+                            class="btn-secondary"
+                            style="padding: 4px 12px; font-size: 12px"
+                          >
+                            Select All
+                          </button>
+                          <button
+                            id="dashboardDeselectAllEndpoints"
+                            class="btn-secondary"
+                            style="padding: 4px 12px; font-size: 12px"
+                          >
+                            Deselect All
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        id="dashboardEndpointList"
+                        style="
+                          display: grid;
+                          grid-template-columns: repeat(
+                            auto-fill,
+                            minmax(300px, 1fr)
+                          );
+                          gap: 8px;
+                          max-height: 200px;
+                          overflow-y: auto;
+                        "
+                      >
+                        <!-- Populated dynamically -->
+                      </div>
                     </div>
 
                     <div
@@ -1811,6 +2027,79 @@ example.org/api/*"
             </div>
           </section>
 
+          <!-- Variables Tab -->
+          <section id="variables" class="tab-content">
+            <div class="options-container">
+              <div class="option-section">
+                <h2><i class="fas fa-variable"></i> Variables Management</h2>
+                <p class="description">
+                  Define reusable variables for curl/fetch commands. Use
+                  ${VAR_NAME} syntax in your exported requests to reference
+                  sensitive values like API tokens.
+                </p>
+
+                <div class="variables-controls">
+                  <button id="addVariableBtn" class="btn-primary">
+                    <i class="fas fa-plus"></i> Add Variable
+                  </button>
+                  <div class="toggle-group">
+                    <label for="variablesEnabled">
+                      <input type="checkbox" id="variablesEnabled" checked />
+                      Enable Variables
+                    </label>
+                    <label for="variablesAutoDetect">
+                      <input type="checkbox" id="variablesAutoDetect" checked />
+                      Auto-detect values
+                    </label>
+                  </div>
+                </div>
+
+                <div id="variablesListContainer" class="variables-list">
+                  <div class="empty-state">
+                    <i class="fas fa-variable"></i>
+                    <p>No variables defined yet</p>
+                    <p class="description">
+                      Click "Add Variable" to create your first variable
+                    </p>
+                  </div>
+                </div>
+
+                <div class="variables-help">
+                  <h3><i class="fas fa-info-circle"></i> Usage Examples</h3>
+                  <div class="code-examples">
+                    <div class="example">
+                      <h4>Define a variable:</h4>
+                      <pre>
+Name: API_TOKEN
+Value: your-secret-token-here
+Description: Production API authentication token</pre
+                      >
+                    </div>
+                    <div class="example">
+                      <h4>Use in curl:</h4>
+                      <pre>
+curl 'https://api.example.com/data' \
+  -H 'Authorization: Bearer ${API_TOKEN}' \
+  --compressed</pre
+                      >
+                    </div>
+                    <div class="example">
+                      <h4>Use in fetch:</h4>
+                      <pre>
+fetch('https://api.example.com/data', {
+  "method": "GET",
+  "headers": {
+    "Authorization": "Bearer ${API_TOKEN}"
+  }
+})</pre
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- Advanced Tab -->
           <section id="advanced" class="tab-content">
             <div class="options-container">
@@ -2307,16 +2596,48 @@ example.org/api/*"
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body">
-          <p style="margin-bottom: 12px; color: var(--text-secondary)">
-            Copy and paste this command in your terminal to reproduce the
-            request:
-          </p>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 12px;
+            "
+          >
+            <p style="margin: 0; color: var(--text-secondary)">
+              Copy and paste this command in your terminal to reproduce the
+              request:
+            </p>
+            <div style="display: flex; gap: 12px; align-items: center">
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  font-size: 13px;
+                  cursor: pointer;
+                "
+              >
+                <input type="checkbox" id="curlUseVariables" checked />
+                <span>Use Variables</span>
+              </label>
+              <button
+                id="editCurlBtn"
+                class="btn-secondary"
+                style="padding: 6px 12px; font-size: 13px"
+              >
+                <i class="fas fa-edit"></i> Edit
+              </button>
+            </div>
+          </div>
           <div style="position: relative">
-            <pre
+            <textarea
               id="curlCommandText"
+              readonly
               style="
                 background: var(--bg-secondary);
                 padding: 16px;
+                padding-top: 40px;
                 border-radius: 4px;
                 overflow-x: auto;
                 margin: 0;
@@ -2324,8 +2645,31 @@ example.org/api/*"
                 font-size: 13px;
                 line-height: 1.5;
                 border: 1px solid var(--border-color);
+                width: 100%;
+                min-height: 200px;
+                resize: vertical;
+                color: var(--text-primary-color);
               "
-            ></pre>
+            ></textarea>
+            <div
+              id="curlVariablesDropdown"
+              style="position: absolute; top: 8px; left: 8px; display: none"
+            >
+              <select
+                id="curlVariableSelect"
+                style="
+                  padding: 4px 8px;
+                  font-size: 12px;
+                  border-radius: 4px;
+                  border: 1px solid var(--border-color);
+                  background: var(--surface-color);
+                  color: var(--text-primary-color);
+                  cursor: pointer;
+                "
+              >
+                <option value="">Insert Variable...</option>
+              </select>
+            </div>
             <button
               id="copyCurlBtn"
               class="btn-icon"
@@ -2341,6 +2685,22 @@ example.org/api/*"
             >
               <i class="fas fa-copy"></i> Copy
             </button>
+            <button
+              id="saveCurlBtn"
+              class="btn-icon"
+              style="
+                position: absolute;
+                top: 8px;
+                right: 80px;
+                background: var(--success-color);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                display: none;
+              "
+            >
+              <i class="fas fa-save"></i> Save
+            </button>
           </div>
         </div>
       </div>
@@ -2354,16 +2714,48 @@ example.org/api/*"
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body">
-          <p style="margin-bottom: 12px; color: var(--text-secondary)">
-            Copy and paste this code in your browser console or JavaScript to
-            reproduce the request:
-          </p>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 12px;
+            "
+          >
+            <p style="margin: 0; color: var(--text-secondary)">
+              Copy and paste this code in your browser console or JavaScript to
+              reproduce the request:
+            </p>
+            <div style="display: flex; gap: 12px; align-items: center">
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  font-size: 13px;
+                  cursor: pointer;
+                "
+              >
+                <input type="checkbox" id="fetchUseVariables" checked />
+                <span>Use Variables</span>
+              </label>
+              <button
+                id="editFetchBtn"
+                class="btn-secondary"
+                style="padding: 6px 12px; font-size: 13px"
+              >
+                <i class="fas fa-edit"></i> Edit
+              </button>
+            </div>
+          </div>
           <div style="position: relative">
-            <pre
+            <textarea
               id="fetchCommandText"
+              readonly
               style="
                 background: var(--bg-secondary);
                 padding: 16px;
+                padding-top: 40px;
                 border-radius: 4px;
                 overflow-x: auto;
                 margin: 0;
@@ -2371,8 +2763,31 @@ example.org/api/*"
                 font-size: 13px;
                 line-height: 1.5;
                 border: 1px solid var(--border-color);
+                width: 100%;
+                min-height: 250px;
+                resize: vertical;
+                color: var(--text-primary-color);
               "
-            ></pre>
+            ></textarea>
+            <div
+              id="fetchVariablesDropdown"
+              style="position: absolute; top: 8px; left: 8px; display: none"
+            >
+              <select
+                id="fetchVariableSelect"
+                style="
+                  padding: 4px 8px;
+                  font-size: 12px;
+                  border-radius: 4px;
+                  border: 1px solid var(--border-color);
+                  background: var(--surface-color);
+                  color: var(--text-primary-color);
+                  cursor: pointer;
+                "
+              >
+                <option value="">Insert Variable...</option>
+              </select>
+            </div>
             <button
               id="copyFetchBtn"
               class="btn-icon"
@@ -2388,6 +2803,22 @@ example.org/api/*"
               title="Copy to clipboard"
             >
               <i class="fas fa-copy"></i> Copy
+            </button>
+            <button
+              id="saveFetchBtn"
+              class="btn-icon"
+              style="
+                position: absolute;
+                top: 8px;
+                right: 160px;
+                background: var(--success-color);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                display: none;
+              "
+            >
+              <i class="fas fa-save"></i> Save
             </button>
             <button
               id="runFetchBtn"
@@ -2444,6 +2875,505 @@ example.org/api/*"
               "
             ></pre>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Variable Editor Modal -->
+    <div id="variableEditorModal" class="modal">
+      <div class="modal-content" style="max-width: 500px">
+        <div class="modal-header">
+          <h3 id="variableEditorTitle">Add Variable</h3>
+          <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="variableName">Variable Name *</label>
+            <input
+              type="text"
+              id="variableName"
+              placeholder="e.g., API_TOKEN"
+              pattern="[A-Za-z_][A-Za-z0-9_]*"
+              title="Use only letters, numbers, and underscores. Must start with a letter or underscore."
+              required
+            />
+            <small
+              >Use uppercase letters, numbers, and underscores (e.g., API_TOKEN,
+              BASE_URL)</small
+            >
+          </div>
+          <div class="form-group">
+            <label for="variableValue">Value *</label>
+            <input
+              type="text"
+              id="variableValue"
+              placeholder="e.g., your-secret-token-here"
+              required
+            />
+            <small>The actual value that will replace ${VAR_NAME}</small>
+          </div>
+          <div class="form-group">
+            <label for="variableDescription">Description (optional)</label>
+            <textarea
+              id="variableDescription"
+              rows="2"
+              placeholder="e.g., Production API authentication token"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelVariableBtn" class="secondary-btn">Cancel</button>
+          <button id="saveVariableBtn" class="btn-primary">
+            <i class="fas fa-save"></i> Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request Runner Configuration Modal -->
+    <div id="runnerConfigModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 600px">
+        <div class="modal-header">
+          <h2><i class="fas fa-play-circle"></i> Configure Request Runner</h2>
+          <button class="modal-close" id="closeRunnerConfigModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom: 20px; color: var(--text-secondary-color)">
+            Run <strong id="runnerRequestCount">0</strong> selected requests
+            with configurable options.
+          </p>
+
+          <div class="form-group">
+            <label> <i class="fas fa-bolt"></i> Execution Mode </label>
+            <select id="runnerMode" class="filter-select" style="width: 100%">
+              <option value="sequential">Sequential (one at a time)</option>
+              <option value="parallel">Parallel (all at once)</option>
+            </select>
+            <small
+              >Sequential runs requests in order with delays. Parallel executes
+              all simultaneously.</small
+            >
+          </div>
+
+          <div class="form-group" id="runnerDelayGroup">
+            <label>
+              <i class="fas fa-clock"></i> Delay Between Requests (ms)
+            </label>
+            <input
+              type="number"
+              id="runnerDelay"
+              value="1000"
+              min="0"
+              step="100"
+              class="filter-select"
+              style="width: 100%"
+            />
+            <small
+              >Time to wait between each request (only for sequential
+              mode).</small
+            >
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerFollowRedirects" checked />
+              <span>Follow Redirects</span>
+            </label>
+            <small>Automatically follow HTTP 3xx redirects.</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerValidateStatus" />
+              <span>Validate Status Codes</span>
+            </label>
+            <small>Mark requests with 4xx/5xx status as failures.</small>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <i class="fas fa-code"></i> Custom Headers (optional)
+            </label>
+            <textarea
+              id="runnerHeaders"
+              rows="4"
+              placeholder='{"Authorization": "Bearer YOUR_TOKEN", "X-Custom-Header": "value"}'
+              style="
+                width: 100%;
+                font-family: monospace;
+                font-size: 13px;
+                padding: 8px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                background: var(--surface-color);
+              "
+            ></textarea>
+            <small
+              >JSON object of headers to add/override. Leave empty to use
+              original headers.</small
+            >
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="runnerUseVariables" checked />
+              <span>Use Variables</span>
+            </label>
+            <small
+              >Automatically substitute ${VAR_NAME} placeholders with actual
+              values from Variables Manager.</small
+            >
+          </div>
+
+          <!-- Variables Preview -->
+          <div
+            id="runnerVariablesPreview"
+            style="
+              display: none;
+              padding: 12px;
+              background: var(--surface-color);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              margin-bottom: 16px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+              "
+            >
+              <strong style="font-size: 14px"
+                ><i class="fas fa-dollar-sign"></i> Available Variables</strong
+              >
+              <span
+                style="font-size: 12px; color: var(--text-secondary-color)"
+                id="runnerVariableCount"
+                >0 variables</span
+              >
+            </div>
+            <div
+              id="runnerVariablesList"
+              style="
+                max-height: 150px;
+                overflow-y: auto;
+                font-size: 13px;
+                font-family: monospace;
+              "
+            >
+              <!-- Variables will be populated here -->
+            </div>
+          </div>
+
+          <div
+            style="
+              padding: 12px;
+              background: var(--warning-light, #fff3cd);
+              border: 1px solid var(--warning-color, #ffc107);
+              border-radius: 6px;
+              margin-top: 16px;
+            "
+          >
+            <p style="margin: 0; font-size: 14px">
+              <i
+                class="fas fa-exclamation-triangle"
+                style="color: var(--warning-color, #ffc107)"
+              ></i>
+              <strong>Warning:</strong> This will send real HTTP requests to the
+              original URLs. Be careful when replaying requests to production
+              APIs.
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelRunnerBtn" class="secondary-btn">Cancel</button>
+          <button id="startRunnerBtn" class="btn-primary">
+            <i class="fas fa-play"></i> Start Runner
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request Runner Progress Modal -->
+    <div id="runnerProgressModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 700px">
+        <div class="modal-header">
+          <h2>
+            <i id="runnerProgressIcon" class="fas fa-spinner fa-pulse"></i>
+            Request Runner Progress
+          </h2>
+          <button class="modal-close" id="closeRunnerProgressModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Progress Stats -->
+          <div
+            style="
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+              gap: 16px;
+              margin-bottom: 20px;
+            "
+          >
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--primary-color);
+                "
+                id="runnerProgressPercent"
+              >
+                0%
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Progress
+              </div>
+            </div>
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--success-color);
+                "
+                id="runnerSuccessCount"
+              >
+                0
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Successful
+              </div>
+            </div>
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--error-color);
+                "
+                id="runnerFailureCount"
+              >
+                0
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Failed
+              </div>
+            </div>
+            <div
+              style="
+                padding: 16px;
+                background: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                text-align: center;
+              "
+            >
+              <div
+                style="
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: var(--text-color);
+                "
+                id="runnerElapsedTime"
+              >
+                0s
+              </div>
+              <div
+                style="
+                  font-size: 12px;
+                  color: var(--text-secondary-color);
+                  margin-top: 4px;
+                "
+              >
+                Elapsed Time
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div style="margin-bottom: 20px">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 8px;
+              "
+            >
+              <span id="runnerProgressText">Preparing...</span>
+              <span id="runnerProgressCount">0 / 0</span>
+            </div>
+            <div
+              style="
+                width: 100%;
+                height: 8px;
+                background: var(--surface-color);
+                border-radius: 4px;
+                overflow: hidden;
+              "
+            >
+              <div
+                id="runnerProgressBar"
+                style="
+                  width: 0%;
+                  height: 100%;
+                  background: var(--primary-color);
+                  transition: width 0.3s;
+                "
+              ></div>
+            </div>
+          </div>
+
+          <!-- Current Request -->
+          <div
+            id="runnerCurrentRequest"
+            style="
+              padding: 12px;
+              background: var(--surface-color);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              margin-bottom: 16px;
+              display: none;
+            "
+          >
+            <div style="font-weight: 600; margin-bottom: 8px">
+              Current Request:
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center">
+              <span class="method-badge" id="runnerCurrentMethod">GET</span>
+              <span
+                style="
+                  flex: 1;
+                  font-size: 13px;
+                  color: var(--text-secondary-color);
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                "
+                id="runnerCurrentUrl"
+              ></span>
+            </div>
+          </div>
+
+          <!-- Results Table -->
+          <div
+            style="
+              max-height: 300px;
+              overflow-y: auto;
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+            "
+          >
+            <table class="data-table" style="width: 100%; margin: 0">
+              <thead
+                style="
+                  position: sticky;
+                  top: 0;
+                  background: var(--surface-color);
+                  z-index: 1;
+                "
+              >
+                <tr>
+                  <th style="width: 40px">#</th>
+                  <th style="width: 80px">Method</th>
+                  <th>URL</th>
+                  <th style="width: 80px">Status</th>
+                  <th style="width: 100px">Time</th>
+                </tr>
+              </thead>
+              <tbody id="runnerResultsTableBody">
+                <tr>
+                  <td
+                    colspan="5"
+                    style="
+                      text-align: center;
+                      padding: 16px;
+                      color: var(--text-secondary-color);
+                    "
+                  >
+                    Waiting for results...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelRunnerProgressBtn" class="btn-error">
+            <i class="fas fa-stop"></i> Cancel Run
+          </button>
+          <button
+            id="closeRunnerResultsBtn"
+            class="btn-primary"
+            style="display: none"
+          >
+            <i class="fas fa-check"></i> Done
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runner History Modal -->
+    <div id="runnerHistoryModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 800px">
+        <div class="modal-header">
+          <h2><i class="fas fa-history"></i> Runner History</h2>
+          <button class="modal-close" id="closeRunnerHistoryModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="runnerHistoryContainer"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="closeHistoryBtn" class="secondary-btn">Close</button>
         </div>
       </div>
     </div>

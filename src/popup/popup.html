@@ -159,20 +159,38 @@
 
       <!-- Quick Filter Chips -->
       <div class="quick-filters">
-        <button class="filter-chip active" data-filter="all">
+        <div class="filter-group-label">Status:</div>
+        <button
+          class="filter-chip active"
+          data-filter="all"
+          data-filter-type="all"
+        >
           <i class="fas fa-globe"></i> All
         </button>
-        <button class="filter-chip" data-filter="2xx">
+        <button class="filter-chip" data-filter="2xx" data-filter-type="status">
           <i class="fas fa-check-circle"></i> 2xx
         </button>
-        <button class="filter-chip" data-filter="4xx">
+        <button class="filter-chip" data-filter="4xx" data-filter-type="status">
           <i class="fas fa-exclamation-triangle"></i> 4xx
         </button>
-        <button class="filter-chip" data-filter="5xx">
+        <button class="filter-chip" data-filter="5xx" data-filter-type="status">
           <i class="fas fa-times-circle"></i> 5xx
         </button>
-        <button class="filter-chip" data-filter="xhr">
+        <div class="filter-group-label">Type:</div>
+        <button class="filter-chip" data-filter="xhr" data-filter-type="type">
           <i class="fas fa-exchange-alt"></i> XHR
+        </button>
+        <button class="filter-chip" data-filter="fetch" data-filter-type="type">
+          <i class="fas fa-satellite-dish"></i> Fetch
+        </button>
+        <button class="filter-chip" data-filter="js" data-filter-type="type">
+          <i class="fab fa-js-square"></i> JS
+        </button>
+        <button class="filter-chip" data-filter="css" data-filter-type="type">
+          <i class="fab fa-css3-alt"></i> CSS
+        </button>
+        <button class="filter-chip" data-filter="img" data-filter-type="type">
+          <i class="fas fa-image"></i> IMG
         </button>
       </div>
 

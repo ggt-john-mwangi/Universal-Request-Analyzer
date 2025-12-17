@@ -1,6 +1,9 @@
 // Message Handler for Popup Auth and Stats
 // Handles registration, login, logout, and page stats requests
 
+import requestRunner from "../capture/request-runner.js";
+import runnerCollections from "../capture/runner-collections.js";
+
 let localAuthManager = null;
 let dbManager = null;
 
@@ -144,6 +147,75 @@ async function handleMessage(message, sender) {
       case "getRecentRequests":
         return await handleGetRecentRequests(data);
 
+      case "runRequests":
+        return await handleRunRequests(message.config, message.requests);
+
+      case "getRunnerProgress":
+        return await handleGetRunnerProgress();
+
+      case "cancelRun":
+        return await handleCancelRun();
+
+      case "getRunHistory":
+        return await handleGetRunHistory(message.limit);
+
+      case "getRunResults":
+        return await handleGetRunResults(message.runId);
+
+      // Runner Collections
+      case "createRunnerCollection":
+        return await handleCreateRunnerCollection(message);
+
+      case "getRunnerCollections":
+        return await handleGetRunnerCollections();
+
+      case "getRunnerCollection":
+        return await handleGetRunnerCollection(message.collectionId);
+
+      case "updateRunnerCollection":
+        return await handleUpdateRunnerCollection(
+          message.collectionId,
+          message.updates
+        );
+
+      case "deleteRunnerCollection":
+        return await handleDeleteRunnerCollection(message.collectionId);
+
+      case "runCollection":
+        return await handleRunCollection(message.collectionId);
+
+      // Runner Scheduling
+      case "scheduleRunner":
+        return await handleScheduleRunner(
+          message.collectionId,
+          message.scheduleConfig
+        );
+
+      case "getScheduledRuns":
+        return await handleGetScheduledRuns();
+
+      case "updateScheduledRun":
+        return await handleUpdateScheduledRun(
+          message.scheduleId,
+          message.updates
+        );
+
+      case "deleteScheduledRun":
+        return await handleDeleteScheduledRun(message.scheduleId);
+
+      // Runner Alerts
+      case "createRunnerAlert":
+        return await handleCreateRunnerAlert(message.alert);
+
+      case "getRunnerAlerts":
+        return await handleGetRunnerAlerts(message.collectionId);
+
+      case "updateRunnerAlert":
+        return await handleUpdateRunnerAlert(message.alertId, message.updates);
+
+      case "deleteRunnerAlert":
+        return await handleDeleteRunnerAlert(message.alertId);
+
       default:
         // Return null for unhandled actions so medallion handler can try
         return null;
@@ -206,7 +278,7 @@ async function handleLogout() {
 // Handle get page stats - now supports domain-level aggregation
 async function handleGetPageStats(data) {
   try {
-    const { tabId, url, requestType } = data;
+    const { tabId, url, requestType, statusFilter } = data;
 
     if (!url) {
       return { success: false, error: "URL required" };
@@ -245,6 +317,15 @@ async function handleGetPageStats(data) {
 
         if (requestType && requestType !== "") {
           whereClause += ` AND type = ${escapeStr(requestType)}`;
+        }
+
+        // Apply status filter for quick filter chips
+        if (statusFilter === "2xx") {
+          whereClause += ` AND status >= 200 AND status < 300`;
+        } else if (statusFilter === "4xx") {
+          whereClause += ` AND status >= 400 AND status < 500`;
+        } else if (statusFilter === "5xx") {
+          whereClause += ` AND status >= 500 AND status < 600`;
         }
 
         // Query aggregate stats across all pages in the domain
@@ -459,6 +540,7 @@ async function handleGetFilteredStats(filters) {
     const responseTimes = [];
     const requestTypes = {};
     const statusCodes = {};
+    const domainCounts = {}; // For tracking domains when no domain filter is active
 
     requests.forEach((req) => {
       // Collect timestamps and response times
@@ -467,9 +549,14 @@ async function handleGetFilteredStats(filters) {
         responseTimes.push(req.duration);
       }
 
-      // Count request types
+      // Count request types (resource types when domain IS filtered)
       if (req.type) {
         requestTypes[req.type] = (requestTypes[req.type] || 0) + 1;
+      }
+
+      // Count domains (when NO domain filter is active)
+      if (req.domain) {
+        domainCounts[req.domain] = (domainCounts[req.domain] || 0) + 1;
       }
 
       // Count status codes
@@ -483,7 +570,8 @@ async function handleGetFilteredStats(filters) {
       success: true,
       timestamps: timestamps.slice(-50), // Last 50 data points
       responseTimes: responseTimes.slice(-50),
-      requestTypes,
+      requestTypes, // Resource types (xhr, script, stylesheet, etc.) - use when domain IS filtered
+      domainCounts, // Domain names (github.com, stackoverflow.com, etc.) - use when NO domain filter
       statusCodes,
       totalRequests: requests.length,
       // Include metadata about what was filtered
@@ -1401,9 +1489,10 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       pageUrl,
       endpoint,
       type,
-      timeBucket = "hourly",
+      timeBucket = "none",
       startTime,
       endTime,
+      maxPointsPerEndpoint = 100,
     } = filters;
 
     // Default time range if not provided
@@ -1416,33 +1505,49 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
-    // Time bucket SQL expression
-    // hourly: round to hour, daily: round to day
-    let timeBucketExpr;
-    if (timeBucket === "daily") {
-      // Group by date (YYYY-MM-DD)
-      timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
-    } else {
-      // Group by hour (YYYY-MM-DD HH:00:00)
-      timeBucketExpr = `strftime('%Y-%m-%d %H:00:00', timestamp / 1000, 'unixepoch')`;
-    }
+    let query;
 
-    let query = `
-      SELECT 
-        ${timeBucketExpr} as time_bucket,
-        url,
-        COUNT(*) as request_count,
-        AVG(duration) as avg_duration,
-        MIN(duration) as min_duration,
-        MAX(duration) as max_duration,
-        SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
-        SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as server_error_count,
-        AVG(size_bytes) as avg_size,
-        SUM(size_bytes) as total_size
-      FROM bronze_requests
-      WHERE timestamp >= ${actualStartTime}
-      AND timestamp <= ${actualEndTime}
-    `;
+    // No bucketing - return individual requests with actual timestamps
+    if (timeBucket === "none") {
+      query = `
+        SELECT 
+          timestamp,
+          url,
+          duration,
+          status,
+          size_bytes
+        FROM bronze_requests
+        WHERE timestamp >= ${actualStartTime}
+        AND timestamp <= ${actualEndTime}
+      `;
+    } else {
+      // Legacy bucketing support (if ever needed)
+      let timeBucketExpr;
+      if (timeBucket === "minutely") {
+        timeBucketExpr = `strftime('%Y-%m-%d %H:%M:00', timestamp / 1000, 'unixepoch')`;
+      } else if (timeBucket === "daily") {
+        timeBucketExpr = `strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch')`;
+      } else {
+        timeBucketExpr = `strftime('%Y-%m-%d %H:00:00', timestamp / 1000, 'unixepoch')`;
+      }
+
+      query = `
+        SELECT 
+          ${timeBucketExpr} as time_bucket,
+          url,
+          COUNT(*) as request_count,
+          AVG(duration) as avg_duration,
+          MIN(duration) as min_duration,
+          MAX(duration) as max_duration,
+          SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as error_count,
+          SUM(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as server_error_count,
+          AVG(size_bytes) as avg_size,
+          SUM(size_bytes) as total_size
+        FROM bronze_requests
+        WHERE timestamp >= ${actualStartTime}
+        AND timestamp <= ${actualEndTime}
+      `;
+    }
 
     if (domain && domain !== "") {
       query += ` AND domain = ${escapeStr(domain)}`;
@@ -1463,7 +1568,12 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       )} OR url = ${escapeStr(endpoint)})`;
     }
 
-    query += ` GROUP BY time_bucket, url ORDER BY time_bucket DESC, request_count DESC`;
+    // Add ordering and limit based on timeBucket mode
+    if (timeBucket === "none") {
+      query += ` ORDER BY timestamp DESC`;
+    } else {
+      query += ` GROUP BY time_bucket, url ORDER BY time_bucket DESC, request_count DESC`;
+    }
 
     let history = [];
 
@@ -1471,51 +1581,84 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       if (dbManager?.db) {
         const result = dbManager.db.exec(query);
         if (result && result[0]?.values) {
-          history = result[0].values.map((row) => {
-            const url = row[1];
-            // Extract endpoint pattern
-            let endpointPattern = url;
-            try {
-              const urlObj = new URL(url);
-              endpointPattern = urlObj.pathname;
-              // Replace IDs and hashes with placeholders for pattern matching
-              endpointPattern = endpointPattern.replace(/\/\d+/g, "/:id");
-              endpointPattern = endpointPattern.replace(
-                /\/[0-9a-f]{8,}/gi,
-                "/:hash"
-              );
-            } catch (e) {
-              // Keep original if URL parsing fails
-            }
+          if (timeBucket === "none") {
+            // Process individual requests
+            history = result[0].values.map((row) => {
+              const timestamp = row[0];
+              const url = row[1];
+              const duration = row[2];
+              const status = row[3];
+              const sizeBytes = row[4];
 
-            const requestCount = row[2] || 0;
-            const errorCount = row[6] || 0;
+              // Extract endpoint pattern
+              let endpointPattern = url;
+              try {
+                const urlObj = new URL(url);
+                endpointPattern = urlObj.pathname;
+                // Replace IDs and hashes with placeholders for pattern matching
+                endpointPattern = endpointPattern.replace(/\/\d+/g, "/:id");
+                endpointPattern = endpointPattern.replace(
+                  /\/[0-9a-f]{8,}/gi,
+                  "/:hash"
+                );
+              } catch (e) {
+                // Keep original if URL parsing fails
+              }
 
-            return {
-              timeBucket: row[0],
-              url,
-              endpoint: endpointPattern,
-              requestCount,
-              avgDuration: Math.round(row[3] || 0),
-              minDuration: Math.round(row[4] || 0),
-              maxDuration: Math.round(row[5] || 0),
-              errorCount,
-              serverErrorCount: row[7] || 0,
-              avgSize: Math.round(row[8] || 0),
-              totalSize: row[9] || 0,
-              errorRate:
-                requestCount > 0
-                  ? ((errorCount / requestCount) * 100).toFixed(2)
-                  : 0,
-              successRate:
-                requestCount > 0
-                  ? (
-                      ((requestCount - errorCount) / requestCount) *
-                      100
-                    ).toFixed(2)
-                  : 100,
-            };
-          });
+              return {
+                timestamp,
+                url,
+                endpoint: endpointPattern,
+                duration: Math.round(duration || 0),
+                status: status || 0,
+                sizeBytes: sizeBytes || 0,
+                isError: status >= 400,
+              };
+            });
+          } else {
+            // Process bucketed data (legacy support)
+            history = result[0].values.map((row) => {
+              const url = row[1];
+              let endpointPattern = url;
+              try {
+                const urlObj = new URL(url);
+                endpointPattern = urlObj.pathname;
+                endpointPattern = endpointPattern.replace(/\/\d+/g, "/:id");
+                endpointPattern = endpointPattern.replace(
+                  /\/[0-9a-f]{8,}/gi,
+                  "/:hash"
+                );
+              } catch (e) {}
+
+              const requestCount = row[2] || 0;
+              const errorCount = row[6] || 0;
+
+              return {
+                timeBucket: row[0],
+                url,
+                endpoint: endpointPattern,
+                requestCount,
+                avgDuration: Math.round(row[3] || 0),
+                minDuration: Math.round(row[4] || 0),
+                maxDuration: Math.round(row[5] || 0),
+                errorCount,
+                serverErrorCount: row[7] || 0,
+                avgSize: Math.round(row[8] || 0),
+                totalSize: row[9] || 0,
+                errorRate:
+                  requestCount > 0
+                    ? ((errorCount / requestCount) * 100).toFixed(2)
+                    : 0,
+                successRate:
+                  requestCount > 0
+                    ? (
+                        ((requestCount - errorCount) / requestCount) *
+                        100
+                      ).toFixed(2)
+                    : 100,
+              };
+            });
+          }
         }
       }
     } catch (queryError) {
@@ -1534,13 +1677,81 @@ async function handleGetEndpointPerformanceHistory(filters = {}) {
       groupedHistory[record.endpoint].push(record);
     });
 
+    // Calculate aggregate metrics per endpoint for sorting
+    const endpointMetrics = Object.keys(groupedHistory).map((endpoint) => {
+      const records = groupedHistory[endpoint];
+
+      let totalRequests, avgDuration, totalErrors, avgSize;
+
+      if (timeBucket === "none") {
+        // Calculate from individual requests
+        totalRequests = records.length;
+        avgDuration =
+          records.reduce((sum, r) => sum + r.duration, 0) / totalRequests;
+        totalErrors = records.filter((r) => r.isError).length;
+        avgSize =
+          records.reduce((sum, r) => sum + r.sizeBytes, 0) / totalRequests;
+      } else {
+        // Calculate from bucketed data (legacy)
+        totalRequests = records.reduce((sum, r) => sum + r.requestCount, 0);
+        avgDuration =
+          records.reduce((sum, r) => sum + r.avgDuration, 0) / records.length;
+        totalErrors = records.reduce((sum, r) => sum + r.errorCount, 0);
+        avgSize =
+          records.reduce((sum, r) => sum + r.avgSize, 0) / records.length;
+      }
+
+      return {
+        endpoint,
+        totalRequests,
+        avgDuration,
+        totalErrors,
+        avgSize,
+        records,
+      };
+    });
+
+    // Sort based on criteria
+    const sortBy = filters.sortBy || "requests";
+    endpointMetrics.sort((a, b) => {
+      switch (sortBy) {
+        case "slowest":
+          return b.avgDuration - a.avgDuration;
+        case "errors":
+          return b.totalErrors - a.totalErrors;
+        case "size":
+          return b.avgSize - a.avgSize;
+        case "requests":
+        default:
+          return b.totalRequests - a.totalRequests;
+      }
+    });
+
+    // Limit to top N endpoints
+    const limit = filters.limit || 10;
+    const topEndpoints = endpointMetrics.slice(0, limit);
+
+    // Rebuild grouped history with only top endpoints
+    const filteredGroupedHistory = {};
+    topEndpoints.forEach(({ endpoint, records }) => {
+      // If using individual requests, limit points per endpoint
+      if (timeBucket === "none") {
+        const limitedRecords = records.slice(0, maxPointsPerEndpoint);
+        filteredGroupedHistory[endpoint] = limitedRecords;
+      } else {
+        filteredGroupedHistory[endpoint] = records;
+      }
+    });
+
     return {
       success: true,
       history,
-      groupedByEndpoint: groupedHistory,
+      groupedByEndpoint: filteredGroupedHistory,
       timeBucket,
       startTime: actualStartTime,
       endTime: actualEndTime,
+      totalEndpoints: Object.keys(groupedHistory).length,
+      displayedEndpoints: Object.keys(filteredGroupedHistory).length,
     };
   } catch (error) {
     console.error("Get endpoint performance history error:", error);
@@ -3194,6 +3405,494 @@ async function handleGetRecentRequests(data) {
     };
   } catch (error) {
     console.error("Get recent requests error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================================
+// REQUEST RUNNER HANDLERS
+// ============================================================
+
+/**
+ * Run a collection of requests
+ */
+async function handleRunRequests(config, requests) {
+  try {
+    if (!requests || requests.length === 0) {
+      return { success: false, error: "No requests provided" };
+    }
+
+    // Combine config and requests into a single config object
+    const runConfig = {
+      ...config,
+      requests: requests,
+    };
+
+    // Start the run with progress callback
+    const result = await requestRunner.runRequests(runConfig, (progress) => {
+      // Progress updates are sent via runtime.sendMessage from background
+      // UI polls via getRunnerProgress
+    });
+
+    return {
+      success: true,
+      runId: result.id,
+      status: result.status,
+    };
+  } catch (error) {
+    console.error("Run requests error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get current runner progress
+ */
+async function handleGetRunnerProgress() {
+  try {
+    const progress = requestRunner.getProgress();
+    return {
+      success: true,
+      progress,
+    };
+  } catch (error) {
+    console.error("Get runner progress error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Cancel active run
+ */
+async function handleCancelRun() {
+  try {
+    const cancelled = requestRunner.cancelRun();
+    return {
+      success: true,
+      cancelled,
+    };
+  } catch (error) {
+    console.error("Cancel run error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get run history
+ */
+async function handleGetRunHistory(limit = 10) {
+  try {
+    const history = requestRunner.getHistory(limit);
+    return {
+      success: true,
+      history,
+    };
+  } catch (error) {
+    console.error("Get run history error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get specific run results
+ */
+async function handleGetRunResults(runId) {
+  try {
+    const results = requestRunner.getRunResults(runId);
+    if (!results) {
+      return { success: false, error: "Run not found" };
+    }
+
+    return {
+      success: true,
+      results,
+    };
+  } catch (error) {
+    console.error("Get run results error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================================
+// RUNNER COLLECTIONS HANDLERS
+// ============================================================
+
+/**
+ * Create a new runner collection
+ */
+async function handleCreateRunnerCollection(message) {
+  try {
+    const { name, description, requests, config } = message;
+    const collection = await runnerCollections.createCollection(
+      name,
+      description,
+      requests,
+      config
+    );
+
+    return {
+      success: true,
+      collection,
+    };
+  } catch (error) {
+    console.error("Create runner collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all runner collections
+ */
+async function handleGetRunnerCollections() {
+  try {
+    const collections = await runnerCollections.getCollections();
+
+    return {
+      success: true,
+      collections,
+    };
+  } catch (error) {
+    console.error("Get runner collections error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get specific runner collection
+ */
+async function handleGetRunnerCollection(collectionId) {
+  try {
+    const collection = await runnerCollections.getCollection(collectionId);
+    if (!collection) {
+      return { success: false, error: "Collection not found" };
+    }
+
+    return {
+      success: true,
+      collection,
+    };
+  } catch (error) {
+    console.error("Get runner collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update runner collection
+ */
+async function handleUpdateRunnerCollection(collectionId, updates) {
+  try {
+    const collection = await runnerCollections.updateCollection(
+      collectionId,
+      updates
+    );
+
+    return {
+      success: true,
+      collection,
+    };
+  } catch (error) {
+    console.error("Update runner collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete runner collection
+ */
+async function handleDeleteRunnerCollection(collectionId) {
+  try {
+    const deleted = await runnerCollections.deleteCollection(collectionId);
+
+    return {
+      success: deleted,
+    };
+  } catch (error) {
+    console.error("Delete runner collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Run a saved collection
+ */
+async function handleRunCollection(collectionId) {
+  try {
+    const collection = await runnerCollections.getCollection(collectionId);
+    if (!collection) {
+      return { success: false, error: "Collection not found" };
+    }
+
+    // Add collection ID to config
+    const config = {
+      ...collection.config,
+      collectionId: collection.id,
+    };
+
+    // Start the run
+    const result = await requestRunner.runRequests(config, (progress) => {
+      // Progress updates handled by polling
+    });
+
+    return {
+      success: true,
+      runId: result.id,
+      status: result.status,
+    };
+  } catch (error) {
+    console.error("Run collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================================
+// RUNNER SCHEDULING HANDLERS
+// ============================================================
+
+/**
+ * Schedule a runner
+ */
+async function handleScheduleRunner(collectionId, scheduleConfig) {
+  try {
+    const schedule = await runnerCollections.scheduleRun(
+      collectionId,
+      scheduleConfig
+    );
+
+    return {
+      success: true,
+      schedule,
+    };
+  } catch (error) {
+    console.error("Schedule runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all scheduled runs
+ */
+async function handleGetScheduledRuns() {
+  try {
+    const schedules = await runnerCollections.getScheduledRuns();
+
+    return {
+      success: true,
+      schedules,
+    };
+  } catch (error) {
+    console.error("Get scheduled runs error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update scheduled run
+ */
+async function handleUpdateScheduledRun(scheduleId, updates) {
+  try {
+    const schedule = await runnerCollections.updateScheduledRun(
+      scheduleId,
+      updates
+    );
+
+    return {
+      success: true,
+      schedule,
+    };
+  } catch (error) {
+    console.error("Update scheduled run error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete scheduled run
+ */
+async function handleDeleteScheduledRun(scheduleId) {
+  try {
+    const deleted = await runnerCollections.deleteScheduledRun(scheduleId);
+
+    return {
+      success: deleted,
+    };
+  } catch (error) {
+    console.error("Delete scheduled run error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================================
+// RUNNER ALERTS HANDLERS
+// ============================================================
+
+/**
+ * Create runner alert
+ */
+async function handleCreateRunnerAlert(alert) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const now = Date.now();
+
+    const query = `
+      INSERT INTO runner_alerts (
+        collection_id,
+        collection_name,
+        alert_type,
+        condition,
+        threshold_value,
+        comparison,
+        enabled,
+        notification_type,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${escapeStr(alert.collectionId)},
+        ${escapeStr(alert.collectionName)},
+        ${escapeStr(alert.alertType)},
+        ${escapeStr(alert.condition)},
+        ${alert.thresholdValue},
+        ${escapeStr(alert.comparison)},
+        ${alert.enabled ? 1 : 0},
+        ${escapeStr(alert.notificationType)},
+        ${now},
+        ${now}
+      )
+    `;
+
+    dbManager.db.exec(query);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Create runner alert error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get runner alerts
+ */
+async function handleGetRunnerAlerts(collectionId) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const whereClause = collectionId
+      ? `WHERE collection_id = ${escapeStr(collectionId)}`
+      : "";
+
+    const query = `
+      SELECT * FROM runner_alerts
+      ${whereClause}
+      ORDER BY created_at DESC
+    `;
+
+    const result = dbManager.db.exec(query);
+
+    const alerts =
+      result.length > 0 && result[0].values
+        ? result[0].values.map((row) => {
+            const obj = {};
+            result[0].columns.forEach((col, idx) => {
+              obj[col] = row[idx];
+            });
+            return obj;
+          })
+        : [];
+
+    return {
+      success: true,
+      alerts,
+    };
+  } catch (error) {
+    console.error("Get runner alerts error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update runner alert
+ */
+async function handleUpdateRunnerAlert(alertId, updates) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const setClauses = [];
+    if (updates.enabled !== undefined) {
+      setClauses.push(`enabled = ${updates.enabled ? 1 : 0}`);
+    }
+    if (updates.thresholdValue !== undefined) {
+      setClauses.push(`threshold_value = ${updates.thresholdValue}`);
+    }
+    if (updates.notificationType) {
+      setClauses.push(
+        `notification_type = ${escapeStr(updates.notificationType)}`
+      );
+    }
+
+    setClauses.push(`updated_at = ${Date.now()}`);
+
+    const query = `
+      UPDATE runner_alerts
+      SET ${setClauses.join(", ")}
+      WHERE id = ${parseInt(alertId)}
+    `;
+
+    dbManager.db.exec(query);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Update runner alert error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete runner alert
+ */
+async function handleDeleteRunnerAlert(alertId) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const query = `
+      DELETE FROM runner_alerts
+      WHERE id = ${parseInt(alertId)}
+    `;
+
+    dbManager.db.exec(query);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Delete runner alert error:", error);
     return { success: false, error: error.message };
   }
 }

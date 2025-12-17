@@ -641,6 +641,59 @@ function createGoldSchema(db) {
     `CREATE INDEX IF NOT EXISTS idx_gold_anomalies_resolved ON gold_anomalies(resolved)`
   );
 
+  // Runner results tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS runner_results (
+      run_id TEXT PRIMARY KEY,
+      collection_id TEXT,
+      status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+      mode TEXT NOT NULL CHECK(mode IN ('sequential', 'parallel')),
+      total_requests INTEGER NOT NULL,
+      success_count INTEGER DEFAULT 0,
+      failure_count INTEGER DEFAULT 0,
+      duration INTEGER,
+      start_time INTEGER NOT NULL,
+      end_time INTEGER,
+      results_json TEXT,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+    )
+  `);
+
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_collection ON runner_results(collection_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_status ON runner_results(status)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_start_time ON runner_results(start_time DESC)`
+  );
+
+  // Runner alerts
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS runner_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      collection_id TEXT NOT NULL,
+      collection_name TEXT NOT NULL,
+      alert_type TEXT NOT NULL CHECK(alert_type IN ('success_rate', 'duration', 'failure_count', 'status_code')),
+      condition TEXT NOT NULL,
+      threshold_value REAL NOT NULL,
+      comparison TEXT NOT NULL CHECK(comparison IN ('greater_than', 'less_than', 'equals', 'not_equals')),
+      enabled BOOLEAN DEFAULT 1,
+      notification_type TEXT CHECK(notification_type IN ('toast', 'console', 'both')),
+      last_triggered INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_alerts_collection ON runner_alerts(collection_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_alerts_enabled ON runner_alerts(enabled)`
+  );
+
   console.log("Gold schema created");
 }
 

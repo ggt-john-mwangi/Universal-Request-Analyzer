@@ -13,6 +13,8 @@ class Dashboard {
     this.currentErrors = []; // Store current errors for actions
     this.searchTimeout = null; // Debounce search input
     this.loadingPageFilter = false; // Prevent concurrent page filter loads
+    this.runnerProgressInterval = null; // Runner progress polling
+    this.runnerResults = null; // Cache runner results for table
   }
 
   async initialize() {
@@ -208,6 +210,9 @@ class Dashboard {
       });
     }
 
+    // Request Runner event listeners
+    this.setupRunnerEventListeners();
+
     // Request Details Modal event listeners
     const requestDetailsModal = document.getElementById("requestDetailsModal");
     if (requestDetailsModal) {
@@ -260,7 +265,7 @@ class Dashboard {
         copyBtn.addEventListener("click", () => {
           const curlText = document.getElementById("curlCommandText");
           if (curlText) {
-            this.copyToClipboard(curlText.textContent);
+            this.copyToClipboard(curlText.value);
           }
         });
       }
@@ -290,7 +295,7 @@ class Dashboard {
         copyBtn.addEventListener("click", () => {
           const fetchText = document.getElementById("fetchCommandText");
           if (fetchText) {
-            this.copyToClipboard(fetchText.textContent);
+            this.copyToClipboard(fetchText.value);
           }
         });
       }
@@ -811,6 +816,15 @@ class Dashboard {
           }
 
           if (response && response.success) {
+            // Determine if domain filter is active
+            const isDomainFiltered = filters.domain && filters.domain !== "all";
+
+            // Use domainCounts when NO domain filter (show domains)
+            // Use requestTypes when domain IS filtered (show resource types)
+            const dataForChart = isDomainFiltered
+              ? response.requestTypes || {}
+              : response.domainCounts || {};
+
             // Convert filtered stats to dashboard stats format
             const stats = {
               totalRequests: response.totalRequests || 0,
@@ -822,7 +836,7 @@ class Dashboard {
                 values: this.calculateVolumeValues(response.timestamps || []),
               },
               statusDistribution: [0, 0, 0, 0],
-              topDomains: this.extractTopDomains(response.requestTypes || {}),
+              topDomains: this.extractTopItems(dataForChart),
               performanceTrend: {
                 labels: response.timestamps || [],
                 values: response.responseTimes || [],
@@ -877,9 +891,10 @@ class Dashboard {
     return timestamps.map((label) => bucketCounts[label] || 0);
   }
 
-  extractTopDomains(requestTypes) {
-    // Convert requestTypes object to sorted array
-    const entries = Object.entries(requestTypes);
+  extractTopItems(data) {
+    // Convert data object to sorted array
+    // Can handle either requestTypes (for resources) or domain stats
+    const entries = Object.entries(data);
     entries.sort((a, b) => b[1] - a[1]); // Sort by count descending
     const top5 = entries.slice(0, 5);
 
@@ -962,8 +977,27 @@ class Dashboard {
       this.charts.status.update();
     }
 
-    // Update domains chart
+    // Update domains/resources chart with dynamic label
     if (this.charts.domains && stats.topDomains) {
+      // Check if a domain filter is active
+      const filters = this.getActiveFilters();
+      const isDomainFiltered = filters.domain && filters.domain !== "all";
+
+      // Update chart label dynamically
+      const chartLabel = document.getElementById("dashboardDomainsChartLabel");
+      if (chartLabel) {
+        if (isDomainFiltered) {
+          chartLabel.innerHTML =
+            '<i class="fas fa-chart-bar"></i> Top Resources';
+          // When domain is selected, show resource types
+          this.charts.domains.data.datasets[0].label = "Resource Count";
+        } else {
+          chartLabel.innerHTML = '<i class="fas fa-chart-bar"></i> Top Domains';
+          // When no domain selected, show domain names
+          this.charts.domains.data.datasets[0].label = "Requests";
+        }
+      }
+
       this.charts.domains.data.labels = stats.topDomains.labels || [];
       this.charts.domains.data.datasets[0].data = stats.topDomains.values || [];
       this.charts.domains.update();
@@ -1109,33 +1143,54 @@ class Dashboard {
   async loadEndpointPerformanceHistory() {
     try {
       const activeFilters = this.getActiveFilters();
+      const timeRangeSelect = document.getElementById(
+        "dashboardEndpointTimeRange"
+      );
       const typeFilter = document.getElementById("dashboardEndpointTypeFilter");
       const endpointPattern = document.getElementById(
         "dashboardEndpointPattern"
       );
-      const timeBucket = document.getElementById("dashboardHistoryTimeBucket");
+      const sortBy = document.getElementById("dashboardEndpointSortBy");
+      const topN = document.getElementById("dashboardEndpointTopN");
+      const maxPoints = document.getElementById("dashboardEndpointMaxPoints");
 
+      const timeRangeMinutes = parseInt(timeRangeSelect?.value || "1440");
       const selectedType = typeFilter?.value || "";
       const pattern = endpointPattern?.value?.trim() || "";
-      const bucket = timeBucket?.value || "hourly";
+      const sort = sortBy?.value || "requests";
+      const limit = topN?.value || "10";
+      const maxPointsPerEndpoint = parseInt(maxPoints?.value || "100");
+
+      // Calculate startTime based on selected range
+      const startTime = Date.now() - timeRangeMinutes * 60 * 1000;
+      const endTime = Date.now();
 
       const filters = {
         domain: activeFilters.domain || null,
         pageUrl: activeFilters.pageUrl || null,
         type: activeFilters.type || selectedType || null,
         endpoint: pattern || null,
-        timeBucket: bucket,
-        timeRange: this.timeRange,
+        timeBucket: "none", // No bucketing - plot actual request times
+        startTime,
+        endTime,
+        sortBy: sort,
+        limit: limit === "all" ? 100 : parseInt(limit),
+        maxPointsPerEndpoint,
       };
 
       const response = await chrome.runtime.sendMessage({
-        action: selectedType
-          ? "getRequestTypePerformanceHistory"
-          : "getEndpointPerformanceHistory",
+        action: "getEndpointPerformanceHistory",
         filters,
       });
 
       if (response && response.success) {
+        // Store all endpoints for selection
+        this.availableEndpoints = response.groupedByEndpoint || {};
+
+        // Show endpoint selector
+        this.renderEndpointSelector();
+
+        // Render chart with selected endpoints
         this.renderEndpointPerformanceChart(response);
       }
     } catch (error) {
@@ -1143,77 +1198,338 @@ class Dashboard {
     }
   }
 
-  renderEndpointPerformanceChart(response) {
-    const canvas = document.getElementById("dashboardHistoryChartCanvas");
-    if (!canvas) return;
+  renderEndpointSelector() {
+    const selectorPanel = document.getElementById("dashboardEndpointSelector");
+    const endpointList = document.getElementById("dashboardEndpointList");
 
-    const ctx = canvas.getContext("2d");
+    if (!selectorPanel || !endpointList || !this.availableEndpoints) return;
+
+    const endpoints = Object.keys(this.availableEndpoints);
+
+    if (endpoints.length === 0) {
+      selectorPanel.style.display = "none";
+      return;
+    }
+
+    // Initialize selected endpoints (all by default)
+    if (!this.selectedEndpoints) {
+      this.selectedEndpoints = new Set(endpoints);
+    }
+
+    // Render endpoint checkboxes
+    endpointList.innerHTML = endpoints
+      .map((endpoint, index) => {
+        const data = this.availableEndpoints[endpoint];
+        const totalRequests = data.reduce((sum, d) => sum + d.requestCount, 0);
+        const avgDuration = Math.round(
+          data.reduce((sum, d) => sum + d.avgDuration, 0) / data.length
+        );
+        const isSelected = this.selectedEndpoints.has(endpoint);
+
+        return `
+        <label 
+          class="endpoint-checkbox-item" 
+          style="
+            display: flex; 
+            align-items: center; 
+            padding: 8px; 
+            background: ${
+              isSelected
+                ? "var(--primary-color-alpha)"
+                : "var(--background-color)"
+            }; 
+            border: 1px solid ${
+              isSelected ? "var(--primary-color)" : "var(--border-color)"
+            };
+            border-radius: 4px; 
+            cursor: pointer;
+            transition: all 0.2s;
+          "
+          data-endpoint="${endpoint}"
+        >
+          <input 
+            type="checkbox" 
+            ${isSelected ? "checked" : ""}
+            style="margin-right: 8px;"
+          />
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${endpoint}">
+              ${endpoint}
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+              ${totalRequests} req · ${avgDuration}ms avg
+            </div>
+          </div>
+        </label>
+      `;
+      })
+      .join("");
+
+    selectorPanel.style.display = "block";
+
+    // Add click handlers
+    endpointList.querySelectorAll(".endpoint-checkbox-item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        const endpoint = item.dataset.endpoint;
+        const checkbox = item.querySelector('input[type="checkbox"]');
+
+        // Toggle selection
+        if (this.selectedEndpoints.has(endpoint)) {
+          this.selectedEndpoints.delete(endpoint);
+          checkbox.checked = false;
+          item.style.background = "var(--background-color)";
+          item.style.borderColor = "var(--border-color)";
+        } else {
+          this.selectedEndpoints.add(endpoint);
+          checkbox.checked = true;
+          item.style.background = "var(--primary-color-alpha)";
+          item.style.borderColor = "var(--primary-color)";
+        }
+
+        // Re-render chart with new selection
+        this.renderEndpointPerformanceChart({
+          groupedByEndpoint: this.availableEndpoints,
+        });
+      });
+    });
+
+    // Select/Deselect All buttons
+    const selectAllBtn = document.getElementById("dashboardSelectAllEndpoints");
+    const deselectAllBtn = document.getElementById(
+      "dashboardDeselectAllEndpoints"
+    );
+
+    if (selectAllBtn) {
+      selectAllBtn.onclick = () => {
+        this.selectedEndpoints = new Set(endpoints);
+        this.renderEndpointSelector();
+        this.renderEndpointPerformanceChart({
+          groupedByEndpoint: this.availableEndpoints,
+        });
+      };
+    }
+
+    if (deselectAllBtn) {
+      deselectAllBtn.onclick = () => {
+        this.selectedEndpoints = new Set();
+        this.renderEndpointSelector();
+        this.renderEndpointPerformanceChart({
+          groupedByEndpoint: this.availableEndpoints,
+        });
+      };
+    }
+  }
+
+  renderEndpointPerformanceChart(response) {
+    const chartContainer = document.getElementById(
+      "dashboardPerformanceHistoryChart"
+    );
+    if (!chartContainer) return;
+
+    let canvas = document.getElementById("dashboardHistoryChartCanvas");
+
+    // Recreate canvas if it was removed
+    if (!canvas) {
+      chartContainer.innerHTML =
+        '<canvas id="dashboardHistoryChartCanvas"></canvas>';
+      canvas = document.getElementById("dashboardHistoryChartCanvas");
+    }
 
     // Destroy existing chart
     if (this.charts.endpointHistory) {
       this.charts.endpointHistory.destroy();
+      this.charts.endpointHistory = null;
     }
 
     const groupedData = response.groupedByType || response.groupedByEndpoint;
     if (!groupedData) {
-      document.getElementById("dashboardPerformanceHistoryChart").innerHTML =
+      chartContainer.innerHTML =
         '<p class="no-data">No performance data available</p>';
       return;
     }
 
-    const groupKeys = Object.keys(groupedData);
-    if (groupKeys.length === 0) {
-      document.getElementById("dashboardPerformanceHistoryChart").innerHTML =
-        '<p class="no-data">No data found for selected filters</p>';
+    // Filter by selected endpoints
+    const selectedKeys = this.selectedEndpoints
+      ? Array.from(this.selectedEndpoints).filter((key) => groupedData[key])
+      : Object.keys(groupedData);
+
+    if (selectedKeys.length === 0) {
+      chartContainer.innerHTML =
+        '<p class="no-data">No endpoints selected. Please select at least one endpoint to display.</p>';
       return;
     }
 
-    const colors = [
-      "#4CAF50",
-      "#2196F3",
-      "#FF9800",
-      "#F44336",
-      "#9C27B0",
-      "#00BCD4",
-    ];
+    // Ensure canvas exists after checks
+    if (!canvas) {
+      chartContainer.innerHTML =
+        '<canvas id="dashboardHistoryChartCanvas"></canvas>';
+      canvas = document.getElementById("dashboardHistoryChartCanvas");
+    }
 
-    const datasets = groupKeys.slice(0, 6).map((key, index) => {
+    const ctx = canvas.getContext("2d");
+
+    // Detect if using individual requests (timestamp field) or bucketed data (timeBucket field)
+    const isIndividualRequests =
+      selectedKeys.length > 0 &&
+      groupedData[selectedKeys[0]].length > 0 &&
+      groupedData[selectedKeys[0]][0].timestamp !== undefined;
+
+    // Generate distinct colors for each endpoint
+    const generateColor = (index, total) => {
+      const hue = (index * 360) / total;
+      return `hsl(${hue}, 70%, 50%)`;
+    };
+
+    const datasets = selectedKeys.map((key, index) => {
       const records = groupedData[key];
-      records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
 
-      return {
-        label: key,
-        data: records.map((r) => ({ x: r.timeBucket, y: r.avgDuration })),
-        borderColor: colors[index % colors.length],
-        backgroundColor: "transparent",
-        tension: 0.4,
-        fill: false,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-      };
+      // Truncate long endpoint names for legend
+      const shortLabel = key.length > 40 ? key.substring(0, 37) + "..." : key;
+
+      if (isIndividualRequests) {
+        // Individual request mode - scatter/line plot at actual timestamps
+        records.sort((a, b) => a.timestamp - b.timestamp);
+
+        return {
+          label: shortLabel,
+          data: records.map((r) => ({
+            x: r.timestamp,
+            y: r.duration,
+          })),
+          borderColor: generateColor(index, selectedKeys.length),
+          backgroundColor: generateColor(index, selectedKeys.length),
+          tension: 0.1,
+          fill: false,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          borderWidth: 2,
+          showLine: true,
+        };
+      } else {
+        // Bucketed mode (legacy) - aggregate averages
+        records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
+
+        return {
+          label: shortLabel,
+          data: records.map((r) => ({ x: r.timeBucket, y: r.avgDuration })),
+          borderColor: generateColor(index, selectedKeys.length),
+          backgroundColor: "transparent",
+          tension: 0.3,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+        };
+      }
     });
+
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "nearest",
+        intersect: false,
+        axis: "x",
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: "right",
+          align: "start",
+          labels: {
+            boxWidth: 12,
+            padding: 8,
+            font: { size: 10 },
+            usePointStyle: true,
+            generateLabels: (chart) => {
+              const datasets = chart.data.datasets;
+              return datasets.map((dataset, i) => ({
+                text: dataset.label,
+                fillStyle: dataset.borderColor,
+                strokeStyle: dataset.borderColor,
+                lineWidth: 2,
+                hidden: !chart.isDatasetVisible(i),
+                datasetIndex: i,
+              }));
+            },
+          },
+          onClick: (e, legendItem, legend) => {
+            // Toggle dataset visibility
+            const index = legendItem.datasetIndex;
+            const chart = legend.chart;
+            const meta = chart.getDatasetMeta(index);
+            meta.hidden = !meta.hidden;
+            chart.update();
+          },
+        },
+        title: {
+          display: true,
+          text: `Endpoint Performance Over Time (${
+            selectedKeys.length
+          } endpoint${selectedKeys.length !== 1 ? "s" : ""})`,
+          font: { size: 14, weight: "bold" },
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              if (isIndividualRequests) {
+                // Format timestamp as readable date/time
+                const timestamp = items[0].parsed.x;
+                const date = new Date(timestamp);
+                return date.toLocaleString();
+              } else {
+                return items[0].label;
+              }
+            },
+            label: (context) => {
+              const label = context.dataset.label || "";
+              const value = Math.round(context.parsed.y);
+              return `${label}: ${value}ms`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: isIndividualRequests
+          ? {
+              type: "time",
+              time: {
+                displayFormats: {
+                  millisecond: "HH:mm:ss.SSS",
+                  second: "HH:mm:ss",
+                  minute: "HH:mm",
+                  hour: "MMM D, HH:mm",
+                  day: "MMM D",
+                  week: "MMM D",
+                  month: "MMM YYYY",
+                  quarter: "MMM YYYY",
+                  year: "YYYY",
+                },
+              },
+              title: { display: true, text: "Time" },
+              ticks: { maxRotation: 45, minRotation: 45 },
+            }
+          : {
+              type: "category",
+              title: { display: true, text: "Time" },
+              ticks: { maxRotation: 45, minRotation: 45 },
+            },
+        y: {
+          title: {
+            display: true,
+            text: isIndividualRequests
+              ? "Response Time (ms)"
+              : "Avg Response Time (ms)",
+          },
+          beginAtZero: true,
+        },
+      },
+    };
 
     this.charts.endpointHistory = new Chart(ctx, {
       type: "line",
       data: { datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: true, position: "top" },
-          title: {
-            display: true,
-            text: `Performance Over Time (${response.timeBucket})`,
-          },
-        },
-        scales: {
-          x: { type: "category", title: { display: true, text: "Time" } },
-          y: {
-            title: { display: true, text: "Avg Duration (ms)" },
-            beginAtZero: true,
-          },
-        },
-      },
+      options: chartOptions,
     });
   }
 
@@ -1248,12 +1564,12 @@ class Dashboard {
         response.requests.length === 0
       ) {
         tbody.innerHTML =
-          '<tr class="no-data-row"><td colspan="7" style="text-align: center; padding: 24px;">No requests available for selected filters</td></tr>';
+          '<tr class="no-data-row"><td colspan="8" style="text-align: center; padding: 24px;">No requests available for selected filters</td></tr>';
         document.getElementById("dashboardTablePagination").innerHTML = "";
         return;
       }
 
-      // Store requests for cURL export
+      // Store requests for cURL export and runner
       this.currentRequests = response.requests;
 
       // Build table rows
@@ -1273,6 +1589,11 @@ class Dashboard {
 
         rows += `
           <tr>
+            <td>
+              <input type="checkbox" class="request-checkbox" data-request-id="${
+                req.id
+              }" />
+            </td>
             <td><span class="method-badge">${req.method}</span></td>
             <td class="url-cell" title="${req.url}">${this.truncateUrl(
           req.url,
@@ -1310,7 +1631,7 @@ class Dashboard {
     } catch (error) {
       console.error("Failed to load requests table:", error);
       document.getElementById("dashboardRequestsTableBody").innerHTML =
-        '<tr class="no-data-row"><td colspan="7" style="text-align: center;">Error loading requests</td></tr>';
+        '<tr class="no-data-row"><td colspan="8" style="text-align: center;">Error loading requests</td></tr>';
     }
   }
 
@@ -1442,36 +1763,143 @@ class Dashboard {
 
   async copyAsCurl(request) {
     try {
-      // Fetch headers from database
+      // Fetch headers and body from database
       const headers = await this.getRequestHeaders(request.id);
+      const requestBody = await this.getRequestBody(request.id);
 
-      let curl = `curl '${request.url}'`;
+      // Helper to escape shell special characters for single quotes
+      const escapeShell = (str) => {
+        if (!str) return "";
+        // Replace single quotes with '\'' (end quote, escaped quote, start quote)
+        return String(str).replace(/'/g, "'\\''");
+      };
+
+      let curl = `curl '${escapeShell(request.url)}'`;
 
       if (request.method && request.method !== "GET") {
         curl += ` -X ${request.method}`;
       }
 
-      // Add headers
+      let cookieHeader = null;
+      let contentType = null;
+
+      // Add headers (extract cookies separately)
       if (headers && headers.length > 0) {
         headers.forEach((header) => {
-          // Skip some headers that curl sets automatically
           const name = header.name.toLowerCase();
-          if (!["host", "connection", "content-length"].includes(name)) {
-            curl += ` -H '${header.name}: ${header.value.replace(
-              /'/g,
-              "'\\''"
+
+          // Handle cookies separately with -b flag
+          if (name === "cookie") {
+            cookieHeader = header.value;
+            return;
+          }
+
+          // Track content-type for body formatting
+          if (name === "content-type") {
+            contentType = header.value;
+          }
+
+          // Skip some headers that curl sets automatically
+          if (
+            ![
+              "host",
+              "connection",
+              "content-length",
+              "accept-encoding", // --compressed handles this
+            ].includes(name)
+          ) {
+            curl += ` -H '${escapeShell(header.name)}: ${escapeShell(
+              header.value
             )}'`;
           }
         });
       }
 
-      curl += " --compressed";
+      // Add cookies with -b flag
+      if (cookieHeader) {
+        curl += ` -b '${escapeShell(cookieHeader)}'`;
+      }
+
+      // Add request body for POST/PUT/PATCH/DELETE
+      if (
+        requestBody &&
+        request.method &&
+        !["GET", "HEAD"].includes(request.method)
+      ) {
+        try {
+          // Try to parse as JSON first
+          const bodyObj = JSON.parse(requestBody);
+
+          // Check if it's FormData (has raw/formData structure from chrome.webRequest)
+          if (bodyObj.formData) {
+            // Handle form data
+            const formParts = [];
+            for (const [key, values] of Object.entries(bodyObj.formData)) {
+              values.forEach((value) => {
+                formParts.push(
+                  `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
+                );
+              });
+            }
+            curl += ` --data '${escapeShell(formParts.join("&"))}'`;
+          } else if (bodyObj.raw) {
+            // Handle raw body from chrome.webRequest
+            const rawData = bodyObj.raw[0];
+            if (rawData && rawData.bytes) {
+              // Binary data - note that we can't fully represent this in curl
+              curl += ` --data-binary '<binary data ${rawData.bytes.length} bytes>'`;
+            }
+          } else {
+            // Regular JSON body
+            curl += ` --data '${escapeShell(JSON.stringify(bodyObj))}'`;
+          }
+        } catch (e) {
+          // Not JSON, treat as plain text
+          curl += ` --data '${escapeShell(requestBody)}'`;
+        }
+      }
+
+      // Only add --compressed for text-based content, not binary (images, etc.)
+      // Check if this is likely binary content based on URL or Accept header
+      const isBinaryContent =
+        request.url.match(
+          /\.(jpg|jpeg|png|gif|webp|ico|svg|woff|woff2|ttf|eot|pdf|zip|tar|gz)$/i
+        ) ||
+        headers?.some(
+          (h) =>
+            h.name.toLowerCase() === "accept" &&
+            (h.value.includes("image/") ||
+              h.value.includes("font/") ||
+              h.value.includes("application/octet-stream"))
+        );
+
+      if (!isBinaryContent) {
+        curl += " --compressed";
+      } else {
+        // For binary content, suggest saving to file
+        const filename =
+          request.url.split("/").pop().split("?")[0] || "output.bin";
+        curl += ` -o '${escapeShell(filename)}'`;
+      }
+
+      // Apply variable substitution if enabled
+      const useVariablesToggle = document.getElementById("curlUseVariables");
+      if (useVariablesToggle && useVariablesToggle.checked) {
+        curl = await this.applyVariableSubstitution(curl);
+      }
 
       // Populate modal with cURL command
       const curlCommandText = document.getElementById("curlCommandText");
       if (curlCommandText) {
-        curlCommandText.textContent = curl;
+        curlCommandText.value = curl;
+        curlCommandText.setAttribute("data-original", curl);
       }
+
+      // Populate variables dropdown
+      await this.populateVariablesDropdown("curl");
+
+      // Setup modal event listeners
+      this.setupCurlModalListeners();
 
       // Show modal
       const modal = document.getElementById("curlCommandModal");
@@ -1484,15 +1912,21 @@ class Dashboard {
     }
   }
 
-  // Fetch headers for a request from database
+  // Fetch headers and body for a request from database
   async getRequestHeaders(requestId) {
     try {
+      // Escape requestId to prevent SQL injection
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
       const response = await chrome.runtime.sendMessage({
         action: "executeDirectQuery",
         query: `
           SELECT name, value
           FROM bronze_request_headers
-          WHERE request_id = '${requestId}' AND header_type = 'request'
+          WHERE request_id = ${escapeStr(requestId)} AND header_type = 'request'
           ORDER BY name
         `,
       });
@@ -1507,19 +1941,65 @@ class Dashboard {
     }
   }
 
+  // Fetch request body from database
+  async getRequestBody(requestId) {
+    try {
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT request_body
+          FROM bronze_requests
+          WHERE id = ${escapeStr(requestId)}
+        `,
+      });
+
+      if (
+        response &&
+        response.success &&
+        response.data &&
+        response.data.length > 0
+      ) {
+        return response.data[0].request_body;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching request body:", error);
+      return null;
+    }
+  }
+
   // Show request as Fetch API call in modal
   async copyAsFetch(request) {
     try {
-      // Fetch headers from database
+      // Fetch headers and body from database
       const headers = await this.getRequestHeaders(request.id);
+      const requestBody = await this.getRequestBody(request.id);
 
-      const fetchCode = this.generateFetchCode(request, headers);
+      let fetchCode = this.generateFetchCode(request, headers, requestBody);
+
+      // Apply variable substitution if enabled
+      const useVariablesToggle = document.getElementById("fetchUseVariables");
+      if (useVariablesToggle && useVariablesToggle.checked) {
+        fetchCode = await this.applyVariableSubstitution(fetchCode);
+      }
 
       // Populate modal with Fetch code
       const fetchCommandText = document.getElementById("fetchCommandText");
       if (fetchCommandText) {
-        fetchCommandText.textContent = fetchCode;
+        fetchCommandText.value = fetchCode;
+        fetchCommandText.setAttribute("data-original", fetchCode);
       }
+
+      // Populate variables dropdown
+      await this.populateVariablesDropdown("fetch");
+
+      // Setup modal event listeners
+      this.setupFetchModalListeners();
 
       // Show modal
       const modal = document.getElementById("fetchCommandModal");
@@ -1533,42 +2013,176 @@ class Dashboard {
   }
 
   // Generate Fetch API code
-  generateFetchCode(request, headers = []) {
+  generateFetchCode(request, headers = [], requestBody = null) {
     const options = {
       method: request.method || "GET",
     };
+
+    let hasCookies = false;
+    let contentType = null;
+    let responseType = "json"; // Default to JSON
 
     // Add headers
     if (headers && headers.length > 0) {
       options.headers = {};
       headers.forEach((header) => {
         const name = header.name.toLowerCase();
-        // Skip some headers that fetch sets automatically
+
+        // Track if we have cookies (for credentials option)
+        if (name === "cookie") {
+          hasCookies = true;
+        }
+
+        // Track content-type for body handling
+        if (name === "content-type") {
+          contentType = header.value;
+        }
+
+        // Detect expected response type from Accept header
+        if (name === "accept") {
+          if (header.value.includes("application/json")) {
+            responseType = "json";
+          } else if (header.value.includes("text/")) {
+            responseType = "text";
+          } else if (
+            header.value.includes("image/") ||
+            header.value.includes("video/")
+          ) {
+            responseType = "blob";
+          }
+        }
+
+        // Skip some headers that fetch sets automatically or handles differently
         if (
-          !["host", "connection", "content-length", "user-agent"].includes(name)
+          ![
+            "host",
+            "connection",
+            "content-length",
+            "user-agent",
+            "cookie",
+          ].includes(name)
         ) {
           options.headers[header.name] = header.value;
         }
       });
     }
 
-    // Note: Body data would need to be captured separately
-    const hasBody = request.method && !["GET", "HEAD"].includes(request.method);
+    // Add credentials if cookies present
+    if (hasCookies) {
+      options.credentials = "include";
+    }
 
-    let code = `fetch('${request.url}'`;
+    // Add CORS mode for cross-origin requests
+    const requestUrl = new URL(request.url);
+    const pageUrl = request.page_url ? new URL(request.page_url) : null;
+    if (pageUrl && requestUrl.origin !== pageUrl.origin) {
+      options.mode = "cors";
+    }
 
+    // Add request body for POST/PUT/PATCH/DELETE
     if (
-      Object.keys(options.headers || {}).length > 0 ||
-      options.method !== "GET"
+      requestBody &&
+      request.method &&
+      !["GET", "HEAD"].includes(request.method)
     ) {
-      code += `, ${JSON.stringify(options, null, 2)}`;
+      try {
+        const bodyObj = JSON.parse(requestBody);
+
+        // Check if it's FormData from chrome.webRequest
+        if (bodyObj.formData) {
+          // Convert to FormData
+          options.body = "formData"; // Placeholder - will format below
+          const formParts = [];
+          for (const [key, values] of Object.entries(bodyObj.formData)) {
+            values.forEach((value) => {
+              formParts.push(`  formData.append('${key}', '${value}');`);
+            });
+          }
+          // Store for later formatting
+          options._formDataParts = formParts;
+        } else if (bodyObj.raw) {
+          // Raw binary data
+          options.body = "'<binary data>'";
+        } else {
+          // Regular JSON body
+          if (contentType && contentType.includes("application/json")) {
+            options.body = JSON.stringify(bodyObj);
+          } else {
+            options.body = JSON.stringify(bodyObj);
+          }
+        }
+      } catch (e) {
+        // Not JSON, treat as plain text
+        options.body = requestBody;
+      }
     }
 
-    code += `)\n  .then(response => response.json())\n  .then(data => console.log(data))\n  .catch(error => console.error('Error:', error));`;
+    // Format the code
+    let code = "";
 
-    if (hasBody) {
-      code = `// Note: Request body not captured\n` + code;
+    // Handle FormData separately
+    if (options._formDataParts) {
+      code += "const formData = new FormData();\n";
+      code += options._formDataParts.join("\n") + "\n\n";
+      delete options._formDataParts;
+      delete options.body;
+
+      // Create options without body
+      const optionsForFormat = { ...options };
+      code += `fetch('${request.url}', ${JSON.stringify(
+        optionsForFormat,
+        null,
+        2
+      ).replace(/"formData"/, "formData")})`;
+    } else {
+      // Regular fetch with JSON body
+      let optionsStr = JSON.stringify(options, null, 2);
+
+      // Format body properly
+      if (options.body) {
+        optionsStr = optionsStr.replace(
+          `"body": ${JSON.stringify(options.body)}`,
+          `"body": ${
+            typeof options.body === "string" && options.body.startsWith("{")
+              ? options.body
+              : JSON.stringify(options.body)
+          }`
+        );
+      }
+
+      code += `fetch('${request.url}'`;
+
+      if (
+        Object.keys(options.headers || {}).length > 0 ||
+        options.method !== "GET" ||
+        options.body ||
+        options.credentials ||
+        options.mode
+      ) {
+        code += `, ${optionsStr}`;
+      }
+
+      code += ")";
     }
+
+    // Add flexible response handling based on detected type
+    code += `\n  .then(response => {\n`;
+    code += `    // Check response status\n`;
+    code += `    if (!response.ok) {\n`;
+    code += `      throw new Error(\`HTTP error! status: \${response.status}\`);\n`;
+    code += `    }\n`;
+    code += `    // Parse response based on content type\n`;
+    code += `    const contentType = response.headers.get('content-type');\n`;
+    code += `    if (contentType && contentType.includes('application/json')) {\n`;
+    code += `      return response.json();\n`;
+    code += `    } else if (contentType && (contentType.includes('image/') || contentType.includes('video/'))) {\n`;
+    code += `      return response.blob();\n`;
+    code += `    } else {\n`;
+    code += `      return response.text();\n`;
+    code += `    }\n`;
+    code += `  })\n`;
+    code += `  .then(data => console.log(data))\n`;
+    code += `  .catch(error => console.error('Error:', error));`;
 
     return code;
   }
@@ -1577,7 +2191,7 @@ class Dashboard {
   async executeFetch() {
     try {
       const fetchText = document.getElementById("fetchCommandText");
-      if (!fetchText || !fetchText.textContent) {
+      if (!fetchText || !fetchText.value) {
         this.showToast("No fetch code to execute", "error");
         return;
       }
@@ -1596,7 +2210,7 @@ class Dashboard {
       }
 
       // Extract fetch URL and options from the code
-      const code = fetchText.textContent;
+      const code = fetchText.value;
       const fetchMatch = code.match(/fetch\('([^']+)'(?:,\s*({[\s\S]+?}))?\)/);
 
       if (!fetchMatch) {
@@ -1607,11 +2221,31 @@ class Dashboard {
       let options = {};
 
       if (fetchMatch[2]) {
-        // Parse the options object
+        // Parse the options object using JSON.parse (safer than eval)
         try {
-          options = eval("(" + fetchMatch[2] + ")");
+          // Convert JavaScript object notation to JSON format
+          let optionsStr = fetchMatch[2];
+
+          // Add quotes to property names if missing
+          optionsStr = optionsStr.replace(
+            /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g,
+            '$1"$2"$3'
+          );
+
+          // Convert single quotes to double quotes
+          optionsStr = optionsStr.replace(/:\s*'([^']*)'/g, ': "$1"');
+
+          // Try to parse as JSON
+          options = JSON.parse(optionsStr);
         } catch (e) {
           console.error("Failed to parse options:", e);
+          console.log("Attempting basic fallback parsing...");
+
+          // Basic fallback: extract method if present
+          const methodMatch = fetchMatch[2].match(/method:\s*["']([^"']+)["']/);
+          if (methodMatch) {
+            options.method = methodMatch[1];
+          }
         }
       }
 
@@ -2220,6 +2854,639 @@ class Dashboard {
     }
     return base + "?...";
   }
+
+  // ============================================================
+  // REQUEST RUNNER METHODS
+  // ============================================================
+
+  setupRunnerEventListeners() {
+    // Select all checkbox
+    const selectAllCheckbox = document.getElementById("selectAllRequests");
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener("change", (e) => {
+        const checkboxes = document.querySelectorAll(".request-checkbox");
+        checkboxes.forEach((cb) => (cb.checked = e.target.checked));
+        this.updateRunnerControls();
+      });
+    }
+
+    // Individual checkboxes (event delegation)
+    const requestsTable = document.getElementById("dashboardRequestsTable");
+    if (requestsTable) {
+      requestsTable.addEventListener("change", (e) => {
+        if (e.target.classList.contains("request-checkbox")) {
+          this.updateRunnerControls();
+        }
+      });
+    }
+
+    // Runner control buttons
+    const btnRunSelected = document.getElementById("btnRunSelectedRequests");
+    if (btnRunSelected) {
+      btnRunSelected.addEventListener("click", () => this.openRunnerConfig());
+    }
+
+    const btnClearSelection = document.getElementById("btnClearSelection");
+    if (btnClearSelection) {
+      btnClearSelection.addEventListener("click", () => {
+        document
+          .querySelectorAll(".request-checkbox")
+          .forEach((cb) => (cb.checked = false));
+        document.getElementById("selectAllRequests").checked = false;
+        this.updateRunnerControls();
+      });
+    }
+
+    const btnRunnerHistory = document.getElementById("btnRunnerHistory");
+    if (btnRunnerHistory) {
+      btnRunnerHistory.addEventListener("click", () =>
+        this.showRunnerHistory()
+      );
+    }
+
+    // Runner config modal
+    const runnerMode = document.getElementById("runnerMode");
+    if (runnerMode) {
+      runnerMode.addEventListener("change", (e) => {
+        const delayGroup = document.getElementById("runnerDelayGroup");
+        if (delayGroup) {
+          delayGroup.style.display =
+            e.target.value === "sequential" ? "block" : "none";
+        }
+      });
+    }
+
+    const closeRunnerConfigModal = document.getElementById(
+      "closeRunnerConfigModal"
+    );
+    if (closeRunnerConfigModal) {
+      closeRunnerConfigModal.addEventListener("click", () => {
+        document.getElementById("runnerConfigModal").style.display = "none";
+      });
+    }
+
+    const cancelRunnerBtn = document.getElementById("cancelRunnerBtn");
+    if (cancelRunnerBtn) {
+      cancelRunnerBtn.addEventListener("click", () => {
+        document.getElementById("runnerConfigModal").style.display = "none";
+      });
+    }
+
+    const startRunnerBtn = document.getElementById("startRunnerBtn");
+    if (startRunnerBtn) {
+      startRunnerBtn.addEventListener("click", () => this.startRunner());
+    }
+
+    // Variable checkbox toggle
+    const runnerUseVariables = document.getElementById("runnerUseVariables");
+    if (runnerUseVariables) {
+      runnerUseVariables.addEventListener("change", (e) => {
+        const previewContainer = document.getElementById(
+          "runnerVariablesPreview"
+        );
+        if (previewContainer) {
+          previewContainer.style.display = e.target.checked ? "block" : "none";
+        }
+      });
+    }
+
+    // Runner progress modal
+    const closeRunnerProgressModal = document.getElementById(
+      "closeRunnerProgressModal"
+    );
+    if (closeRunnerProgressModal) {
+      closeRunnerProgressModal.addEventListener("click", () => {
+        if (this.runnerProgressInterval) {
+          clearInterval(this.runnerProgressInterval);
+        }
+        document.getElementById("runnerProgressModal").style.display = "none";
+      });
+    }
+
+    const cancelRunnerProgressBtn = document.getElementById(
+      "cancelRunnerProgressBtn"
+    );
+    if (cancelRunnerProgressBtn) {
+      cancelRunnerProgressBtn.addEventListener("click", () =>
+        this.cancelRunner()
+      );
+    }
+
+    const closeRunnerResultsBtn = document.getElementById(
+      "closeRunnerResultsBtn"
+    );
+    if (closeRunnerResultsBtn) {
+      closeRunnerResultsBtn.addEventListener("click", () => {
+        if (this.runnerProgressInterval) {
+          clearInterval(this.runnerProgressInterval);
+        }
+        document.getElementById("runnerProgressModal").style.display = "none";
+      });
+    }
+
+    // Runner history modal
+    const closeRunnerHistoryModal = document.getElementById(
+      "closeRunnerHistoryModal"
+    );
+    if (closeRunnerHistoryModal) {
+      closeRunnerHistoryModal.addEventListener("click", () => {
+        document.getElementById("runnerHistoryModal").style.display = "none";
+      });
+    }
+
+    const closeHistoryBtn = document.getElementById("closeHistoryBtn");
+    if (closeHistoryBtn) {
+      closeHistoryBtn.addEventListener("click", () => {
+        document.getElementById("runnerHistoryModal").style.display = "none";
+      });
+    }
+  }
+
+  updateRunnerControls() {
+    const checkboxes = document.querySelectorAll(".request-checkbox:checked");
+    const count = checkboxes.length;
+    const controls = document.getElementById("runnerControls");
+    const countSpan = document.getElementById("selectedRequestsCount");
+
+    if (controls) {
+      controls.style.display = count > 0 ? "block" : "none";
+    }
+
+    if (countSpan) {
+      countSpan.textContent = count;
+    }
+  }
+
+  getSelectedRequests() {
+    const checkboxes = document.querySelectorAll(".request-checkbox:checked");
+    const requestIds = Array.from(checkboxes).map((cb) => cb.dataset.requestId);
+
+    // Debug log
+    console.log("Selected checkbox count:", checkboxes.length);
+    console.log("Request IDs from checkboxes:", requestIds);
+    console.log("Current requests:", this.currentRequests?.length || 0);
+
+    if (!this.currentRequests || this.currentRequests.length === 0) {
+      console.warn("No current requests available");
+      return [];
+    }
+
+    // Filter by matching IDs (convert both to strings for comparison)
+    const selected = this.currentRequests.filter((req) =>
+      requestIds.includes(String(req.id))
+    );
+
+    console.log("Matched requests:", selected.length);
+    return selected;
+  }
+
+  async openRunnerConfig() {
+    const selectedRequests = this.getSelectedRequests();
+    if (selectedRequests.length === 0) {
+      this.showToast("No requests selected", "error");
+      return;
+    }
+
+    // Store selected requests for runner execution
+    this.selectedRunnerRequests = selectedRequests;
+    console.log("Stored runner requests:", this.selectedRunnerRequests.length);
+
+    document.getElementById("runnerRequestCount").textContent =
+      selectedRequests.length;
+
+    // Load and display variables
+    await this.loadRunnerVariables();
+
+    document.getElementById("runnerConfigModal").style.display = "flex";
+  }
+
+  async loadRunnerVariables() {
+    try {
+      // Fetch settings from background
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings",
+      });
+
+      if (!response || !response.success) {
+        console.warn("Failed to load settings for variables");
+        return;
+      }
+
+      const variables = response.settings?.variables?.list || [];
+      const variableCount = variables.length;
+
+      // Update count
+      document.getElementById(
+        "runnerVariableCount"
+      ).textContent = `${variableCount} variable${
+        variableCount !== 1 ? "s" : ""
+      }`;
+
+      // Build variable list HTML
+      const listContainer = document.getElementById("runnerVariablesList");
+      if (variableCount === 0) {
+        listContainer.innerHTML = `
+          <div style="color: var(--text-secondary); font-style: italic; padding: 8px;">
+            No variables configured. Add variables in Settings to use them in headers.
+          </div>
+        `;
+      } else {
+        const listHTML = variables
+          .map((v) => {
+            // Mask sensitive values (show first and last 4 characters)
+            let displayValue = v.value || "";
+            if (v.sensitive && displayValue.length > 8) {
+              displayValue = `${displayValue.substring(
+                0,
+                4
+              )}...${displayValue.substring(displayValue.length - 4)}`;
+            } else if (displayValue.length > 50) {
+              displayValue = displayValue.substring(0, 50) + "...";
+            }
+
+            return `
+              <div style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">
+                <strong style="color: var(--primary-color);">\${${
+                  v.name
+                }}</strong>
+                <span style="color: var(--text-secondary);"> → </span>
+                <span style="color: var(--text-primary);">${this.escapeHtml(
+                  displayValue
+                )}</span>
+                ${
+                  v.sensitive
+                    ? '<span style="margin-left: 8px; color: var(--warning-color); font-size: 0.9em;">(masked)</span>'
+                    : ""
+                }
+              </div>
+            `;
+          })
+          .join("");
+        listContainer.innerHTML = listHTML;
+      }
+
+      // Show preview if checkbox is checked
+      const useVariablesCheckbox =
+        document.getElementById("runnerUseVariables");
+      const previewContainer = document.getElementById(
+        "runnerVariablesPreview"
+      );
+      previewContainer.style.display = useVariablesCheckbox.checked
+        ? "block"
+        : "none";
+    } catch (error) {
+      console.error("Error loading runner variables:", error);
+    }
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  async startRunner() {
+    // Use stored selected requests from when modal opened
+    const selectedRequests = this.selectedRunnerRequests;
+    console.log("Starting runner with requests:", selectedRequests?.length);
+
+    if (!selectedRequests || selectedRequests.length === 0) {
+      this.showToast("No requests selected", "error");
+      return;
+    }
+
+    // Get configuration
+    const mode = document.getElementById("runnerMode").value;
+    const delay = parseInt(document.getElementById("runnerDelay").value) || 0;
+    const followRedirects = document.getElementById(
+      "runnerFollowRedirects"
+    ).checked;
+    const validateStatus = document.getElementById(
+      "runnerValidateStatus"
+    ).checked;
+    const useVariables = document.getElementById("runnerUseVariables").checked;
+    const headersText = document.getElementById("runnerHeaders").value.trim();
+
+    let headerOverrides = {};
+    if (headersText) {
+      try {
+        headerOverrides = JSON.parse(headersText);
+      } catch (error) {
+        this.showToast("Invalid JSON in custom headers", "error");
+        return;
+      }
+    }
+
+    const config = {
+      mode,
+      delay,
+      followRedirects,
+      validateStatus,
+      useVariables,
+      headerOverrides,
+    };
+
+    // Close config modal
+    document.getElementById("runnerConfigModal").style.display = "none";
+
+    // Show progress modal
+    document.getElementById("runnerProgressModal").style.display = "flex";
+
+    // Reset spinner icon
+    const progressIcon = document.getElementById("runnerProgressIcon");
+    progressIcon.className = "fas fa-spinner fa-pulse";
+    progressIcon.style.color = "";
+
+    document.getElementById("runnerProgressText").textContent = "Starting...";
+    document.getElementById("runnerProgressPercent").textContent = "0%";
+    document.getElementById("runnerSuccessCount").textContent = "0";
+    document.getElementById("runnerFailureCount").textContent = "0";
+    document.getElementById("runnerElapsedTime").textContent = "0s";
+    document.getElementById(
+      "runnerProgressCount"
+    ).textContent = `0 / ${selectedRequests.length}`;
+    document.getElementById("runnerProgressBar").style.width = "0%";
+    document.getElementById("runnerResultsTableBody").innerHTML =
+      "<tr><td colspan='5' style='text-align: center; padding: 16px;'>Waiting for results...</td></tr>";
+    document.getElementById("cancelRunnerProgressBtn").style.display =
+      "inline-flex";
+    document.getElementById("closeRunnerResultsBtn").style.display = "none";
+
+    try {
+      // Start the runner
+      const response = await chrome.runtime.sendMessage({
+        action: "runRequests",
+        config,
+        requests: selectedRequests,
+      });
+
+      if (!response.success) {
+        this.showToast("Failed to start runner: " + response.error, "error");
+        document.getElementById("runnerProgressModal").style.display = "none";
+        return;
+      }
+
+      // Poll for progress
+      this.runnerProgressInterval = setInterval(
+        () => this.updateRunnerProgress(),
+        500
+      );
+    } catch (error) {
+      console.error("Failed to start runner:", error);
+      this.showToast("Failed to start runner", "error");
+      document.getElementById("runnerProgressModal").style.display = "none";
+    }
+  }
+
+  async updateRunnerProgress() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerProgress",
+      });
+
+      if (!response.success || !response.progress) {
+        console.log("No progress data available");
+        return;
+      }
+
+      const progress = response.progress;
+      console.log(
+        "Runner progress:",
+        progress.status,
+        progress.completedRequests,
+        "/",
+        progress.totalRequests
+      );
+
+      // Update progress stats
+      document.getElementById(
+        "runnerProgressPercent"
+      ).textContent = `${progress.progress}%`;
+      document.getElementById("runnerSuccessCount").textContent =
+        progress.successCount;
+      document.getElementById("runnerFailureCount").textContent =
+        progress.failureCount;
+      document.getElementById(
+        "runnerProgressCount"
+      ).textContent = `${progress.completedRequests} / ${progress.totalRequests}`;
+      document.getElementById(
+        "runnerProgressBar"
+      ).style.width = `${progress.progress}%`;
+
+      // Update elapsed time
+      const elapsedSeconds = Math.floor(progress.elapsedTime / 1000);
+      document.getElementById(
+        "runnerElapsedTime"
+      ).textContent = `${elapsedSeconds}s`;
+
+      // Update current request
+      if (progress.currentRequest) {
+        const currentReqDiv = document.getElementById("runnerCurrentRequest");
+        currentReqDiv.style.display = "block";
+        document.getElementById("runnerCurrentMethod").textContent =
+          progress.currentRequest.method;
+        document.getElementById("runnerCurrentUrl").textContent =
+          progress.currentRequest.url;
+      }
+
+      // Update progress text
+      if (progress.status === "running") {
+        document.getElementById(
+          "runnerProgressText"
+        ).textContent = `Running (${progress.mode})...`;
+      } else if (progress.status === "completed") {
+        console.log("Runner completed - calling completeRunner()");
+        document.getElementById("runnerProgressText").textContent =
+          "✓ Completed";
+        document.getElementById("runnerCurrentRequest").style.display = "none";
+
+        // Change spinner to checkmark
+        const progressIcon = document.getElementById("runnerProgressIcon");
+        progressIcon.className = "fas fa-check-circle";
+        progressIcon.style.color = "var(--success-color)";
+
+        this.completeRunner();
+      } else if (progress.status === "cancelled") {
+        console.log("Runner cancelled - calling completeRunner()");
+        document.getElementById("runnerProgressText").textContent =
+          "✗ Cancelled";
+        document.getElementById("runnerCurrentRequest").style.display = "none";
+        this.completeRunner();
+      } else if (progress.status === "failed") {
+        console.log("Runner failed - calling completeRunner()");
+        document.getElementById("runnerProgressText").textContent = "✗ Failed";
+        document.getElementById("runnerCurrentRequest").style.display = "none";
+        this.completeRunner();
+      }
+
+      // Build results table (show completed requests)
+      await this.updateRunnerResultsTable();
+    } catch (error) {
+      console.error("Failed to get runner progress:", error);
+    }
+  }
+
+  async updateRunnerResultsTable() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerProgress",
+      });
+
+      if (!response.success || !response.progress) {
+        return;
+      }
+
+      const results = response.progress.currentRequest
+        ? [...(this.runnerResults || []), response.progress.currentRequest]
+        : this.runnerResults || [];
+
+      // Store results for table building
+      if (response.progress.currentRequest) {
+        this.runnerResults = results;
+      }
+
+      if (results.length === 0) {
+        return;
+      }
+
+      let rows = "";
+      results.forEach((result) => {
+        const statusClass = result.success ? "status-success" : "status-error";
+        const statusText = result.status || "N/A";
+        const duration = result.duration ? `${result.duration}ms` : "N/A";
+
+        rows += `
+          <tr>
+            <td>${result.index + 1}</td>
+            <td><span class="method-badge">${result.method}</span></td>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${
+              result.url
+            }">${result.url}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            <td>${duration}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("runnerResultsTableBody").innerHTML = rows;
+    } catch (error) {
+      console.error("Failed to update runner results table:", error);
+    }
+  }
+
+  completeRunner() {
+    console.log("completeRunner() called - stopping interval");
+    if (this.runnerProgressInterval) {
+      clearInterval(this.runnerProgressInterval);
+      this.runnerProgressInterval = null;
+      console.log("Progress interval cleared");
+    }
+
+    // Show done button, hide cancel button
+    document.getElementById("cancelRunnerProgressBtn").style.display = "none";
+    document.getElementById("closeRunnerResultsBtn").style.display =
+      "inline-flex";
+
+    // Clear results cache
+    this.runnerResults = null;
+  }
+
+  async cancelRunner() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "cancelRun",
+      });
+
+      if (response.success) {
+        this.showToast("Runner cancelled", "info");
+      }
+    } catch (error) {
+      console.error("Failed to cancel runner:", error);
+      this.showToast("Failed to cancel runner", "error");
+    }
+  }
+
+  async showRunnerHistory() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunHistory",
+        limit: 20,
+      });
+
+      if (!response.success || !response.history) {
+        this.showToast("Failed to load runner history", "error");
+        return;
+      }
+
+      const history = response.history;
+      const container = document.getElementById("runnerHistoryContainer");
+
+      if (history.length === 0) {
+        container.innerHTML =
+          '<p style="text-align: center; padding: 24px; color: var(--text-secondary-color);">No runner history available.</p>';
+      } else {
+        let html =
+          '<div style="display: flex; flex-direction: column; gap: 12px;">';
+
+        history.forEach((run) => {
+          const statusIcon =
+            run.status === "completed"
+              ? '<i class="fas fa-check-circle" style="color: var(--success-color);"></i>'
+              : run.status === "cancelled"
+              ? '<i class="fas fa-ban" style="color: var(--warning-color);"></i>'
+              : '<i class="fas fa-exclamation-circle" style="color: var(--error-color);"></i>';
+
+          const date = new Date(run.startTime).toLocaleString();
+          const duration = run.duration
+            ? `${Math.round(run.duration / 1000)}s`
+            : "N/A";
+
+          html += `
+            <div style="padding: 16px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  ${statusIcon}
+                  <strong style="text-transform: capitalize;">${run.status}</strong>
+                  <span style="color: var(--text-secondary-color); font-size: 13px;">• ${run.mode}</span>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary-color);">${date}</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Total Requests</div>
+                  <div style="font-weight: 600; color: var(--text-color);">${run.totalRequests}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Successful</div>
+                  <div style="font-weight: 600; color: var(--success-color);">${run.successCount}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Failed</div>
+                  <div style="font-weight: 600; color: var(--error-color);">${run.failureCount}</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-color);">Duration</div>
+                  <div style="font-weight: 600; color: var(--text-color);">${duration}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += "</div>";
+        container.innerHTML = html;
+      }
+
+      document.getElementById("runnerHistoryModal").style.display = "flex";
+    } catch (error) {
+      console.error("Failed to load runner history:", error);
+      this.showToast("Failed to load runner history", "error");
+    }
+  }
+
+  // ============================================================
+  // END REQUEST RUNNER METHODS
+  // ============================================================
 
   formatBytes(bytes) {
     if (bytes === 0) return "0 B";
@@ -3496,6 +4763,227 @@ class Dashboard {
       console.error("Failed to load performance insights:", error);
       document.getElementById("insightsList").innerHTML =
         '<p class="no-data">Error loading insights</p>';
+    }
+  }
+
+  /**
+   * Apply variable substitution to command text
+   */
+  async applyVariableSubstitution(text) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings",
+      });
+
+      if (!response || !response.settings || !response.settings.variables) {
+        return text;
+      }
+
+      const variables = response.settings.variables.list || [];
+      let result = text;
+
+      // Replace actual values with ${VAR_NAME} placeholders
+      variables.forEach((variable) => {
+        if (variable.value && variable.value.length > 0) {
+          const escaped = this.escapeRegex(variable.value);
+          const regex = new RegExp(escaped, "g");
+          result = result.replace(regex, `\${${variable.name}}`);
+        }
+      });
+
+      return result;
+    } catch (error) {
+      console.error("Failed to apply variable substitution:", error);
+      return text;
+    }
+  }
+
+  /**
+   * Escape special regex characters
+   */
+  escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  /**
+   * Populate variables dropdown
+   */
+  async populateVariablesDropdown(type) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings",
+      });
+
+      if (!response || !response.settings || !response.settings.variables) {
+        return;
+      }
+
+      const variables = response.settings.variables.list || [];
+      const selectId =
+        type === "curl" ? "curlVariableSelect" : "fetchVariableSelect";
+      const select = document.getElementById(selectId);
+
+      if (!select) return;
+
+      // Clear existing options except first
+      select.innerHTML = '<option value="">Insert Variable...</option>';
+
+      // Add variables
+      variables.forEach((variable) => {
+        const option = document.createElement("option");
+        option.value = variable.name;
+        option.textContent = `\${${variable.name}}`;
+        option.title = variable.description || variable.name;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Failed to populate variables dropdown:", error);
+    }
+  }
+
+  /**
+   * Setup cURL modal event listeners
+   */
+  setupCurlModalListeners() {
+    const editBtn = document.getElementById("editCurlBtn");
+    const saveBtn = document.getElementById("saveCurlBtn");
+    const textarea = document.getElementById("curlCommandText");
+    const useVariablesToggle = document.getElementById("curlUseVariables");
+    const variableSelect = document.getElementById("curlVariableSelect");
+    const variablesDropdown = document.getElementById("curlVariablesDropdown");
+
+    // Remove old listeners by cloning
+    if (editBtn) {
+      const newEditBtn = editBtn.cloneNode(true);
+      editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+      newEditBtn.addEventListener("click", () => {
+        if (textarea) {
+          textarea.readOnly = false;
+          textarea.style.background = "var(--background-color)";
+          textarea.focus();
+          if (saveBtn) saveBtn.style.display = "block";
+          if (variablesDropdown) variablesDropdown.style.display = "block";
+        }
+      });
+    }
+
+    if (saveBtn) {
+      const newSaveBtn = saveBtn.cloneNode(true);
+      saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+      newSaveBtn.addEventListener("click", () => {
+        if (textarea) {
+          textarea.readOnly = true;
+          textarea.style.background = "var(--bg-secondary)";
+          newSaveBtn.style.display = "none";
+          if (variablesDropdown) variablesDropdown.style.display = "none";
+          this.showToast("Changes saved", "success");
+        }
+      });
+    }
+
+    if (useVariablesToggle) {
+      const newToggle = useVariablesToggle.cloneNode(true);
+      useVariablesToggle.parentNode.replaceChild(newToggle, useVariablesToggle);
+      newToggle.addEventListener("change", async () => {
+        if (textarea) {
+          const original = textarea.getAttribute("data-original");
+          if (newToggle.checked) {
+            textarea.value = await this.applyVariableSubstitution(original);
+          } else {
+            textarea.value = original;
+          }
+        }
+      });
+    }
+
+    if (variableSelect) {
+      const newSelect = variableSelect.cloneNode(true);
+      variableSelect.parentNode.replaceChild(newSelect, variableSelect);
+      newSelect.addEventListener("change", () => {
+        if (newSelect.value && textarea) {
+          const cursorPos = textarea.selectionStart;
+          const textBefore = textarea.value.substring(0, cursorPos);
+          const textAfter = textarea.value.substring(textarea.selectionEnd);
+          textarea.value = textBefore + `\${${newSelect.value}}` + textAfter;
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd =
+            cursorPos + newSelect.value.length + 3;
+          newSelect.value = "";
+        }
+      });
+    }
+  }
+
+  /**
+   * Setup Fetch modal event listeners
+   */
+  setupFetchModalListeners() {
+    const editBtn = document.getElementById("editFetchBtn");
+    const saveBtn = document.getElementById("saveFetchBtn");
+    const textarea = document.getElementById("fetchCommandText");
+    const useVariablesToggle = document.getElementById("fetchUseVariables");
+    const variableSelect = document.getElementById("fetchVariableSelect");
+    const variablesDropdown = document.getElementById("fetchVariablesDropdown");
+
+    // Remove old listeners by cloning
+    if (editBtn) {
+      const newEditBtn = editBtn.cloneNode(true);
+      editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+      newEditBtn.addEventListener("click", () => {
+        if (textarea) {
+          textarea.readOnly = false;
+          textarea.style.background = "var(--background-color)";
+          textarea.focus();
+          if (saveBtn) saveBtn.style.display = "block";
+          if (variablesDropdown) variablesDropdown.style.display = "block";
+        }
+      });
+    }
+
+    if (saveBtn) {
+      const newSaveBtn = saveBtn.cloneNode(true);
+      saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+      newSaveBtn.addEventListener("click", () => {
+        if (textarea) {
+          textarea.readOnly = true;
+          textarea.style.background = "var(--bg-secondary)";
+          newSaveBtn.style.display = "none";
+          if (variablesDropdown) variablesDropdown.style.display = "none";
+          this.showToast("Changes saved", "success");
+        }
+      });
+    }
+
+    if (useVariablesToggle) {
+      const newToggle = useVariablesToggle.cloneNode(true);
+      useVariablesToggle.parentNode.replaceChild(newToggle, useVariablesToggle);
+      newToggle.addEventListener("change", async () => {
+        if (textarea) {
+          const original = textarea.getAttribute("data-original");
+          if (newToggle.checked) {
+            textarea.value = await this.applyVariableSubstitution(original);
+          } else {
+            textarea.value = original;
+          }
+        }
+      });
+    }
+
+    if (variableSelect) {
+      const newSelect = variableSelect.cloneNode(true);
+      variableSelect.parentNode.replaceChild(newSelect, variableSelect);
+      newSelect.addEventListener("change", () => {
+        if (newSelect.value && textarea) {
+          const cursorPos = textarea.selectionStart;
+          const textBefore = textarea.value.substring(0, cursorPos);
+          const textAfter = textarea.value.substring(textarea.selectionEnd);
+          textarea.value = textBefore + `\${${newSelect.value}}` + textAfter;
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd =
+            cursorPos + newSelect.value.length + 3;
+          newSelect.value = "";
+        }
+      });
     }
   }
 }

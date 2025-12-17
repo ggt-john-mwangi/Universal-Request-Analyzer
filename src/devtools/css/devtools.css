@@ -751,8 +751,80 @@ body {
   padding: 15px;
   background: var(--surface);
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   box-shadow: 0 2px 4px var(--shadow);
+}
+
+/* Quick Filter Chips */
+.quick-filters {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+  box-shadow: 0 2px 4px var(--shadow);
+}
+
+.filter-group-label {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 0 6px;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 2px solid var(--border);
+  background: var(--background);
+  border-radius: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.filter-chip:hover {
+  border-color: var(--primary-color);
+  background: var(--surface);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px var(--shadow);
+}
+
+.filter-chip.active {
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--info) 100%
+  );
+  color: white;
+  border-color: var(--primary-color);
+  box-shadow: 0 3px 10px var(--shadow);
+  transform: translateY(-1px);
+}
+
+.filter-chip i {
+  font-size: 12px;
+  color: inherit;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filter-chip:hover i,
+.filter-chip.active i {
+  transform: scale(1.1);
 }
 
 .filter-group {
@@ -1851,7 +1923,7 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1950,6 +2022,6 @@ body {
 }
 
 .method-badge.method-patch {
-  background: #9C27B0;
+  background: #9c27b0;
   color: white;
 }
