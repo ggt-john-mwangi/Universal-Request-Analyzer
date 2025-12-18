@@ -1201,7 +1201,9 @@ class Dashboard {
           chartContainer.innerHTML = `
             <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
               <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
-              Failed to load performance data: ${response?.error || "Unknown error"}
+              Failed to load performance data: ${
+                response?.error || "Unknown error"
+              }
             </p>
           `;
         }

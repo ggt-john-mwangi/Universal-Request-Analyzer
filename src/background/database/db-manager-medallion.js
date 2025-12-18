@@ -802,10 +802,14 @@ async function createRunner(definition, requests) {
 
   try {
     // Check if runner ID already exists
-    const checkQuery = `SELECT id FROM config_runner_definitions WHERE id = ${escapeStr(definition.id)}`;
+    const checkQuery = `SELECT id FROM config_runner_definitions WHERE id = ${escapeStr(
+      definition.id
+    )}`;
     const existing = db.exec(checkQuery);
     if (existing && existing[0]?.values && existing[0].values.length > 0) {
-      throw new DatabaseError(`Runner with ID ${definition.id} already exists. Please try again.`);
+      throw new DatabaseError(
+        `Runner with ID ${definition.id} already exists. Please try again.`
+      );
     }
 
     // Insert runner definition
