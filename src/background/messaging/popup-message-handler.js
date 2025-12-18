@@ -11,6 +11,13 @@ let dbManager = null;
 export function initializePopupMessageHandler(auth, database) {
   localAuthManager = auth;
   dbManager = database;
+
+  // Initialize requestRunner with database manager
+  if (database && requestRunner) {
+    requestRunner.setDbManager(database);
+    console.log("✓ RequestRunner initialized with database manager");
+  }
+
   console.log("Popup message handler initialized");
 
   // Return the handler function to be used by central listener
@@ -3978,9 +3985,13 @@ async function handleGetRunnerDefinition(runnerId) {
       return { success: false, error: "Runner not found" };
     }
 
+    // Also fetch the requests for this runner
+    const requests = await dbManager.runner.getRunnerRequests(runnerId);
+
     return {
       success: true,
       runner,
+      requests: requests || [],
     };
   } catch (error) {
     console.error("Get runner definition error:", error);
@@ -4081,6 +4092,9 @@ async function handleGetExecutionResults(executionId) {
 
 /**
  * Convert a temporary runner to a saved runner
+ * NOTE: With collection_id pattern, all runners are "saved" - they are either
+ * part of a collection (collection_id = ID) or standalone (collection_id = NULL).
+ * Use cleanupTemporaryRunners to remove old standalone runners if needed.
  */
 async function handleConvertToSavedRunner(runnerId) {
   try {
@@ -4088,12 +4102,13 @@ async function handleConvertToSavedRunner(runnerId) {
       return { success: false, error: "Database not initialized" };
     }
 
-    await dbManager.runner.updateRunnerDefinition(runnerId, {
-      is_temporary: false,
-    });
-
+    // With new schema, runners don't need "conversion" - they're already saved
+    // If you want to add to a collection, use updateRunnerDefinition with collection_id
+    console.log("[Runner] Convert no longer needed - all runners are persistent");
+    
     return {
       success: true,
+      message: "Runner is already saved. Use 'Add to Collection' to organize runners."
     };
   } catch (error) {
     console.error("Convert to saved runner error:", error);
@@ -4190,20 +4205,21 @@ async function handleEnsureRunnerTables() {
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           description TEXT,
-          is_temporary BOOLEAN DEFAULT 0,
+          collection_id TEXT,
           execution_mode TEXT NOT NULL CHECK(execution_mode IN ('sequential', 'parallel')),
           delay_ms INTEGER DEFAULT 0,
           follow_redirects BOOLEAN DEFAULT 1,
           validate_status BOOLEAN DEFAULT 0,
           use_variables BOOLEAN DEFAULT 1,
           header_overrides TEXT,
-          collection_id TEXT,
+          is_active BOOLEAN DEFAULT 1,
           run_count INTEGER DEFAULT 0,
           last_run_at INTEGER,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         )`,
-        `CREATE INDEX IF NOT EXISTS idx_runner_definitions_temporary ON config_runner_definitions(is_temporary, created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_runner_definitions_collection ON config_runner_definitions(collection_id, created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_runner_definitions_active ON config_runner_definitions(is_active, created_at)`,
         `CREATE TABLE IF NOT EXISTS config_runner_requests (
           id TEXT PRIMARY KEY,
           runner_id TEXT NOT NULL,

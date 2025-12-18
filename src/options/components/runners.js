@@ -507,20 +507,269 @@ class RunnersManager {
     }
 
     try {
-      // TODO: Implement deleteRunner message handler
-      this.showToast("Delete functionality coming soon", "info");
+      const response = await chrome.runtime.sendMessage({
+        action: "deleteRunner",
+        runnerId,
+      });
+
+      if (response && response.success) {
+        this.showToast("Runner deleted successfully!", "success");
+        await this.loadRunners();
+      } else {
+        this.showToast(
+          "Failed to delete runner: " + (response?.error || "Unknown error"),
+          "error"
+        );
+      }
     } catch (error) {
       console.error("[Runners] Error deleting runner:", error);
       this.showToast("Error deleting runner", "error");
     }
   }
 
+  async editRunner(runnerId) {
+    try {
+      // Get runner details
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerDefinition",
+        runnerId,
+      });
+
+      if (!response?.success) {
+        this.showToast("Failed to load runner details", "error");
+        return;
+      }
+
+      const runner = response.runner;
+      const newName = prompt("Runner Name:", runner.name);
+
+      if (newName === null) return; // Cancelled
+      if (!newName.trim()) {
+        this.showToast("Name cannot be empty", "error");
+        return;
+      }
+
+      const newDescription = prompt(
+        "Description (optional):",
+        runner.description || ""
+      );
+
+      // Update runner
+      const updateResponse = await chrome.runtime.sendMessage({
+        action: "updateRunnerMetadata",
+        runnerId,
+        name: newName.trim(),
+        description: newDescription?.trim() || null,
+      });
+
+      if (updateResponse?.success) {
+        this.showToast("Runner updated successfully!", "success");
+        await this.loadRunners();
+      } else {
+        this.showToast(
+          "Failed to update runner: " +
+            (updateResponse?.error || "Unknown error"),
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("[Runners] Error editing runner:", error);
+      this.showToast("Error updating runner", "error");
+    }
+  }
+
+  async duplicateRunner(runnerId) {
+    try {
+      // Get runner definition and requests
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerDefinition",
+        runnerId,
+      });
+
+      if (!response?.success) {
+        this.showToast("Failed to load runner", "error");
+        return;
+      }
+
+      const runner = response.runner;
+      const requests = response.requests || [];
+
+      // Create duplicate with new ID and name
+      const now = Date.now();
+      const newRunnerId = `runner_${now}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      const definition = {
+        id: newRunnerId,
+        name: `${runner.name} (Copy)`,
+        description: runner.description,
+        collection_id: runner.collection_id,
+        execution_mode: runner.execution_mode,
+        delay_ms: runner.delay_ms,
+        follow_redirects: runner.follow_redirects,
+        validate_status: runner.validate_status,
+        use_variables: runner.use_variables,
+        header_overrides: runner.header_overrides,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const newRequests = requests.map((req, idx) => ({
+        id: `${newRunnerId}_req_${idx}_${Math.random()
+          .toString(36)
+          .substr(2, 6)}`,
+        runner_id: newRunnerId,
+        sequence_order: req.sequence_order,
+        url: req.url,
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        domain: req.domain,
+        page_url: req.page_url,
+        captured_request_id: req.captured_request_id,
+        assertions: req.assertions,
+        description: req.description,
+        is_enabled: req.is_enabled,
+        created_at: now,
+      }));
+
+      const createResponse = await chrome.runtime.sendMessage({
+        action: "createRunner",
+        definition,
+        requests: newRequests,
+      });
+
+      if (createResponse?.success) {
+        this.showToast("Runner duplicated successfully!", "success");
+        await this.loadRunners();
+      } else {
+        this.showToast(
+          "Failed to duplicate runner: " +
+            (createResponse?.error || "Unknown error"),
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("[Runners] Error duplicating runner:", error);
+      this.showToast("Error duplicating runner", "error");
+    }
+  }
+
+  async exportRunner(runnerId) {
+    try {
+      // Get runner definition and requests
+      const response = await chrome.runtime.sendMessage({
+        action: "getRunnerDefinition",
+        runnerId,
+      });
+
+      if (!response?.success) {
+        this.showToast("Failed to load runner", "error");
+        return;
+      }
+
+      const runner = response.runner;
+      const requests = response.requests || [];
+
+      // Create export data
+      const exportData = {
+        version: "1.0",
+        exportedAt: new Date().toISOString(),
+        runner: runner,
+        requests: requests,
+      };
+
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `runner_${runner.name.replace(
+        /[^a-z0-9]/gi,
+        "_"
+      )}_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      this.showToast("Runner exported successfully!", "success");
+    } catch (error) {
+      console.error("[Runners] Error exporting runner:", error);
+      this.showToast("Error exporting runner", "error");
+    }
+  }
+
   showRunnerMenu(event, runnerId) {
     event.stopPropagation();
-    // TODO: Implement context menu
-    alert(
-      `Runner menu for: ${runnerId}\n\nActions:\n- Edit\n- Duplicate\n- Delete\n\nTODO: Implement context menu`
-    );
+
+    // Remove any existing menu
+    const existingMenu = document.querySelector(".runner-context-menu");
+    if (existingMenu) {
+      existingMenu.remove();
+    }
+
+    // Create context menu
+    const menu = document.createElement("div");
+    menu.className = "runner-context-menu";
+    menu.innerHTML = `
+      <div class="context-menu-item" data-action="edit">
+        <i class="fas fa-edit"></i> Edit Runner
+      </div>
+      <div class="context-menu-item" data-action="duplicate">
+        <i class="fas fa-copy"></i> Duplicate
+      </div>
+      <div class="context-menu-item" data-action="export">
+        <i class="fas fa-download"></i> Export
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item danger" data-action="delete">
+        <i class="fas fa-trash"></i> Delete
+      </div>
+    `;
+
+    // Position menu near the button
+    const rect = event.target.closest("button").getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.style.left = `${rect.left - 150}px`; // Align to right of button
+    menu.style.zIndex = "10000";
+
+    // Add click handlers
+    menu.querySelectorAll(".context-menu-item").forEach((item) => {
+      item.addEventListener("click", async (e) => {
+        const action = e.currentTarget.dataset.action;
+        menu.remove();
+
+        switch (action) {
+          case "edit":
+            await this.editRunner(runnerId);
+            break;
+          case "duplicate":
+            await this.duplicateRunner(runnerId);
+            break;
+          case "export":
+            await this.exportRunner(runnerId);
+            break;
+          case "delete":
+            await this.deleteRunner(runnerId);
+            break;
+        }
+      });
+    });
+
+    // Close menu when clicking outside
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener("click", closeMenu);
+      }
+    };
+    setTimeout(() => document.addEventListener("click", closeMenu), 0);
+
+    document.body.appendChild(menu);
   }
 
   async showCreateRunnerModal() {
@@ -863,13 +1112,18 @@ class RunnersManager {
 
     // Collect all configuration
     const now = Date.now();
+    // Generate unique ID with high entropy
+    const randomPart =
+      Math.random().toString(36).substr(2, 9) +
+      Math.random().toString(36).substr(2, 9);
+    const runnerId = `runner_${now}_${randomPart}`;
     const definition = {
-      id: `runner_${now}_${Math.random().toString(36).substr(2, 9)}`,
+      id: runnerId,
       name: name,
       description: document
         .getElementById("wizardRunnerDescription")
         .value.trim(),
-      is_temporary: !document.getElementById("wizardSaveAsPermanent").checked,
+      collection_id: null,
       execution_mode: document.getElementById("wizardMode").value,
       delay_ms: parseInt(document.getElementById("wizardDelay").value) || 1000,
       follow_redirects: document.getElementById("wizardFollowRedirects")
@@ -883,8 +1137,8 @@ class RunnersManager {
     };
 
     const requests = this.wizardState.selectedRequests.map((req, idx) => ({
-      id: `req_${now}_${idx}`,
-      runner_id: definition.id,
+      id: `${runnerId}_req_${idx}_${Math.random().toString(36).substr(2, 6)}`,
+      runner_id: runnerId,
       url: req.url,
       method: req.method,
       sequence_order: idx + 1,
@@ -892,7 +1146,7 @@ class RunnersManager {
       page_url: this.wizardState.selectedPage || null,
       headers: null,
       body: null,
-      captured_request_id: null,
+      captured_request_id: req.id || null,
       assertions: null,
       description: null,
       is_enabled: true,
@@ -1001,6 +1255,7 @@ document.addEventListener("DOMContentLoaded", () => {
       () => {
         if (!runnersManager) {
           runnersManager = new RunnersManager();
+          window.runnersManager = runnersManager; // Expose globally for onclick handlers
           runnersManager.initialize();
         }
       },

@@ -990,7 +990,7 @@ export async function validateAndFixSchema(db) {
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT,
-            is_temporary BOOLEAN DEFAULT 0,
+            collection_id TEXT,
             execution_mode TEXT NOT NULL CHECK(execution_mode IN ('sequential', 'parallel')),
             delay_ms INTEGER DEFAULT 0,
             follow_redirects BOOLEAN DEFAULT 1,
@@ -998,16 +998,14 @@ export async function validateAndFixSchema(db) {
             use_variables BOOLEAN DEFAULT 1,
             header_overrides TEXT,
             is_active BOOLEAN DEFAULT 1,
-            collection_id TEXT,
-            run_count INTEGER DEFAULT 0,
-            last_run_at INTEGER,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            FOREIGN KEY(collection_id) REFERENCES config_runner_collections(id) ON DELETE SET NULL
+            last_run_at INTEGER,
+            run_count INTEGER DEFAULT 0
           )
         `);
         db.exec(
-          `CREATE INDEX IF NOT EXISTS idx_runner_definitions_temporary ON config_runner_definitions(is_temporary, created_at)`
+          `CREATE INDEX IF NOT EXISTS idx_runner_definitions_collection ON config_runner_definitions(collection_id, created_at)`
         );
         console.log("✓ Created config_runner_definitions table");
       }
@@ -1025,6 +1023,9 @@ export async function validateAndFixSchema(db) {
             domain TEXT NOT NULL,
             page_url TEXT NOT NULL,
             captured_request_id TEXT,
+            assertions TEXT,
+            description TEXT,
+            is_enabled BOOLEAN DEFAULT 1,
             created_at INTEGER NOT NULL,
             FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE,
             UNIQUE(runner_id, sequence_order)
@@ -1034,6 +1035,51 @@ export async function validateAndFixSchema(db) {
           `CREATE INDEX IF NOT EXISTS idx_runner_requests_runner ON config_runner_requests(runner_id, sequence_order)`
         );
         console.log("✓ Created config_runner_requests table");
+      } else {
+        // Migrate existing table - add missing columns
+        try {
+          const tableInfo = db.exec(
+            `PRAGMA table_info(config_runner_requests)`
+          );
+          if (tableInfo && tableInfo[0]) {
+            const columns = tableInfo[0].values.map((row) => row[1]);
+
+            if (!columns.includes("assertions")) {
+              console.log(
+                "⚙️ Migrating: Adding assertions column to config_runner_requests"
+              );
+              db.exec(
+                `ALTER TABLE config_runner_requests ADD COLUMN assertions TEXT`
+              );
+              console.log("✓ Added assertions column");
+            }
+
+            if (!columns.includes("description")) {
+              console.log(
+                "⚙️ Migrating: Adding description column to config_runner_requests"
+              );
+              db.exec(
+                `ALTER TABLE config_runner_requests ADD COLUMN description TEXT`
+              );
+              console.log("✓ Added description column");
+            }
+
+            if (!columns.includes("is_enabled")) {
+              console.log(
+                "⚙️ Migrating: Adding is_enabled column to config_runner_requests"
+              );
+              db.exec(
+                `ALTER TABLE config_runner_requests ADD COLUMN is_enabled BOOLEAN DEFAULT 1`
+              );
+              console.log("✓ Added is_enabled column");
+            }
+          }
+        } catch (migrationError) {
+          console.warn(
+            "Migration warning for config_runner_requests:",
+            migrationError
+          );
+        }
       }
 
       // Create bronze runner tables

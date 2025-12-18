@@ -192,25 +192,27 @@ class RequestRunner {
     }
 
     // ✅ Step 1: Create runner definition first
-    const runnerId = `runner_${Date.now()}`;
+    const now = Date.now();
+    const runnerId = `runner_${now}_${Math.random().toString(36).substr(2, 9)}`;
     const runnerDef = {
       id: runnerId,
       name: name,
       description: description,
-      is_temporary: isTemporary,
+      collection_id: null, // Temporary runners don't belong to collections
       execution_mode: mode,
       delay_ms: delay,
       follow_redirects: followRedirects,
       validate_status: validateStatus,
       use_variables: useVariables,
       header_overrides: JSON.stringify(headerOverrides),
-      created_at: Date.now(),
-      updated_at: Date.now(),
+      is_active: true,
+      created_at: now,
+      updated_at: now,
     };
 
     // ✅ Step 2: Create runner requests (with domain/page_url from captured requests)
     const runnerRequests = requests.map((req, idx) => ({
-      id: `req_${Date.now()}_${idx}`,
+      id: `${runnerId}_req_${idx}_${Math.random().toString(36).substr(2, 6)}`,
       runner_id: runnerId,
       sequence_order: idx + 1,
       url: req.url,
@@ -220,7 +222,10 @@ class RequestRunner {
       domain: req.domain || new URL(req.url).hostname,
       page_url: req.page_url || req.pageUrl || req.url,
       captured_request_id: req.id || null,
-      created_at: Date.now(),
+      assertions: null,
+      description: null,
+      is_enabled: true,
+      created_at: now,
     }));
 
     // ✅ Step 3: Save to database

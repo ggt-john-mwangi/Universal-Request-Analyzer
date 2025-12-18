@@ -804,14 +804,14 @@ async function createRunner(definition, requests) {
     // Insert runner definition
     const defQuery = `
       INSERT INTO config_runner_definitions (
-        id, name, description, is_temporary, execution_mode,
+        id, name, description, collection_id, execution_mode,
         delay_ms, follow_redirects, validate_status, use_variables,
         header_overrides, is_active, created_at, updated_at, run_count
       ) VALUES (
         ${escapeStr(definition.id)},
         ${escapeStr(definition.name)},
         ${escapeStr(definition.description)},
-        ${definition.is_temporary ? 1 : 0},
+        ${escapeStr(definition.collection_id || null)},
         ${escapeStr(definition.execution_mode)},
         ${definition.delay_ms || 0},
         ${definition.follow_redirects ? 1 : 0},
@@ -855,7 +855,16 @@ async function createRunner(definition, requests) {
       db.exec(reqQuery);
     }
 
-    await saveDatabaseToOPFS(db.export());
+    try {
+      await saveDatabaseToOPFS(db.export());
+    } catch (saveError) {
+      console.warn(
+        "[Runner] Database save warning (non-critical):",
+        saveError.message
+      );
+      // Continue - the runner was created in memory successfully
+    }
+
     console.log(
       `[Runner] Created runner: ${definition.name} with ${requests.length} requests`
     );
@@ -1069,9 +1078,7 @@ async function updateRunnerDefinition(runnerId, updates) {
     if (updates.name) sets.push(`name = ${escapeStr(updates.name)}`);
     if (updates.description !== undefined)
       sets.push(`description = ${escapeStr(updates.description)}`);
-    if (updates.is_temporary !== undefined)
-      sets.push(`is_temporary = ${updates.is_temporary ? 1 : 0}`);
-    if (updates.collection_id)
+    if (updates.collection_id !== undefined)
       sets.push(`collection_id = ${escapeStr(updates.collection_id)}`);
     if (updates.last_run_at) sets.push(`last_run_at = ${updates.last_run_at}`);
     if (updates.run_count !== undefined)
@@ -1149,7 +1156,7 @@ async function getAllRunners() {
       FROM config_runner_definitions rd
       LEFT JOIN bronze_runner_executions re ON rd.id = re.runner_id
       WHERE
-        rd.is_temporary = 0
+        rd.collection_id IS NOT NULL
         OR rd.created_at > ${sevenDaysAgo}
       GROUP BY rd.id
       ORDER BY rd.last_run_at DESC, rd.created_at DESC
@@ -1271,7 +1278,7 @@ async function cleanupTemporaryRunners(daysOld = 7) {
 
     const query = `
       DELETE FROM config_runner_definitions
-      WHERE is_temporary = 1
+      WHERE collection_id IS NULL
         AND created_at < ${cutoffTime}
     `;
 
