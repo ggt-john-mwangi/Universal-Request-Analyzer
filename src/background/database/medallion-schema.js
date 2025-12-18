@@ -997,6 +997,7 @@ export async function validateAndFixSchema(db) {
             validate_status BOOLEAN DEFAULT 0,
             use_variables BOOLEAN DEFAULT 1,
             header_overrides TEXT,
+            is_active BOOLEAN DEFAULT 1,
             collection_id TEXT,
             run_count INTEGER DEFAULT 0,
             last_run_at INTEGER,
@@ -1088,6 +1089,27 @@ export async function validateAndFixSchema(db) {
       console.log("✓ All runner tables created successfully");
     } else {
       console.log("✓ All runner tables exist");
+
+      // Migration: Add is_active column if missing (for existing databases)
+      try {
+        const tableInfo = db.exec(
+          `PRAGMA table_info(config_runner_definitions)`
+        );
+        if (tableInfo && tableInfo[0]) {
+          const columns = tableInfo[0].values.map((row) => row[1]); // column name is at index 1
+          if (!columns.includes("is_active")) {
+            console.log(
+              "⚙️ Migrating: Adding is_active column to config_runner_definitions"
+            );
+            db.exec(
+              `ALTER TABLE config_runner_definitions ADD COLUMN is_active BOOLEAN DEFAULT 1`
+            );
+            console.log("✓ Added is_active column");
+          }
+        }
+      } catch (migrationError) {
+        console.warn("Migration warning:", migrationError);
+      }
     }
 
     console.log("✓ Schema validation complete");

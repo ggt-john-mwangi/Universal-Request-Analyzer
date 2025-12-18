@@ -1,3 +1,8 @@
+---
+layout: default
+title: Architecture
+---
+
 # Universal Request Analyzer - Complete Architecture Overview
 
 ## Table of Contents
