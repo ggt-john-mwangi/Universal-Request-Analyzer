@@ -1192,9 +1192,33 @@ class Dashboard {
 
         // Render chart with selected endpoints
         this.renderEndpointPerformanceChart(response);
+      } else {
+        // Show error message
+        const chartContainer = document.getElementById(
+          "dashboardPerformanceHistoryChart"
+        );
+        if (chartContainer) {
+          chartContainer.innerHTML = `
+            <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+              <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+              Failed to load performance data: ${response?.error || "Unknown error"}
+            </p>
+          `;
+        }
       }
     } catch (error) {
       console.error("Failed to load endpoint performance history:", error);
+      const chartContainer = document.getElementById(
+        "dashboardPerformanceHistoryChart"
+      );
+      if (chartContainer) {
+        chartContainer.innerHTML = `
+          <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+            <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+            Error: ${error.message}
+          </p>
+        `;
+      }
     }
   }
 
@@ -1328,6 +1352,20 @@ class Dashboard {
 
     let canvas = document.getElementById("dashboardHistoryChartCanvas");
 
+    // Destroy existing chart first (before checking canvas)
+    if (this.charts.endpointHistory) {
+      this.charts.endpointHistory.destroy();
+      this.charts.endpointHistory = null;
+    }
+
+    // Also destroy any chart attached to canvas by Chart.js registry
+    if (canvas) {
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) {
+        existingChart.destroy();
+      }
+    }
+
     // Recreate canvas if it was removed
     if (!canvas) {
       chartContainer.innerHTML =
@@ -1335,16 +1373,15 @@ class Dashboard {
       canvas = document.getElementById("dashboardHistoryChartCanvas");
     }
 
-    // Destroy existing chart
-    if (this.charts.endpointHistory) {
-      this.charts.endpointHistory.destroy();
-      this.charts.endpointHistory = null;
-    }
-
     const groupedData = response.groupedByType || response.groupedByEndpoint;
-    if (!groupedData) {
-      chartContainer.innerHTML =
-        '<p class="no-data">No performance data available</p>';
+    if (!groupedData || Object.keys(groupedData).length === 0) {
+      chartContainer.innerHTML = `
+        <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+          <i class="fas fa-info-circle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+          No performance data available for the selected time range.<br>
+          <small style="font-size: 12px; margin-top: 8px; display: block;">Try selecting a longer time range or visit some websites to capture data.</small>
+        </p>
+      `;
       return;
     }
 
@@ -1354,8 +1391,13 @@ class Dashboard {
       : Object.keys(groupedData);
 
     if (selectedKeys.length === 0) {
-      chartContainer.innerHTML =
-        '<p class="no-data">No endpoints selected. Please select at least one endpoint to display.</p>';
+      chartContainer.innerHTML = `
+        <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+          <i class="fas fa-mouse-pointer" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+          No endpoints selected.<br>
+          <small style="font-size: 12px; margin-top: 8px; display: block;">Please select at least one endpoint from the list above to display the chart.</small>
+        </p>
+      `;
       return;
     }
 

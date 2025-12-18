@@ -801,6 +801,13 @@ async function createRunner(definition, requests) {
   if (!db) throw new DatabaseError("Database not initialized");
 
   try {
+    // Check if runner ID already exists
+    const checkQuery = `SELECT id FROM config_runner_definitions WHERE id = ${escapeStr(definition.id)}`;
+    const existing = db.exec(checkQuery);
+    if (existing && existing[0]?.values && existing[0].values.length > 0) {
+      throw new DatabaseError(`Runner with ID ${definition.id} already exists. Please try again.`);
+    }
+
     // Insert runner definition
     const defQuery = `
       INSERT INTO config_runner_definitions (
@@ -1152,9 +1159,13 @@ async function getAllRunners() {
       SELECT
         rd.*,
         COUNT(DISTINCT re.id) as execution_count,
-        MAX(re.start_time) as last_execution_time
+        MAX(re.start_time) as last_execution_time,
+        COUNT(DISTINCT rr.id) as total_requests,
+        COALESCE(SUM(CASE WHEN rer.success = 1 THEN 1 ELSE 0 END), 0) as total_success
       FROM config_runner_definitions rd
       LEFT JOIN bronze_runner_executions re ON rd.id = re.runner_id
+      LEFT JOIN config_runner_requests rr ON rd.id = rr.runner_id
+      LEFT JOIN bronze_runner_execution_results rer ON re.id = rer.execution_id
       WHERE
         rd.collection_id IS NOT NULL
         OR rd.created_at > ${sevenDaysAgo}

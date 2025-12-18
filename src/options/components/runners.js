@@ -62,6 +62,32 @@ class RunnersManager {
     if (runnerTypeFilter) {
       runnerTypeFilter.addEventListener("change", () => this.filterRunners());
     }
+
+    // Event delegation for runner action buttons
+    const runnersGrid = document.getElementById("runnersGrid");
+    if (runnersGrid) {
+      runnersGrid.addEventListener("click", (e) => {
+        const btn = e.target.closest(".runner-action-btn");
+        if (!btn) return;
+
+        const action = btn.dataset.action;
+        const runnerId = btn.dataset.runnerId;
+
+        if (!action || !runnerId) return;
+
+        switch (action) {
+          case "run":
+            this.runRunner(runnerId);
+            break;
+          case "view":
+            this.showRunnerDetails(runnerId);
+            break;
+          case "more":
+            this.showRunnerMenu(e, runnerId);
+            break;
+        }
+      });
+    }
   }
 
   async loadRunners() {
@@ -216,23 +242,26 @@ class RunnersManager {
           </div>
           <div class="runner-card-actions">
             <button 
-              class="icon-btn" 
+              class="icon-btn runner-action-btn" 
               title="Run Now"
-              onclick="runnersManager.runRunner('${runner.id}')"
+              data-action="run"
+              data-runner-id="${runner.id}"
             >
               <i class="fas fa-play"></i>
             </button>
             <button 
-              class="icon-btn" 
+              class="icon-btn runner-action-btn" 
               title="View Details"
-              onclick="runnersManager.showRunnerDetails('${runner.id}')"
+              data-action="view"
+              data-runner-id="${runner.id}"
             >
               <i class="fas fa-eye"></i>
             </button>
             <button 
-              class="icon-btn" 
+              class="icon-btn runner-action-btn" 
               title="More Actions"
-              onclick="runnersManager.showRunnerMenu(event, '${runner.id}')"
+              data-action="more"
+              data-runner-id="${runner.id}"
             >
               <i class="fas fa-ellipsis-v"></i>
             </button>

@@ -31,6 +31,89 @@ import themeManager from "../../config/theme-manager.js";
 import "../../lib/chart.min.js";
 import variablesManager from "./variables-manager.js";
 
+// Configure Chart.js date adapter using date-fns
+import { format, parseISO } from "date-fns";
+
+// Register a minimal date adapter for Chart.js
+if (window.Chart) {
+  window.Chart._adapters._date.override({
+    formats: function() {
+      return {
+        datetime: 'MMM d, yyyy, HH:mm:ss',
+        millisecond: 'HH:mm:ss.SSS',
+        second: 'HH:mm:ss',
+        minute: 'HH:mm',
+        hour: 'HH:mm',
+        day: 'MMM d',
+        week: 'MMM d',
+        month: 'MMM yyyy',
+        quarter: 'MMM yyyy',
+        year: 'yyyy'
+      };
+    },
+    parse: function(value) {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'number') return value;
+      if (value instanceof Date) return value.getTime();
+      return new Date(value).getTime();
+    },
+    format: function(time, fmt) {
+      try {
+        return format(new Date(time), fmt);
+      } catch (e) {
+        return String(time);
+      }
+    },
+    add: function(time, amount, unit) {
+      const date = new Date(time);
+      switch (unit) {
+        case 'millisecond': date.setMilliseconds(date.getMilliseconds() + amount); break;
+        case 'second': date.setSeconds(date.getSeconds() + amount); break;
+        case 'minute': date.setMinutes(date.getMinutes() + amount); break;
+        case 'hour': date.setHours(date.getHours() + amount); break;
+        case 'day': date.setDate(date.getDate() + amount); break;
+        case 'week': date.setDate(date.getDate() + (amount * 7)); break;
+        case 'month': date.setMonth(date.getMonth() + amount); break;
+        case 'quarter': date.setMonth(date.getMonth() + (amount * 3)); break;
+        case 'year': date.setFullYear(date.getFullYear() + amount); break;
+      }
+      return date.getTime();
+    },
+    diff: function(max, min, unit) {
+      const diff = max - min;
+      switch (unit) {
+        case 'millisecond': return diff;
+        case 'second': return diff / 1000;
+        case 'minute': return diff / 60000;
+        case 'hour': return diff / 3600000;
+        case 'day': return diff / 86400000;
+        case 'week': return diff / 604800000;
+        case 'month': return diff / 2628000000;
+        case 'quarter': return diff / 7884000000;
+        case 'year': return diff / 31536000000;
+      }
+      return diff;
+    },
+    startOf: function(time, unit) {
+      const date = new Date(time);
+      switch (unit) {
+        case 'second': date.setMilliseconds(0); break;
+        case 'minute': date.setSeconds(0, 0); break;
+        case 'hour': date.setMinutes(0, 0, 0); break;
+        case 'day': date.setHours(0, 0, 0, 0); break;
+        case 'week': date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - date.getDay()); break;
+        case 'month': date.setDate(1); date.setHours(0, 0, 0, 0); break;
+        case 'quarter': date.setMonth(Math.floor(date.getMonth() / 3) * 3, 1); date.setHours(0, 0, 0, 0); break;
+        case 'year': date.setMonth(0, 1); date.setHours(0, 0, 0, 0); break;
+      }
+      return date.getTime();
+    },
+    endOf: function(time, unit) {
+      return this.startOf(this.add(time, 1, unit), unit) - 1;
+    }
+  });
+}
+
 // Constants
 const DEFAULT_EXPORT_FORMAT = "json";
 const DEFAULT_TIME_RANGE = 300; // 5 minutes in seconds

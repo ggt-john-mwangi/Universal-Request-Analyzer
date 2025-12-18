@@ -4104,11 +4104,14 @@ async function handleConvertToSavedRunner(runnerId) {
 
     // With new schema, runners don't need "conversion" - they're already saved
     // If you want to add to a collection, use updateRunnerDefinition with collection_id
-    console.log("[Runner] Convert no longer needed - all runners are persistent");
-    
+    console.log(
+      "[Runner] Convert no longer needed - all runners are persistent"
+    );
+
     return {
       success: true,
-      message: "Runner is already saved. Use 'Add to Collection' to organize runners."
+      message:
+        "Runner is already saved. Use 'Add to Collection' to organize runners.",
     };
   } catch (error) {
     console.error("Convert to saved runner error:", error);
