@@ -222,11 +222,13 @@ Universal-Request-Analyzer/
 
 ### Medallion Architecture
 
-**Bronze Layer (Raw OLTP Data)**:
+**Bronze Layer (Raw Event Capture Data)**:
 
 - `bronze_requests`: Raw HTTP request captures
 - `bronze_request_headers`: Request/response headers
 - `bronze_request_timings`: Performance timing data
+- `bronze_runner_executions`: Runner execution logs
+- `bronze_runner_execution_results`: Individual request results
 - Immutable, append-only captures
 
 **Silver Layer (Cleaned & Enriched)**:

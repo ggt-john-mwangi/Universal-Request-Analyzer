@@ -1,9 +1,9 @@
 // Medallion Architecture Database Schema
 // This implements a layered data architecture:
 // - Config Schema: Application configuration and settings
-// - Bronze Schema: Raw OLTP data from extension operations
-// - Silver Schema: Cleaned, validated, and enriched data
-// - Gold Schema: Analytics-ready aggregated data
+// - Bronze Schema: Raw event capture data (immutable, append-only)
+// - Silver Schema: Cleaned, validated, and enriched data with Star Schema
+// - Gold Schema: Analytics-ready aggregated data (daily insights)
 
 /**
  * Create all database schemas for medallion architecture
@@ -199,8 +199,9 @@ function createConfigSchema(db) {
 }
 
 /**
- * BRONZE SCHEMA - Raw OLTP Data
- * Stores all raw transactional data from the extension
+ * BRONZE SCHEMA - Raw Event Capture Data
+ * Stores all captured events immutably (append-only, timestamped)
+ * Includes: HTTP requests, performance metrics, runner executions
  */
 function createBronzeSchema(db) {
   // Raw requests table - complete capture of all HTTP requests

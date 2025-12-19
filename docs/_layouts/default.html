@@ -24,20 +24,22 @@
         });
 
         // Find all code blocks with language-mermaid class (created by Jekyll/Kramdown)
-        const mermaidBlocks = document.querySelectorAll('code.language-mermaid, pre.language-mermaid code');
-        
+        const mermaidBlocks = document.querySelectorAll(
+          "code.language-mermaid, pre.language-mermaid code"
+        );
+
         mermaidBlocks.forEach((block, index) => {
           // Get the mermaid code
           const code = block.textContent || block.innerText;
-          
+
           // Create a new div element for Mermaid
-          const mermaidDiv = document.createElement('div');
-          mermaidDiv.className = 'mermaid';
+          const mermaidDiv = document.createElement("div");
+          mermaidDiv.className = "mermaid";
           mermaidDiv.textContent = code;
-          mermaidDiv.id = 'mermaid-' + index;
-          
+          mermaidDiv.id = "mermaid-" + index;
+
           // Replace the code block with the mermaid div
-          const pre = block.closest('pre') || block;
+          const pre = block.closest("pre") || block;
           pre.parentNode.replaceChild(mermaidDiv, pre);
         });
 

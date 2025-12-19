@@ -1,6 +1,7 @@
 # Universal Request Analyzer - User Guide
 
 ## Table of Contents
+
 1. [Getting Started](#getting-started)
 2. [Understanding the Extension](#understanding-the-extension)
 3. [Using the Popup Interface](#using-the-popup-interface)
@@ -21,12 +22,14 @@ Universal Request Analyzer is a powerful browser extension that helps you unders
 ### Installation
 
 1. **Chrome/Edge:**
+
    - Visit the Chrome Web Store
    - Search for "Universal Request Analyzer"
    - Click "Add to Chrome/Edge"
    - The extension icon will appear in your toolbar
 
 2. **Firefox:**
+
    - Visit Firefox Add-ons
    - Search for "Universal Request Analyzer"
    - Click "Add to Firefox"
@@ -39,6 +42,7 @@ Universal Request Analyzer is a powerful browser extension that helps you unders
 ### First-Time Setup
 
 When you first install the extension:
+
 1. Click the extension icon to open the popup
 2. Review the default settings (request capture is enabled by default)
 3. Performance metrics are **disabled by default** to minimize overhead
@@ -82,6 +86,7 @@ The popup automatically shows metrics for **the current domain** you're viewing:
 ### Request Type Filter
 
 Use the dropdown to filter by resource type:
+
 - **All Requests** - Show all captured requests
 - **XHR/API** - AJAX and API calls
 - **Fetch** - Fetch API requests
@@ -100,6 +105,7 @@ Use the dropdown to filter by resource type:
 ### Understanding the Data
 
 **Important Notes:**
+
 - Metrics are **aggregated across all pages** within the current domain
 - Data refreshes automatically every 5 seconds when the popup is open
 - Historical data is retained based on your settings (default: 7 days)
@@ -115,15 +121,18 @@ Use the dropdown to filter by resource type:
 ### Filter Options
 
 #### Domain Filter
+
 - **Current Domain**: Shows only requests from the active tab's domain
 - **All Domains**: Shows requests across all tracked domains
 - **Specific Domain**: Select from a list of tracked domains
 
 #### Page Filter
+
 - **All Pages (Aggregated)**: Combines metrics across all pages in the domain
 - **Specific Page**: Shows metrics for a single page/URL
 
 #### Time Range
+
 - Last 5 minutes
 - Last 15 minutes
 - Last hour
@@ -133,9 +142,11 @@ Use the dropdown to filter by resource type:
 - Last 30 days
 
 #### Request Type
+
 Same categories as in the popup (All, XHR/API, Fetch, etc.)
 
 #### Status Filter
+
 - All Status Codes
 - 2xx (Success)
 - 3xx (Redirect)
@@ -145,7 +156,9 @@ Same categories as in the popup (All, XHR/API, Fetch, etc.)
 ### Panel Tabs
 
 #### 1. Overview Tab
+
 Real-time visualizations and key metrics:
+
 - Request volume over time (line chart)
 - Status code distribution (pie chart)
 - Average response time trends
@@ -154,20 +167,25 @@ Real-time visualizations and key metrics:
 **Auto-refresh**: Enabled by default (5-second intervals)
 
 #### 2. Requests Table
+
 Detailed view of individual requests:
+
 - URL, method, status code
 - Response time, size
 - Timestamp
 - Resource type
 
 **Features:**
+
 - Sortable columns
 - Search/filter
 - Click a row to see full request details
 - Export filtered data
 
 #### 3. Performance Tab
+
 Performance timing breakdown:
+
 - DNS lookup time
 - TCP connection time
 - SSL/TLS handshake time
@@ -175,6 +193,7 @@ Performance timing breakdown:
 - Download time
 
 **Visualizations:**
+
 - Waterfall chart
 - Performance distribution
 - Slow request analysis (P95, P99)
@@ -182,25 +201,31 @@ Performance timing breakdown:
 **Note**: Performance metrics must be enabled in settings.
 
 #### 4. Endpoints Tab
+
 API endpoint analysis:
+
 - Most frequently called endpoints
 - Average response time per endpoint
 - Error rates by endpoint
 - Request/response size distribution
 
 **Use Cases:**
+
 - Identify slow API endpoints
 - Find frequently failing endpoints
 - Optimize API call patterns
 
 #### 5. Errors Tab
+
 Categorized error analysis:
+
 - 4xx errors (client-side)
 - 5xx errors (server-side)
 - Network errors
 - Timeout errors
 
 **Features:**
+
 - Error grouping by type
 - Timeline of errors
 - Most common errors
@@ -222,6 +247,7 @@ Access historical performance data:
    - Performance regressions
 
 **Use Cases:**
+
 - Identify when performance degraded
 - Track improvements after optimization
 - Compare different time periods
@@ -249,41 +275,51 @@ The dashboard provides cross-domain analytics with comprehensive visualizations.
 ### Dashboard Charts
 
 #### 1. Request Volume Timeline
+
 Line chart showing request count over time.
 
 **Insights:**
+
 - Traffic patterns
 - Peak usage times
 - Unusual spikes or drops
 
 #### 2. Status Distribution
+
 Pie chart of HTTP status codes.
 
 **Insights:**
+
 - Success rate at a glance
 - Types of errors occurring
 - Overall system health
 
 #### 3. Top Domains by Requests
+
 Bar chart of most active domains.
 
 **Insights:**
+
 - Which domains are most active
 - Third-party service usage
 - Potential optimization targets
 
 #### 4. Performance Trends
+
 Area chart of response time metrics.
 
 **Insights:**
+
 - Average response time trends
 - Performance improvements or degradations
 - Baseline establishment
 
 #### 5. Data Transfer
+
 Visualization of bytes transferred.
 
 **Insights:**
+
 - Bandwidth usage
 - Heavy resource identification
 - Cache effectiveness
@@ -306,16 +342,19 @@ Right-click extension icon → Options, or click "Settings" in any interface.
 ### General Settings
 
 #### Request Capture
+
 - **Enable/Disable**: Toggle request monitoring on/off
 - **Default**: Enabled
 - **Impact**: When disabled, no new requests are captured
 
 #### Data Retention
+
 - **Duration**: 1 day, 7 days (default), 14 days, 30 days
 - **Purpose**: Controls how long historical data is kept
 - **Recommendation**: 7 days for most users, 30 days for long-term analysis
 
 #### Maximum Stored Requests
+
 - **Range**: 100 - 100,000 requests
 - **Default**: 10,000
 - **Impact**: Older requests are removed when limit is reached (FIFO)
@@ -325,18 +364,22 @@ Right-click extension icon → Options, or click "Settings" in any interface.
 Performance metrics provide detailed timing breakdown but add overhead.
 
 #### Enable Performance Metrics
+
 - **Default**: Disabled
 - **When to Enable**: When you need detailed timing analysis
 - **Impact**: Slight performance overhead (~2-5%)
 
 #### Sampling Rate
+
 - **Range**: 1% - 100%
 - **Default**: 100% (when enabled)
 - **Purpose**: Reduce overhead by sampling a percentage of requests
 - **Example**: 25% captures detailed metrics for 1 in 4 requests
 
 #### Metric Types
+
 Select which timing metrics to capture:
+
 - **Navigation Timing**: Page load events
 - **Resource Timing**: Individual resource timings
 - **Server Timing**: Server-reported timings
@@ -347,6 +390,7 @@ Select which timing metrics to capture:
 ### Export/Import Settings
 
 #### Export Data
+
 1. Click "Export Data" button
 2. Choose format: JSON or CSV
 3. Select date range
@@ -354,12 +398,14 @@ Select which timing metrics to capture:
 5. Download file
 
 **Use Cases:**
+
 - Backup your data
 - Share with team members
 - Analyze in external tools (Excel, BI tools)
 - Generate reports
 
 #### Import Data
+
 1. Click "Import Data" button
 2. Select previously exported file
 3. Choose merge or replace strategy
@@ -368,11 +414,13 @@ Select which timing metrics to capture:
 ### Advanced Settings
 
 #### Auto-Refresh
+
 - **Dashboard**: 30 seconds (default)
 - **DevTools Panel**: 5 seconds (default)
 - **Popup**: 5 seconds (default)
 
 #### Theme
+
 - Light (default)
 - Dark
 - Auto (matches browser)
@@ -382,9 +430,11 @@ Select which timing metrics to capture:
 ### Basic Metrics
 
 #### Total Requests
+
 Count of all network requests in the selected time range and filters.
 
 #### Average Response Time
+
 Mean duration from request start to completion.
 
 **Good**: < 200ms
@@ -392,6 +442,7 @@ Mean duration from request start to completion.
 **Slow**: > 500ms
 
 #### Error Rate
+
 Percentage of requests that failed (4xx, 5xx, or network errors).
 
 **Good**: < 1%
@@ -399,6 +450,7 @@ Percentage of requests that failed (4xx, 5xx, or network errors).
 **Poor**: > 5%
 
 #### Data Transferred
+
 Total bytes of data sent and received.
 
 **Consideration**: Higher is not always worse if requests are necessary and efficient.
@@ -406,24 +458,28 @@ Total bytes of data sent and received.
 ### Performance Metrics
 
 #### DNS Lookup Time
+
 Time to resolve domain name to IP address.
 
 **Typical**: 20-120ms
 **Optimization**: Use DNS prefetching, CDN with good DNS
 
 #### TCP Connection Time
+
 Time to establish TCP connection.
 
 **Typical**: 50-200ms
 **Optimization**: Keep-alive connections, HTTP/2
 
 #### SSL/TLS Handshake Time
+
 Time for HTTPS negotiation.
 
 **Typical**: 50-300ms
 **Optimization**: Session resumption, TLS 1.3
 
 #### Time to First Byte (TTFB)
+
 Time from request sent to first response byte received.
 
 **Good**: < 200ms
@@ -433,12 +489,14 @@ Time from request sent to first response byte received.
 **Factors**: Server processing time, network latency
 
 #### Download Time
+
 Time to download response body.
 
 **Depends on**: Response size, bandwidth
 **Optimization**: Compression, smaller responses
 
 #### Total Duration
+
 Complete request time (sum of all phases).
 
 ### Core Web Vitals
@@ -446,6 +504,7 @@ Complete request time (sum of all phases).
 When performance monitoring is enabled, the extension tracks Core Web Vitals:
 
 #### Largest Contentful Paint (LCP)
+
 Time until largest content element is rendered.
 
 **Target**: < 2.5s
@@ -453,6 +512,7 @@ Time until largest content element is rendered.
 **Poor**: > 4.0s
 
 #### First Input Delay (FID)
+
 Time from user interaction to browser response.
 
 **Target**: < 100ms
@@ -460,6 +520,7 @@ Time from user interaction to browser response.
 **Poor**: > 300ms
 
 #### Cumulative Layout Shift (CLS)
+
 Visual stability - sum of unexpected layout shifts.
 
 **Target**: < 0.1
@@ -469,16 +530,19 @@ Visual stability - sum of unexpected layout shifts.
 ### Percentiles
 
 #### P50 (Median)
+
 50% of requests are faster than this value.
 
 **Use**: Understanding typical experience
 
 #### P95
+
 95% of requests are faster than this value.
 
 **Use**: Understanding almost all users' experience
 
 #### P99
+
 99% of requests are faster than this value.
 
 **Use**: Identifying worst-case scenarios
@@ -496,33 +560,19 @@ Domain → Page → Request Type → Status → Time Range
 ```
 
 Each level narrows down the dataset:
+
 1. Start with domain (or all domains)
 2. Optionally select specific page(s)
 3. Filter by request type if needed
 4. Filter by status code if needed
 5. Choose time range
 
-### OHLC Performance Analysis
-
-Inspired by financial candlestick charts, OHLC (Open, High, Low, Close) shows:
-
-- **Open**: First request response time in period
-- **High**: Slowest request in period
-- **Low**: Fastest request in period
-- **Close**: Last request response time in period
-- **Volume**: Number of requests in period
-
-**Use Cases:**
-- Spot performance variations
-- Identify patterns (e.g., slower at peak times)
-- Compare time periods
-- Track optimization impact
-
 ### Third-Party Domain Tracking
 
 The extension automatically categorizes third-party domains:
 
 **Categories:**
+
 - **Analytics**: Google Analytics, Mixpanel, etc.
 - **Advertising**: Google Ads, DoubleClick, etc.
 - **CDN**: Cloudflare, Akamai, etc.
@@ -530,6 +580,7 @@ The extension automatically categorizes third-party domains:
 - **Fonts**: Google Fonts, Adobe Fonts, etc.
 
 **Why It Matters:**
+
 - Third-party requests affect your page performance
 - Identify which services add most overhead
 - Optimize or remove heavy third-party dependencies
@@ -537,13 +588,16 @@ The extension automatically categorizes third-party domains:
 ### Security Features
 
 #### Mixed Content Detection
+
 Identifies HTTP resources loaded on HTTPS pages.
 
 **Risk**: Security warnings, blocked resources
 **Action**: Update to HTTPS
 
 #### Risk Level Assessment
+
 Domains are assigned risk levels based on:
+
 - Third-party status
 - Known malicious patterns
 - SSL/TLS status
@@ -554,14 +608,17 @@ Domains are assigned risk levels based on:
 ### For Developers
 
 1. **Enable Performance Metrics During Development**
+
    - Use 100% sampling to catch all issues
    - Disable in production to reduce overhead
 
 2. **Use Time Travel for Debugging**
+
    - Compare before/after deployments
    - Identify when regressions occurred
 
 3. **Monitor Third-Party Services**
+
    - Check which services are slowest
    - Consider alternatives or optimizations
 
@@ -572,10 +629,12 @@ Domains are assigned risk levels based on:
 ### For QA Teams
 
 1. **Baseline Performance**
+
    - Establish performance baselines
    - Use percentiles (P95, P99) not just averages
 
 2. **Test Across Time Periods**
+
    - Test during different times of day
    - Monitor over extended periods
 
@@ -586,10 +645,12 @@ Domains are assigned risk levels based on:
 ### For Product Managers
 
 1. **Use Dashboard for High-Level Views**
+
    - Track overall performance trends
    - Compare domains/features
 
 2. **Monitor User Impact**
+
    - Focus on Core Web Vitals
    - Check error rates
 
@@ -602,6 +663,7 @@ Domains are assigned risk levels based on:
 ### No Data Showing
 
 **Possible Causes:**
+
 1. Request capture is disabled
    - **Solution**: Enable in settings
 2. No requests match current filters
@@ -613,7 +675,8 @@ Domains are assigned risk levels based on:
 
 **Cause**: Performance monitoring is disabled by default.
 
-**Solution**: 
+**Solution**:
+
 1. Open Options → Performance Settings
 2. Enable "Capture Performance Metrics"
 3. Choose sampling rate
@@ -622,6 +685,7 @@ Domains are assigned risk levels based on:
 ### Extension Using Too Much Memory
 
 **Solutions:**
+
 1. Reduce maximum stored requests (Settings → General)
 2. Decrease data retention period
 3. Disable performance metrics if not needed
@@ -630,11 +694,13 @@ Domains are assigned risk levels based on:
 ### Charts Not Rendering
 
 **Possible Causes:**
+
 1. No data in selected time range
 2. All requests filtered out
 3. Browser compatibility issue
 
 **Solutions:**
+
 1. Check filters and time range
 2. Try refreshing the page
 3. Check browser console for errors
@@ -642,11 +708,13 @@ Domains are assigned risk levels based on:
 ### Slow Dashboard Loading
 
 **Causes:**
+
 - Large dataset
 - Complex filters
 - Multiple visualizations
 
 **Solutions:**
+
 1. Narrow time range
 2. Apply domain filters
 3. Reduce data retention period
@@ -657,6 +725,7 @@ Domains are assigned risk levels based on:
 **Cause**: Browser storage issues or extension updated.
 
 **Solution**:
+
 1. Check browser storage permissions
 2. Export important data regularly
 3. Re-import after updates if needed
@@ -672,6 +741,7 @@ Domains are assigned risk levels based on:
 ### Reporting Issues
 
 When reporting issues, include:
+
 1. Browser version and OS
 2. Extension version
 3. Steps to reproduce
@@ -681,6 +751,7 @@ When reporting issues, include:
 ### Feature Requests
 
 We welcome feature requests! Please:
+
 1. Check existing issues first
 2. Describe your use case
 3. Explain expected behavior

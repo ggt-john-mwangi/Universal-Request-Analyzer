@@ -40,7 +40,7 @@ graph TB
                 SettingsManager["⚙️ Settings Manager"]
                 ExportManager["📤 Export Manager"]
                 CleanupManager["🧹 Cleanup Manager"]
-                AnalyticsProcessor["📊 Analytics Processor<br/>(OHLC & Trends)"]
+                AnalyticsProcessor["📊 Analytics Processor<br/>(Analytics & Trends)"]
             end
         end
 
@@ -74,7 +74,7 @@ graph TB
     DBManager <-->|"CRUD Operations"| Bronze
     DBManager <-->|"CRUD Operations"| Silver
     DBManager <-->|"CRUD Operations"| Gold
-    
+
     SettingsManager <-->|"Sync Settings"| Config
     SettingsManager <-->|"Sync Settings"| Storage
 
@@ -84,7 +84,7 @@ graph TB
 
     Bronze -->|"Process & Validate"| Silver
     Silver -->|"Aggregate & Analyze"| Gold
-    AnalyticsProcessor -->|"Compute OHLC"| Silver
+    AnalyticsProcessor -->|"Compute Analytics"| Silver
     AnalyticsProcessor -->|"Generate Insights"| Gold
 
     MessageHandler -.->|"Response"| Popup
@@ -141,11 +141,11 @@ graph TB
 └──────────────────────────────────────────────────────────────┘
                               ↓
 ┌──────────────────────────────────────────────────────────────┐
-│ BRONZE SCHEMA - Raw OLTP Data                                │
+│ BRONZE SCHEMA - Raw Event Capture Data                       │
 │ • Requests  • Headers  • Timings  • Events  • Sessions       │
 │ • Errors  • Performance Entries  • Runner Executions         │
 │ • Runner Execution Results                                   │
-│ Characteristics: Immutable, Complete, Timestamped            │
+│ Characteristics: Immutable, Complete, Timestamped, Append-Only│
 └──────────────────────────────────────────────────────────────┘
                               ↓
                         Data Processing
@@ -165,7 +165,6 @@ graph TB
 │                                                              │
 │ Star Schema Facts:                                           │
 │ • fact_requests (Atomic metrics)                            │
-│ • fact_ohlc_performance (OHLC aggregates)                   │
 │ • fact_performance_trends (Trend tracking)                   │
 │ • fact_quality_metrics (Quality scores)                      │
 │                                                              │
@@ -191,7 +190,7 @@ Browser Event → Bronze (Raw) → Silver (Validated + Star Schema) → Gold (An
                     ↓               ↓                                  ↓
                 Immutable      Fact Tables                      Pre-aggregated
                 Complete       Dimensions                       Insights
-                Audit Trail    OHLC Data                        Trends
+                Audit Trail    Analytics                        Trends
 ```
 
 ## Code Organization
@@ -219,7 +218,7 @@ src/
 │   │   ├── star-schema.js        # Star schema with SCD Type 2
 │   │   ├── medallion-manager.js  # Data flow orchestration
 │   │   ├── config-schema-manager.js # Config management
-│   │   ├── analytics-processor.js # OHLC & analytics
+│   │   ├── analytics-processor.js # Analytics & aggregations
 │   │   ├── medallion-migration.js # Data migration
 │   │   ├── db-manager-medallion.js # Main DB manager with runner CRUD
 │   │   ├── sql-js-loader.js      # SQL.js initialization
@@ -329,7 +328,7 @@ erDiagram
     config_runner_definitions ||--o{ bronze_runner_executions : executes
     config_runner_collections ||--o{ config_runner_definitions : groups
     bronze_runner_executions ||--o{ bronze_runner_execution_results : produces
-    
+
     config_runner_definitions {
         text id PK
         text name
@@ -347,7 +346,7 @@ erDiagram
         integer created_at
         integer updated_at
     }
-    
+
     config_runner_requests {
         text id PK
         text runner_id FK
@@ -364,7 +363,7 @@ erDiagram
         boolean is_enabled
         integer created_at
     }
-    
+
     config_runner_collections {
         text id PK
         text name
@@ -374,7 +373,7 @@ erDiagram
         integer created_at
         integer updated_at
     }
-    
+
     bronze_runner_executions {
         text id PK
         text runner_id FK
@@ -387,7 +386,7 @@ erDiagram
         text status
         text error
     }
-    
+
     bronze_runner_execution_results {
         text id PK
         text execution_id FK
@@ -415,26 +414,26 @@ sequenceDiagram
 
     UI->>BG: Create Runner Definition
     BG->>DB: Store Runner + Requests
-    
+
     UI->>BG: Execute Runner
     BG->>DB: Load Runner Definition
     DB-->>BG: Runner + Requests
-    
+
     BG->>Runner: Start Execution
     Runner->>DB: Create Execution Record
-    
+
     loop For Each Request
         Runner->>Web: Execute HTTP Request
         Web-->>Runner: HTTP Response
         Runner->>DB: Store Execution Result
         Runner->>BG: Progress Update
         BG-->>UI: Update UI
-        
+
         alt Sequential Mode
             Runner->>Runner: Wait delay_ms
         end
     end
-    
+
     Runner->>DB: Update Execution Record
     Runner-->>BG: Execution Complete
     BG-->>UI: Show Results
@@ -443,10 +442,12 @@ sequenceDiagram
 ### Runner Features
 
 1. **Execution Modes**
+
    - **Sequential**: Execute requests one after another with configurable delays
    - **Parallel**: Execute all requests simultaneously
 
 2. **Request Configuration**
+
    - Custom headers and body
    - Follow redirects option
    - Status code validation
@@ -454,11 +455,13 @@ sequenceDiagram
    - Per-request assertions
 
 3. **Collections**
+
    - Group related runners
    - Scheduled execution via cron expressions
    - Batch operations (run all in collection)
 
 4. **Execution Tracking**
+
    - Real-time progress updates
    - Success/failure metrics
    - Response time tracking
@@ -487,21 +490,6 @@ const timeframes = [
   "1w", // 1 week
   "1m", // 1 month
 ];
-```
-
-### OHLC Analytics
-
-Similar to Forex candlestick charts:
-
-```javascript
-{
-  open: 150,      // First request time
-  high: 500,      // Slowest request
-  low: 50,        // Fastest request
-  close: 200,     // Last request time
-  volume: 1000,   // Request count
-  period: '4h'    // Timeframe
-}
 ```
 
 ### Quality Metrics
@@ -553,7 +541,6 @@ Domain attributes tracked over time:
 ```javascript
 // Periodic processor
 → Read from Silver/Facts
-→ Calculate OHLC for timeframes
 → Generate quality metrics
 → Calculate trends
 → Insert to Gold (analytics)
@@ -564,7 +551,7 @@ Domain attributes tracked over time:
 ```javascript
 // User opens dashboard
 → Query Gold/Silver schemas
-→ Load OHLC data for selected timeframe
+→ Load analytics data for selected timeframe
 → Render charts using ChartManager
 → Display quality metrics
 ```
@@ -590,10 +577,10 @@ Complete audit trail:
 
 ### 3. Performance Insights
 
-- OHLC candlestick charts
 - Percentile calculations (P50, P95, P99)
-- Performance distribution
+- Performance distribution over time
 - Error rate tracking
+- Response time trends
 
 ### 4. Quality Monitoring
 
@@ -693,29 +680,11 @@ Atomic request metrics linked to all dimensions.
 - Quality: performance_score, quality_score
 - Flags: is_cached, is_compressed, has_error, is_secure
 
-#### 2. OHLC Performance Fact (`fact_ohlc_performance`)
-
-Candlestick-style aggregated metrics per timeframe.
-
-**OHLC Metrics:**
-
-- `open_time` - First request duration in period
-- `high_time` - Maximum request duration
-- `low_time` - Minimum request duration
-- `close_time` - Last request duration
-
-**Aggregate Metrics:**
-
-- Request count and volume
-- Average, median (P50), P95, P99 percentiles
-- Success/error counts and rates
-- Performance and quality scores
-
-#### 3. Performance Trends Fact (`fact_performance_trends`)
+#### 2. Performance Trends Fact (`fact_performance_trends`)
 
 Tracks metric changes with moving averages and volatility measures.
 
-#### 4. Quality Metrics Fact (`fact_quality_metrics`)
+#### 3. Quality Metrics Fact (`fact_quality_metrics`)
 
 Comprehensive quality assessment including:
 
@@ -795,7 +764,7 @@ await configManager.updatePerformanceSettings({
 ✅ **Do:**
 
 - Choose appropriate timeframe
-- Use OHLC for performance trends
+- Use percentiles for performance analysis
 - Cache aggregated data
 - Index fact tables properly
 
@@ -818,13 +787,13 @@ await configManager.updatePerformanceSettings({
 
 - Cache dimension lookups
 - Cache configuration
-- Pre-calculate OHLC
+- Pre-calculate aggregates
 - Store aggregates in Gold
 
 ### 3. Query Optimization
 
 - Use star schema for complex queries
-- Leverage pre-aggregated OHLC data
+- Leverage pre-aggregated analytics data
 - Filter by dimensions
 - Limit result sets with pagination
 
@@ -838,7 +807,7 @@ await configManager.updatePerformanceSettings({
 
 2. **Real-time Streaming**
 
-   - Live OHLC updates
+   - Live performance updates
    - WebSocket support
    - Real-time dashboards
 
