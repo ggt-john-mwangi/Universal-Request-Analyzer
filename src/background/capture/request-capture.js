@@ -386,6 +386,10 @@ function setupContentScriptListener() {
       } else if (message.action === "fetchError") {
         handleFetchError(message, sender.tab);
         sendResponse({ success: true });
+      } else if (message.action === "runnerRequestCompleted") {
+        // Handle runner request completion (same pattern as xhrCompleted/fetchCompleted)
+        handleRunnerRequestCompleted(message).then(sendResponse);
+        return true; // Async response
       } else if (message.action === "getPerformanceMetrics") {
         // Return aggregated metrics for the popup
         const metrics = Array.from(
@@ -796,6 +800,64 @@ function handleFetchError(data, tab) {
     };
 
     updateRequestData(request.id, request);
+  }
+}
+
+// Handle runner request completion (same pattern as xhrCompleted/fetchCompleted)
+async function handleRunnerRequestCompleted(data) {
+  if (!config.enabled) return { success: false, error: "Capture disabled" };
+
+  try {
+    // Extract original context (CRITICAL for correct analytics)
+    const domain = data.originalDomain || new URL(data.url).hostname;
+    const pageUrl = data.originalPageUrl || data.url;
+    const metadata = data.runnerMetadata || {};
+
+    // Parse URL for path
+    const { path } = parseUrl(data.url);
+
+    // Create request object (same structure as content script requests)
+    const request = {
+      id: generateId(),
+      url: data.url,
+      method: data.method,
+      type: "fetch",
+      domain: domain, // ✅ Uses ORIGINAL domain
+      path: path,
+      pageUrl: pageUrl, // ✅ Uses ORIGINAL page URL
+      startTime: data.startTime,
+      timestamp: Date.now(),
+      tabId: 0, // Runner requests don't have a tab
+      status: "completed",
+      statusCode: data.status,
+      statusText: data.statusText,
+      size: data.responseSize || 0,
+      timings: {
+        startTime: data.startTime,
+        endTime: data.endTime,
+        duration: data.duration,
+        dns: 0, // Runner doesn't have detailed timing
+        tcp: 0,
+        ssl: 0,
+        ttfb: 0,
+        download: 0,
+      },
+      metadata: {
+        ...metadata,
+        source: "runner", // Mark as runner execution
+      },
+    };
+
+    // Log to Bronze (normal pipeline)
+    updateRequestData(request.id, request);
+
+    console.log(`[Runner] Logged request ${request.id} under domain ${domain}`);
+
+    // Return logged request ID
+    return { success: true, requestId: request.id };
+  } catch (error) {
+    console.error("[Runner] Error logging request:", error);
+    return { success: false, error: error.message };
   }
 }
 

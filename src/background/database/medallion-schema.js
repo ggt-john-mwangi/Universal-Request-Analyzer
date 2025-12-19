@@ -1,9 +1,9 @@
 // Medallion Architecture Database Schema
 // This implements a layered data architecture:
 // - Config Schema: Application configuration and settings
-// - Bronze Schema: Raw OLTP data from extension operations
-// - Silver Schema: Cleaned, validated, and enriched data
-// - Gold Schema: Analytics-ready aggregated data
+// - Bronze Schema: Raw event capture data (immutable, append-only)
+// - Silver Schema: Cleaned, validated, and enriched data with Star Schema
+// - Gold Schema: Analytics-ready aggregated data (daily insights)
 
 /**
  * Create all database schemas for medallion architecture
@@ -122,6 +122,62 @@ function createConfigSchema(db) {
     )
   `);
 
+  // Runner definitions table - saved test runners/collections
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config_runner_definitions (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      collection_id TEXT,
+      execution_mode TEXT NOT NULL CHECK(execution_mode IN ('sequential', 'parallel')),
+      delay_ms INTEGER DEFAULT 0,
+      follow_redirects BOOLEAN DEFAULT 1,
+      validate_status BOOLEAN DEFAULT 0,
+      use_variables BOOLEAN DEFAULT 1,
+      header_overrides TEXT,
+      is_active BOOLEAN DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_run_at INTEGER,
+      run_count INTEGER DEFAULT 0
+    )
+  `);
+
+  // Runner requests table - requests associated with runners
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config_runner_requests (
+      id TEXT PRIMARY KEY,
+      runner_id TEXT NOT NULL,
+      sequence_order INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      method TEXT NOT NULL,
+      headers TEXT,
+      body TEXT,
+      domain TEXT NOT NULL,
+      page_url TEXT NOT NULL,
+      captured_request_id TEXT,
+      assertions TEXT,
+      description TEXT,
+      is_enabled BOOLEAN DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Runner collections table - grouping of runners
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config_runner_collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      color TEXT,
+      icon TEXT,
+      is_active BOOLEAN DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
   // Indexes for config schema
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_config_app_settings_category ON config_app_settings(category)`
@@ -129,13 +185,23 @@ function createConfigSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_config_feature_flags_enabled ON config_feature_flags(enabled)`
   );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_definitions_active ON config_runner_definitions(is_active)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_requests_runner ON config_runner_requests(runner_id, sequence_order)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_runner_collections_active ON config_runner_collections(is_active)`
+  );
 
   console.log("Config schema created");
 }
 
 /**
- * BRONZE SCHEMA - Raw OLTP Data
- * Stores all raw transactional data from the extension
+ * BRONZE SCHEMA - Raw Event Capture Data
+ * Stores all captured events immutably (append-only, timestamped)
+ * Includes: HTTP requests, performance metrics, runner executions
  */
 function createBronzeSchema(db) {
   // Raw requests table - complete capture of all HTTP requests
@@ -295,6 +361,53 @@ function createBronzeSchema(db) {
     )
   `);
 
+  // Runner executions table - tracks each runner execution
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bronze_runner_executions (
+      id TEXT PRIMARY KEY,
+      runner_id TEXT NOT NULL,
+      runner_name TEXT NOT NULL,
+      collection_id TEXT,
+      status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+      execution_mode TEXT NOT NULL,
+      start_time INTEGER NOT NULL,
+      end_time INTEGER,
+      duration INTEGER,
+      total_requests INTEGER DEFAULT 0,
+      completed_requests INTEGER DEFAULT 0,
+      success_count INTEGER DEFAULT 0,
+      failure_count INTEGER DEFAULT 0,
+      error_message TEXT,
+      environment_snapshot TEXT,
+      triggered_by TEXT,
+      metadata TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Runner execution results - individual request results
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bronze_runner_execution_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      execution_id TEXT NOT NULL,
+      runner_request_id TEXT NOT NULL,
+      logged_request_id TEXT,
+      sequence_order INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      method TEXT NOT NULL,
+      status INTEGER,
+      duration INTEGER,
+      success BOOLEAN DEFAULT 0,
+      assertion_results TEXT,
+      validation_errors TEXT,
+      error_message TEXT,
+      timestamp INTEGER NOT NULL,
+      FOREIGN KEY(execution_id) REFERENCES bronze_runner_executions(id) ON DELETE CASCADE,
+      FOREIGN KEY(logged_request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
+    )
+  `);
+
   // Indexes for bronze schema
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_requests_timestamp ON bronze_requests(timestamp)`
@@ -359,7 +472,21 @@ function createBronzeSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_errors_resolved ON bronze_errors(resolved)`
   );
-
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_runner_executions_runner ON bronze_runner_executions(runner_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_runner_executions_status ON bronze_runner_executions(status)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_runner_executions_start ON bronze_runner_executions(start_time)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_runner_results_execution ON bronze_runner_execution_results(execution_id)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_runner_results_request ON bronze_runner_execution_results(logged_request_id)`
+  );
   console.log("Bronze schema created");
 }
 
@@ -832,6 +959,203 @@ export async function validateAndFixSchema(db) {
         console.log(
           "✓ bronze_performance_entries table recreated with correct schema"
         );
+      }
+    }
+
+    // ✅ Ensure runner tables exist (for existing databases created before runner feature)
+    const runnerTablesResult = db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name IN ('config_runner_definitions', 'config_runner_requests', 'bronze_runner_executions', 'bronze_runner_execution_results')
+    `);
+
+    const existingRunnerTables =
+      runnerTablesResult[0]?.values?.map((row) => row[0]) || [];
+    const missingRunnerTables = [
+      "config_runner_definitions",
+      "config_runner_requests",
+      "bronze_runner_executions",
+      "bronze_runner_execution_results",
+    ].filter((table) => !existingRunnerTables.includes(table));
+
+    if (missingRunnerTables.length > 0) {
+      console.warn(
+        `⚠️ Missing runner tables: ${missingRunnerTables.join(
+          ", "
+        )}. Creating them now...`
+      );
+
+      // Create config runner tables
+      if (!existingRunnerTables.includes("config_runner_definitions")) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS config_runner_definitions (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            collection_id TEXT,
+            execution_mode TEXT NOT NULL CHECK(execution_mode IN ('sequential', 'parallel')),
+            delay_ms INTEGER DEFAULT 0,
+            follow_redirects BOOLEAN DEFAULT 1,
+            validate_status BOOLEAN DEFAULT 0,
+            use_variables BOOLEAN DEFAULT 1,
+            header_overrides TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            last_run_at INTEGER,
+            run_count INTEGER DEFAULT 0
+          )
+        `);
+        db.exec(
+          `CREATE INDEX IF NOT EXISTS idx_runner_definitions_collection ON config_runner_definitions(collection_id, created_at)`
+        );
+        console.log("✓ Created config_runner_definitions table");
+      }
+
+      if (!existingRunnerTables.includes("config_runner_requests")) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS config_runner_requests (
+            id TEXT PRIMARY KEY,
+            runner_id TEXT NOT NULL,
+            sequence_order INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            method TEXT NOT NULL DEFAULT 'GET',
+            headers TEXT,
+            body TEXT,
+            domain TEXT NOT NULL,
+            page_url TEXT NOT NULL,
+            captured_request_id TEXT,
+            assertions TEXT,
+            description TEXT,
+            is_enabled BOOLEAN DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE,
+            UNIQUE(runner_id, sequence_order)
+          )
+        `);
+        db.exec(
+          `CREATE INDEX IF NOT EXISTS idx_runner_requests_runner ON config_runner_requests(runner_id, sequence_order)`
+        );
+        console.log("✓ Created config_runner_requests table");
+      } else {
+        // Migrate existing table - add missing columns
+        try {
+          const tableInfo = db.exec(
+            `PRAGMA table_info(config_runner_requests)`
+          );
+          if (tableInfo && tableInfo[0]) {
+            const columns = tableInfo[0].values.map((row) => row[1]);
+
+            if (!columns.includes("assertions")) {
+              console.log(
+                "⚙️ Migrating: Adding assertions column to config_runner_requests"
+              );
+              db.exec(
+                `ALTER TABLE config_runner_requests ADD COLUMN assertions TEXT`
+              );
+              console.log("✓ Added assertions column");
+            }
+
+            if (!columns.includes("description")) {
+              console.log(
+                "⚙️ Migrating: Adding description column to config_runner_requests"
+              );
+              db.exec(
+                `ALTER TABLE config_runner_requests ADD COLUMN description TEXT`
+              );
+              console.log("✓ Added description column");
+            }
+
+            if (!columns.includes("is_enabled")) {
+              console.log(
+                "⚙️ Migrating: Adding is_enabled column to config_runner_requests"
+              );
+              db.exec(
+                `ALTER TABLE config_runner_requests ADD COLUMN is_enabled BOOLEAN DEFAULT 1`
+              );
+              console.log("✓ Added is_enabled column");
+            }
+          }
+        } catch (migrationError) {
+          console.warn(
+            "Migration warning for config_runner_requests:",
+            migrationError
+          );
+        }
+      }
+
+      // Create bronze runner tables
+      if (!existingRunnerTables.includes("bronze_runner_executions")) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS bronze_runner_executions (
+            id TEXT PRIMARY KEY,
+            runner_id TEXT NOT NULL,
+            runner_name TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+            execution_mode TEXT NOT NULL,
+            start_time INTEGER NOT NULL,
+            end_time INTEGER,
+            duration INTEGER,
+            total_requests INTEGER NOT NULL,
+            completed_requests INTEGER DEFAULT 0,
+            success_count INTEGER DEFAULT 0,
+            failure_count INTEGER DEFAULT 0,
+            error_message TEXT,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(runner_id) REFERENCES config_runner_definitions(id) ON DELETE CASCADE
+          )
+        `);
+        db.exec(
+          `CREATE INDEX IF NOT EXISTS idx_runner_executions_runner ON bronze_runner_executions(runner_id, start_time DESC)`
+        );
+        console.log("✓ Created bronze_runner_executions table");
+      }
+
+      if (!existingRunnerTables.includes("bronze_runner_execution_results")) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS bronze_runner_execution_results (
+            id TEXT PRIMARY KEY,
+            execution_id TEXT NOT NULL,
+            runner_request_id TEXT NOT NULL,
+            logged_request_id TEXT,
+            status INTEGER,
+            duration INTEGER,
+            success BOOLEAN NOT NULL,
+            error_message TEXT,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(execution_id) REFERENCES bronze_runner_executions(id) ON DELETE CASCADE,
+            FOREIGN KEY(runner_request_id) REFERENCES config_runner_requests(id) ON DELETE CASCADE,
+            FOREIGN KEY(logged_request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
+          )
+        `);
+        db.exec(
+          `CREATE INDEX IF NOT EXISTS idx_runner_results_execution ON bronze_runner_execution_results(execution_id)`
+        );
+        console.log("✓ Created bronze_runner_execution_results table");
+      }
+
+      console.log("✓ All runner tables created successfully");
+    } else {
+      console.log("✓ All runner tables exist");
+
+      // Migration: Add is_active column if missing (for existing databases)
+      try {
+        const tableInfo = db.exec(
+          `PRAGMA table_info(config_runner_definitions)`
+        );
+        if (tableInfo && tableInfo[0]) {
+          const columns = tableInfo[0].values.map((row) => row[1]); // column name is at index 1
+          if (!columns.includes("is_active")) {
+            console.log(
+              "⚙️ Migrating: Adding is_active column to config_runner_definitions"
+            );
+            db.exec(
+              `ALTER TABLE config_runner_definitions ADD COLUMN is_active BOOLEAN DEFAULT 1`
+            );
+            console.log("✓ Added is_active column");
+          }
+        }
+      } catch (migrationError) {
+        console.warn("Migration warning:", migrationError);
       }
     }
 

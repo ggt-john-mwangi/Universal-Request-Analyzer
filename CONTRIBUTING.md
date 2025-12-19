@@ -55,6 +55,7 @@ See [Development Guide - Code Style](docs/DEVELOPMENT.md#code-style--standards) 
 - Avoid platform-dependent code
 
 **Before Submitting:**
+
 - [ ] Run `npm run lint` - No linting errors
 - [ ] Run `npm test` - All tests pass
 - [ ] Run `npm run build` - Builds successfully
@@ -66,6 +67,7 @@ See [Development Guide - Code Style](docs/DEVELOPMENT.md#code-style--standards) 
 For detailed development instructions, see [Development Guide](docs/DEVELOPMENT.md).
 
 **Quick Start:**
+
 ```bash
 git clone https://github.com/YOUR_USERNAME/Universal-Request-Analyzer.git
 cd Universal-Request-Analyzer
@@ -80,7 +82,6 @@ Help improve our documentation:
 - **User Guide**: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) - User-facing documentation
 - **Development Guide**: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) - Developer documentation
 - **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture
-- **Adoption Analysis**: [docs/ADOPTION_ANALYSIS.md](docs/ADOPTION_ANALYSIS.md) - Market analysis
 
 When contributing, ensure documentation stays up-to-date with code changes.
 
@@ -97,6 +98,7 @@ body (optional)
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -106,6 +108,7 @@ body (optional)
 - `chore`: Build/tool changes
 
 **Examples:**
+
 ```
 feat(popup): add request type filter
 fix(database): resolve SCD Type 2 version conflict

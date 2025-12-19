@@ -1192,9 +1192,35 @@ class Dashboard {
 
         // Render chart with selected endpoints
         this.renderEndpointPerformanceChart(response);
+      } else {
+        // Show error message
+        const chartContainer = document.getElementById(
+          "dashboardPerformanceHistoryChart"
+        );
+        if (chartContainer) {
+          chartContainer.innerHTML = `
+            <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+              <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+              Failed to load performance data: ${
+                response?.error || "Unknown error"
+              }
+            </p>
+          `;
+        }
       }
     } catch (error) {
       console.error("Failed to load endpoint performance history:", error);
+      const chartContainer = document.getElementById(
+        "dashboardPerformanceHistoryChart"
+      );
+      if (chartContainer) {
+        chartContainer.innerHTML = `
+          <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+            <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+            Error: ${error.message}
+          </p>
+        `;
+      }
     }
   }
 
@@ -1328,6 +1354,20 @@ class Dashboard {
 
     let canvas = document.getElementById("dashboardHistoryChartCanvas");
 
+    // Destroy existing chart first (before checking canvas)
+    if (this.charts.endpointHistory) {
+      this.charts.endpointHistory.destroy();
+      this.charts.endpointHistory = null;
+    }
+
+    // Also destroy any chart attached to canvas by Chart.js registry
+    if (canvas) {
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) {
+        existingChart.destroy();
+      }
+    }
+
     // Recreate canvas if it was removed
     if (!canvas) {
       chartContainer.innerHTML =
@@ -1335,16 +1375,15 @@ class Dashboard {
       canvas = document.getElementById("dashboardHistoryChartCanvas");
     }
 
-    // Destroy existing chart
-    if (this.charts.endpointHistory) {
-      this.charts.endpointHistory.destroy();
-      this.charts.endpointHistory = null;
-    }
-
     const groupedData = response.groupedByType || response.groupedByEndpoint;
-    if (!groupedData) {
-      chartContainer.innerHTML =
-        '<p class="no-data">No performance data available</p>';
+    if (!groupedData || Object.keys(groupedData).length === 0) {
+      chartContainer.innerHTML = `
+        <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+          <i class="fas fa-info-circle" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+          No performance data available for the selected time range.<br>
+          <small style="font-size: 12px; margin-top: 8px; display: block;">Try selecting a longer time range or visit some websites to capture data.</small>
+        </p>
+      `;
       return;
     }
 
@@ -1354,8 +1393,13 @@ class Dashboard {
       : Object.keys(groupedData);
 
     if (selectedKeys.length === 0) {
-      chartContainer.innerHTML =
-        '<p class="no-data">No endpoints selected. Please select at least one endpoint to display.</p>';
+      chartContainer.innerHTML = `
+        <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+          <i class="fas fa-mouse-pointer" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+          No endpoints selected.<br>
+          <small style="font-size: 12px; margin-top: 8px; display: block;">Please select at least one endpoint from the list above to display the chart.</small>
+        </p>
+      `;
       return;
     }
 
@@ -2196,6 +2240,14 @@ class Dashboard {
         return;
       }
 
+      // Apply variable substitution if enabled
+      let code = fetchText.value;
+      const useVariablesToggle = document.getElementById("fetchUseVariables");
+      if (useVariablesToggle && useVariablesToggle.checked) {
+        code = await this.applyVariableSubstitution(code);
+        console.log("Applied variable substitution to fetch code");
+      }
+
       // Show loading state
       const responseSection = document.getElementById("fetchResponseSection");
       const responseText = document.getElementById("fetchResponseText");
@@ -2210,7 +2262,6 @@ class Dashboard {
       }
 
       // Extract fetch URL and options from the code
-      const code = fetchText.value;
       const fetchMatch = code.match(/fetch\('([^']+)'(?:,\s*({[\s\S]+?}))?\)/);
 
       if (!fetchMatch) {
@@ -3054,6 +3105,20 @@ class Dashboard {
     document.getElementById("runnerRequestCount").textContent =
       selectedRequests.length;
 
+    // Auto-generate runner name
+    const now = new Date();
+    const timestamp = now.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const autoName = `Quick Run - ${timestamp}`;
+    document.getElementById("runnerName").value = autoName;
+    document.getElementById("runnerDescription").value = "";
+    document.getElementById("runnerSaveAsPermanent").checked = false;
+
     // Load and display variables
     await this.loadRunnerVariables();
 
@@ -3155,6 +3220,15 @@ class Dashboard {
       return;
     }
 
+    // Get runner metadata
+    const runnerName = document.getElementById("runnerName").value.trim();
+    const runnerDescription = document
+      .getElementById("runnerDescription")
+      .value.trim();
+    const saveAsPermanent = document.getElementById(
+      "runnerSaveAsPermanent"
+    ).checked;
+
     // Get configuration
     const mode = document.getElementById("runnerMode").value;
     const delay = parseInt(document.getElementById("runnerDelay").value) || 0;
@@ -3178,6 +3252,9 @@ class Dashboard {
     }
 
     const config = {
+      name: runnerName || `Quick Run - ${new Date().toLocaleString()}`,
+      description: runnerDescription,
+      isTemporary: !saveAsPermanent,
       mode,
       delay,
       followRedirects,
@@ -4814,11 +4891,15 @@ class Dashboard {
         action: "getSettings",
       });
 
-      if (!response || !response.settings || !response.settings.variables) {
+      console.log("Settings response for variables:", response);
+
+      if (!response || !response.success) {
+        console.warn("Failed to get settings for variables");
         return;
       }
 
-      const variables = response.settings.variables.list || [];
+      const variables = response.settings?.variables?.list || [];
+      console.log("Variables found:", variables.length);
       const selectId =
         type === "curl" ? "curlVariableSelect" : "fetchVariableSelect";
       const select = document.getElementById(selectId);

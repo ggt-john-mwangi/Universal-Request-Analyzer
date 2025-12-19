@@ -1,15 +1,15 @@
 // Updated Background Script Initializer
 // Integrates medallion architecture with request capture and backend sync
 
-import { initDatabase } from './database/db-manager-medallion.js';
-import { setupRequestCaptureIntegration } from './capture/request-capture-integration.js';
-import { setupBackendApiService } from './api/backend-api-service.js';
-import { setupDataSyncManager } from './sync/data-sync-manager.js';
-import { setupMessageHandlers } from './messaging/message-handler.js';
-import { setupEventBus } from './messaging/event-bus.js';
-import { createAnalyticsProcessor } from './database/analytics-processor.js';
-import { createStarSchema } from './database/star-schema.js';
-import settingsManager from '../lib/shared-components/settings-manager.js';
+import { initDatabase } from "./database/db-manager-medallion.js";
+import { setupRequestCaptureIntegration } from "./capture/request-capture-integration.js";
+import { setupBackendApiService } from "./api/backend-api-service.js";
+import { setupDataSyncManager } from "./sync/data-sync-manager.js";
+import { setupMessageHandlers } from "./messaging/message-handler.js";
+import { setupEventBus } from "./messaging/event-bus.js";
+import { createAnalyticsProcessor } from "./database/analytics-processor.js";
+import { createStarSchema } from "./database/star-schema.js";
+import settingsManager from "../lib/shared-components/settings-manager.js";
 
 class MedallionExtensionInitializer {
   constructor() {
@@ -27,7 +27,7 @@ class MedallionExtensionInitializer {
 
   async initialize() {
     if (this.initializationState.started) {
-      console.warn('Initialization already in progress');
+      console.warn("Initialization already in progress");
       return false;
     }
 
@@ -35,7 +35,7 @@ class MedallionExtensionInitializer {
 
     try {
       console.log(
-        'Initializing Universal Request Analyzer with Medallion Architecture...'
+        "Initializing Universal Request Analyzer with Medallion Architecture..."
       );
 
       // Step 1: Initialize Event Bus
@@ -66,91 +66,91 @@ class MedallionExtensionInitializer {
       this.schedulePeriodicTasks();
 
       this.initializationState.completed = true;
-      console.log('✓ Extension initialized successfully!');
+      console.log("✓ Extension initialized successfully!");
 
-      this.eventBus.publish('extension:ready', { timestamp: Date.now() });
+      this.eventBus.publish("extension:ready", { timestamp: Date.now() });
 
       return true;
     } catch (error) {
-      console.error('❌ Extension initialization failed:', error);
+      console.error("❌ Extension initialization failed:", error);
       this.initializationState.failed = true;
       this.initializationState.error = error;
-      this.eventBus?.publish('extension:failed', { error: error.message });
+      this.eventBus?.publish("extension:failed", { error: error.message });
       return false;
     }
   }
 
   async initializeEventBus() {
-    console.log('→ Initializing Event Bus...');
+    console.log("→ Initializing Event Bus...");
     this.eventBus = setupEventBus();
-    console.log('✓ Event Bus initialized');
+    console.log("✓ Event Bus initialized");
   }
 
   async initializeDatabase() {
-    console.log('→ Initializing Database with Medallion Architecture...');
+    console.log("→ Initializing Database with Medallion Architecture...");
 
     const config = {
       // Database configuration
     };
 
     this.dbManager = await initDatabase(config, null, this.eventBus);
-    this.services.set('database', this.dbManager);
+    this.services.set("database", this.dbManager);
 
     // Inject database config manager into settings-manager for DB sync
     if (this.dbManager.config) {
       settingsManager.setDatabaseManager(this.dbManager.config);
       await settingsManager.initialize();
-      console.log('✓ Settings-manager initialized with DB sync');
+      console.log("✓ Settings-manager initialized with DB sync");
     }
 
-    console.log('✓ Database initialized');
+    console.log("✓ Database initialized");
   }
 
   async initializeStarSchema() {
-    console.log('→ Initializing Star Schema...');
+    console.log("→ Initializing Star Schema...");
 
     // Star schema is created as part of medallion schema
     // This is just a verification step
     try {
       const stats = this.dbManager.getDatabaseStats();
-      console.log('✓ Star Schema ready:', stats);
+      console.log("✓ Star Schema ready:", stats);
     } catch (error) {
-      console.warn('Star Schema verification warning:', error);
+      console.warn("Star Schema verification warning:", error);
     }
   }
 
   async initializeAnalyticsProcessor() {
-    console.log('→ Initializing Analytics Processor...');
+    console.log("→ Initializing Analytics Processor...");
 
     this.analyticsProcessor = createAnalyticsProcessor(
       this.dbManager.medallion.db,
       this.eventBus
     );
-    this.services.set('analytics', this.analyticsProcessor);
+    this.services.set("analytics", this.analyticsProcessor);
 
-    console.log('✓ Analytics Processor initialized');
+    console.log("✓ Analytics Processor initialized");
   }
 
   async initializeBackendApi() {
-    console.log('→ Initializing Backend API Service...');
+    console.log("→ Initializing Backend API Service...");
 
     const config = {
-      baseUrl: '', // Will be configured by user
-      apiKey: '',
+      baseUrl: "", // Will be configured by user
+      apiKey: "",
     };
 
     const backendApi = setupBackendApiService(config, this.eventBus);
     await backendApi.initialize();
 
-    this.services.set('backendApi', backendApi);
+    this.services.set("backendApi", backendApi);
 
-    console.log('✓ Backend API Service initialized');
+    console.log("✓ Backend API Service initialized");
   }
 
   async initializeDataSync() {
-    console.log('→ Initializing Data Sync Manager...');
+    console.log("→ Initializing Data Sync Manager...");
 
-    const backendApi = this.services.get('backendApi');
+    const backendApi = this.services.get("backendApi");
     const config = {
       autoSync: false, // Disabled by default
       syncIntervalMs: 300000, // 5 minutes
@@ -164,17 +164,17 @@ class MedallionExtensionInitializer {
     );
     await dataSyncManager.initialize();
 
-    this.services.set('dataSync', dataSyncManager);
+    this.services.set("dataSync", dataSyncManager);
 
-    console.log('✓ Data Sync Manager initialized');
+    console.log("✓ Data Sync Manager initialized");
   }
 
   async initializeRequestCapture() {
-    console.log('→ Initializing Request Capture...');
+    console.log("→ Initializing Request Capture...");
 
     const config = {
       filters: {
-        includePatterns: ['<all_urls>'],
+        includePatterns: ["<all_urls>"],
         excludePatterns: [],
       },
     };
@@ -185,13 +185,13 @@ class MedallionExtensionInitializer {
       config
     );
 
-    this.services.set('requestCapture', requestCapture);
+    this.services.set("requestCapture", requestCapture);
 
-    console.log('✓ Request Capture initialized');
+    console.log("✓ Request Capture initialized");
   }
 
   async initializeMessageHandlers() {
-    console.log('→ Initializing Message Handlers...');
+    console.log("→ Initializing Message Handlers...");
 
     const messageHandlers = setupMessageHandlers(
       this.dbManager,
@@ -199,28 +199,13 @@ class MedallionExtensionInitializer {
       this.eventBus
     );
 
-    this.services.set('messaging', messageHandlers);
+    this.services.set("messaging", messageHandlers);
 
-    console.log('✓ Message Handlers initialized');
+    console.log("✓ Message Handlers initialized");
   }
 
   schedulePeriodicTasks() {
-    console.log('→ Scheduling periodic tasks...');
-
-    // Generate OHLC data every hour
-    setInterval(async () => {
-      try {
-        const now = Date.now();
-        const oneHourAgo = now - 3600000;
-
-        // Generate OHLC for 1h timeframe
-        await this.analyticsProcessor.generateOHLC('1h', oneHourAgo, now);
-
-        console.log('✓ Hourly OHLC generated');
-      } catch (error) {
-        console.error('Failed to generate hourly OHLC:', error);
-      }
-    }, 3600000); // Every hour
+    console.log("→ Scheduling periodic tasks...");
 
     // Generate daily analytics at midnight
     const scheduleDaily = () => {
@@ -235,13 +220,13 @@ class MedallionExtensionInitializer {
         try {
           const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
-          const dateStr = yesterday.toISOString().split('T')[0];
+          const dateStr = yesterday.toISOString().split("T")[0];
 
           await this.dbManager.medallion.processDailyAnalytics(dateStr);
 
-          console.log('✓ Daily analytics generated');
+          console.log("✓ Daily analytics generated");
         } catch (error) {
-          console.error('Failed to generate daily analytics:', error);
+          console.error("Failed to generate daily analytics:", error);
         }
 
         // Schedule next day
@@ -255,21 +240,21 @@ class MedallionExtensionInitializer {
     setInterval(async () => {
       try {
         // Cleanup old pending requests
-        this.services.get('requestCapture')?.cleanup();
+        this.services.get("requestCapture")?.cleanup();
 
         // Vacuum database if needed
         const stats = this.dbManager.getDatabaseStats();
         if (stats && stats.size > 100 * 1024 * 1024) {
           // > 100MB
           this.dbManager.vacuumDatabase();
-          console.log('✓ Database vacuumed');
+          console.log("✓ Database vacuumed");
         }
       } catch (error) {
-        console.error('Failed database maintenance:', error);
+        console.error("Failed database maintenance:", error);
       }
     }, 6 * 3600000); // Every 6 hours
 
-    console.log('✓ Periodic tasks scheduled');
+    console.log("✓ Periodic tasks scheduled");
   }
 
   getService(name) {
@@ -284,9 +269,9 @@ class MedallionExtensionInitializer {
       services: {
         database: !!this.dbManager,
         analytics: !!this.analyticsProcessor,
-        backendApi: this.services.get('backendApi')?.getStatus(),
-        dataSync: this.services.get('dataSync')?.getStatus(),
-        requestCapture: this.services.get('requestCapture')?.getStatistics(),
+        backendApi: this.services.get("backendApi")?.getStatus(),
+        dataSync: this.services.get("dataSync")?.getStatus(),
+        requestCapture: this.services.get("requestCapture")?.getStatistics(),
       },
     };
   }
@@ -297,12 +282,12 @@ const extensionInitializer = new MedallionExtensionInitializer();
 
 // Initialize on install or startup
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('Extension installed/updated:', details.reason);
+  console.log("Extension installed/updated:", details.reason);
   await extensionInitializer.initialize();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  console.log('Extension started');
+  console.log("Extension started");
   await extensionInitializer.initialize();
 });
 
@@ -312,7 +297,7 @@ chrome.runtime.onStartup.addListener(async () => {
 })();
 
 // Export for testing/debugging
-if (typeof globalThis !== 'undefined') {
+if (typeof globalThis !== "undefined") {
   globalThis.extensionInitializer = extensionInitializer;
 }
 

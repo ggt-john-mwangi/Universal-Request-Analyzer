@@ -1,6 +1,7 @@
 # Universal Request Analyzer - Copilot Architecture Guide
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [Project Structure](#project-structure)
 3. [Core Architecture](#core-architecture)
@@ -18,6 +19,7 @@
 Universal Request Analyzer is a cross-browser extension built with Manifest V3 that captures, analyzes, and visualizes HTTP requests using a medallion architecture (Bronze/Silver/Gold data layers).
 
 ### Key Features
+
 - **Cross-browser support**: Chrome, Firefox, Edge (Chromium-based)
 - **Medallion architecture**: Bronze (raw) → Silver (cleaned) → Gold (analytics)
 - **SQL.js database**: Client-side SQLite with OPFS persistence
@@ -220,25 +222,31 @@ Universal-Request-Analyzer/
 
 ### Medallion Architecture
 
-**Bronze Layer (Raw OLTP Data)**:
+**Bronze Layer (Raw Event Capture Data)**:
+
 - `bronze_requests`: Raw HTTP request captures
 - `bronze_request_headers`: Request/response headers
 - `bronze_request_timings`: Performance timing data
+- `bronze_runner_executions`: Runner execution logs
+- `bronze_runner_execution_results`: Individual request results
 - Immutable, append-only captures
 
 **Silver Layer (Cleaned & Enriched)**:
+
 - `silver_requests`: Validated and normalized requests
 - `silver_api_calls`: Identified API calls
 - `silver_page_loads`: Page navigation events
 - Data quality checks, deduplication
 
 **Gold Layer (Analytics-Ready Aggregates)**:
+
 - `gold_domain_stats`: Per-domain aggregations
 - `gold_endpoint_performance`: API endpoint metrics
 - `gold_daily_summary`: Daily rollups
 - Pre-computed aggregations for dashboards
 
 **Config Schema (Application Settings)**:
+
 - `config_app_settings`: Key-value settings
 - `config_feature_flags`: Feature toggles
 - `config_user_preferences`: User customizations
@@ -247,6 +255,7 @@ Universal-Request-Analyzer/
 - `config_export`: Export defaults
 
 **Star Schema (Analytics Warehouse)**:
+
 - **Fact Tables**: `fact_requests`, `fact_api_calls`
 - **Dimension Tables**: `dim_domain`, `dim_endpoint`, `dim_status`, `dim_method`, `dim_resource_type`, `dim_time`
 
@@ -309,6 +318,7 @@ Universal-Request-Analyzer/
 ### Configuration Categories
 
 **1. Capture Settings** (`settings.capture`):
+
 ```javascript
 {
   enabled: true,                    // Master toggle
@@ -339,6 +349,7 @@ Universal-Request-Analyzer/
 ```
 
 **2. General Settings** (`settings.general`):
+
 ```javascript
 {
   maxStoredRequests: 10000,         // Storage limit
@@ -352,6 +363,7 @@ Universal-Request-Analyzer/
 ```
 
 **3. Display Settings** (`settings.display`):
+
 ```javascript
 {
   requestsPerPage: 50,               // Pagination
@@ -370,6 +382,7 @@ Universal-Request-Analyzer/
 ```
 
 **4. Advanced Settings** (`settings.advanced`):
+
 ```javascript
 {
   enableDebugMode: false,            // Debug logging
@@ -383,6 +396,7 @@ Universal-Request-Analyzer/
 ### Database Config Tables
 
 **config_app_settings**:
+
 ```sql
 CREATE TABLE config_app_settings (
   key TEXT PRIMARY KEY,              -- e.g., 'capture.enabled'
@@ -397,6 +411,7 @@ CREATE TABLE config_app_settings (
 ```
 
 **config_feature_flags**:
+
 ```sql
 CREATE TABLE config_feature_flags (
   feature_key TEXT PRIMARY KEY,      -- Feature identifier
@@ -557,6 +572,7 @@ CREATE TABLE config_feature_flags (
 ### Querying the Hierarchy
 
 **Example: Get all requests for a domain**
+
 ```sql
 -- Filter by domain (page's domain, not request domain)
 SELECT url, method, status, duration, page_url
@@ -569,6 +585,7 @@ ORDER BY timestamp DESC;
 ```
 
 **Example: Get pages under a domain**
+
 ```sql
 SELECT DISTINCT page_url, COUNT(*) as request_count
 FROM bronze_requests
@@ -581,8 +598,9 @@ GROUP BY page_url;
 ```
 
 **Example: Get endpoint performance**
+
 ```sql
-SELECT 
+SELECT
   endpoint_pattern,
   call_count,
   avg_duration_ms,
@@ -598,6 +616,7 @@ ORDER BY call_count DESC;
 ## Browser Compatibility
 
 ### Browser Compatibility Layer
+
 **File**: `src/background/compat/browser-compat.js`
 
 All direct `chrome.*` API calls MUST go through this compatibility layer to support Firefox, Edge, and other browsers.
@@ -616,73 +635,77 @@ const data = await storage.get('key');
 ### Supported APIs
 
 **1. Storage API**
+
 ```javascript
-import { storage } from './compat/browser-compat.js';
+import { storage } from "./compat/browser-compat.js";
 
 // Get from storage
-const data = await storage.get('key');
-const multiple = await storage.get(['key1', 'key2']);
+const data = await storage.get("key");
+const multiple = await storage.get(["key1", "key2"]);
 
 // Set to storage
-await storage.set({ key: 'value' });
+await storage.set({ key: "value" });
 
 // Remove from storage
-await storage.remove('key');
-await storage.remove(['key1', 'key2']);
+await storage.remove("key");
+await storage.remove(["key1", "key2"]);
 
 // Clear all storage
 await storage.clear();
 
 // Listen for changes
 storage.onChanged.addListener((changes) => {
-  console.log('Storage changed:', changes);
+  console.log("Storage changed:", changes);
 });
 ```
 
 **2. Runtime API**
+
 ```javascript
-import { runtime } from './compat/browser-compat.js';
+import { runtime } from "./compat/browser-compat.js";
 
 // Send message
-const response = await runtime.sendMessage({ action: 'getData' });
+const response = await runtime.sendMessage({ action: "getData" });
 
 // Connect port
-const port = runtime.connect({ name: 'my-port' });
+const port = runtime.connect({ name: "my-port" });
 
 // Listen for messages
 runtime.onMessage.addListener((message, sender) => {
-  console.log('Received:', message);
+  console.log("Received:", message);
   return { success: true }; // Response
 });
 
 // Get extension URL
-const url = runtime.getURL('popup.html');
+const url = runtime.getURL("popup.html");
 ```
 
 **3. WebRequest API**
+
 ```javascript
-import { webRequest } from './compat/browser-compat.js';
+import { webRequest } from "./compat/browser-compat.js";
 
 // Listen for requests
 webRequest.onBeforeRequest.addListener(
   (details) => {
-    console.log('Request:', details.url);
+    console.log("Request:", details.url);
   },
-  { urls: ['<all_urls>'] },
-  ['requestBody']
+  { urls: ["<all_urls>"] },
+  ["requestBody"]
 );
 
 webRequest.onCompleted.addListener(
   (details) => {
-    console.log('Completed:', details.url);
+    console.log("Completed:", details.url);
   },
-  { urls: ['<all_urls>'] }
+  { urls: ["<all_urls>"] }
 );
 ```
 
 **4. Tabs API**
+
 ```javascript
-import { tabs } from './compat/browser-compat.js';
+import { tabs } from "./compat/browser-compat.js";
 
 // Get tab
 const tab = await tabs.get(tabId);
@@ -691,7 +714,7 @@ const tab = await tabs.get(tabId);
 const allTabs = await tabs.query({});
 
 // Send message to tab
-await tabs.sendMessage(tabId, { action: 'refresh' });
+await tabs.sendMessage(tabId, { action: "refresh" });
 ```
 
 ### Global Browser API Pattern
@@ -703,15 +726,15 @@ For files that can't import (like content scripts or standalone modules):
 const browserAPI = globalThis.browser || globalThis.chrome;
 
 // Then use browserAPI instead of chrome
-browserAPI.storage.local.get('settings', (data) => {
-  console.log('Settings:', data);
+browserAPI.storage.local.get("settings", (data) => {
+  console.log("Settings:", data);
 });
 ```
 
 ### Browser Detection
 
 ```javascript
-import { browserInfo } from './compat/browser-compat.js';
+import { browserInfo } from "./compat/browser-compat.js";
 
 if (browserInfo.isFirefox) {
   // Firefox-specific code
@@ -782,26 +805,31 @@ UI Component receives response
 ### Message Types
 
 **1. Data Query Messages**
+
 ```javascript
 // Popup/DevTools → Background
-chrome.runtime.sendMessage({
-  action: 'getFilteredStats',
-  filters: {
-    domain: 'github.com',
-    pageUrl: 'https://github.com/user/repo',
-    timeRange: 300,  // 5 minutes
-    type: 'xmlhttprequest',
-    statusPrefix: '200'
+chrome.runtime.sendMessage(
+  {
+    action: "getFilteredStats",
+    filters: {
+      domain: "github.com",
+      pageUrl: "https://github.com/user/repo",
+      timeRange: 300, // 5 minutes
+      type: "xmlhttprequest",
+      statusPrefix: "200",
+    },
+  },
+  (response) => {
+    if (response.success) {
+      console.log("Stats:", response);
+      // response.totalRequests, response.responseTimes, etc.
+    }
   }
-}, (response) => {
-  if (response.success) {
-    console.log('Stats:', response);
-    // response.totalRequests, response.responseTimes, etc.
-  }
-});
+);
 ```
 
 **2. Settings Update Messages**
+
 ```javascript
 // Options Page → Background
 chrome.runtime.sendMessage({
@@ -816,61 +844,74 @@ chrome.runtime.sendMessage({
 ```
 
 **3. Database Operation Messages**
+
 ```javascript
 // Any UI → Background
-chrome.runtime.sendMessage({
-  action: 'clearDatabase'
-}, (response) => {
-  console.log('Database cleared:', response.success);
-});
+chrome.runtime.sendMessage(
+  {
+    action: "clearDatabase",
+  },
+  (response) => {
+    console.log("Database cleared:", response.success);
+  }
+);
 
-chrome.runtime.sendMessage({
-  action: 'exportFilteredData',
-  filters: { domain: 'github.com' },
-  format: 'json'
-}, (response) => {
-  // Triggers download
-});
+chrome.runtime.sendMessage(
+  {
+    action: "exportFilteredData",
+    filters: { domain: "github.com" },
+    format: "json",
+  },
+  (response) => {
+    // Triggers download
+  }
+);
 ```
 
 **4. Page-specific Queries**
+
 ```javascript
 // DevTools Panel → Background
-chrome.runtime.sendMessage({
-  action: 'getPagesByDomain',
-  domain: 'github.com',
-  timeRange: 604800  // 7 days
-}, (response) => {
-  // response.pages = [{ pageUrl: '...', requestCount: 45 }, ...]
-});
+chrome.runtime.sendMessage(
+  {
+    action: "getPagesByDomain",
+    domain: "github.com",
+    timeRange: 604800, // 7 days
+  },
+  (response) => {
+    // response.pages = [{ pageUrl: '...', requestCount: 45 }, ...]
+  }
+);
 ```
 
 ### Event Bus (Internal)
 
 **Publishing Events**:
+
 ```javascript
-import { eventBus } from './messaging/event-bus.js';
+import { eventBus } from "./messaging/event-bus.js";
 
 // Publish event
-eventBus.publish('database:ready', {
+eventBus.publish("database:ready", {
   timestamp: Date.now(),
-  dbSize: 1024000
+  dbSize: 1024000,
 });
 
-eventBus.publish('request:captured', {
-  requestId: 'req_123',
-  domain: 'github.com',
-  url: 'https://api.github.com/user/repos'
+eventBus.publish("request:captured", {
+  requestId: "req_123",
+  domain: "github.com",
+  url: "https://api.github.com/user/repos",
 });
 ```
 
 **Subscribing to Events**:
+
 ```javascript
-import { eventBus } from './messaging/event-bus.js';
+import { eventBus } from "./messaging/event-bus.js";
 
 // Subscribe
-const unsubscribe = eventBus.subscribe('database:ready', (data) => {
-  console.log('Database ready at:', data.timestamp);
+const unsubscribe = eventBus.subscribe("database:ready", (data) => {
+  console.log("Database ready at:", data.timestamp);
 });
 
 // Unsubscribe later
@@ -878,6 +919,7 @@ unsubscribe();
 ```
 
 **Available Events**:
+
 - `extension:ready` - Extension initialized
 - `database:ready` - Database loaded
 - `database:saved` - Database persisted
@@ -891,11 +933,12 @@ unsubscribe();
 ### Storage Change Listeners
 
 **Background → Content Script Sync**:
+
 ```javascript
 // Content script listens for settings changes
 browserAPI.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && changes.settings) {
-    console.log('Settings updated, reloading...');
+  if (areaName === "local" && changes.settings) {
+    console.log("Settings updated, reloading...");
     // Reload configuration
     location.reload();
   }
@@ -984,22 +1027,23 @@ browserAPI.storage.onChanged.addListener((changes, areaName) => {
 ### Using the Theme Manager
 
 **Initialize Theme Manager**:
+
 ```javascript
-import themeManager from './config/theme-manager.js';
+import themeManager from "./config/theme-manager.js";
 
 // Initialize with theme
 await themeManager.initialize({
-  initialTheme: 'light',  // 'light'|'dark'|'high-contrast'|'system'
+  initialTheme: "light", // 'light'|'dark'|'high-contrast'|'system'
   onUpdate: (themeData) => {
-    console.log('Theme changed to:', themeData.theme);
-  }
+    console.log("Theme changed to:", themeData.theme);
+  },
 });
 
 // Get current theme
 const currentTheme = themeManager.currentTheme;
 
 // Set theme
-await themeManager.setTheme('dark');
+await themeManager.setTheme("dark");
 
 // Listen for system theme changes (if using 'system' theme)
 themeManager.watchSystemTheme();
@@ -1008,6 +1052,7 @@ themeManager.watchSystemTheme();
 ### Theme Definition
 
 **themes.json** structure:
+
 ```json
 {
   "light": {
@@ -1102,14 +1147,16 @@ import { dbManager } from '../background/database/db-manager.js';
 
 1. **Use parameterized queries** (SQL.js doesn't support `?` placeholders)
 2. **Escape strings manually**:
+
    ```javascript
    const escapeStr = (val) => {
-     if (val === undefined || val === null) return 'NULL';
+     if (val === undefined || val === null) return "NULL";
      return `'${String(val).replace(/'/g, "''")}'`;
    };
-   
+
    const query = `SELECT * FROM requests WHERE domain = ${escapeStr(domain)}`;
    ```
+
 3. **Use medallion manager** for CRUD operations
 4. **Query Bronze for real-time**, Gold for analytics
 5. **Use indexes** for performance
@@ -1130,11 +1177,12 @@ import { dbManager } from '../background/database/db-manager.js';
 ### Common Patterns
 
 **Querying Data from UI**:
+
 ```javascript
 // In popup.js, panel.js, options.js
 const response = await chrome.runtime.sendMessage({
-  action: 'getFilteredStats',
-  filters: this.getActiveFilters()
+  action: "getFilteredStats",
+  filters: this.getActiveFilters(),
 });
 
 if (response && response.success) {
@@ -1143,20 +1191,22 @@ if (response && response.success) {
 ```
 
 **Saving Settings**:
+
 ```javascript
 // In options.js
-import settingsManager from '../../lib/shared-components/settings-manager.js';
+import settingsManager from "../../lib/shared-components/settings-manager.js";
 
 const newSettings = { capture: { enabled: true } };
 const success = await settingsManager.updateSettings(newSettings);
 ```
 
 **Accessing Config in Content Script**:
+
 ```javascript
 // In content.js
 const browserAPI = globalThis.browser || globalThis.chrome;
 
-browserAPI.storage.local.get(['settings'], (data) => {
+browserAPI.storage.local.get(["settings"], (data) => {
   const config = data.settings?.settings || {};
   const captureEnabled = config.capture?.enabled;
   const includeDomains = config.capture?.captureFilters?.includeDomains || [];
@@ -1170,26 +1220,32 @@ browserAPI.storage.local.get(['settings'], (data) => {
 ### Common Issues
 
 **1. "No domains configured" warning**
+
 - **Cause**: Content script looking in wrong storage location
 - **Fix**: Ensure content script reads from `chrome.storage.local['settings']`
 
 **2. Settings not persisting**
+
 - **Cause**: Not calling `settingsManager.updateSettings()`
 - **Fix**: Always use settingsManager, not direct storage writes
 
 **3. Database not loading**
+
 - **Cause**: OPFS not initialized or SQL.js failed to load
 - **Fix**: Check console for initialization errors, ensure OPFS is supported
 
 **4. Message passing fails**
+
 - **Cause**: Service worker inactive or context invalidated
 - **Fix**: Check `chrome.runtime.lastError`, implement retry logic
 
 **5. Theme not applying**
+
 - **Cause**: CSS variables not defined or theme not initialized
 - **Fix**: Ensure `themeManager.initialize()` is called early
 
 **6. Cross-browser API errors**
+
 - **Cause**: Using `chrome.*` directly instead of compat layer
 - **Fix**: Import and use browser-compat APIs
 
@@ -1200,16 +1256,16 @@ Enable debug mode for verbose logging:
 ```javascript
 // In settings
 await settingsManager.updateSettings({
-  advanced: { enableDebugMode: true }
+  advanced: { enableDebugMode: true },
 });
 
 // Or in console
 chrome.storage.local.set({
   settings: {
     settings: {
-      advanced: { enableDebugMode: true }
-    }
-  }
+      advanced: { enableDebugMode: true },
+    },
+  },
 });
 ```
 
@@ -1224,6 +1280,14 @@ chrome.storage.local.set({
 - [Medallion Architecture](https://www.databricks.com/glossary/medallion-architecture)
 
 ---
+
+## JS FILES
+
+Following the folder structure the js folders, eg in options, popup, background, devtools, helps keep code organized by context.Within the folder we can split our js files to further organize by feature or functionality as needed. so that our entry files like popup.js, options.js, background-medallion.js, devtools-panel.js can remain concise and focused on initializing and orchestrating the main components for that context and not be too long, doing min logic but importing the rest from the respective sub files.
+
+## Conclusion
+
+Following the forward-thinking architecture and coding standards outlined in this guide will ensure that the Universal Request Analyzer remains robust, maintainable, and adaptable to future browser changes. Always prioritize user experience, performance, and cross-browser compatibility in all development efforts.
 
 **Last Updated**: December 12, 2025
 **Version**: 1.0.0
