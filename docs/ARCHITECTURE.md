@@ -31,22 +31,24 @@ graph TB
 
         subgraph Background["🔄 Background Service Worker (MV3)"]
             RequestCapture["📡 Request Capture<br/>(webRequest API)"]
+            RequestRunner["▶️ Request Runner<br/>(Execution Engine)"]
             EventBus["🚌 Event Bus<br/>(Message routing)"]
             MessageHandler["✉️ Message Handler<br/>(Action dispatcher)"]
 
             subgraph Managers["Core Managers"]
-                DBManager["💾 Database Manager"]
+                DBManager["💾 Database Manager<br/>(Medallion Architecture)"]
                 SettingsManager["⚙️ Settings Manager"]
                 ExportManager["📤 Export Manager"]
                 CleanupManager["🧹 Cleanup Manager"]
+                AnalyticsProcessor["📊 Analytics Processor<br/>(OHLC & Trends)"]
             end
         end
 
-        subgraph Database["🗄️ Database Layer (SQL.js)"]
-            Config["Config Schema<br/>(Settings & Flags)"]
-            Bronze["Bronze Layer<br/>(Raw OLTP Data)"]
+        subgraph Database["🗄️ Database Layer (SQL.js + OPFS)"]
+            Config["Config Schema<br/>(Settings, Flags, Runners)"]
+            Bronze["Bronze Layer<br/>(Requests, Executions, Events)"]
             Silver["Silver Layer<br/>(Validated + Star Schema)"]
-            Gold["Gold Layer<br/>(Analytics & Insights)"]
+            Gold["Gold Layer<br/>(Daily Analytics & Insights)"]
         end
     end
 
@@ -68,11 +70,22 @@ graph TB
     MessageHandler -->|"Query/Update"| Managers
 
     Managers <-->|"Read/Write"| Database
-    SettingsManager <-->|"Sync Config"| Config
+    DBManager <-->|"CRUD Operations"| Config
+    DBManager <-->|"CRUD Operations"| Bronze
+    DBManager <-->|"CRUD Operations"| Silver
+    DBManager <-->|"CRUD Operations"| Gold
+    
+    SettingsManager <-->|"Sync Settings"| Config
     SettingsManager <-->|"Sync Settings"| Storage
+
+    RequestRunner <-->|"Read Definitions"| Config
+    RequestRunner -->|"Execute Requests"| WebPages
+    RequestRunner -->|"Log Results"| Bronze
 
     Bronze -->|"Process & Validate"| Silver
     Silver -->|"Aggregate & Analyze"| Gold
+    AnalyticsProcessor -->|"Compute OHLC"| Silver
+    AnalyticsProcessor -->|"Generate Insights"| Gold
 
     MessageHandler -.->|"Response"| Popup
     MessageHandler -.->|"Response"| DevTools
@@ -123,12 +136,15 @@ graph TB
 │ CONFIG SCHEMA - Application Configuration                    │
 │ • App Settings  • Feature Flags  • User Preferences          │
 │ • Performance Settings  • Storage Settings  • Export Settings│
+│ • Runner Definitions  • Runner Requests  • Runner Collections│
+│ • Scheduled Runs  • Runner Alerts                            │
 └──────────────────────────────────────────────────────────────┘
                               ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ BRONZE SCHEMA - Raw OLTP Data                                │
 │ • Requests  • Headers  • Timings  • Events  • Sessions       │
-│ • Errors  • Performance Entries                              │
+│ • Errors  • Performance Entries  • Runner Executions         │
+│ • Runner Execution Results                                   │
 │ Characteristics: Immutable, Complete, Timestamped            │
 └──────────────────────────────────────────────────────────────┘
                               ↓
@@ -199,26 +215,49 @@ src/
 │
 ├── background/                   # Background Service Worker
 │   ├── database/                 # Database Layer
-│   │   ├── medallion-schema.js   # Medallion architecture
-│   │   ├── star-schema.js        # Star schema with SCD2
+│   │   ├── medallion-schema.js   # Medallion architecture (Config + Bronze + Silver + Gold)
+│   │   ├── star-schema.js        # Star schema with SCD Type 2
 │   │   ├── medallion-manager.js  # Data flow orchestration
 │   │   ├── config-schema-manager.js # Config management
 │   │   ├── analytics-processor.js # OHLC & analytics
 │   │   ├── medallion-migration.js # Data migration
-│   │   └── db-manager-medallion.js # Main DB manager
-│   ├── capture/                  # Request Capture
-│   ├── messaging/                # Event Bus & Handlers
+│   │   ├── db-manager-medallion.js # Main DB manager with runner CRUD
+│   │   ├── sql-js-loader.js      # SQL.js initialization
+│   │   └── purge-manager.js      # Data cleanup
+│   ├── capture/                  # Request Capture & Runner Execution
+│   │   ├── request-capture.js    # webRequest API integration
+│   │   ├── request-runner.js     # Runner execution engine
+│   │   ├── runner-collections.js # Runner collections manager
+│   │   └── request-capture-integration.js # Medallion integration
+│   ├── messaging/                # Event Bus & Message Handlers
+│   │   ├── event-bus.js          # Pub/sub event system
+│   │   ├── message-handler.js    # Central message router
+│   │   └── popup-message-handler.js # Popup-specific handlers
 │   ├── api/                      # API Services
 │   ├── auth/                     # Authentication
 │   ├── security/                 # Security & Encryption
-│   └── background.js             # Main entry point
+│   ├── cleanup/                  # Cleanup Manager
+│   ├── export/                   # Export Manager
+│   ├── compat/                   # Browser Compatibility
+│   │   └── browser-compat.js     # Cross-browser API wrapper
+│   ├── background-medallion.js   # Main entry point (Medallion)
+│   └── background.js             # Legacy entry point
 │
 ├── popup/                        # Popup UI
 │   ├── components/               # UI Components
 │   └── popup.html                # Popup page
 │
-├── options/                      # Options Page
+├── options/                      # Options Page (Settings + Dashboard + Runners)
 │   ├── components/               # UI Components
+│   │   ├── dashboard.js          # Dashboard with analytics
+│   │   ├── runners.js            # Runner management UI
+│   │   ├── analytics.js          # Analytics visualizations
+│   │   ├── alerts.js             # Alert configuration
+│   │   └── export-db.js          # Database export
+│   ├── js/                       # JavaScript modules
+│   │   └── options.js            # Main options entry point
+│   ├── css/                      # Stylesheets
+│   │   └── options.css           # Options page styles
 │   └── options.html              # Options page
 │
 ├── devtools/                     # DevTools Panel
@@ -275,6 +314,163 @@ Encapsulate complex functionality:
 - **ChartManager**: Chart lifecycle
 - **NotificationManager**: User feedback
 - **ExportManager**: Data export/import
+
+## Runner Architecture
+
+### Overview
+
+The Runner system enables automated HTTP request execution with validation, scheduling, and collections support.
+
+### Runner Data Model
+
+```mermaid
+erDiagram
+    config_runner_definitions ||--o{ config_runner_requests : contains
+    config_runner_definitions ||--o{ bronze_runner_executions : executes
+    config_runner_collections ||--o{ config_runner_definitions : groups
+    bronze_runner_executions ||--o{ bronze_runner_execution_results : produces
+    
+    config_runner_definitions {
+        text id PK
+        text name
+        text description
+        text collection_id FK
+        text execution_mode
+        integer delay_ms
+        boolean follow_redirects
+        boolean validate_status
+        boolean use_variables
+        text header_overrides
+        boolean is_active
+        integer run_count
+        integer last_run_at
+        integer created_at
+        integer updated_at
+    }
+    
+    config_runner_requests {
+        text id PK
+        text runner_id FK
+        integer sequence_order
+        text url
+        text method
+        text headers
+        text body
+        text domain
+        text page_url
+        text captured_request_id
+        text assertions
+        text description
+        boolean is_enabled
+        integer created_at
+    }
+    
+    config_runner_collections {
+        text id PK
+        text name
+        text description
+        text schedule_cron
+        boolean is_active
+        integer created_at
+        integer updated_at
+    }
+    
+    bronze_runner_executions {
+        text id PK
+        text runner_id FK
+        text execution_mode
+        integer start_time
+        integer end_time
+        integer total_requests
+        integer successful_requests
+        integer failed_requests
+        text status
+        text error
+    }
+    
+    bronze_runner_execution_results {
+        text id PK
+        text execution_id FK
+        text request_id
+        text url
+        text method
+        integer status
+        integer duration
+        boolean success
+        text error
+        text response_body
+        integer timestamp
+    }
+```
+
+### Runner Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as Options Page
+    participant BG as Background
+    participant Runner as Request Runner
+    participant DB as Database
+    participant Web as Web Server
+
+    UI->>BG: Create Runner Definition
+    BG->>DB: Store Runner + Requests
+    
+    UI->>BG: Execute Runner
+    BG->>DB: Load Runner Definition
+    DB-->>BG: Runner + Requests
+    
+    BG->>Runner: Start Execution
+    Runner->>DB: Create Execution Record
+    
+    loop For Each Request
+        Runner->>Web: Execute HTTP Request
+        Web-->>Runner: HTTP Response
+        Runner->>DB: Store Execution Result
+        Runner->>BG: Progress Update
+        BG-->>UI: Update UI
+        
+        alt Sequential Mode
+            Runner->>Runner: Wait delay_ms
+        end
+    end
+    
+    Runner->>DB: Update Execution Record
+    Runner-->>BG: Execution Complete
+    BG-->>UI: Show Results
+```
+
+### Runner Features
+
+1. **Execution Modes**
+   - **Sequential**: Execute requests one after another with configurable delays
+   - **Parallel**: Execute all requests simultaneously
+
+2. **Request Configuration**
+   - Custom headers and body
+   - Follow redirects option
+   - Status code validation
+   - Variable interpolation
+   - Per-request assertions
+
+3. **Collections**
+   - Group related runners
+   - Scheduled execution via cron expressions
+   - Batch operations (run all in collection)
+
+4. **Execution Tracking**
+   - Real-time progress updates
+   - Success/failure metrics
+   - Response time tracking
+   - Error logging
+   - Historical execution data
+
+5. **UI Integration**
+   - Wizard-based runner creation
+   - Dashboard "Run Selected" feature
+   - Execution history viewer
+   - Edit, duplicate, export, delete actions
+   - Context menu for quick actions
 
 ## Analytics & Reporting
 
