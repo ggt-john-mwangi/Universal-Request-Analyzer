@@ -15,14 +15,51 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
+        // Initialize Mermaid
         mermaid.initialize({
-          startOnLoad: true,
+          startOnLoad: false,
           theme: "default",
           securityLevel: "loose",
           fontFamily: "Arial, sans-serif",
         });
+
+        // Find all code blocks with language-mermaid class (created by Jekyll/Kramdown)
+        const mermaidBlocks = document.querySelectorAll('code.language-mermaid, pre.language-mermaid code');
+        
+        mermaidBlocks.forEach((block, index) => {
+          // Get the mermaid code
+          const code = block.textContent || block.innerText;
+          
+          // Create a new div element for Mermaid
+          const mermaidDiv = document.createElement('div');
+          mermaidDiv.className = 'mermaid';
+          mermaidDiv.textContent = code;
+          mermaidDiv.id = 'mermaid-' + index;
+          
+          // Replace the code block with the mermaid div
+          const pre = block.closest('pre') || block;
+          pre.parentNode.replaceChild(mermaidDiv, pre);
+        });
+
+        // Now render all mermaid diagrams
+        mermaid.run();
       });
     </script>
+    <style>
+      /* Style for Mermaid diagrams */
+      .mermaid {
+        text-align: center;
+        margin: 2em 0;
+        padding: 1em;
+        background: #f8f9fa;
+        border-radius: 4px;
+        overflow-x: auto;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
+    </style>
   </head>
   <body>
     <a id="skip-to-content" href="#content">Skip to the content.</a>
