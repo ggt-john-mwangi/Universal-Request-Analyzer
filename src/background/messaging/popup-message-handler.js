@@ -3009,18 +3009,32 @@ async function handleSaveSettingToDb(key, value) {
       return { success: false, error: "Database not available" };
     }
 
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      if (typeof val === "number") return val;
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
     const valueJson = JSON.stringify(value);
     const timestamp = Date.now();
 
-    // Insert or update setting in config_app_settings table
+    // Insert or update setting in config_app_settings table (using inline values)
     const query = `
       INSERT OR REPLACE INTO config_app_settings (key, value, category, updated_at)
-      VALUES (?, ?, 'user_preferences', ?)
+      VALUES (${escapeStr(key)}, ${escapeStr(
+      valueJson
+    )}, 'user_preferences', ${timestamp})
     `;
 
-    dbManager.executeQuery(query, [key, valueJson, timestamp]);
+    dbManager.executeQuery(query);
 
     console.log(`[Settings] Saved ${key} to database`);
+
+    // Also update in-memory settings if settingsManager is available
+    if (settingsManager) {
+      await settingsManager.initialize();
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Save setting to DB error:", error);
@@ -4344,6 +4358,7 @@ async function handleGetRequestsByFilters(filters) {
     const timeRangeMs = 7 * 24 * 60 * 60 * 1000;
     const startTime = Date.now() - timeRangeMs;
 
+    // Get requests without headers/body (fetch those on-demand in Step 3)
     let query = `
       SELECT id, url, method, type, timestamp, status, duration, page_url
       FROM bronze_requests 

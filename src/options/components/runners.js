@@ -849,6 +849,7 @@ class RunnersManager {
       selectedPage: null,
       selectedType: null,
       selectedRequests: [],
+      variables: [],
       config: {},
     };
 
@@ -911,6 +912,11 @@ class RunnersManager {
 
     document.getElementById("wizardCreateBtn").addEventListener("click", () => {
       this.createRunnerFromWizard();
+    });
+
+    // Add variable button
+    document.getElementById("btnAddVariable").addEventListener("click", () => {
+      this.addVariable();
     });
 
     // Cancel/Close
@@ -1023,6 +1029,13 @@ class RunnersManager {
       return;
     }
 
+    if (this.wizardState.selectedPage === null) {
+      container.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: var(--text-secondary)">Select a page to view available requests</div>';
+      countEl.textContent = "0 requests selected";
+      return;
+    }
+
     container.innerHTML =
       '<div style="padding: 20px; text-align: center"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
 
@@ -1046,13 +1059,14 @@ class RunnersManager {
           return;
         }
 
+        // Store full request data for later use
+        this.wizardState.availableRequests = requests;
+
         container.innerHTML = requests
           .map(
             (req, idx) => `
           <div class="request-item">
-            <input type="checkbox" id="req-${idx}" data-url="${
-              req.url
-            }" data-method="${req.method}">
+            <input type="checkbox" id="req-${idx}" data-index="${idx}">
             <div class="request-details">
               <div class="request-url">${req.url}</div>
               <div class="request-meta">
@@ -1094,15 +1108,98 @@ class RunnersManager {
       '#wizardRequestList input[type="checkbox"]'
     ).length;
 
-    this.wizardState.selectedRequests = Array.from(checkboxes).map((cb) => ({
-      url: cb.dataset.url,
-      method: cb.dataset.method,
-    }));
+    // Get full request data from stored array (headers/body will be fetched in Step 3)
+    this.wizardState.selectedRequests = Array.from(checkboxes).map((cb) => {
+      const idx = parseInt(cb.dataset.index);
+      const fullReq = this.wizardState.availableRequests[idx];
+      
+      return {
+        id: fullReq.id,
+        url: fullReq.url,
+        method: fullReq.method,
+        type: fullReq.type,
+        status: fullReq.status,
+        timestamp: fullReq.timestamp,
+        page_url: fullReq.page_url,
+      };
+    });
+
+    // Auto-extract variables from headers and body
+    this.autoExtractVariables();
 
     countEl.textContent = `${this.wizardState.selectedRequests.length} of ${total} requests selected`;
   }
 
-  updateWizardStep(step) {
+  autoExtractVariables() {
+    // Extract common variable patterns from requests
+    const potentialVars = new Map();
+
+    this.wizardState.selectedRequests.forEach((req) => {
+      // Check headers for tokens/keys
+      if (req.headers) {
+        try {
+          const headers =
+            typeof req.headers === "string"
+              ? JSON.parse(req.headers)
+              : req.headers;
+
+          // Look for Authorization headers
+          if (headers.Authorization) {
+            const authValue = headers.Authorization;
+            if (
+              authValue.startsWith("Bearer ") &&
+              !potentialVars.has("authToken")
+            ) {
+              potentialVars.set("authToken", authValue.replace("Bearer ", ""));
+            } else if (
+              authValue.startsWith("Token ") &&
+              !potentialVars.has("apiToken")
+            ) {
+              potentialVars.set("apiToken", authValue.replace("Token ", ""));
+            }
+          }
+
+          // Look for API keys
+          if (headers["X-API-Key"] && !potentialVars.has("apiKey")) {
+            potentialVars.set("apiKey", headers["X-API-Key"]);
+          }
+          if (headers["Api-Key"] && !potentialVars.has("apiKey")) {
+            potentialVars.set("apiKey", headers["Api-Key"]);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      // Check URL for common patterns like IDs
+      try {
+        const url = new URL(req.url);
+        const pathParts = url.pathname.split("/").filter((p) => p);
+
+        // Look for numeric IDs in path
+        pathParts.forEach((part, idx) => {
+          if (/^\d+$/.test(part) && idx > 0) {
+            const prevPart = pathParts[idx - 1];
+            const varName = `${prevPart}Id`;
+            if (!potentialVars.has(varName)) {
+              potentialVars.set(varName, part);
+            }
+          }
+        });
+      } catch (e) {
+        // Ignore URL parse errors
+      }
+    });
+
+    // Add extracted variables to wizard state if not already present
+    potentialVars.forEach((value, name) => {
+      if (!this.wizardState.variables.some((v) => v.name === name)) {
+        this.wizardState.variables.push({ name, value });
+      }
+    });
+  }
+
+  async updateWizardStep(step) {
     // Update progress indicator
     document.querySelectorAll(".wizard-step").forEach((el) => {
       const stepNum = parseInt(el.dataset.step);
@@ -1125,14 +1222,23 @@ class RunnersManager {
       currentContent.style.display = "block";
     }
 
+    // Load step-specific data
+    if (step === 3) {
+      this.loadRequestsEditor();
+      // Load existing variables from settings
+      if (this.wizardState.variables.length === 0) {
+        await this.loadExistingVariables();
+      }
+    }
+
     // Update buttons
     const prevBtn = document.getElementById("wizardPrevBtn");
     const nextBtn = document.getElementById("wizardNextBtn");
     const createBtn = document.getElementById("wizardCreateBtn");
 
     prevBtn.style.display = step > 1 ? "block" : "none";
-    nextBtn.style.display = step < 3 ? "block" : "none";
-    createBtn.style.display = step === 3 ? "block" : "none";
+    nextBtn.style.display = step < 4 ? "block" : "none";
+    createBtn.style.display = step === 4 ? "block" : "none";
 
     this.wizardState.currentStep = step;
   }
@@ -1146,6 +1252,10 @@ class RunnersManager {
         alert("Please select a domain");
         return;
       }
+      if (this.wizardState.selectedPage === null) {
+        alert("Please select a page (or choose 'All pages')");
+        return;
+      }
       // Check actual DOM state for selected checkboxes
       const checkedBoxes = document.querySelectorAll(
         '#wizardRequestList input[type="checkbox"]:checked'
@@ -1156,7 +1266,15 @@ class RunnersManager {
       }
     }
 
-    if (currentStep < 3) {
+    if (currentStep === 4) {
+      const name = document.getElementById("wizardRunnerName").value.trim();
+      if (!name) {
+        alert("Please enter a runner name");
+        return;
+      }
+    }
+
+    if (currentStep < 4) {
       this.updateWizardStep(currentStep + 1);
     }
   }
@@ -1168,8 +1286,388 @@ class RunnersManager {
     }
   }
 
+  async loadExistingVariables() {
+    try {
+      // Import settingsManager dynamically if not already available
+      if (!window.settingsManager) {
+        const module = await import(
+          "../../lib/shared-components/settings-manager.js"
+        );
+        window.settingsManager = module.default;
+        await window.settingsManager.initialize();
+      }
+
+      const existingVars = window.settingsManager.getVariables();
+      console.log("[Wizard] Loaded existing variables:", existingVars);
+
+      // Add to wizard state if not already present
+      existingVars.forEach((v) => {
+        if (!this.wizardState.variables.some((wv) => wv.name === v.name)) {
+          this.wizardState.variables.push({
+            id: v.id,
+            name: v.name,
+            value: v.value,
+            description: v.description || "",
+            isGlobal: true, // Mark as coming from global settings
+          });
+        }
+      });
+
+      this.renderVariablesList();
+    } catch (error) {
+      console.error("[Wizard] Failed to load existing variables:", error);
+    }
+  }
+
+  async loadRequestsEditor() {
+    const container = document.getElementById("wizardRequestsEditor");
+
+    if (this.wizardState.selectedRequests.length === 0) {
+      container.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: var(--text-secondary)">No requests selected</div>';
+      return;
+    }
+
+    // Show loading indicator
+    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary)"><i class="fas fa-spinner fa-spin"></i> Loading request details...</div>';
+
+    // Also render variables list if variables were auto-extracted
+    if (this.wizardState.variables.length > 0) {
+      this.renderVariablesList();
+    }
+
+    // Fetch headers and body for ALL requests in parallel (much faster)
+    await Promise.all(
+      this.wizardState.selectedRequests.map(async (req) => {
+        // Fetch headers and body in parallel for this request
+        const [headers, body] = await Promise.all([
+          this.getRequestHeaders(req.id),
+          this.getRequestBody(req.id),
+        ]);
+        req.headers = headers || {};
+        req.body = body || null;
+      })
+    );
+
+    container.innerHTML = this.wizardState.selectedRequests
+      .map((req, idx) => {
+        // Format headers for display (already an object with header name/value pairs)
+        let headersStr = "";
+        if (req.headers && Object.keys(req.headers).length > 0) {
+          try {
+            headersStr = JSON.stringify(req.headers, null, 2);
+          } catch (e) {
+            console.error(
+              `[Wizard] Failed to stringify headers for request #${idx}:`,
+              e
+            );
+            headersStr = String(req.headers);
+          }
+        }
+
+        // Format body for display (already parsed as object in updateSelectedRequests)
+        let bodyStr = "";
+        if (req.body) {
+          try {
+            bodyStr = typeof req.body === 'object' ? JSON.stringify(req.body, null, 2) : String(req.body);
+          } catch (e) {
+            console.error(
+              `[Wizard] Failed to stringify body for request #${idx}:`,
+              e
+            );
+            bodyStr = String(req.body);
+          }
+        }
+
+        return `
+      <div class="request-editor-item" data-index="${idx}" style="border-bottom: 1px solid var(--border-color); padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="color: var(--primary-color);">${req.method} #${
+          idx + 1
+        }</strong>
+          <button class="toggle-request-details" data-index="${idx}" style="background: none; border: none; cursor: pointer; color: var(--text-secondary);">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+        <div class="request-url-preview" style="font-size: 12px; color: var(--text-secondary); word-break: break-all;">${
+          req.url
+        }</div>
+        <div class="request-details-editor" data-index="${idx}" style="display: none; margin-top: 12px;">
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">URL:</label>
+            <input type="text" class="request-url-input" data-index="${idx}" value="${
+          req.url
+        }" 
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-family: monospace;" />
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Headers (JSON):</label>
+            <textarea class="request-headers-input" data-index="${idx}" rows="3" placeholder='{"Authorization": "Bearer {{token}}"}'
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-family: monospace;">${headersStr}</textarea>
+            <small style="color: var(--text-secondary); font-size: 11px;">Use {{variableName}} to reference variables</small>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Body:</label>
+            <textarea class="request-body-input" data-index="${idx}" rows="3" placeholder='{"key": "{{value}}"}'
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-family: monospace;">${bodyStr}</textarea>
+            <small style="color: var(--text-secondary); font-size: 11px;">Use {{variableName}} to reference variables</small>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Description:</label>
+            <input type="text" class="request-description-input" data-index="${idx}" value="${
+          req.description || ""
+        }" placeholder="Optional description"
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px;" />
+          </div>
+        </div>
+      </div>
+    `;
+      })
+      .join("");
+
+    // Add event listeners for toggling details
+    container.querySelectorAll(".toggle-request-details").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = e.currentTarget.dataset.index;
+        const details = container.querySelector(
+          `.request-details-editor[data-index="${idx}"]`
+        );
+        const icon = e.currentTarget.querySelector("i");
+
+        if (details.style.display === "none") {
+          details.style.display = "block";
+          icon.className = "fas fa-chevron-up";
+        } else {
+          details.style.display = "none";
+          icon.className = "fas fa-chevron-down";
+        }
+      });
+    });
+
+    // Add event listeners for input changes
+    container.querySelectorAll(".request-url-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.wizardState.selectedRequests[idx].url = e.target.value;
+      });
+    });
+
+    container.querySelectorAll(".request-headers-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.wizardState.selectedRequests[idx].headers = e.target.value;
+      });
+    });
+
+    container.querySelectorAll(".request-body-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.wizardState.selectedRequests[idx].body = e.target.value;
+      });
+    });
+
+    container
+      .querySelectorAll(".request-description-input")
+      .forEach((input) => {
+        input.addEventListener("change", (e) => {
+          const idx = parseInt(e.target.dataset.index);
+          this.wizardState.selectedRequests[idx].description = e.target.value;
+        });
+      });
+  }
+
+  async addVariable() {
+    const name = prompt("Variable name (without {{ }}):");
+    if (!name) return;
+
+    // Validate name
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+      alert(
+        "Variable name must start with a letter or underscore and contain only letters, numbers, and underscores"
+      );
+      return;
+    }
+
+    // Check if variable already exists in local list
+    if (this.wizardState.variables.some((v) => v.name === name)) {
+      alert("Variable with this name already exists");
+      return;
+    }
+
+    const value = prompt("Variable value:");
+    if (value === null) return;
+
+    const description = prompt("Variable description (optional):", "");
+
+    try {
+      // Import settingsManager dynamically if not already available
+      if (!window.settingsManager) {
+        const module = await import(
+          "../../lib/shared-components/settings-manager.js"
+        );
+        window.settingsManager = module.default;
+        await window.settingsManager.initialize();
+      }
+
+      // Add variable using settingsManager (saves to both storage and database)
+      await window.settingsManager.addVariable({
+        name,
+        value,
+        description: description || "",
+      });
+
+      // Add to local wizard state
+      const newVariable = {
+        name,
+        value,
+        description: description || "",
+        isGlobal: true,
+        id: `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      this.wizardState.variables.push(newVariable);
+
+      console.log(`[Wizard] Variable "${name}" saved to global settings`);
+
+      // Trigger storage changed event to notify other components
+      window.dispatchEvent(
+        new CustomEvent("settingsChanged", {
+          detail: { key: "variables" },
+        })
+      );
+
+      alert(`Variable "${name}" created successfully!`);
+    } catch (error) {
+      console.error("[Wizard] Failed to save variable:", error);
+      alert(`Failed to save variable: ${error.message}`);
+      return;
+    }
+
+    this.renderVariablesList();
+  }
+
+  renderVariablesList() {
+    const container = document.getElementById("wizardVariablesList");
+
+    if (this.wizardState.variables.length === 0) {
+      container.innerHTML =
+        '<div style="text-align: center; color: var(--text-secondary); padding: 8px">No variables defined. Click "Add Variable" to create one or use existing global variables.</div>';
+      return;
+    }
+
+    container.innerHTML = this.wizardState.variables
+      .map(
+        (variable, idx) => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px; border-bottom: 1px solid var(--border-color);">
+        <div style="flex: 1;">
+          <strong style="font-family: monospace; color: var(--primary-color);">{{${
+            variable.name
+          }}}</strong>
+          ${
+            variable.isGlobal
+              ? '<span style="margin-left: 6px; font-size: 10px; background: var(--primary-color); color: white; padding: 2px 6px; border-radius: 3px;">Global</span>'
+              : ""
+          }
+          <span style="margin-left: 12px; color: var(--text-secondary); font-size: 12px;">=</span>
+          <span style="margin-left: 8px; font-family: monospace; font-size: 12px;">${
+            variable.value
+          }</span>
+          ${
+            variable.description
+              ? `<div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">${variable.description}</div>`
+              : ""
+          }
+        </div>
+        <div>
+          <button class="edit-variable-btn" data-index="${idx}" style="background: none; border: none; cursor: pointer; color: var(--primary-color); padding: 4px 8px;">
+            <i class="fas fa-edit"></i>
+          </button>
+          ${
+            !variable.isGlobal
+              ? `<button class="delete-variable-btn" data-index="${idx}" style="background: none; border: none; cursor: pointer; color: var(--danger-color); padding: 4px 8px;">
+            <i class="fas fa-trash"></i>
+          </button>`
+              : ""
+          }
+        </div>
+      </div>
+    `
+      )
+      .join("");
+
+    // Add event listeners
+    container.querySelectorAll(".edit-variable-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        this.editVariable(idx);
+      });
+    });
+
+    container.querySelectorAll(".delete-variable-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        if (
+          confirm(
+            `Delete variable "{{${this.wizardState.variables[idx].name}}}"?`
+          )
+        ) {
+          this.wizardState.variables.splice(idx, 1);
+          this.renderVariablesList();
+        }
+      });
+    });
+  }
+
+  async editVariable(idx) {
+    const variable = this.wizardState.variables[idx];
+    const newValue = prompt(
+      `Edit value for "{{${variable.name}}}"`,
+      variable.value
+    );
+    if (newValue !== null && newValue !== variable.value) {
+      variable.value = newValue;
+
+      // If it's a global variable, update in global settings too
+      if (variable.isGlobal && variable.id) {
+        try {
+          // Import settingsManager dynamically if not already available
+          if (!window.settingsManager) {
+            const module = await import(
+              "../../lib/shared-components/settings-manager.js"
+            );
+            window.settingsManager = module.default;
+            await window.settingsManager.initialize();
+          }
+
+          // Update using settingsManager
+          await window.settingsManager.updateVariable(variable.id, {
+            value: newValue,
+          });
+
+          console.log(
+            `[Wizard] Variable "${variable.name}" updated in global settings`
+          );
+
+          // Trigger storage changed event
+          window.dispatchEvent(
+            new CustomEvent("settingsChanged", {
+              detail: { key: "variables" },
+            })
+          );
+        } catch (error) {
+          console.error(
+            "[Wizard] Failed to update variable in global settings:",
+            error
+          );
+          alert(`Failed to update variable: ${error.message}`);
+        }
+      }
+
+      this.renderVariablesList();
+    }
+  }
+
   async createRunnerFromWizard() {
-    // Validate step 3
+    // Validate step 4
     const name = document.getElementById("wizardRunnerName").value.trim();
     if (!name) {
       alert("Please enter a runner name");
@@ -1202,22 +1700,47 @@ class RunnersManager {
       updated_at: now,
     };
 
-    const requests = this.wizardState.selectedRequests.map((req, idx) => ({
-      id: `${runnerId}_req_${idx}_${Math.random().toString(36).substr(2, 6)}`,
-      runner_id: runnerId,
-      url: req.url,
-      method: req.method,
-      sequence_order: idx + 1,
-      domain: this.wizardState.selectedDomain,
-      page_url: this.wizardState.selectedPage || null,
-      headers: null,
-      body: null,
-      captured_request_id: req.id || null,
-      assertions: null,
-      description: null,
-      is_enabled: true,
-      created_at: now,
-    }));
+    const requests = this.wizardState.selectedRequests.map((req, idx) => {
+      // Extract domain from URL if not provided
+      let domain = this.wizardState.selectedDomain;
+      let pageUrl = this.wizardState.selectedPage;
+
+      if (!domain) {
+        try {
+          const urlObj = new URL(req.url);
+          domain = urlObj.hostname;
+        } catch (e) {
+          domain = "unknown";
+        }
+      }
+
+      // Use empty string "All pages" as the URL, or the actual page URL, or domain as fallback
+      if (!pageUrl || pageUrl === "") {
+        pageUrl = `https://${domain}`; // Fallback to domain root
+      }
+
+      return {
+        id: `${runnerId}_req_${idx}_${Math.random().toString(36).substr(2, 6)}`,
+        runner_id: runnerId,
+        url: req.url,
+        method: req.method,
+        sequence_order: idx + 1,
+        domain: domain,
+        page_url: pageUrl,
+        headers: req.headers || null,
+        body: req.body || null,
+        captured_request_id: req.id || null,
+        assertions: req.assertions || null,
+        description: req.description || null,
+        is_enabled: true,
+        created_at: now,
+      };
+    });
+
+    // Add variables to definition if any
+    if (this.wizardState.variables.length > 0) {
+      definition.variables = this.wizardState.variables;
+    }
 
     // Show loading state
     const createBtn = document.getElementById("wizardCreateBtn");
@@ -1291,6 +1814,71 @@ class RunnersManager {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Fetch request headers from database (same as dashboard)
+  async getRequestHeaders(requestId) {
+    try {
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT name, value
+          FROM bronze_request_headers
+          WHERE request_id = ${escapeStr(requestId)} AND header_type = 'request'
+          ORDER BY name
+        `,
+      });
+
+      if (response && response.success && response.data) {
+        // Convert array of {name, value} to object {name: value}
+        const headersObj = {};
+        response.data.forEach((header) => {
+          headersObj[header.name] = header.value;
+        });
+        return headersObj;
+      }
+      return {};
+    } catch (error) {
+      console.error("[Wizard] Error fetching headers:", error);
+      return {};
+    }
+  }
+
+  // Fetch request body from database (same as dashboard)
+  async getRequestBody(requestId) {
+    try {
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT request_body
+          FROM bronze_requests
+          WHERE id = ${escapeStr(requestId)}
+        `,
+      });
+
+      if (
+        response &&
+        response.success &&
+        response.data &&
+        response.data.length > 0
+      ) {
+        return response.data[0].request_body;
+      }
+      return null;
+    } catch (error) {
+      console.error("[Wizard] Error fetching request body:", error);
+      return null;
+    }
   }
 
   showToast(message, type = "info") {

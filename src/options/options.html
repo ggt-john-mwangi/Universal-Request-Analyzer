@@ -3264,7 +3264,11 @@ fetch('https://api.example.com/data', {
             </div>
             <div class="wizard-step" data-step="3">
               <div class="wizard-step-number">3</div>
-              <div class="wizard-step-label">Name</div>
+              <div class="wizard-step-label">Edit</div>
+            </div>
+            <div class="wizard-step" data-step="4">
+              <div class="wizard-step-number">4</div>
+              <div class="wizard-step-label">Review</div>
             </div>
           </div>
         </div>
@@ -3441,8 +3445,79 @@ fetch('https://api.example.com/data', {
             </div>
           </div>
 
-          <!-- Step 3: Name & Save -->
+          <!-- Step 3: Edit Requests & Variables -->
           <div id="wizardStep3" class="wizard-content" style="display: none">
+            <h3 style="margin-top: 0">Edit Requests & Variables</h3>
+
+            <!-- Variables Section -->
+            <div class="form-group" id="wizardVariablesSection">
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 12px;
+                "
+              >
+                <label style="margin: 0"
+                  ><i class="fas fa-code"></i> Variables</label
+                >
+                <button
+                  id="btnAddVariable"
+                  class="primary-btn"
+                  style="padding: 4px 12px; font-size: 13px"
+                >
+                  <i class="fas fa-plus"></i> Add Variable
+                </button>
+              </div>
+              <div
+                id="wizardVariablesList"
+                style="
+                  border: 1px solid var(--border-color);
+                  border-radius: 4px;
+                  padding: 12px;
+                  background: var(--surface-color);
+                  margin-bottom: 20px;
+                  max-height: 150px;
+                  overflow-y: auto;
+                "
+              >
+                <div
+                  style="
+                    text-align: center;
+                    color: var(--text-secondary);
+                    padding: 8px;
+                  "
+                >
+                  No variables defined. Click "Add Variable" to create one.
+                </div>
+              </div>
+              <small
+                >Variables can be used in URLs, headers, and body using
+                {{variableName}} syntax</small
+              >
+            </div>
+
+            <!-- Requests Editor -->
+            <div class="form-group">
+              <label><i class="fas fa-edit"></i> Edit Requests</label>
+              <div
+                id="wizardRequestsEditor"
+                style="
+                  border: 1px solid var(--border-color);
+                  border-radius: 4px;
+                  max-height: 300px;
+                  overflow-y: auto;
+                  background: var(--surface-color);
+                "
+              >
+                <!-- Will be populated dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Name & Save -->
+          <div id="wizardStep4" class="wizard-content" style="display: none">
             <h3 style="margin-top: 0">Name Your Runner</h3>
 
             <div class="form-group">

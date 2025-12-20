@@ -73,6 +73,19 @@ export class VariablesManager {
     await settingsManager.initialize();
     this.loadSettings();
     this.renderVariables();
+
+    // Listen for settings changes from other components (e.g., runner wizard)
+    window.addEventListener("settingsChanged", (event) => {
+      if (event.detail && event.detail.key === "variables") {
+        console.log(
+          "[VariablesManager] Settings changed, refreshing variables"
+        );
+        // Reload settings from storage and re-render
+        settingsManager.initialize().then(() => {
+          this.renderVariables();
+        });
+      }
+    });
   }
 
   loadSettings() {
