@@ -3122,15 +3122,28 @@ class Dashboard {
     // Load and display variables
     await this.loadRunnerVariables();
 
+    // Show variables preview if "Use Variables" is checked
+    const useVariablesCheckbox = document.getElementById("runnerUseVariables");
+    const previewContainer = document.getElementById("runnerVariablesPreview");
+    if (useVariablesCheckbox && previewContainer) {
+      previewContainer.style.display = useVariablesCheckbox.checked
+        ? "block"
+        : "none";
+    }
+
     document.getElementById("runnerConfigModal").style.display = "flex";
   }
 
   async loadRunnerVariables() {
     try {
+      console.log("[Runner Variables] Starting to load variables...");
+
       // Fetch settings from background
       const response = await chrome.runtime.sendMessage({
         action: "getSettings",
       });
+
+      console.log("[Runner Variables] Settings response:", response);
 
       if (!response || !response.success) {
         console.warn("Failed to load settings for variables");
@@ -3139,6 +3152,13 @@ class Dashboard {
 
       const variables = response.settings?.variables?.list || [];
       const variableCount = variables.length;
+
+      console.log(
+        "[Runner Variables] Found",
+        variableCount,
+        "variables:",
+        variables
+      );
 
       // Update count
       document.getElementById(
@@ -3196,9 +3216,11 @@ class Dashboard {
       const previewContainer = document.getElementById(
         "runnerVariablesPreview"
       );
-      previewContainer.style.display = useVariablesCheckbox.checked
-        ? "block"
-        : "none";
+      if (previewContainer && useVariablesCheckbox) {
+        previewContainer.style.display = useVariablesCheckbox.checked
+          ? "block"
+          : "none";
+      }
     } catch (error) {
       console.error("Error loading runner variables:", error);
     }
@@ -4887,11 +4909,18 @@ class Dashboard {
    */
   async populateVariablesDropdown(type) {
     try {
+      console.log(
+        `[Variables Dropdown] Populating ${type} variables dropdown...`
+      );
+
       const response = await chrome.runtime.sendMessage({
         action: "getSettings",
       });
 
-      console.log("Settings response for variables:", response);
+      console.log(
+        `[Variables Dropdown] Settings response for ${type}:`,
+        response
+      );
 
       if (!response || !response.success) {
         console.warn("Failed to get settings for variables");
@@ -4899,12 +4928,23 @@ class Dashboard {
       }
 
       const variables = response.settings?.variables?.list || [];
-      console.log("Variables found:", variables.length);
+      console.log(
+        `[Variables Dropdown] Found ${variables.length} variables:`,
+        variables
+      );
+
       const selectId =
         type === "curl" ? "curlVariableSelect" : "fetchVariableSelect";
       const select = document.getElementById(selectId);
 
-      if (!select) return;
+      console.log(`[Variables Dropdown] Select element (${selectId}):`, select);
+
+      if (!select) {
+        console.warn(
+          `[Variables Dropdown] Select element ${selectId} not found!`
+        );
+        return;
+      }
 
       // Clear existing options except first
       select.innerHTML = '<option value="">Insert Variable...</option>';
@@ -4917,6 +4957,10 @@ class Dashboard {
         option.title = variable.description || variable.name;
         select.appendChild(option);
       });
+
+      console.log(
+        `[Variables Dropdown] Added ${variables.length} options to ${type} dropdown`
+      );
     } catch (error) {
       console.error("Failed to populate variables dropdown:", error);
     }

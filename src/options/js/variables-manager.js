@@ -256,8 +256,15 @@ export class VariablesManager {
     }
 
     try {
+      console.log("[Variables UI] Saving variable:", {
+        name,
+        hasValue: !!value,
+        description,
+      });
+
       if (this.currentEditingId) {
         // Update existing variable
+        console.log("[Variables UI] Updating variable:", this.currentEditingId);
         await settingsManager.updateVariable(this.currentEditingId, {
           value,
           description,
@@ -265,11 +272,13 @@ export class VariablesManager {
         this.showToast("Variable updated successfully", "success");
       } else {
         // Add new variable
-        await settingsManager.addVariable({
+        console.log("[Variables UI] Adding new variable:", name);
+        const result = await settingsManager.addVariable({
           name,
           value,
           description,
         });
+        console.log("[Variables UI] Variable added, result:", result);
         this.showToast("Variable added successfully", "success");
       }
 

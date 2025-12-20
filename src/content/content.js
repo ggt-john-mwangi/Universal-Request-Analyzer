@@ -15,6 +15,9 @@ browserAPI.storage.local.get(["settings"], function (data) {
   const currentUrl = window.location.href;
   const currentDomain = window.location.hostname;
 
+  console.log("[URA] Content script initializing for:", currentDomain);
+  console.log("[URA] Full config:", JSON.stringify(config, null, 2));
+
   // Check capture configuration
   const captureConfig = config.capture || {};
 
@@ -52,8 +55,9 @@ browserAPI.storage.local.get(["settings"], function (data) {
     // No domains configured, monitor all (except excluded)
     shouldMonitor = true;
     console.log(
-      "[URA] No include domains configured. Monitoring all non-excluded sites."
+      "[URA] ✓ No include domains configured. Monitoring ALL non-excluded sites."
     );
+    console.log("[URA] ✓ shouldMonitor = true, initializing monitoring...");
     initializeMonitoring();
     return;
   }
@@ -153,19 +157,38 @@ function initializeCoreWebVitals() {
 
       webVitals.lcp = lastEntry.renderTime || lastEntry.loadTime;
 
-      browserAPI.runtime.sendMessage({
-        action: "webVital",
-        metric: "LCP",
-        value: webVitals.lcp,
-        rating:
-          webVitals.lcp < 2500
-            ? "good"
-            : webVitals.lcp < 4000
-            ? "needs-improvement"
-            : "poor",
-        url: window.location.href,
-        timestamp: Date.now(),
-      });
+      console.log(
+        "[URA] LCP captured:",
+        webVitals.lcp,
+        "for",
+        window.location.href
+      );
+
+      browserAPI.runtime.sendMessage(
+        {
+          action: "webVital",
+          metric: "LCP",
+          value: webVitals.lcp,
+          rating:
+            webVitals.lcp < 2500
+              ? "good"
+              : webVitals.lcp < 4000
+              ? "needs-improvement"
+              : "poor",
+          url: window.location.href,
+          timestamp: Date.now(),
+        },
+        (response) => {
+          if (browserAPI.runtime.lastError) {
+            console.error(
+              "[URA] Failed to send LCP:",
+              browserAPI.runtime.lastError
+            );
+          } else {
+            console.log("[URA] LCP sent successfully:", response);
+          }
+        }
+      );
     });
 
     lcpObserver.observe({ type: "largest-contentful-paint", buffered: true });
@@ -180,19 +203,38 @@ function initializeCoreWebVitals() {
       entries.forEach((entry) => {
         webVitals.fid = entry.processingStart - entry.startTime;
 
-        browserAPI.runtime.sendMessage({
-          action: "webVital",
-          metric: "FID",
-          value: webVitals.fid,
-          rating:
-            webVitals.fid < 100
-              ? "good"
-              : webVitals.fid < 300
-              ? "needs-improvement"
-              : "poor",
-          url: window.location.href,
-          timestamp: Date.now(),
-        });
+        console.log(
+          "[URA] FID captured:",
+          webVitals.fid,
+          "for",
+          window.location.href
+        );
+
+        browserAPI.runtime.sendMessage(
+          {
+            action: "webVital",
+            metric: "FID",
+            value: webVitals.fid,
+            rating:
+              webVitals.fid < 100
+                ? "good"
+                : webVitals.fid < 300
+                ? "needs-improvement"
+                : "poor",
+            url: window.location.href,
+            timestamp: Date.now(),
+          },
+          (response) => {
+            if (browserAPI.runtime.lastError) {
+              console.error(
+                "[URA] Failed to send FID:",
+                browserAPI.runtime.lastError
+              );
+            } else {
+              console.log("[URA] FID sent successfully:", response);
+            }
+          }
+        );
       });
     });
 
@@ -214,19 +256,38 @@ function initializeCoreWebVitals() {
 
       webVitals.cls = clsValue;
 
-      browserAPI.runtime.sendMessage({
-        action: "webVital",
-        metric: "CLS",
-        value: webVitals.cls,
-        rating:
-          webVitals.cls < 0.1
-            ? "good"
-            : webVitals.cls < 0.25
-            ? "needs-improvement"
-            : "poor",
-        url: window.location.href,
-        timestamp: Date.now(),
-      });
+      console.log(
+        "[URA] CLS captured:",
+        webVitals.cls,
+        "for",
+        window.location.href
+      );
+
+      browserAPI.runtime.sendMessage(
+        {
+          action: "webVital",
+          metric: "CLS",
+          value: webVitals.cls,
+          rating:
+            webVitals.cls < 0.1
+              ? "good"
+              : webVitals.cls < 0.25
+              ? "needs-improvement"
+              : "poor",
+          url: window.location.href,
+          timestamp: Date.now(),
+        },
+        (response) => {
+          if (browserAPI.runtime.lastError) {
+            console.error(
+              "[URA] Failed to send CLS:",
+              browserAPI.runtime.lastError
+            );
+          } else {
+            console.log("[URA] CLS sent successfully:", response);
+          }
+        }
+      );
     });
 
     clsObserver.observe({ type: "layout-shift", buffered: true });
@@ -241,19 +302,38 @@ function initializeCoreWebVitals() {
         if (entry.name === "first-contentful-paint") {
           webVitals.fcp = entry.startTime;
 
-          browserAPI.runtime.sendMessage({
-            action: "webVital",
-            metric: "FCP",
-            value: webVitals.fcp,
-            rating:
-              webVitals.fcp < 1800
-                ? "good"
-                : webVitals.fcp < 3000
-                ? "needs-improvement"
-                : "poor",
-            url: window.location.href,
-            timestamp: Date.now(),
-          });
+          console.log(
+            "[URA] FCP captured:",
+            webVitals.fcp,
+            "for",
+            window.location.href
+          );
+
+          browserAPI.runtime.sendMessage(
+            {
+              action: "webVital",
+              metric: "FCP",
+              value: webVitals.fcp,
+              rating:
+                webVitals.fcp < 1800
+                  ? "good"
+                  : webVitals.fcp < 3000
+                  ? "needs-improvement"
+                  : "poor",
+              url: window.location.href,
+              timestamp: Date.now(),
+            },
+            (response) => {
+              if (browserAPI.runtime.lastError) {
+                console.error(
+                  "[URA] Failed to send FCP:",
+                  browserAPI.runtime.lastError
+                );
+              } else {
+                console.log("[URA] FCP sent successfully:", response);
+              }
+            }
+          );
         }
       }
     });

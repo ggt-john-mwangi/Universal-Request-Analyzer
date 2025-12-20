@@ -1182,7 +1182,7 @@ async function renderProfilesList() {
         <button class="btn-primary btn-sm load-profile" data-id="${profile.id}">
           <i class="fas fa-download"></i> Load
         </button>
-        <button class="btn-secondary btn-sm" onclick="showManageProfiles()">
+        <button class="btn-secondary btn-sm show-manage-profiles">
           <i class="fas fa-cog"></i> Manage
         </button>
       </div>
@@ -1196,6 +1196,13 @@ async function renderProfilesList() {
     btn.addEventListener("click", () => {
       const profileId = btn.getAttribute("data-id");
       loadProfile(profileId);
+    });
+  });
+
+  // Event delegation for "Manage" buttons
+  container.querySelectorAll(".show-manage-profiles").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      showManageProfiles();
     });
   });
 }
@@ -1281,19 +1288,19 @@ async function showManageProfiles() {
           </div>
         </div>
         <div class="profile-manage-actions">
-          <button class="btn-primary btn-sm" onclick="loadProfile('${
+          <button class="btn-primary btn-sm profile-action-btn" data-action="load" data-profile-id="${
             profile.id
-          }')">
+          }">
             <i class="fas fa-download"></i> Load
           </button>
-          <button class="btn-secondary btn-sm" onclick="exportProfile('${
+          <button class="btn-secondary btn-sm profile-action-btn" data-action="export" data-profile-id="${
             profile.id
-          }')">
+          }">
             <i class="fas fa-file-export"></i> Export
           </button>
-          <button class="btn-danger btn-sm" onclick="deleteProfile('${
+          <button class="btn-danger btn-sm profile-action-btn" data-action="delete" data-profile-id="${
             profile.id
-          }')">
+          }">
             <i class="fas fa-trash"></i> Delete
           </button>
         </div>
@@ -1314,6 +1321,24 @@ async function showManageProfiles() {
 
   closeBtn.onclick = handleClose;
   modalCloseBtn.onclick = handleClose;
+
+  // Event delegation for profile action buttons (load, export, delete)
+  listContainer.addEventListener("click", (e) => {
+    const btn = e.target.closest(".profile-action-btn");
+    if (!btn) return;
+
+    const action = btn.getAttribute("data-action");
+    const profileId = btn.getAttribute("data-profile-id");
+
+    if (action === "load") {
+      loadProfile(profileId);
+      modal.style.display = "none";
+    } else if (action === "export") {
+      exportProfile(profileId);
+    } else if (action === "delete") {
+      deleteProfile(profileId);
+    }
+  });
 }
 
 // Export a profile to file
@@ -3858,11 +3883,19 @@ function showStorageWarning(message, type = "warning") {
   warningBanner.innerHTML = `
     <i class="fas fa-exclamation-triangle"></i>
     <span>${message}</span>
-    <button onclick="this.parentElement.style.display='none'" class="close-btn">
+    <button class="close-btn warning-banner-close">
       <i class="fas fa-times"></i>
     </button>
   `;
   warningBanner.style.display = "flex";
+
+  // Event delegation for warning banner close button
+  const closeBtn = warningBanner.querySelector(".warning-banner-close");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      warningBanner.style.display = "none";
+    });
+  }
 
   // Add styles if not already present
   if (!document.getElementById("warningBannerStyles")) {

@@ -3,6 +3,7 @@
 
 import requestRunner from "../capture/request-runner.js";
 import runnerCollections from "../capture/runner-collections.js";
+import settingsManager from "../../lib/shared-components/settings-manager.js";
 
 let localAuthManager = null;
 let dbManager = null;
@@ -65,6 +66,9 @@ async function handleMessage(message, sender) {
 
       case "getWebVitals":
         return await handleGetWebVitals(message.filters);
+
+      case "getSettings":
+        return await handleGetSettings();
 
       // getSessionMetrics removed - session engagement metrics are not meaningful
       // for single-user browser extension (only tracks developer's own behavior)
@@ -991,46 +995,62 @@ async function handleGetWebVitals(filters = {}) {
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
-    // Build WHERE clause based on filters (inline values - SQL.js doesn't support ? placeholders)
-    const whereConditions = [`created_at > ${startTime}`];
+    // Build WHERE clause based on filters - query bronze_web_vitals table
+    const whereConditions = [`timestamp >= ${startTime}`];
 
     if (filters.domain) {
-      const escapedDomain = String(filters.domain)
-        .replace(/'/g, "''")
-        .replace(/%/g, "");
-      whereConditions.push(`metrics LIKE '%${escapedDomain}%'`);
+      const escapedDomain = String(filters.domain).replace(/'/g, "''");
+      whereConditions.push(`domain = ${escapeStr(escapedDomain)}`);
     }
 
     if (filters.pageUrl) {
-      const escapedUrl = String(filters.pageUrl)
-        .replace(/'/g, "''")
-        .replace(/%/g, "");
-      whereConditions.push(`metrics LIKE '%${escapedUrl}%'`);
+      const escapedUrl = String(filters.pageUrl).replace(/'/g, "''");
+      whereConditions.push(`page_url = ${escapeStr(escapedUrl)}`);
     }
 
-    const whereClause =
-      whereConditions.length > 0
-        ? `WHERE ${whereConditions.join(" AND ")}`
-        : "";
+    const whereClause = whereConditions.join(" AND ");
 
-    // First, check if table exists and has data
-    console.log("[WebVitals] Checking for performance data...");
+    console.log(
+      "[WebVitals] Querying bronze_web_vitals with filters:",
+      filters
+    );
+    console.log("[WebVitals] WHERE clause:", whereClause);
+
+    // Debug: Check total count and available domains
     try {
       if (dbManager?.db) {
-        const checkQuery = `SELECT COUNT(*) as count FROM bronze_performance_entries WHERE entry_type = 'web-vital'`;
-        const checkResult = dbManager.db.exec(checkQuery);
-        if (checkResult && checkResult[0]?.values) {
-          const count = checkResult[0].values[0][0];
+        const countQuery = `SELECT COUNT(*) as total FROM bronze_web_vitals`;
+        const countResult = dbManager.db.exec(countQuery);
+        if (countResult && countResult[0]?.values) {
           console.log(
-            `[WebVitals] Found ${count} web vital entries in database`
+            "[WebVitals] Total records in bronze_web_vitals:",
+            countResult[0].values[0][0]
+          );
+        }
+
+        const domainsQuery = `SELECT DISTINCT domain FROM bronze_web_vitals LIMIT 10`;
+        const domainsResult = dbManager.db.exec(domainsQuery);
+        if (domainsResult && domainsResult[0]?.values) {
+          console.log(
+            "[WebVitals] Available domains:",
+            domainsResult[0].values.map((row) => row[0])
+          );
+        }
+
+        const metricsQuery = `SELECT DISTINCT metric_name FROM bronze_web_vitals`;
+        const metricsResult = dbManager.db.exec(metricsQuery);
+        if (metricsResult && metricsResult[0]?.values) {
+          console.log(
+            "[WebVitals] Available metrics:",
+            metricsResult[0].values.map((row) => row[0])
           );
         }
       }
-    } catch (e) {
-      console.error("[WebVitals] Error checking table:", e);
+    } catch (debugError) {
+      console.error("[WebVitals] Debug query failed:", debugError);
     }
 
-    // Query each Web Vital metric
+    // Query each Web Vital metric from bronze_web_vitals table
     for (const metric of [
       "LCP",
       "FID",
@@ -1043,101 +1063,33 @@ async function handleGetWebVitals(filters = {}) {
     ]) {
       const query = `
         SELECT 
-          AVG(duration) as avg_value,
-          metrics
-        FROM bronze_performance_entries
-        ${whereClause} AND entry_type = 'web-vital' AND name = ${escapeStr(
-        metric
-      )}
+          metric_name,
+          value,
+          rating,
+          timestamp
+        FROM bronze_web_vitals
+        WHERE ${whereClause} 
+          AND metric_name = ${escapeStr(metric)}
+        ORDER BY timestamp DESC
         LIMIT 1
       `;
 
-      console.log(`[WebVitals] Querying ${metric}...`);
+      console.log(`[WebVitals] Query for ${metric}:`, query);
 
       try {
         if (dbManager?.db) {
           const result = dbManager.db.exec(query);
+          console.log(`[WebVitals] Raw result for ${metric}:`, result);
           if (result && result[0]?.values && result[0].values.length > 0) {
             const row = result[0].values[0];
-            const avgValue = row[0];
-            const metricsJson = row[1];
-            console.log(`[WebVitals] ${metric} raw value:`, avgValue);
+            const value = row[1];
+            const rating = row[2] || "needs-improvement";
 
-            if (avgValue !== null) {
-              // Parse metrics to get rating
-              let rating = "good";
-              try {
-                const metricsData = JSON.parse(metricsJson);
-                rating = metricsData.rating || "good";
-              } catch (e) {
-                // Calculate rating based on thresholds
-                if (metric === "LCP") {
-                  rating =
-                    avgValue < 2500
-                      ? "good"
-                      : avgValue < 4000
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "FID") {
-                  rating =
-                    avgValue < 100
-                      ? "good"
-                      : avgValue < 300
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "CLS") {
-                  rating =
-                    avgValue < 0.1
-                      ? "good"
-                      : avgValue < 0.25
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "FCP") {
-                  rating =
-                    avgValue < 1800
-                      ? "good"
-                      : avgValue < 3000
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "TTFB") {
-                  rating =
-                    avgValue < 800
-                      ? "good"
-                      : avgValue < 1800
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "TTI") {
-                  rating =
-                    avgValue < 3800
-                      ? "good"
-                      : avgValue < 7300
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "DCL") {
-                  rating =
-                    avgValue < 1500
-                      ? "good"
-                      : avgValue < 2500
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "Load") {
-                  rating =
-                    avgValue < 2500
-                      ? "good"
-                      : avgValue < 4000
-                      ? "needs-improvement"
-                      : "poor";
-                }
-              }
-
-              vitals[metric] = {
-                value: avgValue,
-                rating: rating,
-              };
-              console.log(`[WebVitals] ${metric} result:`, vitals[metric]);
-            }
-          } else {
-            console.log(`[WebVitals] ${metric} - No data found`);
+            vitals[metric] = {
+              value: value,
+              rating: rating,
+            };
+            console.log(`[WebVitals] ${metric}:`, vitals[metric]);
           }
         }
       } catch (queryError) {
@@ -1146,9 +1098,33 @@ async function handleGetWebVitals(filters = {}) {
     }
 
     console.log("[WebVitals] Final vitals object:", vitals);
+    console.log(
+      "[WebVitals] Returning:",
+      JSON.stringify({ success: true, vitals }, null, 2)
+    );
     return { success: true, vitals };
   } catch (error) {
     console.error("Get Web Vitals error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get settings - returns all settings including variables
+async function handleGetSettings() {
+  try {
+    console.log("[Background] handleGetSettings() called");
+    const settings = await settingsManager.getSettings();
+    console.log(
+      "[Background] Settings retrieved:",
+      settings ? "success" : "failed"
+    );
+    console.log(
+      "[Background] Variables in settings:",
+      settings?.variables?.list?.length || 0
+    );
+    return { success: true, settings };
+  } catch (error) {
+    console.error("[Background] Get settings error:", error);
     return { success: false, error: error.message };
   }
 }

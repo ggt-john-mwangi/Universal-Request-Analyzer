@@ -39,8 +39,10 @@ class RequestRunner {
       throw new Error(`No requests found for runner: ${runnerId}`);
     }
 
-    // Create execution record
-    const executionId = `exec_run_${Date.now()}`;
+    // Create execution record with unique ID
+    const executionId = `exec_${runnerId}_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
     const execution = {
       id: executionId,
       runner_id: runnerId,

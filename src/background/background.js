@@ -10,6 +10,7 @@ import { AnalyticsProcessor } from "./database/analytics-processor.js";
 import { ConfigSchemaManager } from "./database/config-schema-manager.js";
 import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
 import { migrateLegacyToMedallion } from "./database/medallion-migration.js";
+import { runtime, downloads, alarms } from "./compat/browser-compat.js";
 
 class IntegratedExtensionInitializer {
   constructor() {
@@ -227,7 +228,7 @@ class IntegratedExtensionInitializer {
     );
 
     // Single consolidated message listener for better browser compatibility
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    runtime.onMessage.addListener((message, sender, sendResponse) => {
       this.handleAllMessages(message, sender, sendResponse);
       return true; // Keep channel open for async response
     });
@@ -237,17 +238,26 @@ class IntegratedExtensionInitializer {
 
   async handleAllMessages(message, sender, sendResponse) {
     try {
+      console.log("[handleAllMessages] Received message:", message.action);
+
       // First try popup/options handlers (register, login, getPageStats, query, etc.)
       if (this.popupMessageHandler) {
         const popupResponse = await this.popupMessageHandler(message, sender);
+        console.log(
+          "[handleAllMessages] Popup handler response:",
+          popupResponse ? "received" : "null"
+        );
+
         // If popup handler returned a response (not null), send it
         if (popupResponse !== null && popupResponse !== undefined) {
+          console.log("[handleAllMessages] Sending popup response");
           sendResponse(popupResponse);
           return;
         }
       }
 
       // Then try medallion-specific handlers
+      console.log("[handleAllMessages] Trying medallion handlers");
       await this.handleMedallionMessages(message, sender, sendResponse);
     } catch (error) {
       console.error("Message handling error:", error);
@@ -398,7 +408,7 @@ class IntegratedExtensionInitializer {
             const base64 = btoa(binary);
             const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
 
-            await chrome.downloads.download({
+            await downloads.download({
               url: dataUrl,
               filename: filename,
               saveAs: true,
@@ -435,7 +445,7 @@ class IntegratedExtensionInitializer {
             const base64 = btoa(binary);
             const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
 
-            await chrome.downloads.download({
+            await downloads.download({
               url: dataUrl,
               filename: filename,
               saveAs: true,
@@ -482,9 +492,12 @@ class IntegratedExtensionInitializer {
           try {
             const url = message.url || sender.tab?.url || sender.url;
 
+            // Content script sends 'metric', not 'name'
+            const metricName = message.metric || message.name;
+
             // Validate required fields
-            if (!message.name) {
-              console.error("Web vital missing 'name' field:", message);
+            if (!metricName) {
+              console.error("Web vital missing 'metric' field:", message);
               sendResponse({ success: false, error: "Missing metric name" });
               break;
             }
@@ -492,7 +505,7 @@ class IntegratedExtensionInitializer {
             // Store web vital - map to insertWebVital expected fields
             const vitalData = {
               url: url,
-              metric: message.name,
+              metric: metricName,
               value: message.value,
               rating: message.rating || "needs-improvement",
               timestamp: message.timestamp || Date.now(),
@@ -500,8 +513,21 @@ class IntegratedExtensionInitializer {
               viewport_height: message.viewportHeight,
             };
 
+            console.log(
+              "[Background] Storing web vital:",
+              metricName,
+              vitalData
+            );
+
             const result = await this.medallionManager.insertWebVital(
               vitalData
+            );
+
+            console.log(
+              "[Background] Web vital stored successfully:",
+              metricName,
+              "result:",
+              result
             );
             sendResponse({ success: true, id: result });
           } catch (vitalError) {
@@ -588,15 +614,15 @@ class IntegratedExtensionInitializer {
     }, 30000); // 30 seconds for better performance
     this.scheduledTasks.push(bronzeToSilver);
 
-    // Process Silver→Gold daily using chrome.alarms for reliability
+    // Process Silver→Gold daily using alarms for reliability
     // Create alarm for daily processing at midnight
-    if (typeof chrome !== "undefined" && chrome.alarms) {
-      chrome.alarms.create("dailyGoldProcessing", {
+    if (alarms) {
+      alarms.create("dailyGoldProcessing", {
         when: this.getNextMidnight(),
         periodInMinutes: 24 * 60, // Daily
       });
 
-      chrome.alarms.onAlarm.addListener(async (alarm) => {
+      alarms.onAlarm.addListener(async (alarm) => {
         if (alarm.name === "dailyGoldProcessing") {
           try {
             await this.medallionManager.processSilverToGold();
@@ -644,8 +670,8 @@ class IntegratedExtensionInitializer {
     this.scheduledTasks = [];
 
     // Clear alarms
-    if (typeof chrome !== "undefined" && chrome.alarms) {
-      chrome.alarms.clear("dailyGoldProcessing");
+    if (alarms) {
+      alarms.clear("dailyGoldProcessing");
     }
 
     // Save database before cleanup
@@ -660,37 +686,72 @@ class IntegratedExtensionInitializer {
   }
 }
 
-// Create and initialize extension
-const extensionInitializer = new IntegratedExtensionInitializer();
+// Create and initialize extension (singleton)
+let extensionInitializer = null;
+let initializationPromise = null;
 
-// Initialize on install or update
-chrome.runtime.onInstalled.addListener(async (details) => {
+// Get or create initializer instance
+function getInitializer() {
+  if (!extensionInitializer) {
+    extensionInitializer = new IntegratedExtensionInitializer();
+  }
+  return extensionInitializer;
+}
+
+// Safe initialization that prevents multiple concurrent runs
+async function safeInitialize() {
+  if (initializationPromise) {
+    console.log("⏳ Initialization already in progress, waiting...");
+    return initializationPromise;
+  }
+
+  const initializer = getInitializer();
+
+  if (initializer.initialized) {
+    console.log("✓ Extension already initialized");
+    return;
+  }
+
+  console.log("🚀 Starting extension initialization...");
+  initializationPromise = initializer.initialize();
+
+  try {
+    await initializationPromise;
+    console.log("✓ Extension initialization complete");
+  } finally {
+    initializationPromise = null;
+  }
+}
+
+// Initialize on install or update (only once)
+runtime.onInstalled.addListener(async (details) => {
   console.log("Extension installed/updated:", details.reason);
-  await extensionInitializer.initialize();
+  await safeInitialize();
 });
 
-// Initialize on browser startup
-chrome.runtime.onStartup.addListener(async () => {
-  console.log("Extension started");
-  await extensionInitializer.initialize();
+// Initialize on browser startup (only once)
+runtime.onStartup.addListener(async () => {
+  console.log("Extension started on browser startup");
+  await safeInitialize();
 });
 
-// Initialize immediately if service worker is already running
-(async () => {
-  await extensionInitializer.initialize();
-})();
+// Initialize immediately if service worker is already running (only once)
+safeInitialize();
 
 // Cleanup on suspension (service worker)
-if (typeof chrome !== "undefined" && chrome.runtime) {
-  chrome.runtime.onSuspend.addListener(() => {
+if (runtime.onSuspend) {
+  runtime.onSuspend.addListener(() => {
     console.log("Service worker suspending, cleaning up...");
-    extensionInitializer.cleanup();
+    const initializer = getInitializer();
+    if (initializer) {
+      initializer.cleanup();
+    }
   });
 }
 
 // Export for testing/debugging
 if (typeof globalThis !== "undefined") {
-  globalThis.extensionInitializer = extensionInitializer;
+  globalThis.getExtensionInitializer = getInitializer;
 }
 
-export { extensionInitializer };
+export { getInitializer };

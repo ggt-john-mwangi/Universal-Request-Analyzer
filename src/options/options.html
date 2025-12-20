@@ -564,7 +564,14 @@
                       >
                         <thead>
                           <tr>
-                            <th style="width: 40px">
+                            <th
+                              style="
+                                width: 40px;
+                                display: flex;
+                                justify-content: flex-start;
+                                align-items: center;
+                              "
+                            >
                               <input
                                 type="checkbox"
                                 id="selectAllRequests"
@@ -3512,10 +3519,7 @@ fetch('https://api.example.com/data', {
       <div class="modal-content" style="max-width: 900px; max-height: 80vh">
         <div class="modal-header">
           <h2><i class="fas fa-info-circle"></i> Runner Details</h2>
-          <button
-            class="modal-close"
-            onclick="document.getElementById('runnerDetailsModal').style.display='none'"
-          >
+          <button class="modal-close">
             <i class="fas fa-times"></i>
           </button>
         </div>
@@ -3523,12 +3527,7 @@ fetch('https://api.example.com/data', {
           <!-- Content populated by JavaScript -->
         </div>
         <div class="modal-footer">
-          <button
-            class="secondary-btn"
-            onclick="document.getElementById('runnerDetailsModal').style.display='none'"
-          >
-            Close
-          </button>
+          <button class="secondary-btn close-modal-btn">Close</button>
         </div>
       </div>
     </div>

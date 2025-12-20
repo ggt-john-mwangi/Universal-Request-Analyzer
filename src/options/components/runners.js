@@ -88,6 +88,43 @@ class RunnersManager {
         }
       });
     }
+
+    // Event delegation for modal close buttons
+    document.addEventListener("click", (e) => {
+      // Close modal when clicking X button or Close button
+      if (
+        e.target.closest(".modal-close") ||
+        e.target.closest(".close-modal-btn")
+      ) {
+        const modal = e.target.closest(".modal");
+        if (modal) {
+          modal.style.display = "none";
+        }
+      }
+
+      // Close modal when clicking outside modal content
+      if (e.target.classList.contains("modal")) {
+        e.target.style.display = "none";
+      }
+
+      // Handle view results button clicks
+      const viewResultsBtn = e.target.closest(".view-results-btn");
+      if (viewResultsBtn) {
+        const executionId = viewResultsBtn.dataset.executionId;
+        if (executionId) {
+          this.showExecutionResults(executionId);
+        }
+      }
+
+      // Handle convert to saved button clicks
+      const convertBtn = e.target.closest(".convert-to-saved-btn");
+      if (convertBtn) {
+        const runnerId = convertBtn.dataset.runnerId;
+        if (runnerId) {
+          this.convertToSaved(runnerId);
+        }
+      }
+    });
   }
 
   async loadRunners() {
@@ -301,8 +338,8 @@ class RunnersManager {
             isTemporary
               ? `
             <button 
-              class="link-btn" 
-              onclick="runnersManager.convertToSaved('${runner.id}')"
+              class="link-btn convert-to-saved-btn" 
+              data-runner-id="${runner.id}"
               title="Save this runner permanently"
             >
               <i class="fas fa-save"></i> Save
@@ -394,8 +431,8 @@ class RunnersManager {
             <td>${exec.success_count || 0} / ${exec.total_requests || 0}</td>
             <td>
               <button 
-                class="link-btn" 
-                onclick="runnersManager.showExecutionResults('${exec.id}')"
+                class="link-btn view-results-btn" 
+                data-execution-id="${exec.id}"
               >
                 <i class="fas fa-list"></i> View Results
               </button>

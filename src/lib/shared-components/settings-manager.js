@@ -453,8 +453,14 @@ class SettingsManager {
     }
   }
 
-  /**
-   * Update feature flags
+  /**   * Get all settings
+   * @returns {Object} Current settings object
+   */
+  getSettings() {
+    return this.settings;
+  }
+
+  /**   * Update feature flags
    * @param {Object} flags - Feature flags to update
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
@@ -730,6 +736,8 @@ class SettingsManager {
    */
   async addVariable(variable) {
     try {
+      console.log("[SettingsManager] addVariable called with:", variable);
+
       if (!variable.name || !this.isValidVariableName(variable.name)) {
         throw new Error(
           "Invalid variable name. Use alphanumeric characters and underscores only."
@@ -754,10 +762,25 @@ class SettingsManager {
         updatedAt: Date.now(),
       };
 
+      console.log(
+        "[SettingsManager] Created new variable object:",
+        newVariable
+      );
+
       this.settings.variables.list.push(newVariable);
+
+      console.log(
+        "[SettingsManager] Total variables now:",
+        this.settings.variables.list.length
+      );
+      console.log("[SettingsManager] Saving to storage...");
+
       await this.saveToStorage();
+
+      console.log("[SettingsManager] Broadcasting update...");
       await this.broadcastSettingsUpdate(this.settings);
 
+      console.log("[SettingsManager] Variable added successfully");
       return true;
     } catch (error) {
       console.error("Failed to add variable:", error);
