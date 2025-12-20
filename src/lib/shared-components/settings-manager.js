@@ -194,11 +194,13 @@ class SettingsManager {
         onUpdate: this.handleAclUpdate.bind(this),
       });
 
-      // Initialize theme manager
-      await themeManager.initialize({
-        initialTheme: "light",
-        onUpdate: this.handleThemeUpdate.bind(this),
-      });
+      // Initialize theme manager (only in browser context with document)
+      if (typeof document !== "undefined") {
+        await themeManager.initialize({
+          initialTheme: "light",
+          onUpdate: this.handleThemeUpdate.bind(this),
+        });
+      }
 
       this.initialized = true;
 
@@ -209,7 +211,10 @@ class SettingsManager {
         settings: this.settings,
         featureFlags: featureFlags.flags,
         role: aclManager.currentRole,
-        theme: themeManager.currentTheme,
+        theme:
+          typeof document !== "undefined"
+            ? themeManager.currentTheme
+            : "N/A (service worker)",
       });
     } catch (error) {
       console.error("Error initializing settings manager:", error);
@@ -395,8 +400,10 @@ class SettingsManager {
         permissions: aclManager.getPermissionsInfo(),
       },
       theme: {
-        current: themeManager.currentTheme,
-        themes: themeManager.getThemesInfo(),
+        current:
+          typeof document !== "undefined" ? themeManager.currentTheme : "light",
+        themes:
+          typeof document !== "undefined" ? themeManager.getThemesInfo() : [],
       },
     };
   }
@@ -504,6 +511,12 @@ class SettingsManager {
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
   async setTheme(themeId) {
+    if (typeof document === "undefined") {
+      console.warn(
+        "[SettingsManager] setTheme called in service worker context - skipping"
+      );
+      return false;
+    }
     return await themeManager.setTheme(themeId);
   }
 
@@ -600,7 +613,9 @@ class SettingsManager {
       // Reset feature flags, ACL, and theme
       await featureFlags.resetToDefaults();
       await aclManager.resetToDefaults();
-      await themeManager.resetToDefaults();
+      if (typeof document !== "undefined") {
+        await themeManager.resetToDefaults();
+      }
 
       // Save settings
       await this.saveToStorage();
@@ -626,8 +641,10 @@ class SettingsManager {
         permissions: aclManager.getPermissionsInfo(),
       },
       theme: {
-        current: themeManager.currentTheme,
-        themes: themeManager.getThemesInfo(),
+        current:
+          typeof document !== "undefined" ? themeManager.currentTheme : "light",
+        themes:
+          typeof document !== "undefined" ? themeManager.getThemesInfo() : [],
       },
       exportMeta: {
         version: chrome.runtime.getManifest().version,
@@ -663,7 +680,7 @@ class SettingsManager {
       }
 
       // Update theme if present
-      if (importData.theme) {
+      if (importData.theme && typeof document !== "undefined") {
         await themeManager.setTheme(importData.theme.current);
       }
 
