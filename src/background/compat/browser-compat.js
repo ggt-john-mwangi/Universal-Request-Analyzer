@@ -8,10 +8,19 @@ const getBrowserAPI = () => {
   if (typeof chrome !== "undefined" && chrome.runtime) {
     return chrome; // Chrome, Edge, Safari
   }
+  console.error(
+    "[browser-compat] No browser API available! Neither chrome nor browser object found."
+  );
   return null;
 };
 
 const browserAPI = getBrowserAPI();
+
+if (!browserAPI) {
+  throw new Error(
+    "[browser-compat] Fatal: No browser extension API available. This code must run in a browser extension context."
+  );
+}
 
 // Browser detection
 const browserInfo = {
