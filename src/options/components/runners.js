@@ -195,7 +195,14 @@ class RunnersManager {
     const runnersGrid = document.getElementById("runnersGrid");
     if (!runnersGrid) return;
 
-    console.log(`[Runners] Rendering ${this.runners.length} runners:`, this.runners.map(r => ({id: r.id, name: r.name, requests: r.total_requests})));
+    console.log(
+      `[Runners] Rendering ${this.runners.length} runners:`,
+      this.runners.map((r) => ({
+        id: r.id,
+        name: r.name,
+        requests: r.total_requests,
+      }))
+    );
 
     if (this.runners.length === 0) {
       runnersGrid.innerHTML = `
@@ -269,27 +276,37 @@ class RunnersManager {
     const badge = isTemporary
       ? '<span class="runner-badge temporary">Quick Run</span>'
       : '<span class="runner-badge permanent">Saved</span>';
-    
+
     // Check if this runner is currently executing (with safety check)
     if (!this.runningRunners) {
       this.runningRunners = new Set();
     }
     const isRunning = this.runningRunners.has(runner.id);
-    const runButtonClass = isRunning ? 'runner-action-btn running' : 'runner-action-btn';
-    const runButtonIcon = isRunning ? 'fa-spinner fa-spin' : 'fa-play';
-    const runButtonTitle = isRunning ? 'Running...' : 'Run Now';
-    const runButtonDisabled = isRunning ? 'disabled' : '';
+    const runButtonClass = isRunning
+      ? "runner-action-btn running"
+      : "runner-action-btn";
+    const runButtonIcon = isRunning ? "fa-spinner fa-spin" : "fa-play";
+    const runButtonTitle = isRunning ? "Running..." : "Run Now";
+    const runButtonDisabled = isRunning ? "disabled" : "";
 
     return `
-      <div class="runner-card ${isRunning ? 'runner-executing' : ''}" data-runner-id="${runner.id}">
+      <div class="runner-card ${
+        isRunning ? "runner-executing" : ""
+      }" data-runner-id="${runner.id}">
         <div class="runner-card-header">
           <div>
             <h4 class="runner-card-title">
-              <i class="fas ${isRunning ? 'fa-sync fa-spin' : 'fa-play-circle'}"></i>
+              <i class="fas ${
+                isRunning ? "fa-sync fa-spin" : "fa-play-circle"
+              }"></i>
               ${this.escapeHtml(runner.name)}
             </h4>
             ${badge}
-            ${isRunning ? '<span class="runner-badge status">Running...</span>' : ''}
+            ${
+              isRunning
+                ? '<span class="runner-badge status">Running...</span>'
+                : ""
+            }
           </div>
           <div class="runner-card-actions">
             <button 
@@ -373,11 +390,11 @@ class RunnersManager {
       if (!this.runningRunners) {
         this.runningRunners = new Set();
       }
-      
+
       // Mark as running
       this.runningRunners.add(runnerId);
       this.updateRunnerCardState(runnerId);
-      
+
       this.showToast("Starting runner...", "info");
 
       const response = await chrome.runtime.sendMessage({
@@ -400,7 +417,7 @@ class RunnersManager {
       // Remove from running state
       this.runningRunners.delete(runnerId);
       this.updateRunnerCardState(runnerId);
-      
+
       // Reload runners to update stats
       setTimeout(() => this.loadRunners(), 1000);
     }
@@ -412,54 +429,54 @@ class RunnersManager {
     if (!this.runningRunners) {
       this.runningRunners = new Set();
     }
-    
+
     const card = document.querySelector(`[data-runner-id="${runnerId}"]`);
     if (!card) return;
 
     const isRunning = this.runningRunners.has(runnerId);
     const runButton = card.querySelector('[data-action="run"]');
-    const titleIcon = card.querySelector('.runner-card-title i');
-    const statusBadge = card.querySelector('.runner-badge.status');
+    const titleIcon = card.querySelector(".runner-card-title i");
+    const statusBadge = card.querySelector(".runner-badge.status");
 
     if (isRunning) {
       // Update to running state
-      card.classList.add('runner-executing');
+      card.classList.add("runner-executing");
       if (runButton) {
-        runButton.classList.add('running');
+        runButton.classList.add("running");
         runButton.disabled = true;
-        runButton.title = 'Running...';
-        const icon = runButton.querySelector('i');
+        runButton.title = "Running...";
+        const icon = runButton.querySelector("i");
         if (icon) {
-          icon.className = 'fas fa-spinner fa-spin';
+          icon.className = "fas fa-spinner fa-spin";
         }
       }
       if (titleIcon) {
-        titleIcon.className = 'fas fa-sync fa-spin';
+        titleIcon.className = "fas fa-sync fa-spin";
       }
       // Add status badge if it doesn't exist
       if (!statusBadge) {
-        const badgeContainer = card.querySelector('.runner-card-header > div');
+        const badgeContainer = card.querySelector(".runner-card-header > div");
         if (badgeContainer) {
-          const badge = document.createElement('span');
-          badge.className = 'runner-badge status';
-          badge.textContent = 'Running...';
+          const badge = document.createElement("span");
+          badge.className = "runner-badge status";
+          badge.textContent = "Running...";
           badgeContainer.appendChild(badge);
         }
       }
     } else {
       // Update to idle state
-      card.classList.remove('runner-executing');
+      card.classList.remove("runner-executing");
       if (runButton) {
-        runButton.classList.remove('running');
+        runButton.classList.remove("running");
         runButton.disabled = false;
-        runButton.title = 'Run Now';
-        const icon = runButton.querySelector('i');
+        runButton.title = "Run Now";
+        const icon = runButton.querySelector("i");
         if (icon) {
-          icon.className = 'fas fa-play';
+          icon.className = "fas fa-play";
         }
       }
       if (titleIcon) {
-        titleIcon.className = 'fas fa-play-circle';
+        titleIcon.className = "fas fa-play-circle";
       }
       // Remove status badge
       if (statusBadge) {
@@ -1764,10 +1781,12 @@ class RunnersManager {
   async createRunnerFromWizard() {
     // Prevent double-clicking
     if (this.isCreatingRunner) {
-      console.log("[Wizard] Runner creation already in progress, ignoring duplicate call");
+      console.log(
+        "[Wizard] Runner creation already in progress, ignoring duplicate call"
+      );
       return;
     }
-    
+
     // Validate step 4
     const name = document.getElementById("wizardRunnerName").value.trim();
     if (!name) {

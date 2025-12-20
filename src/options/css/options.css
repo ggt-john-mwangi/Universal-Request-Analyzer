@@ -4047,7 +4047,8 @@ input[type="number"] {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -4058,7 +4059,11 @@ input[type="number"] {
 /* Running state styles */
 .runner-card.runner-executing {
   border-color: var(--info-color, #17a2b8);
-  background: linear-gradient(135deg, var(--surface-color) 0%, rgba(23, 162, 184, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--surface-color) 0%,
+    rgba(23, 162, 184, 0.05) 100%
+  );
 }
 
 .runner-card.runner-executing:hover {
