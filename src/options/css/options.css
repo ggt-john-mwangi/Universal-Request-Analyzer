@@ -4040,6 +4040,47 @@ input[type="number"] {
   color: var(--warning-color, #ffc107);
 }
 
+.runner-badge.status {
+  background: var(--info-light, #d1ecf1);
+  color: var(--info-color, #0c5460);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Running state styles */
+.runner-card.runner-executing {
+  border-color: var(--info-color, #17a2b8);
+  background: linear-gradient(135deg, var(--surface-color) 0%, rgba(23, 162, 184, 0.05) 100%);
+}
+
+.runner-card.runner-executing:hover {
+  border-color: var(--info-color, #17a2b8);
+  box-shadow: 0 4px 16px rgba(23, 162, 184, 0.2);
+}
+
+.runner-action-btn.running {
+  background: var(--info-light, #d1ecf1);
+  border-color: var(--info-color, #17a2b8);
+  color: var(--info-color, #0c5460);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.runner-action-btn.running:hover {
+  background: var(--info-light, #d1ecf1);
+  border-color: var(--info-color, #17a2b8);
+  color: var(--info-color, #0c5460);
+  transform: none;
+}
+
 .runner-card-description {
   margin: 0;
   font-size: 14px;

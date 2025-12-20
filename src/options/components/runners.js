@@ -8,6 +8,7 @@ class RunnersManager {
     this.runners = [];
     this.selectedRunner = null;
     this.refreshInterval = null;
+    this.runningRunners = new Set(); // Track which runners are currently executing
   }
 
   async initialize() {
@@ -194,6 +195,8 @@ class RunnersManager {
     const runnersGrid = document.getElementById("runnersGrid");
     if (!runnersGrid) return;
 
+    console.log(`[Runners] Rendering ${this.runners.length} runners:`, this.runners.map(r => ({id: r.id, name: r.name, requests: r.total_requests})));
+
     if (this.runners.length === 0) {
       runnersGrid.innerHTML = `
         <div style="
@@ -266,25 +269,37 @@ class RunnersManager {
     const badge = isTemporary
       ? '<span class="runner-badge temporary">Quick Run</span>'
       : '<span class="runner-badge permanent">Saved</span>';
+    
+    // Check if this runner is currently executing (with safety check)
+    if (!this.runningRunners) {
+      this.runningRunners = new Set();
+    }
+    const isRunning = this.runningRunners.has(runner.id);
+    const runButtonClass = isRunning ? 'runner-action-btn running' : 'runner-action-btn';
+    const runButtonIcon = isRunning ? 'fa-spinner fa-spin' : 'fa-play';
+    const runButtonTitle = isRunning ? 'Running...' : 'Run Now';
+    const runButtonDisabled = isRunning ? 'disabled' : '';
 
     return `
-      <div class="runner-card" data-runner-id="${runner.id}">
+      <div class="runner-card ${isRunning ? 'runner-executing' : ''}" data-runner-id="${runner.id}">
         <div class="runner-card-header">
           <div>
             <h4 class="runner-card-title">
-              <i class="fas fa-play-circle"></i>
+              <i class="fas ${isRunning ? 'fa-sync fa-spin' : 'fa-play-circle'}"></i>
               ${this.escapeHtml(runner.name)}
             </h4>
             ${badge}
+            ${isRunning ? '<span class="runner-badge status">Running...</span>' : ''}
           </div>
           <div class="runner-card-actions">
             <button 
-              class="icon-btn runner-action-btn" 
-              title="Run Now"
+              class="icon-btn ${runButtonClass}" 
+              title="${runButtonTitle}"
               data-action="run"
               data-runner-id="${runner.id}"
+              ${runButtonDisabled}
             >
-              <i class="fas fa-play"></i>
+              <i class="fas ${runButtonIcon}"></i>
             </button>
             <button 
               class="icon-btn runner-action-btn" 
@@ -354,6 +369,15 @@ class RunnersManager {
 
   async runRunner(runnerId) {
     try {
+      // Ensure runningRunners is initialized
+      if (!this.runningRunners) {
+        this.runningRunners = new Set();
+      }
+      
+      // Mark as running
+      this.runningRunners.add(runnerId);
+      this.updateRunnerCardState(runnerId);
+      
       this.showToast("Starting runner...", "info");
 
       const response = await chrome.runtime.sendMessage({
@@ -362,18 +386,85 @@ class RunnersManager {
       });
 
       if (response && response.success) {
-        this.showToast("Runner started successfully!", "success");
-        // Reload runners to update stats
-        setTimeout(() => this.loadRunners(), 2000);
+        this.showToast("Runner completed successfully!", "success");
       } else {
         this.showToast(
-          "Failed to start runner: " + (response?.error || "Unknown error"),
+          "Runner failed: " + (response?.error || "Unknown error"),
           "error"
         );
       }
     } catch (error) {
       console.error("[Runners] Error running runner:", error);
-      this.showToast("Error starting runner", "error");
+      this.showToast("Error running runner", "error");
+    } finally {
+      // Remove from running state
+      this.runningRunners.delete(runnerId);
+      this.updateRunnerCardState(runnerId);
+      
+      // Reload runners to update stats
+      setTimeout(() => this.loadRunners(), 1000);
+    }
+  }
+
+  // Update individual runner card state without full reload
+  updateRunnerCardState(runnerId) {
+    // Ensure runningRunners is initialized
+    if (!this.runningRunners) {
+      this.runningRunners = new Set();
+    }
+    
+    const card = document.querySelector(`[data-runner-id="${runnerId}"]`);
+    if (!card) return;
+
+    const isRunning = this.runningRunners.has(runnerId);
+    const runButton = card.querySelector('[data-action="run"]');
+    const titleIcon = card.querySelector('.runner-card-title i');
+    const statusBadge = card.querySelector('.runner-badge.status');
+
+    if (isRunning) {
+      // Update to running state
+      card.classList.add('runner-executing');
+      if (runButton) {
+        runButton.classList.add('running');
+        runButton.disabled = true;
+        runButton.title = 'Running...';
+        const icon = runButton.querySelector('i');
+        if (icon) {
+          icon.className = 'fas fa-spinner fa-spin';
+        }
+      }
+      if (titleIcon) {
+        titleIcon.className = 'fas fa-sync fa-spin';
+      }
+      // Add status badge if it doesn't exist
+      if (!statusBadge) {
+        const badgeContainer = card.querySelector('.runner-card-header > div');
+        if (badgeContainer) {
+          const badge = document.createElement('span');
+          badge.className = 'runner-badge status';
+          badge.textContent = 'Running...';
+          badgeContainer.appendChild(badge);
+        }
+      }
+    } else {
+      // Update to idle state
+      card.classList.remove('runner-executing');
+      if (runButton) {
+        runButton.classList.remove('running');
+        runButton.disabled = false;
+        runButton.title = 'Run Now';
+        const icon = runButton.querySelector('i');
+        if (icon) {
+          icon.className = 'fas fa-play';
+        }
+      }
+      if (titleIcon) {
+        titleIcon.className = 'fas fa-play-circle';
+      }
+      // Remove status badge
+      if (statusBadge) {
+        statusBadge.remove();
+      }
     }
   }
 
@@ -1671,12 +1762,21 @@ class RunnersManager {
   }
 
   async createRunnerFromWizard() {
+    // Prevent double-clicking
+    if (this.isCreatingRunner) {
+      console.log("[Wizard] Runner creation already in progress, ignoring duplicate call");
+      return;
+    }
+    
     // Validate step 4
     const name = document.getElementById("wizardRunnerName").value.trim();
     if (!name) {
       alert("Please enter a runner name");
       return;
     }
+
+    // Set flag to prevent double-creation
+    this.isCreatingRunner = true;
 
     // Collect all configuration
     const now = Date.now();
@@ -1776,6 +1876,9 @@ class RunnersManager {
       alert(`Failed to create runner: ${error.message}`);
       createBtn.disabled = false;
       createBtn.innerHTML = originalText;
+    } finally {
+      // Always reset the flag
+      this.isCreatingRunner = false;
     }
   }
 
