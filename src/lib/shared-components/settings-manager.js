@@ -247,6 +247,11 @@ class SettingsManager {
         general: {},
         display: {},
         advanced: {},
+        variables: {
+          enabled: true,
+          autoDetect: true,
+          list: [],
+        },
       };
 
       // Load capture settings
@@ -280,6 +285,18 @@ class SettingsManager {
       if (advancedSettings && Object.keys(advancedSettings).length > 0) {
         settings.advanced = advancedSettings;
       }
+
+      // Load variables settings
+      const variablesSettings = await configSchemaManager.getSettingsByCategory(
+        "variables"
+      );
+      if (variablesSettings && Object.keys(variablesSettings).length > 0) {
+        settings.variables = variablesSettings;
+      }
+      console.log(
+        "[SettingsManager] Loaded variables from DB:",
+        settings.variables
+      );
 
       return settings;
     } catch (error) {
@@ -457,6 +474,10 @@ class SettingsManager {
    * @returns {Object} Current settings object
    */
   getSettings() {
+    console.log("[SettingsManager] getSettings() called");
+    console.log("[SettingsManager] Initialized:", this.initialized);
+    console.log("[SettingsManager] Settings keys:", Object.keys(this.settings));
+    console.log("[SettingsManager] Variables:", this.settings.variables);
     return this.settings;
   }
 

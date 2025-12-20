@@ -1113,15 +1113,32 @@ async function handleGetWebVitals(filters = {}) {
 async function handleGetSettings() {
   try {
     console.log("[Background] handleGetSettings() called");
+    console.log(
+      "[Background] settingsManager initialized:",
+      settingsManager.initialized
+    );
+
     const settings = await settingsManager.getSettings();
+
     console.log(
       "[Background] Settings retrieved:",
       settings ? "success" : "failed"
     );
     console.log(
-      "[Background] Variables in settings:",
+      "[Background] Settings keys:",
+      settings ? Object.keys(settings) : "null"
+    );
+    console.log(
+      "[Background] Has variables key:",
+      settings?.hasOwnProperty("variables")
+    );
+    console.log("[Background] Variables object:", settings?.variables);
+    console.log(
+      "[Background] Variables list length:",
       settings?.variables?.list?.length || 0
     );
+    console.log("[Background] Variables list:", settings?.variables?.list);
+
     return { success: true, settings };
   } catch (error) {
     console.error("[Background] Get settings error:", error);
