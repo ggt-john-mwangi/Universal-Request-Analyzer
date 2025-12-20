@@ -1112,7 +1112,7 @@ class RunnersManager {
     this.wizardState.selectedRequests = Array.from(checkboxes).map((cb) => {
       const idx = parseInt(cb.dataset.index);
       const fullReq = this.wizardState.availableRequests[idx];
-      
+
       return {
         id: fullReq.id,
         url: fullReq.url,
@@ -1329,7 +1329,8 @@ class RunnersManager {
     }
 
     // Show loading indicator
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary)"><i class="fas fa-spinner fa-spin"></i> Loading request details...</div>';
+    container.innerHTML =
+      '<div style="padding: 20px; text-align: center; color: var(--text-secondary)"><i class="fas fa-spinner fa-spin"></i> Loading request details...</div>';
 
     // Also render variables list if variables were auto-extracted
     if (this.wizardState.variables.length > 0) {
@@ -1369,7 +1370,10 @@ class RunnersManager {
         let bodyStr = "";
         if (req.body) {
           try {
-            bodyStr = typeof req.body === 'object' ? JSON.stringify(req.body, null, 2) : String(req.body);
+            bodyStr =
+              typeof req.body === "object"
+                ? JSON.stringify(req.body, null, 2)
+                : String(req.body);
           } catch (e) {
             console.error(
               `[Wizard] Failed to stringify body for request #${idx}:`,
