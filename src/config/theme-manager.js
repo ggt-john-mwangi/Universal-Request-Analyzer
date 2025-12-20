@@ -129,8 +129,8 @@ class ThemeManager {
     this.initialized = false;
     this.onUpdateCallback = null;
 
-    // Listen for system color scheme changes
-    if (window.matchMedia) {
+    // Listen for system color scheme changes (only in browser context)
+    if (typeof window !== 'undefined' && window.matchMedia) {
       window
         .matchMedia('(prefers-color-scheme: dark)')
         .addEventListener('change', () => {
@@ -232,6 +232,7 @@ class ThemeManager {
 
     if (this.currentTheme === 'system') {
       const prefersDark =
+        typeof window !== 'undefined' &&
         window.matchMedia &&
         window.matchMedia('(prefers-color-scheme: dark)').matches;
       const theme = prefersDark ? this.themes.dark : this.themes.light;
@@ -249,6 +250,11 @@ class ThemeManager {
   }
 
   applyThemeToDocument(theme) {
+    // Only apply to DOM in browser context (not in service worker)
+    if (typeof document === 'undefined') {
+      return;
+    }
+
     const root = document.documentElement;
     this.applyColorsToCss(root, theme.colors);
 
@@ -402,6 +408,7 @@ class ThemeManager {
   getCurrentTheme() {
     if (this.currentTheme === 'system') {
       const prefersDark =
+        typeof window !== 'undefined' &&
         window.matchMedia &&
         window.matchMedia('(prefers-color-scheme: dark)').matches;
       return prefersDark ? this.themes.dark : this.themes.light;
