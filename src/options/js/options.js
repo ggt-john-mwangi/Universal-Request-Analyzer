@@ -21,7 +21,7 @@ import "../../lib/shared-components/export-panel.js";
 import "../../lib/shared-components/filters.js";
 import "../../lib/shared-components/notifications.js";
 import "../../lib/shared-components/performance-monitor.js";
-import settingsManager from "../../lib/shared-components/settings-manager.js";
+import settingsManager from "../../lib/shared-components/settings-ui-coordinator.js";
 import "../../lib/shared-components/settings-ui.js";
 import "../../lib/shared-components/tab-manager.js";
 import "../components/visualization.js";

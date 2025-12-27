@@ -3,7 +3,7 @@
  * Handles UI and interaction for managing curl/fetch variables
  */
 
-import settingsManager from "../../lib/shared-components/settings-manager.js";
+import settingsManager from "../../lib/shared-components/settings-ui-coordinator.js";
 
 export class VariablesManager {
   constructor() {

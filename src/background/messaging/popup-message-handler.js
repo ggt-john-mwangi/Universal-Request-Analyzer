@@ -3,7 +3,7 @@
 
 import requestRunner from "../capture/request-runner.js";
 import runnerCollections from "../capture/runner-collections.js";
-import settingsManager from "../../lib/shared-components/settings-manager.js";
+import settingsManager from "../../lib/shared-components/settings-manager-core.js";
 
 let localAuthManager = null;
 let dbManager = null;

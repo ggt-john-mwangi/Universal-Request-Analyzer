@@ -5,7 +5,7 @@
  */
 
 // Import required dependencies
-import settingsManager from "./settings-manager.js";
+import settingsManager from "./settings-ui-coordinator.js";
 import featureFlags from "../../config/feature-flags.js";
 import aclManager from "../../auth/acl-manager.js";
 import themeManager from "../../config/theme-manager.js";
