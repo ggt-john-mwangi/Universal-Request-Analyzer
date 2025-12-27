@@ -14,12 +14,12 @@ This document outlines a phased approach to resolve outstanding issues and archi
 
 ## Priority Matrix
 
-| Priority | Category | Impact | Effort |
-|----------|----------|--------|--------|
-| 🔴 **P0** | Critical bugs & architectural violations | High | Medium-High |
-| 🟠 **P1** | Feature completeness & UX issues | High | Medium |
-| 🟡 **P2** | Performance & optimization | Medium | Low-Medium |
-| 🟢 **P3** | Nice-to-have enhancements | Low | Variable |
+| Priority  | Category                                 | Impact | Effort      |
+| --------- | ---------------------------------------- | ------ | ----------- |
+| 🔴 **P0** | Critical bugs & architectural violations | High   | Medium-High |
+| 🟠 **P1** | Feature completeness & UX issues         | High   | Medium      |
+| 🟡 **P2** | Performance & optimization               | Medium | Low-Medium  |
+| 🟢 **P3** | Nice-to-have enhancements                | Low    | Variable    |
 
 ---
 
@@ -30,11 +30,13 @@ This document outlines a phased approach to resolve outstanding issues and archi
 **Objective:** Eliminate service worker crashes caused by UI dependencies in background code.
 
 #### Task 1.1: Split settings-manager
+
 **Complexity:** High  
 **Dependencies:** None  
 **Estimated Time:** 3-4 days
 
 **Action Items:**
+
 - [ ] Create `settings-manager-core.js` (background-safe)
   - Database operations only
   - No UI dependencies
@@ -55,6 +57,7 @@ This document outlines a phased approach to resolve outstanding issues and archi
 - [ ] Add integration tests for both contexts
 
 **Files to Modify:**
+
 ```
 src/lib/shared-components/
   ├── settings-manager-core.js (new)
@@ -67,29 +70,33 @@ src/devtools/js/panel.js
 ```
 
 #### Task 1.2: Create Context Detection Utility
+
 **Complexity:** Low  
 **Dependencies:** None  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Create `src/lib/utils/context-detector.js`
 - [ ] Export functions:
   ```javascript
-  isServiceWorker()
-  isBrowserContext()
-  hasDOM()
-  hasLocalStorage()
-  hasChromeStorage()
+  isServiceWorker();
+  isBrowserContext();
+  hasDOM();
+  hasLocalStorage();
+  hasChromeStorage();
   ```
 - [ ] Use in all conditional imports/initializations
 - [ ] Add unit tests
 
 #### Task 1.3: Refactor theme-manager (UI-only)
+
 **Complexity:** Medium  
 **Dependencies:** Task 1.1  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Remove all localStorage fallbacks
 - [ ] Assume DOM is always available (throw if not)
 - [ ] Read theme preference from `chrome.storage.local` (set by settings-core)
@@ -99,33 +106,39 @@ src/devtools/js/panel.js
 - [ ] Add "theme changed" listener to sync from storage
 
 #### Task 1.4: Refactor feature-flags (Remove localStorage)
+
 **Complexity:** Low  
 **Dependencies:** Task 1.2  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Remove all localStorage fallback code
 - [ ] Use chrome.storage.local exclusively
 - [ ] Add context detection for error handling
 - [ ] Update tests
 
 #### Task 1.5: Refactor acl-manager (Remove localStorage)
+
 **Complexity:** Low  
 **Dependencies:** Task 1.2  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Remove localStorage mock mode
 - [ ] Use chrome.storage.local for mock data
 - [ ] Add context detection
 - [ ] Update tests
 
 #### Task 1.6: Reorganize Library Structure
+
 **Complexity:** Medium  
 **Dependencies:** Tasks 1.1-1.5  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Create new directory structure:
   ```
   src/lib/
@@ -149,6 +162,7 @@ src/devtools/js/panel.js
 - [ ] Run full test suite
 
 **Deliverables:**
+
 - ✅ No service worker crashes
 - ✅ Clean separation between UI and background code
 - ✅ All tests passing
@@ -163,11 +177,13 @@ src/devtools/js/panel.js
 **Objective:** Fix runner creation bug and improve runner management UX.
 
 #### Task 2.1: Fix Duplicate Runner Creation
+
 **Complexity:** Medium  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 1-2 days
 
 **Action Items:**
+
 - [ ] Add creation guard flag to prevent double-clicks
 - [ ] Add transaction isolation for runner creation
 - [ ] Verify no duplicate entries in `getRunners` query
@@ -178,17 +194,20 @@ src/devtools/js/panel.js
 **Current Issue:** Two cards appear when creating a runner, one with 0 requests.
 
 **Root Cause Investigation:**
+
 - [ ] Check if wizard "Create" button handler is called twice
 - [ ] Check if `loadRunners()` is called multiple times in quick succession
 - [ ] Verify database INSERT doesn't create duplicates
 - [ ] Check if auto-refresh interval conflicts with manual reload
 
 #### Task 2.2: Implement Runner Pagination
+
 **Complexity:** Medium  
 **Dependencies:** Task 2.1  
 **Estimated Time:** 2-3 days
 
 **Action Items:**
+
 - [ ] Extract pagination component from Dashboard → Requests Table
 - [ ] Create `src/lib/shared-components/pagination.js`
 - [ ] Add to runners.js:
@@ -205,11 +224,13 @@ src/devtools/js/panel.js
 - [ ] Update UI to show "Showing X-Y of Z runners"
 
 #### Task 2.3: Implement Runner Search (DB-backed)
+
 **Complexity:** Medium  
 **Dependencies:** Task 2.2  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Add search input to runners page
 - [ ] Update backend `getRunners` to support:
   - `searchQuery` parameter
@@ -220,11 +241,13 @@ src/devtools/js/panel.js
 - [ ] Clear search button
 
 #### Task 2.4: Show Runner Variables
+
 **Complexity:** Low  
 **Dependencies:** None  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Add variables section to runner card
 - [ ] Show variable count badge
 - [ ] Expand to show variable list on click
@@ -232,11 +255,13 @@ src/devtools/js/panel.js
 - [ ] Add edit variables quick action
 
 #### Task 2.5: Fix Runner Card Theming
+
 **Complexity:** Low  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Remove hardcoded backgrounds
 - [ ] Use CSS variables consistently
 - [ ] Fix transparency issues
@@ -248,11 +273,13 @@ src/devtools/js/panel.js
 **Objective:** Fix dashboard display issues and enforce proper page/domain context.
 
 #### Task 2.6: Fix Page vs Domain Context
+
 **Complexity:** Medium  
 **Dependencies:** None  
 **Estimated Time:** 2-3 days
 
 **Action Items:**
+
 - [ ] Enforce rule: **No aggregation without page selection**
 - [ ] Update visualizations to show:
   - Page-only metrics when page selected
@@ -270,22 +297,26 @@ src/devtools/js/panel.js
 - [ ] Add clear UI indicator of current context
 
 #### Task 2.7: Link Visualizations to "Enable Plots" Setting
+
 **Complexity:** Low  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Verify all charts check `settings.visualizations.enablePlots`
 - [ ] Show message when disabled: "Visualizations disabled in settings"
 - [ ] Add quick link to enable in General → Visualizations
 - [ ] Document which setting controls which visualization
 
 #### Task 2.8: Core Web Vitals Per-Page Trends
+
 **Complexity:** High  
 **Dependencies:** Task 2.6  
 **Estimated Time:** 3-4 days
 
 **Action Items:**
+
 - [ ] Design database schema for CWV storage
   - Table: `cwv_metrics` (page_url, metric_name, value, timestamp)
 - [ ] Capture CWV from content scripts
@@ -302,11 +333,13 @@ src/devtools/js/panel.js
 - [ ] Add threshold indicators (good/needs improvement/poor)
 
 #### Task 2.9: Fix XHR vs Fetch Handling
+
 **Complexity:** Medium  
 **Dependencies:** None  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Document differences in capture:
   - XHR: captured via content script hook
   - Fetch: captured via webRequest API in background
@@ -324,11 +357,13 @@ src/devtools/js/panel.js
 **Objective:** Complete export feature with all formats and auto-export.
 
 #### Task 3.1: Implement SQLite Export
+
 **Complexity:** Medium  
 **Dependencies:** None  
 **Estimated Time:** 2-3 days
 
 **Action Items:**
+
 - [ ] Use SQL.js to export database to binary .sqlite file
 - [ ] Add to export manager:
   ```javascript
@@ -342,11 +377,13 @@ src/devtools/js/panel.js
   - Format: `URA_Export_YYYY-MM-DD_HHmmss.sqlite`
 
 #### Task 3.2: Implement JSON Export
+
 **Complexity:** Low  
 **Dependencies:** None  
 **Estimated Time:** 1-2 days
 
 **Action Items:**
+
 - [ ] Structure: `{ database: { tableName: [rows...] } }`
 - [ ] Each table → JSON object with array of row objects
 - [ ] Handle large datasets (streaming if needed)
@@ -354,11 +391,13 @@ src/devtools/js/panel.js
 - [ ] Format filename: `URA_Export_YYYY-MM-DD_HHmmss.json`
 
 #### Task 3.3: Implement CSV Export
+
 **Complexity:** Low  
 **Dependencies:** None  
 **Estimated Time:** 1-2 days
 
 **Action Items:**
+
 - [ ] One CSV file per table
 - [ ] Naming convention: `tableName_YYYY-MM-DD_HHmmss.csv`
 - [ ] Package multiple CSVs into ZIP file
@@ -366,11 +405,13 @@ src/devtools/js/panel.js
 - [ ] Handle special characters (commas, quotes, newlines)
 
 #### Task 3.4: Export Configuration Schema
+
 **Complexity:** Medium  
 **Dependencies:** Tasks 3.1-3.3  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Define config schema:
   ```javascript
   exportConfig: {
@@ -390,11 +431,13 @@ src/devtools/js/panel.js
 - [ ] Validate configuration before export
 
 #### Task 3.5: Auto Export Implementation
+
 **Complexity:** High  
 **Dependencies:** Tasks 3.1-3.4  
 **Estimated Time:** 3-4 days
 
 **Action Items:**
+
 - [ ] Add auto-export settings:
   ```javascript
   autoExport: {
@@ -425,11 +468,13 @@ src/devtools/js/panel.js
 **Objective:** Fix theme reset bug and improve theme management UX.
 
 #### Task 4.1: Fix Theme Persistence
+
 **Complexity:** Medium  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Verify theme save flow:
   1. User selects theme in UI
   2. Theme-manager applies to current page
@@ -446,6 +491,7 @@ src/devtools/js/panel.js
   - [ ] Theme syncs across all extension pages
 
 #### Task 4.2: Theme Management UX Decision
+
 **Complexity:** Low  
 **Dependencies:** Task 4.1  
 **Estimated Time:** 1 day
@@ -453,16 +499,19 @@ src/devtools/js/panel.js
 **Decision Required:** Global "Save" button vs per-theme "Apply" button
 
 **Option A: Per-Theme Apply Button**
+
 - Pros: Immediate feedback, no accidental changes
 - Cons: Extra click, less discoverable
 
 **Option B: Global Save Button**
+
 - Pros: Standard UX pattern, clear save action
 - Cons: User might preview and forget to save
 
 **Recommendation:** Option A - Per-theme "Apply" button with auto-save
 
 **Action Items:**
+
 - [ ] Implement chosen UX pattern
 - [ ] Add "Currently Applied: Theme Name" indicator
 - [ ] Add preview mode (optional)
@@ -473,21 +522,25 @@ src/devtools/js/panel.js
 **Objective:** Fix tracking configuration and enforce consistent behavior.
 
 #### Task 4.3: "Track ONLY Configured Sites" Logic
+
 **Complexity:** Medium  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 2-3 days
 
 **Action Items:**
+
 - [ ] Enforce rules:
+
   ```
   If "Track ONLY configured" is ENABLED:
     - If NO sites configured → track NOTHING
     - If sites configured → track ONLY those sites
-  
+
   If "Track ONLY configured" is DISABLED:
     - If NO sites configured → track ALL sites (except excluded)
     - If sites configured → track ALL except excluded
   ```
+
 - [ ] Update capture logic in background/capture/
 - [ ] Update content script injection rules
 - [ ] Add clear UI explanation of current behavior
@@ -495,11 +548,13 @@ src/devtools/js/panel.js
 - [ ] Test all combinations
 
 #### Task 4.4: Fix Quick Site Presets - Prevent Duplicates
+
 **Complexity:** Low  
 **Dependencies:** None  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Add duplicate check before adding site
 - [ ] Disable "Add Current Tab" button if already added
 - [ ] Show message: "This site is already in your list"
@@ -513,11 +568,13 @@ src/devtools/js/panel.js
   - [ ] Quick add button
 
 #### Task 4.5: Harmonize General Settings
+
 **Complexity:** High  
 **Dependencies:** Tasks 4.3-4.4, Phase 1  
 **Estimated Time:** 3 days
 
 **Action Items:**
+
 - [ ] Audit all General settings
 - [ ] Document which settings control:
   - Content script behavior
@@ -549,11 +606,13 @@ src/devtools/js/panel.js
 **Objective:** Fix data management panel inconsistencies and improve cleanup preview.
 
 #### Task 5.1: Fix Database Size & Count Mismatches
+
 **Complexity:** Medium  
 **Dependencies:** None  
 **Estimated Time:** 2-3 days
 
 **Action Items:**
+
 - [ ] Audit size calculation methods
 - [ ] Verify Bronze/Silver/Gold counts:
   ```sql
@@ -567,11 +626,13 @@ src/devtools/js/panel.js
 - [ ] Add manual refresh button
 
 #### Task 5.2: Improve Cleanup Preview
+
 **Complexity:** Medium  
 **Dependencies:** Task 5.1  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Show accurate table counts:
   - Before cleanup count
   - After cleanup estimate
@@ -586,11 +647,13 @@ src/devtools/js/panel.js
   - Add backup deletion option
 
 #### Task 5.3: Table Usage Tracking
+
 **Complexity:** Low  
 **Dependencies:** None  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Add metadata table: `table_usage_tracking`
   ```sql
   CREATE TABLE table_usage_tracking (
@@ -620,11 +683,13 @@ src/devtools/js/panel.js
 **Objective:** Finalize security settings scope.
 
 #### Task 6.1: Define Security Menu Scope
+
 **Complexity:** Low  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Review current security settings
 - [ ] Determine which settings belong in Security vs General
 - [ ] Document security-related features:
@@ -640,11 +705,13 @@ src/devtools/js/panel.js
 **Objective:** Prepare architecture for cloud-driven profiles.
 
 #### Task 6.2: Profiles Architecture Design
+
 **Complexity:** High  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 3-4 days (design only, no implementation)
 
 **Action Items:**
+
 - [ ] Document profile system design:
   ```
   Company Tenant
@@ -686,11 +753,13 @@ src/devtools/js/panel.js
 **Objective:** Ensure all fixes are stable and well-tested.
 
 #### Task 7.1: Unit Tests
+
 **Complexity:** High  
 **Dependencies:** All phases  
 **Estimated Time:** 3-4 days
 
 **Action Items:**
+
 - [ ] Test coverage for all new modules
 - [ ] Context-specific tests (service worker vs browser)
 - [ ] Test settings-manager-core in isolation
@@ -700,11 +769,13 @@ src/devtools/js/panel.js
 - [ ] Achieve 80%+ code coverage
 
 #### Task 7.2: Integration Tests
+
 **Complexity:** High  
 **Dependencies:** Task 7.1  
 **Estimated Time:** 2-3 days
 
 **Action Items:**
+
 - [ ] Test message passing between contexts
 - [ ] Test settings sync across surfaces
 - [ ] Test runner creation/execution flow
@@ -713,11 +784,13 @@ src/devtools/js/panel.js
 - [ ] Test theme persistence across reloads
 
 #### Task 7.3: End-to-End Tests
+
 **Complexity:** Medium  
 **Dependencies:** Task 7.2  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Test complete user flows:
   - Install extension → configure → capture → view → export
   - Create runner → execute → view results
@@ -726,11 +799,13 @@ src/devtools/js/panel.js
   - Cleanup data → verify backup → restore
 
 #### Task 7.4: Browser Compatibility Testing
+
 **Complexity:** Medium  
 **Dependencies:** All testing complete  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Test in Chrome (latest + 2 previous versions)
 - [ ] Test in Firefox (latest + 2 previous versions)
 - [ ] Test in Edge (latest)
@@ -742,11 +817,13 @@ src/devtools/js/panel.js
 **Objective:** Keep documentation in sync with code changes.
 
 #### Task 7.5: Update Architecture Documentation
+
 **Complexity:** Low  
 **Dependencies:** Phase 1 complete  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Update ARCHITECTURE.md with new structure
 - [ ] Update COPILOT_ARCHITECTURE_GUIDE.md
 - [ ] Document settings-manager split
@@ -755,11 +832,13 @@ src/devtools/js/panel.js
 - [ ] Add architecture diagrams
 
 #### Task 7.6: Update User-Facing Documentation
+
 **Complexity:** Low  
 **Dependencies:** Phases 2-6 complete  
 **Estimated Time:** 2 days
 
 **Action Items:**
+
 - [ ] Update USER_GUIDE.md
 - [ ] Document new export features
 - [ ] Document runner improvements
@@ -768,11 +847,13 @@ src/devtools/js/panel.js
 - [ ] Add screenshots/videos
 
 #### Task 7.7: Update Development Documentation
+
 **Complexity:** Low  
 **Dependencies:** All phases  
 **Estimated Time:** 1 day
 
 **Action Items:**
+
 - [ ] Update DEVELOPMENT.md
 - [ ] Document new testing procedures
 - [ ] Update contribution guidelines
@@ -785,13 +866,13 @@ src/devtools/js/panel.js
 
 ### High-Risk Items
 
-| Risk | Impact | Likelihood | Mitigation |
-|------|--------|------------|------------|
-| Settings-manager split breaks existing functionality | High | Medium | Comprehensive testing, gradual rollout, feature flags |
-| Export on large databases times out | Medium | High | Implement streaming, show progress, add size limits |
-| Theme persistence breaks across browsers | Medium | Medium | Browser-specific testing, fallback mechanisms |
-| Database migration causes data loss | High | Low | Backup before migration, rollback plan, extensive testing |
-| Runner duplicate creation persists | Low | Medium | Add transaction isolation, thorough debugging |
+| Risk                                                 | Impact | Likelihood | Mitigation                                                |
+| ---------------------------------------------------- | ------ | ---------- | --------------------------------------------------------- |
+| Settings-manager split breaks existing functionality | High   | Medium     | Comprehensive testing, gradual rollout, feature flags     |
+| Export on large databases times out                  | Medium | High       | Implement streaming, show progress, add size limits       |
+| Theme persistence breaks across browsers             | Medium | Medium     | Browser-specific testing, fallback mechanisms             |
+| Database migration causes data loss                  | High   | Low        | Backup before migration, rollback plan, extensive testing |
+| Runner duplicate creation persists                   | Low    | Medium     | Add transaction isolation, thorough debugging             |
 
 ### Dependencies
 
@@ -808,9 +889,9 @@ Phase 7 (Testing) → REQUIRES → All phases
 ### Critical Path
 
 ```
-Phase 1 (Architecture fixes) 
-  → Phase 4 (Settings harmonization) 
-    → Phase 2 (Runner & dashboard fixes) 
+Phase 1 (Architecture fixes)
+  → Phase 4 (Settings harmonization)
+    → Phase 2 (Runner & dashboard fixes)
       → Phase 7 (Testing & docs)
 ```
 
@@ -819,36 +900,43 @@ Phase 1 (Architecture fixes)
 ## Success Criteria
 
 ### Phase 1
+
 - ✅ Zero service worker crashes
 - ✅ All tests passing in both contexts
 - ✅ Clean import paths (no UI in background)
 
 ### Phase 2
+
 - ✅ No duplicate runner creation
 - ✅ Pagination working with 1000+ runners
 - ✅ Dashboard visualizations respect context
 - ✅ Core Web Vitals tracking active
 
 ### Phase 3
+
 - ✅ All export formats working
 - ✅ Auto-export running on schedule
 - ✅ No data loss during export
 
 ### Phase 4
+
 - ✅ Theme persists across restarts
 - ✅ Tracking logic behaves correctly in all modes
 - ✅ No duplicate sites in quick presets
 
 ### Phase 5
+
 - ✅ Accurate database size reporting
 - ✅ Cleanup preview shows correct counts
 - ✅ Backups created and restorable
 
 ### Phase 6
+
 - ✅ Security menu scope documented
 - ✅ Profile architecture designed (no implementation)
 
 ### Phase 7
+
 - ✅ 80%+ test coverage
 - ✅ All documentation updated
 - ✅ Extension works in all supported browsers
@@ -858,12 +946,14 @@ Phase 1 (Architecture fixes)
 ## Post-Implementation
 
 ### Monitoring
+
 - [ ] Set up error tracking (Sentry or similar)
 - [ ] Monitor extension performance metrics
 - [ ] Track user adoption of new features
 - [ ] Collect feedback on UX improvements
 
 ### Future Enhancements (Not in this plan)
+
 - Profile system implementation
 - SDK-style integration
 - Real-time collaboration features
@@ -874,15 +964,15 @@ Phase 1 (Architecture fixes)
 
 ## Timeline Summary
 
-| Phase | Duration | Dependencies | Can Start |
-|-------|----------|--------------|-----------|
-| Phase 1: Architecture | 3 weeks | None | Immediately |
-| Phase 2: Features | 3 weeks | Phase 1 | Week 4 |
-| Phase 3: Export | 2 weeks | None | Week 4 (parallel) |
-| Phase 4: Settings | 1 week | Phase 1 | Week 7 |
-| Phase 5: Cleanup | 1 week | None | Week 8 (parallel) |
-| Phase 6: Profiles | 1 week | Phase 1 | Week 9 (parallel) |
-| Phase 7: Testing | 1 week | All phases | Week 11 |
+| Phase                 | Duration | Dependencies | Can Start         |
+| --------------------- | -------- | ------------ | ----------------- |
+| Phase 1: Architecture | 3 weeks  | None         | Immediately       |
+| Phase 2: Features     | 3 weeks  | Phase 1      | Week 4            |
+| Phase 3: Export       | 2 weeks  | None         | Week 4 (parallel) |
+| Phase 4: Settings     | 1 week   | Phase 1      | Week 7            |
+| Phase 5: Cleanup      | 1 week   | None         | Week 8 (parallel) |
+| Phase 6: Profiles     | 1 week   | Phase 1      | Week 9 (parallel) |
+| Phase 7: Testing      | 1 week   | All phases   | Week 11           |
 
 **Total Duration:** 12 weeks (3 months)  
 **With parallel execution:** 8-10 weeks realistic
