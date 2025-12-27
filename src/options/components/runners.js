@@ -9,6 +9,7 @@ class RunnersManager {
     this.selectedRunner = null;
     this.refreshInterval = null;
     this.runningRunners = new Set(); // Track which runners are currently executing
+    this.isCreatingRunner = false; // Prevent duplicate runner creation
   }
 
   async initialize() {
@@ -1884,6 +1885,9 @@ class RunnersManager {
 
         // Show success message
         this.showToast(`✓ Runner "${name}" created successfully!`, "success");
+
+        // Wait for database write to complete before reloading
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Reload runners list
         await this.loadRunners();
