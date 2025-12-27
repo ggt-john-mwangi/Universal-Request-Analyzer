@@ -3912,6 +3912,13 @@ class Dashboard {
     try {
       const filters = this.getActiveFilters();
 
+      // Web Vitals are page-specific metrics - require page selection
+      if (!filters.pageUrl) {
+        console.log("[Dashboard] Skipping Web Vitals - no page selected (page-level metrics only)");
+        this.hideWebVitals("Please select a specific page to view Core Web Vitals");
+        return;
+      }
+
       console.log("[Dashboard] Requesting Web Vitals with filters:", filters);
 
       // Get Web Vitals from background
@@ -3928,6 +3935,9 @@ class Dashboard {
       if (response && response.success && response.vitals) {
         const vitals = response.vitals;
         console.log("[Dashboard] Processing vitals:", vitals);
+
+        // Show the Web Vitals section
+        this.showWebVitals();
 
         // Update LCP
         this.updateVitalCard("lcp", vitals.LCP);
@@ -3958,6 +3968,61 @@ class Dashboard {
     } catch (error) {
       console.error("[Dashboard] Failed to update web vitals:", error);
     }
+  }
+
+  hideWebVitals(message = "Select a specific page to view Core Web Vitals") {
+    const webVitalsSection = document.querySelector(".web-vitals-grid");
+    if (!webVitalsSection) return;
+
+    // Hide the actual vitals cards and show a message
+    webVitalsSection.style.opacity = "0.5";
+    webVitalsSection.style.pointerEvents = "none";
+
+    // Add overlay message if not exists
+    let overlay = webVitalsSection.parentElement.querySelector(".page-level-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "page-level-overlay";
+      overlay.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--surface-color);
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        padding: 24px;
+        text-align: center;
+        max-width: 400px;
+        z-index: 10;
+      `;
+      overlay.innerHTML = `
+        <i class="fas fa-info-circle" style="font-size: 32px; color: var(--info-color); margin-bottom: 12px;"></i>
+        <p style="margin: 0; color: var(--text-primary); font-weight: 500;">${message}</p>
+        <p style="margin: 8px 0 0 0; font-size: 13px; color: var(--text-secondary);">
+          Core Web Vitals are page-specific performance metrics
+        </p>
+      `;
+
+      // Ensure parent has position: relative
+      webVitalsSection.parentElement.style.position = "relative";
+      webVitalsSection.parentElement.appendChild(overlay);
+    }
+  }
+
+  showWebVitals() {
+    const webVitalsSection = document.querySelector(".web-vitals-grid");
+    if (!webVitalsSection) return;
+
+    // Remove overlay if exists
+    const overlay = webVitalsSection.parentElement.querySelector(".page-level-overlay");
+    if (overlay) {
+      overlay.remove();
+    }
+
+    // Show the vitals cards
+    webVitalsSection.style.opacity = "1";
+    webVitalsSection.style.pointerEvents = "auto";
   }
 
   updateVitalCard(metric, data) {
