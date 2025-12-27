@@ -1149,9 +1149,16 @@ async function ensureRunnerTablesExist() {
 
 /**
  * Get all runners (including temporary ones < 7 days old)
+ * @param {Object} options - Query options
+ * @param {number} options.offset - Offset for pagination (default: 0)
+ * @param {number} options.limit - Limit for pagination (default: 50)
+ * @param {string} options.searchQuery - Search query for name/description (optional)
+ * @returns {Object} { runners: [], totalCount: number }
  */
-async function getAllRunners() {
+async function getAllRunners(options = {}) {
   if (!db) throw new DatabaseError("Database not initialized");
+
+  const { offset = 0, limit = 50, searchQuery = null } = options;
 
   try {
     // Ensure tables exist first
@@ -1159,6 +1166,38 @@ async function getAllRunners() {
 
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
+    // Build WHERE clause
+    let whereClause = `
+      WHERE (
+        rd.collection_id IS NOT NULL
+        OR rd.created_at > ${sevenDaysAgo}
+      )
+    `;
+
+    // Add search filter if provided
+    if (searchQuery && searchQuery.trim()) {
+      const escapedSearch = escapeStr(`%${searchQuery.trim()}%`);
+      whereClause += `
+        AND (
+          rd.name LIKE ${escapedSearch}
+          OR rd.description LIKE ${escapedSearch}
+        )
+      `;
+    }
+
+    // Count total matching runners
+    const countQuery = `
+      SELECT COUNT(DISTINCT rd.id) as total
+      FROM config_runner_definitions rd
+      ${whereClause}
+    `;
+
+    const countResult = db.exec(countQuery);
+    const totalCount = countResult && countResult[0] && countResult[0].values[0]
+      ? countResult[0].values[0][0]
+      : 0;
+
+    // Get paginated runners with stats
     const query = `
       SELECT
         rd.*,
@@ -1170,16 +1209,15 @@ async function getAllRunners() {
       LEFT JOIN bronze_runner_executions re ON rd.id = re.runner_id
       LEFT JOIN config_runner_requests rr ON rd.id = rr.runner_id
       LEFT JOIN bronze_runner_execution_results rer ON re.id = rer.execution_id
-      WHERE
-        rd.collection_id IS NOT NULL
-        OR rd.created_at > ${sevenDaysAgo}
+      ${whereClause}
       GROUP BY rd.id
       ORDER BY rd.last_run_at DESC, rd.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `;
 
     const result = db.exec(query);
     if (!result || result.length === 0 || !result[0].values) {
-      return [];
+      return { runners: [], totalCount: 0 };
     }
 
     const columns = result[0].columns;
@@ -1191,7 +1229,7 @@ async function getAllRunners() {
       return runner;
     });
 
-    return runners;
+    return { runners, totalCount };
   } catch (error) {
     console.error("[Runner] Failed to get all runners:", error);
     throw new DatabaseError(`Failed to get runners: ${error.message}`);

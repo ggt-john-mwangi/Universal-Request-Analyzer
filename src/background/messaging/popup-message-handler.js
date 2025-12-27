@@ -235,7 +235,7 @@ async function handleMessage(message, sender) {
         return await handleGetRunnerDefinition(message.runnerId);
 
       case "getAllRunners":
-        return await handleGetAllRunners();
+        return await handleGetAllRunners(data);
 
       case "ensureRunnerTables":
         return await handleEnsureRunnerTables();
@@ -4009,17 +4009,25 @@ async function handleGetRunnerDefinition(runnerId) {
 /**
  * Get all runners (permanent + recent temporary)
  */
-async function handleGetAllRunners() {
+async function handleGetAllRunners(data) {
   try {
     if (!dbManager || !dbManager.runner) {
       return { success: false, error: "Database not initialized" };
     }
 
-    const runners = await dbManager.runner.getAllRunners();
+    // Extract pagination and search options from data
+    const options = {
+      offset: data?.offset || 0,
+      limit: data?.limit || 50,
+      searchQuery: data?.searchQuery || null
+    };
+
+    const result = await dbManager.runner.getAllRunners(options);
 
     return {
       success: true,
-      runners,
+      runners: result.runners || [],
+      totalCount: result.totalCount || 0,
     };
   } catch (error) {
     console.error("Get all runners error:", error);
