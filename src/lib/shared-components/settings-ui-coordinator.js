@@ -11,7 +11,7 @@
 import settingsManagerCore from "./settings-manager-core.js";
 import featureFlags from "../../config/feature-flags.js";
 import aclManager from "../../auth/acl-manager.js";
-import themeManager from "../../config/theme-manager.js";
+import themeManager from "../ui/theme-manager.js"; // Updated path
 
 /**
  * Settings UI Coordinator class

@@ -27,7 +27,7 @@ import "../../lib/shared-components/tab-manager.js";
 import "../components/visualization.js";
 import "../../auth/acl-manager.js";
 import "../../config/feature-flags.js";
-import themeManager from "../../config/theme-manager.js";
+import themeManager from "../../lib/ui/theme-manager.js";
 import "../../lib/chart.min.js";
 import variablesManager from "./variables-manager.js";
 
