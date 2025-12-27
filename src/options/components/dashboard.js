@@ -3999,6 +3999,10 @@ class Dashboard {
 
       console.log("[Dashboard] Requesting Web Vitals with filters:", filters);
 
+      // Show the Web Vitals section immediately when page is selected
+      // This removes the overlay even if we don't have data yet
+      this.showWebVitals();
+
       // Get Web Vitals from background
       const response = await chrome.runtime.sendMessage({
         action: "getWebVitals",
@@ -4013,9 +4017,6 @@ class Dashboard {
       if (response && response.success && response.vitals) {
         const vitals = response.vitals;
         console.log("[Dashboard] Processing vitals:", vitals);
-
-        // Show the Web Vitals section
-        this.showWebVitals();
 
         // Update LCP
         this.updateVitalCard("lcp", vitals.LCP);
