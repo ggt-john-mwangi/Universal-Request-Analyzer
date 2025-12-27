@@ -82,6 +82,15 @@ async function handleMessage(message, sender) {
       case "syncSettingsToStorage":
         return await handleSyncSettingsToStorage();
 
+      case "saveSetting":
+        return await handleSaveSetting(message);
+
+      case "getSetting":
+        return await handleGetSetting(message);
+
+      case "getSettingsByCategory":
+        return await handleGetSettingsByCategory(message);
+
       case "getRequestTypes":
         return await handleGetRequestTypes();
 
@@ -3114,6 +3123,194 @@ async function handleSyncSettingsToStorage() {
     };
   } catch (error) {
     console.error("Sync settings to storage error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Save individual setting to DB with category
+ * Used by db-storage-sync utility
+ */
+async function handleSaveSetting(data) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const { category, key, value } = data;
+    
+    if (!category || !key) {
+      return { success: false, error: "Category and key are required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      if (typeof val === "number") return val;
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const timestamp = Date.now();
+    let valueStr, dataType;
+
+    // Determine data type and format value
+    if (typeof value === 'string') {
+      valueStr = escapeStr(value);
+      dataType = 'string';
+    } else if (typeof value === 'number') {
+      valueStr = value;
+      dataType = 'number';
+    } else if (typeof value === 'boolean') {
+      valueStr = value ? 1 : 0;
+      dataType = 'boolean';
+    } else {
+      valueStr = escapeStr(JSON.stringify(value));
+      dataType = 'json';
+    }
+
+    // Insert or replace in config_app_settings
+    const query = `
+      INSERT OR REPLACE INTO config_app_settings 
+      (key, value, data_type, category, created_at, updated_at)
+      VALUES (
+        ${escapeStr(key)},
+        ${valueStr},
+        ${escapeStr(dataType)},
+        ${escapeStr(category)},
+        COALESCE((SELECT created_at FROM config_app_settings WHERE key = ${escapeStr(key)}), ${timestamp}),
+        ${timestamp}
+      )
+    `;
+
+    dbManager.db.exec(query);
+    console.log(`[Settings] Saved ${category}.${key} to database`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("[Settings] Save setting error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get individual setting from DB by category and key
+ * Used by db-storage-sync utility
+ */
+async function handleGetSetting(data) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const { category, key } = data;
+    
+    if (!category || !key) {
+      return { success: false, error: "Category and key are required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const query = `
+      SELECT value, data_type FROM config_app_settings
+      WHERE category = ${escapeStr(category)} AND key = ${escapeStr(key)}
+      LIMIT 1
+    `;
+
+    const result = dbManager.db.exec(query);
+
+    if (result && result[0]?.values && result[0].values.length > 0) {
+      const row = result[0].values[0];
+      const valueStr = row[0];
+      const dataType = row[1];
+
+      let value;
+      // Parse value based on data type
+      if (dataType === 'json') {
+        try {
+          value = JSON.parse(valueStr);
+        } catch (e) {
+          value = valueStr;
+        }
+      } else if (dataType === 'boolean') {
+        value = valueStr === 1 || valueStr === '1' || valueStr === true;
+      } else if (dataType === 'number') {
+        value = parseFloat(valueStr);
+      } else {
+        value = valueStr;
+      }
+
+      console.log(`[Settings] Retrieved ${category}.${key} from database`);
+      return { success: true, value };
+    }
+
+    return { success: false, error: "Setting not found" };
+  } catch (error) {
+    console.error("[Settings] Get setting error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all settings by category
+ * Used by db-storage-sync utility for batch sync
+ */
+async function handleGetSettingsByCategory(data) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const { category } = data;
+    
+    if (!category) {
+      return { success: false, error: "Category is required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const query = `
+      SELECT key, value, data_type FROM config_app_settings
+      WHERE category = ${escapeStr(category)}
+    `;
+
+    const result = dbManager.db.exec(query);
+    const settings = [];
+
+    if (result && result[0]?.values) {
+      for (const row of result[0].values) {
+        const key = row[0];
+        const valueStr = row[1];
+        const dataType = row[2];
+
+        let value;
+        // Parse value based on data type
+        if (dataType === 'json') {
+          try {
+            value = JSON.parse(valueStr);
+          } catch (e) {
+            value = valueStr;
+          }
+        } else if (dataType === 'boolean') {
+          value = valueStr === 1 || valueStr === '1' || valueStr === true;
+        } else if (dataType === 'number') {
+          value = parseFloat(valueStr);
+        } else {
+          value = valueStr;
+        }
+
+        settings.push({ key, value });
+      }
+    }
+
+    console.log(`[Settings] Retrieved ${settings.length} settings from ${category}`);
+    return { success: true, settings };
+  } catch (error) {
+    console.error("[Settings] Get settings by category error:", error);
     return { success: false, error: error.message };
   }
 }

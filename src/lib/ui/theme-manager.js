@@ -4,11 +4,17 @@
  * ⚠️ UI-ONLY MODULE - DO NOT import in service workers!
  * This module requires DOM (document, window) and should only be used in UI contexts.
  * 
- * Theme preference is stored in chrome.storage.local (set by settings-manager-core).
- * This module reads that preference and applies it to the DOM.
+ * Theme persistence flow:
+ * 1. User sets theme → Save to DATABASE first
+ * 2. Database → Sync to chrome.storage.local (for fast UI access)
+ * 3. UI reads from storage (fast lookup)
+ * 4. If storage cleared → Read from database → Sync back to storage
+ * 
+ * This ensures theme persists even if chrome.storage is cleared.
  */
 
 import { assertDOM, hasMatchMedia } from "../utils/context-detector.js";
+import { syncToStorageFromDB, loadFromStorageOrDB } from "../utils/db-storage-sync.js";
 
 const DEFAULT_THEMES = {
   light: {
@@ -317,7 +323,19 @@ class ThemeManager {
 
     this.currentTheme = themeId;
     this.applyTheme();
-    await this.saveToStorage();
+    
+    // Save to DB first, then sync to storage (proper flow)
+    await syncToStorageFromDB('theme', 'currentTheme', themeId, {
+      storageKey: 'currentTheme'
+    });
+
+    // Also save custom themes if any
+    const customThemesArray = Object.values(this.customThemes);
+    if (customThemesArray.length > 0) {
+      await syncToStorageFromDB('theme', 'customThemes', customThemesArray, {
+        storageKey: 'customThemes'
+      });
+    }
 
     if (this.onUpdateCallback) {
       this.onUpdateCallback({
@@ -326,6 +344,7 @@ class ThemeManager {
       });
     }
 
+    console.log(`[ThemeManager] Theme set to: ${themeId} (saved to DB → storage)`);
     return true;
   }
 
