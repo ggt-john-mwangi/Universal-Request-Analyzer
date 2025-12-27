@@ -661,6 +661,93 @@ class RunnersManager {
             .join("")
         : '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">No executions yet</td></tr>';
 
+    // Parse variables if they're stored as JSON string
+    let variables = [];
+    if (runner.variables) {
+      try {
+        variables = typeof runner.variables === 'string' 
+          ? JSON.parse(runner.variables) 
+          : runner.variables;
+      } catch (e) {
+        console.warn('[Runners] Failed to parse variables:', e);
+      }
+    }
+
+    // Build variables section HTML
+    const variablesHtml = variables.length > 0
+      ? `
+        <div class="details-section">
+          <h3><i class="fas fa-code"></i> Variables in Use (${variables.length})</h3>
+          <div class="variables-list">
+            ${variables.map(variable => `
+              <div class="variable-item">
+                <div class="variable-name">
+                  <i class="fas fa-dollar-sign"></i>
+                  <code>{{${this.escapeHtml(variable.name)}}}</code>
+                </div>
+                <div class="variable-value">
+                  <span class="value-preview">${this.escapeHtml(variable.value || '(not set)')}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <style>
+            .variables-list {
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              margin-top: 12px;
+            }
+            .variable-item {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 12px;
+              background: var(--surface-color);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              gap: 16px;
+            }
+            .variable-name {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-weight: 500;
+              color: var(--text-primary);
+            }
+            .variable-name i {
+              color: var(--primary-color);
+              font-size: 12px;
+            }
+            .variable-name code {
+              background: var(--background-color);
+              padding: 4px 8px;
+              border-radius: 4px;
+              font-size: 13px;
+              color: var(--primary-color);
+            }
+            .variable-value {
+              flex: 1;
+              text-align: right;
+            }
+            .value-preview {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              color: var(--text-secondary);
+              padding: 4px 8px;
+              background: var(--background-color);
+              border-radius: 4px;
+              max-width: 300px;
+              display: inline-block;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
+          </style>
+        </div>
+      `
+      : '';
+
     const modalContent = modal.querySelector(".modal-body");
     modalContent.innerHTML = `
       <div class="runner-details">
@@ -697,6 +784,16 @@ class RunnersManager {
               <th>Total Requests:</th>
               <td>${runner.total_requests || 0}</td>
             </tr>
+            ${variables.length > 0 ? `
+            <tr>
+              <th>Variables:</th>
+              <td>
+                <span class="badge" style="background: var(--info-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
+                  ${variables.length} variable${variables.length !== 1 ? 's' : ''}
+                </span>
+              </td>
+            </tr>
+            ` : ''}
             <tr>
               <th>Total Runs:</th>
               <td>${runner.run_count || 0}</td>
@@ -707,6 +804,8 @@ class RunnersManager {
             </tr>
           </table>
         </div>
+
+        ${variablesHtml}
 
         <div class="details-section">
           <h3><i class="fas fa-history"></i> Execution History</h3>
