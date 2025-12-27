@@ -3632,11 +3632,26 @@ if (addCurrentSiteBtn) {
       });
       if (tabs.length > 0 && tabs[0].url) {
         const url = new URL(tabs[0].url);
+        
+        // Validate URL - Block browser internal and extension pages
+        const blockedProtocols = ['chrome:', 'edge:', 'about:', 'moz-extension:', 'chrome-extension:'];
+        if (blockedProtocols.some(protocol => url.protocol.startsWith(protocol))) {
+          showNotification("Cannot add browser internal or extension pages", true);
+          return;
+        }
+        
         const site = `${url.protocol}//${url.hostname}`;
 
         const trackingSites = document.getElementById("trackingSites");
         if (trackingSites) {
           const currentSites = trackingSites.value.trim();
+          
+          // Check for duplicates
+          if (currentSites.split('\n').some(s => s.trim() === site)) {
+            showNotification(`Site already added: ${site}`, true);
+            return;
+          }
+          
           trackingSites.value = currentSites
             ? `${currentSites}\n${site}`
             : site;

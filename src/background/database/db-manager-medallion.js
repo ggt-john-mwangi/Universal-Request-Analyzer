@@ -817,7 +817,7 @@ async function createRunner(definition, requests) {
       INSERT INTO config_runner_definitions (
         id, name, description, collection_id, execution_mode,
         delay_ms, follow_redirects, validate_status, use_variables,
-        header_overrides, is_active, created_at, updated_at, run_count
+        header_overrides, variables, is_active, created_at, updated_at, run_count
       ) VALUES (
         ${escapeStr(definition.id)},
         ${escapeStr(definition.name)},
@@ -829,6 +829,7 @@ async function createRunner(definition, requests) {
         ${definition.validate_status ? 1 : 0},
         ${definition.use_variables ? 1 : 0},
         ${escapeStr(definition.header_overrides)},
+        ${escapeStr(definition.variables ? JSON.stringify(definition.variables) : null)},
         1,
         ${definition.created_at},
         ${definition.updated_at},
