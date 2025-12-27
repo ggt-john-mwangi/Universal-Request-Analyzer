@@ -161,6 +161,15 @@ async function handleMessage(message, sender) {
       case "exportAsHAR":
         return await handleExportAsHAR(message.filters);
 
+      case "exportToSQLite":
+        return await handleExportToSQLite(message.options);
+
+      case "exportToJSON":
+        return await handleExportToJSON(message.options);
+
+      case "exportToCSV":
+        return await handleExportToCSV(message.options);
+
       case "getRecentErrors":
         return await handleGetRecentErrors(data);
 
@@ -4601,5 +4610,211 @@ async function handleGetRequestsByFilters(filters) {
   } catch (error) {
     console.error("Get requests by filters error:", error);
     return { success: false, error: error.message, requests: [] };
+  }
+}
+
+/**
+ * Export database to SQLite format
+ * Returns Uint8Array serialized as regular array for message passing
+ */
+async function handleExportToSQLite(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting SQLite export with options:", options);
+
+    // Export the database
+    const data = dbManager.db.export();
+    const uint8Data = new Uint8Array(data);
+
+    // Generate filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `URA_Export_${timestamp}.sqlite`;
+
+    console.log(`[Export] SQLite export complete: ${uint8Data.length} bytes`);
+
+    return {
+      success: true,
+      data: Array.from(uint8Data), // Serialize for chrome.runtime.sendMessage
+      filename,
+      size: uint8Data.length,
+      mimeType: 'application/x-sqlite3'
+    };
+  } catch (error) {
+    console.error("[Export] SQLite export error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Export database to JSON format
+ * Structure: { database: { tableName: [rows...] }, metadata: {...} }
+ */
+async function handleExportToJSON(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting JSON export with options:", options);
+
+    const { tables = null, prettify = true } = options;
+
+    // Get all table names or use specified ones
+    const tableNamesResult = dbManager.db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `);
+
+    const allTables = tableNamesResult[0]?.values.map(row => row[0]) || [];
+    const tablesToExport = tables || allTables;
+
+    console.log(`[Export] Exporting ${tablesToExport.length} tables to JSON`);
+
+    // Build export data
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        version: chrome.runtime.getManifest()?.version || 'unknown',
+        tables: tablesToExport,
+        recordCounts: {}
+      },
+      database: {}
+    };
+
+    // Export each table
+    for (const tableName of tablesToExport) {
+      try {
+        const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
+        
+        if (result.length > 0) {
+          const columns = result[0].columns;
+          const rows = result[0].values.map(row => {
+            const obj = {};
+            columns.forEach((col, idx) => {
+              obj[col] = row[idx];
+            });
+            return obj;
+          });
+
+          exportData.database[tableName] = rows;
+          exportData.metadata.recordCounts[tableName] = rows.length;
+        } else {
+          exportData.database[tableName] = [];
+          exportData.metadata.recordCounts[tableName] = 0;
+        }
+      } catch (tableError) {
+        console.warn(`[Export] Failed to export table ${tableName}:`, tableError);
+        exportData.database[tableName] = [];
+        exportData.metadata.recordCounts[tableName] = 0;
+      }
+    }
+
+    // Convert to JSON string
+    const jsonString = JSON.stringify(exportData, null, prettify ? 2 : 0);
+    const jsonBytes = new TextEncoder().encode(jsonString);
+
+    // Generate filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `URA_Export_${timestamp}.json`;
+
+    console.log(`[Export] JSON export complete: ${jsonBytes.length} bytes`);
+
+    return {
+      success: true,
+      data: Array.from(jsonBytes), // Serialize for chrome.runtime.sendMessage
+      filename,
+      size: jsonBytes.length,
+      mimeType: 'application/json',
+      tableCount: tablesToExport.length,
+      totalRecords: Object.values(exportData.metadata.recordCounts).reduce((a, b) => a + b, 0)
+    };
+  } catch (error) {
+    console.error("[Export] JSON export error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Export database to CSV format (one CSV per table, packaged in ZIP)
+ * Note: Full ZIP implementation requires additional library
+ * For now, returns CSV data for single table or instructions for multiple
+ */
+async function handleExportToCSV(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting CSV export with options:", options);
+
+    const { tables = null, tableName = null } = options;
+
+    // If single table specified, export just that table as CSV
+    if (tableName) {
+      const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
+      
+      if (result.length === 0) {
+        return {
+          success: false,
+          error: `Table ${tableName} is empty or does not exist`
+        };
+      }
+
+      const columns = result[0].columns;
+      const rows = result[0].values;
+
+      // Build CSV
+      let csv = columns.join(',') + '\n';
+      for (const row of rows) {
+        const escapedRow = row.map(val => {
+          if (val === null) return '';
+          const str = String(val);
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        });
+        csv += escapedRow.join(',') + '\n';
+      }
+
+      const csvBytes = new TextEncoder().encode(csv);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `${tableName}_${timestamp}.csv`;
+
+      console.log(`[Export] CSV export complete for ${tableName}: ${csvBytes.length} bytes`);
+
+      return {
+        success: true,
+        data: Array.from(csvBytes),
+        filename,
+        size: csvBytes.length,
+        mimeType: 'text/csv',
+        recordCount: rows.length
+      };
+    }
+
+    // Multiple tables - return info about tables available
+    const tableNamesResult = dbManager.db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `);
+
+    const allTables = tableNamesResult[0]?.values.map(row => row[0]) || [];
+
+    return {
+      success: true,
+      message: 'Multiple table export requires specifying tableName',
+      availableTables: allTables,
+      hint: 'Call with { tableName: "table_name" } to export a specific table'
+    };
+  } catch (error) {
+    console.error("[Export] CSV export error:", error);
+    return { success: false, error: error.message };
   }
 }
