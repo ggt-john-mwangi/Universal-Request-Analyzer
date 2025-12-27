@@ -302,7 +302,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (error) {
     console.error("Error initializing options:", error);
     console.error("Error stack:", error.stack);
-    showNotification("Failed to initialize options: " + error.message, true);
+    
+    // Check if it's an extension context invalidated error
+    if (error.message?.includes("Extension context invalidated")) {
+      console.warn("Extension context was invalidated during initialization. This usually happens after an extension reload.");
+      showNotification("Extension was reloaded. Please refresh this page.", true);
+    } else {
+      showNotification("Failed to initialize options: " + error.message, true);
+    }
   }
 });
 

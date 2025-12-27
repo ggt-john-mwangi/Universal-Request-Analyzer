@@ -41,6 +41,17 @@ class SettingsUICoordinator {
 
       // Initialize core first
       await this.core.initialize();
+      
+      // Ensure settings are loaded and have default structure
+      if (!this.core.settings || !this.core.settings.variables) {
+        console.warn("[SettingsUI] Settings not fully loaded, applying defaults...");
+        this.core.settings = this.core.settings || {};
+        this.core.settings.variables = this.core.settings.variables || {
+          enabled: true,
+          autoDetect: true,
+          list: []
+        };
+      }
 
       // Initialize feature flags
       await featureFlags.initialize({
@@ -85,7 +96,10 @@ class SettingsUICoordinator {
       });
     } catch (error) {
       console.error("[SettingsUI] Error during initialization:", error);
-      throw error;
+      // Re-throw with more context
+      const enhancedError = new Error(`Settings UI initialization failed: ${error.message}`);
+      enhancedError.originalError = error;
+      throw enhancedError;
     }
   }
 
