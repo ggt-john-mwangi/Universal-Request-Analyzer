@@ -1,13 +1,10 @@
 /**
- * Settings Manager for Universal Request Analyzer
- *
- * This module provides a unified interface for managing all settings,
- * including feature flags, ACLs, themes, and other configuration.
+ * Settings Manager Core for Universal Request Analyzer
+ * 
+ * This is a background-safe module with NO UI dependencies.
+ * Can be safely imported in service workers.
+ * Handles only core settings, database, and storage operations.
  */
-
-import featureFlags from "../../config/feature-flags.js";
-import aclManager from "../../auth/acl-manager.js";
-import themeManager from "../../config/theme-manager.js";
 
 // Cross-browser API support
 const browserAPI = globalThis.browser || globalThis.chrome;
@@ -16,9 +13,9 @@ const browserAPI = globalThis.browser || globalThis.chrome;
 let configSchemaManager = null;
 
 /**
- * Settings manager class
+ * Settings manager core class (background-safe)
  */
-class SettingsManager {
+class SettingsManagerCore {
   constructor() {
     this.initialized = false;
     this.settings = {
@@ -106,9 +103,11 @@ class SettingsManager {
       variables: {
         enabled: true,
         autoDetect: true,
-        list: [
-          // Example: { id: '1', name: 'API_TOKEN', value: '', description: 'API authentication token', createdAt: Date.now() }
-        ],
+        list: [],
+      },
+      // Store theme preference as string only (no DOM operations)
+      theme: {
+        current: "light", // 'light' | 'dark' | 'highContrast' | 'blue' | 'system'
       },
     };
 
@@ -126,20 +125,22 @@ class SettingsManager {
   }
 
   /**
-   * Initialize the settings manager
-   * @returns {Promise<void>}
-   */
-  /**
    * Set database manager for config persistence
    * @param {Object} dbManager - Database manager instance with config access
    */
   setDatabaseManager(dbManager) {
     configSchemaManager = dbManager;
-    console.log("Settings-manager: Database manager injected");
+    console.log("[SettingsCore] Database manager injected");
   }
 
+  /**
+   * Initialize the settings manager core
+   * @returns {Promise<void>}
+   */
   async initialize() {
     try {
+      console.log("[SettingsCore] Initializing...");
+      
       // Load saved settings from storage first (fast)
       const data = await this.loadFromStorage();
 
@@ -152,13 +153,13 @@ class SettingsManager {
             this.settings = this.mergeSettings(this.settings, dbSettings);
             // Sync to storage for content script access
             await this.saveToStorage();
-            console.log("Settings loaded from database and synced to storage");
+            console.log("[SettingsCore] Loaded from database and synced to storage");
           } else if (data && data.settings) {
             // No DB settings yet, use storage
             this.settings = this.mergeSettings(this.settings, data.settings);
           }
         } catch (dbError) {
-          console.warn("Failed to load from database, using storage:", dbError);
+          console.warn("[SettingsCore] Failed to load from database, using storage:", dbError);
           if (data && data.settings) {
             this.settings = this.mergeSettings(this.settings, data.settings);
           }
@@ -170,55 +171,14 @@ class SettingsManager {
         }
       }
 
-      if (data && data.settings) {
-        // Merge saved settings with defaults
-        this.settings = this.mergeSettings(this.settings, data.settings);
-      }
-
-      // Initialize feature flags
-      await featureFlags.initialize({
-        permissionLevel: "basic",
-        initialFlags: {
-          // Disable online features by default for testing
-          onlineSync: false,
-          authentication: false,
-          remoteStorage: false,
-          cloudExport: false,
-          teamSharing: false,
-        },
-        onUpdate: this.handleFeatureFlagsUpdate.bind(this),
-      });
-
-      // Initialize ACL manager
-      await aclManager.initialize({
-        initialRole: "powerUser", // Use powerUser role for testing
-        onUpdate: this.handleAclUpdate.bind(this),
-      });
-
-      // Initialize theme manager (only in browser context with document)
-      if (typeof document !== "undefined") {
-        await themeManager.initialize({
-          initialTheme: "light",
-          onUpdate: this.handleThemeUpdate.bind(this),
-        });
-      }
-
       this.initialized = true;
 
       // Save the merged settings
       await this.saveToStorage();
 
-      console.log("Settings manager initialized:", {
-        settings: this.settings,
-        featureFlags: featureFlags.flags,
-        role: aclManager.currentRole,
-        theme:
-          typeof document !== "undefined"
-            ? themeManager.currentTheme
-            : "N/A (service worker)",
-      });
+      console.log("[SettingsCore] Initialized successfully");
     } catch (error) {
-      console.error("Error initializing settings manager:", error);
+      console.error("[SettingsCore] Error during initialization:", error);
     }
   }
 
@@ -257,6 +217,9 @@ class SettingsManager {
           enabled: true,
           autoDetect: true,
           list: [],
+        },
+        theme: {
+          current: "light",
         },
       };
 
@@ -299,14 +262,18 @@ class SettingsManager {
       if (variablesSettings && Object.keys(variablesSettings).length > 0) {
         settings.variables = variablesSettings;
       }
-      console.log(
-        "[SettingsManager] Loaded variables from DB:",
-        settings.variables
+
+      // Load theme preference (string only)
+      const themeSettings = await configSchemaManager.getSettingsByCategory(
+        "theme"
       );
+      if (themeSettings && Object.keys(themeSettings).length > 0) {
+        settings.theme = themeSettings;
+      }
 
       return settings;
     } catch (error) {
-      console.error("Failed to load settings from database:", error);
+      console.error("[SettingsCore] Failed to load from database:", error);
       return null;
     }
   }
@@ -359,9 +326,9 @@ class SettingsManager {
           }
         }
       }
-      console.log("Settings saved to database");
+      console.log("[SettingsCore] Settings saved to database");
     } catch (error) {
-      console.error("Failed to save settings to database:", error);
+      console.error("[SettingsCore] Failed to save to database:", error);
     }
   }
 
@@ -394,19 +361,15 @@ class SettingsManager {
   getAllSettings() {
     return {
       settings: this.settings,
-      featureFlags: featureFlags.getFeatureInfo(),
-      acl: {
-        role: aclManager.currentRole,
-        roles: aclManager.getRolesInfo(),
-        permissions: aclManager.getPermissionsInfo(),
-      },
-      theme: {
-        current:
-          typeof document !== "undefined" ? themeManager.currentTheme : "light",
-        themes:
-          typeof document !== "undefined" ? themeManager.getThemesInfo() : [],
-      },
     };
+  }
+
+  /**
+   * Get settings
+   * @returns {Object} Current settings object
+   */
+  getSettings() {
+    return this.settings;
   }
 
   /**
@@ -422,7 +385,7 @@ class SettingsManager {
       this.notifySettingsListeners();
       return true;
     } catch (error) {
-      console.error("Failed to update settings:", error);
+      console.error("[SettingsCore] Failed to update settings:", error);
       return false;
     }
   }
@@ -472,53 +435,10 @@ class SettingsManager {
         try {
           callback(this.settings);
         } catch (error) {
-          console.error("Error in settings listener:", error);
+          console.error("[SettingsCore] Error in settings listener:", error);
         }
       });
     }
-  }
-
-  /**   * Get all settings
-   * @returns {Object} Current settings object
-   */
-  getSettings() {
-    console.log("[SettingsManager] getSettings() called");
-    console.log("[SettingsManager] Initialized:", this.initialized);
-    console.log("[SettingsManager] Settings keys:", Object.keys(this.settings));
-    console.log("[SettingsManager] Variables:", this.settings.variables);
-    return this.settings;
-  }
-
-  /**   * Update feature flags
-   * @param {Object} flags - Feature flags to update
-   * @returns {Promise<boolean>} - Whether the operation was successful
-   */
-  async updateFeatureFlags(flags) {
-    return await featureFlags.updateFeatures(flags);
-  }
-
-  /**
-   * Set user role
-   * @param {string} role - Role to set
-   * @returns {Promise<boolean>} - Whether the operation was successful
-   */
-  async setRole(role) {
-    return await aclManager.setRole(role);
-  }
-
-  /**
-   * Set theme
-   * @param {string} themeId - Theme ID to set
-   * @returns {Promise<boolean>} - Whether the operation was successful
-   */
-  async setTheme(themeId) {
-    if (typeof document === "undefined") {
-      console.warn(
-        "[SettingsManager] setTheme called in service worker context - skipping"
-      );
-      return false;
-    }
-    return await themeManager.setTheme(themeId);
   }
 
   /**
@@ -609,21 +529,17 @@ class SettingsManager {
             vacuumInterval: 3600000,
           },
         },
+        theme: {
+          current: "light",
+        },
       };
-
-      // Reset feature flags, ACL, and theme
-      await featureFlags.resetToDefaults();
-      await aclManager.resetToDefaults();
-      if (typeof document !== "undefined") {
-        await themeManager.resetToDefaults();
-      }
 
       // Save settings
       await this.saveToStorage();
 
       return true;
     } catch (error) {
-      console.error("Error resetting settings:", error);
+      console.error("[SettingsCore] Error resetting settings:", error);
       return false;
     }
   }
@@ -635,18 +551,6 @@ class SettingsManager {
   exportSettings() {
     const exportData = {
       settings: this.settings,
-      featureFlags: featureFlags.getFeatureInfo(),
-      acl: {
-        role: aclManager.currentRole,
-        roles: aclManager.getRolesInfo(),
-        permissions: aclManager.getPermissionsInfo(),
-      },
-      theme: {
-        current:
-          typeof document !== "undefined" ? themeManager.currentTheme : "light",
-        themes:
-          typeof document !== "undefined" ? themeManager.getThemesInfo() : [],
-      },
       exportMeta: {
         version: chrome.runtime.getManifest().version,
         timestamp: Date.now(),
@@ -670,21 +574,6 @@ class SettingsManager {
       // Update settings
       this.settings = this.mergeSettings(this.settings, importData.settings);
 
-      // Update feature flags if present
-      if (importData.featureFlags) {
-        await featureFlags.updateFeatures(importData.featureFlags);
-      }
-
-      // Update ACL if present
-      if (importData.acl) {
-        await aclManager.setRole(importData.acl.role);
-      }
-
-      // Update theme if present
-      if (importData.theme && typeof document !== "undefined") {
-        await themeManager.setTheme(importData.theme.current);
-      }
-
       // Save to storage
       await this.saveToStorage();
 
@@ -696,7 +585,7 @@ class SettingsManager {
 
       return true;
     } catch (error) {
-      console.error("Failed to import settings:", error);
+      console.error("[SettingsCore] Failed to import settings:", error);
       return false;
     }
   }
@@ -716,12 +605,11 @@ class SettingsManager {
     const currentVersion = chrome.runtime.getManifest().version;
     const importVersion = data.exportMeta.version;
 
-    // Simple version comparison - you might want to make this more sophisticated
+    // Simple version comparison
     if (currentVersion !== importVersion) {
       console.warn(
-        `Version mismatch: current=${currentVersion}, import=${importVersion}`
+        `[SettingsCore] Version mismatch: current=${currentVersion}, import=${importVersion}`
       );
-      // Continue anyway, just log the warning
     }
 
     // Validate settings structure
@@ -731,33 +619,6 @@ class SettingsManager {
         typeof data.settings[section] === "object" &&
         data.settings[section] !== null
     );
-  }
-
-  /**
-   * Handle feature flags update
-   * @param {Object} flags - Updated feature flags
-   */
-  handleFeatureFlagsUpdate(flags) {
-    console.log("Feature flags updated:", flags);
-    // You can add additional logic here if needed
-  }
-
-  /**
-   * Handle ACL update
-   * @param {Object} aclData - Updated ACL data
-   */
-  handleAclUpdate(aclData) {
-    console.log("ACL updated:", aclData);
-    // You can add additional logic here if needed
-  }
-
-  /**
-   * Handle theme update
-   * @param {Object} themeData - Updated theme data
-   */
-  handleThemeUpdate(themeData) {
-    console.log("Theme updated:", themeData);
-    // You can add additional logic here if needed
   }
 
   /**
@@ -775,8 +636,6 @@ class SettingsManager {
    */
   async addVariable(variable) {
     try {
-      console.log("[SettingsManager] addVariable called with:", variable);
-
       if (!variable.name || !this.isValidVariableName(variable.name)) {
         throw new Error(
           "Invalid variable name. Use alphanumeric characters and underscores only."
@@ -801,28 +660,14 @@ class SettingsManager {
         updatedAt: Date.now(),
       };
 
-      console.log(
-        "[SettingsManager] Created new variable object:",
-        newVariable
-      );
-
       this.settings.variables.list.push(newVariable);
 
-      console.log(
-        "[SettingsManager] Total variables now:",
-        this.settings.variables.list.length
-      );
-      console.log("[SettingsManager] Saving to storage...");
-
       await this.saveToStorage();
-
-      console.log("[SettingsManager] Broadcasting update...");
       await this.broadcastSettingsUpdate(this.settings);
 
-      console.log("[SettingsManager] Variable added successfully");
       return true;
     } catch (error) {
-      console.error("Failed to add variable:", error);
+      console.error("[SettingsCore] Failed to add variable:", error);
       throw error;
     }
   }
@@ -870,7 +715,7 @@ class SettingsManager {
 
       return true;
     } catch (error) {
-      console.error("Failed to update variable:", error);
+      console.error("[SettingsCore] Failed to update variable:", error);
       throw error;
     }
   }
@@ -895,7 +740,7 @@ class SettingsManager {
 
       return true;
     } catch (error) {
-      console.error("Failed to delete variable:", error);
+      console.error("[SettingsCore] Failed to delete variable:", error);
       throw error;
     }
   }
@@ -963,9 +808,35 @@ class SettingsManager {
 
     return result;
   }
+
+  /**
+   * Get theme preference (string only, no DOM operations)
+   * @returns {string} Current theme ID
+   */
+  getThemePreference() {
+    return this.settings.theme?.current || "light";
+  }
+
+  /**
+   * Set theme preference (string only, no DOM operations)
+   * Background saves preference; UI applies it via theme-manager
+   * @param {string} themeId - Theme ID to set
+   * @returns {Promise<boolean>} Success status
+   */
+  async setThemePreference(themeId) {
+    try {
+      this.settings.theme = { current: themeId };
+      await this.saveToStorage();
+      await this.broadcastSettingsUpdate(this.settings);
+      return true;
+    } catch (error) {
+      console.error("[SettingsCore] Failed to set theme preference:", error);
+      return false;
+    }
+  }
 }
 
 // Create and export singleton instance
-const settingsManager = new SettingsManager();
+const settingsManagerCore = new SettingsManagerCore();
 
-export default settingsManager;
+export default settingsManagerCore;

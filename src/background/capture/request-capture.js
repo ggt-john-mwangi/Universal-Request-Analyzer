@@ -920,7 +920,7 @@ function shouldCaptureByUrl(url) {
       }
     }
 
-    // Check domain filters
+    // Check domain exclusions first (always honored)
     if (
       config.captureFilters.excludeDomains &&
       config.captureFilters.excludeDomains.includes(domain)
@@ -928,12 +928,27 @@ function shouldCaptureByUrl(url) {
       return false;
     }
 
-    if (
-      config.captureFilters.includeDomains &&
-      config.captureFilters.includeDomains.length > 0 &&
-      !config.captureFilters.includeDomains.includes(domain)
-    ) {
-      return false;
+    // Determine tracking mode
+    const trackOnlyConfigured = config.trackOnlyConfiguredSites !== false; // Default: true
+    const hasConfiguredSites = config.captureFilters.includeDomains && 
+                                config.captureFilters.includeDomains.length > 0;
+
+    if (trackOnlyConfigured) {
+      // Mode: Track ONLY configured sites
+      if (!hasConfiguredSites) {
+        // No sites configured → track nothing
+        return false;
+      }
+      // Only track if domain is in include list
+      return config.captureFilters.includeDomains.includes(domain);
+    } else {
+      // Mode: Track all sites EXCEPT excluded
+      if (!hasConfiguredSites) {
+        // No sites configured → track all (except already excluded above)
+        return true;
+      }
+      // If include list has sites, only track those (backward compatibility)
+      return config.captureFilters.includeDomains.includes(domain);
     }
 
     return true;
