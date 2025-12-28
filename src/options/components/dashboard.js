@@ -4053,6 +4053,8 @@ class Dashboard {
     const webVitalsSection = document.querySelector(".web-vitals-grid");
     if (!webVitalsSection) return;
 
+    console.log("[Dashboard] hideWebVitals: Hiding vitals section");
+
     // Hide the actual vitals cards and show a message
     webVitalsSection.style.opacity = "0.5";
     webVitalsSection.style.pointerEvents = "none";
@@ -4060,6 +4062,7 @@ class Dashboard {
     // Add overlay message if not exists
     let overlay = webVitalsSection.parentElement.querySelector(".page-level-overlay");
     if (!overlay) {
+      console.log("[Dashboard] hideWebVitals: Creating new overlay");
       overlay = document.createElement("div");
       overlay.className = "page-level-overlay";
       overlay.style.cssText = `
@@ -4086,6 +4089,8 @@ class Dashboard {
       // Ensure parent has position: relative
       webVitalsSection.parentElement.style.position = "relative";
       webVitalsSection.parentElement.appendChild(overlay);
+    } else {
+      console.log("[Dashboard] hideWebVitals: Overlay already exists");
     }
   }
 
@@ -4093,15 +4098,22 @@ class Dashboard {
     const webVitalsSection = document.querySelector(".web-vitals-grid");
     if (!webVitalsSection) return;
 
-    // Remove overlay if exists
-    const overlay = webVitalsSection.parentElement.querySelector(".page-level-overlay");
-    if (overlay) {
-      overlay.remove();
+    // Remove all overlays (check both parent and section itself)
+    const parent = webVitalsSection.parentElement;
+    if (parent) {
+      const overlays = parent.querySelectorAll(".page-level-overlay");
+      overlays.forEach(overlay => overlay.remove());
     }
+    
+    // Also check if overlay is a sibling
+    const siblingOverlays = document.querySelectorAll(".web-vitals-section .page-level-overlay");
+    siblingOverlays.forEach(overlay => overlay.remove());
 
     // Show the vitals cards
     webVitalsSection.style.opacity = "1";
     webVitalsSection.style.pointerEvents = "auto";
+    
+    console.log("[Dashboard] showWebVitals: Overlay removed, vitals section visible");
   }
 
   updateVitalCard(metric, data) {
