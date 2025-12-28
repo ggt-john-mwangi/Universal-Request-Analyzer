@@ -61,6 +61,7 @@ class SettingsManagerCore {
             "other",
           ],
         },
+        trackOnlyConfiguredSites: true, // Default: only track configured sites
       },
       display: {
         requestsPerPage: 50,
