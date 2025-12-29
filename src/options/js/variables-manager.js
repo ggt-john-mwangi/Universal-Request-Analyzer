@@ -3,7 +3,7 @@
  * Handles UI and interaction for managing curl/fetch variables
  */
 
-import settingsManager from "../../lib/shared-components/settings-manager.js";
+import settingsManager from "../../lib/shared-components/settings-ui-coordinator.js";
 
 export class VariablesManager {
   constructor() {
@@ -73,10 +73,24 @@ export class VariablesManager {
     await settingsManager.initialize();
     this.loadSettings();
     this.renderVariables();
+
+    // Listen for settings changes from other components (e.g., runner wizard)
+    window.addEventListener("settingsChanged", (event) => {
+      if (event.detail && event.detail.key === "variables") {
+        console.log(
+          "[VariablesManager] Settings changed, refreshing variables"
+        );
+        // Reload settings from storage and re-render
+        settingsManager.initialize().then(() => {
+          this.renderVariables();
+        });
+      }
+    });
   }
 
   loadSettings() {
-    const settings = settingsManager.settings.variables;
+    // Null-safe access to settings with fallback
+    const settings = settingsManager.settings?.variables || { enabled: true, autoDetect: true, list: [] };
     if (this.variablesEnabledToggle) {
       this.variablesEnabledToggle.checked = settings.enabled !== false;
     }
@@ -256,8 +270,15 @@ export class VariablesManager {
     }
 
     try {
+      console.log("[Variables UI] Saving variable:", {
+        name,
+        hasValue: !!value,
+        description,
+      });
+
       if (this.currentEditingId) {
         // Update existing variable
+        console.log("[Variables UI] Updating variable:", this.currentEditingId);
         await settingsManager.updateVariable(this.currentEditingId, {
           value,
           description,
@@ -265,11 +286,13 @@ export class VariablesManager {
         this.showToast("Variable updated successfully", "success");
       } else {
         // Add new variable
-        await settingsManager.addVariable({
+        console.log("[Variables UI] Adding new variable:", name);
+        const result = await settingsManager.addVariable({
           name,
           value,
           description,
         });
+        console.log("[Variables UI] Variable added, result:", result);
         this.showToast("Variable added successfully", "success");
       }
 
@@ -308,7 +331,8 @@ export class VariablesManager {
 
   async updateSettings(updates) {
     try {
-      const currentSettings = settingsManager.settings.variables;
+      // Null-safe access with fallback
+      const currentSettings = settingsManager.settings?.variables || { enabled: true, autoDetect: true, list: [] };
       await settingsManager.updateSettings({
         variables: {
           ...currentSettings,

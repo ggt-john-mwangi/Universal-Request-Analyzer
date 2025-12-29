@@ -8,10 +8,19 @@ const getBrowserAPI = () => {
   if (typeof chrome !== "undefined" && chrome.runtime) {
     return chrome; // Chrome, Edge, Safari
   }
+  console.error(
+    "[browser-compat] No browser API available! Neither chrome nor browser object found."
+  );
   return null;
 };
 
 const browserAPI = getBrowserAPI();
+
+if (!browserAPI) {
+  throw new Error(
+    "[browser-compat] Fatal: No browser extension API available. This code must run in a browser extension context."
+  );
+}
 
 // Browser detection
 const browserInfo = {
@@ -162,7 +171,7 @@ export const runtime = {
       } else {
         browserAPI.runtime.onMessage.addListener(
           (message, sender, sendResponse) => {
-            const response = callback(message, sender);
+            const response = callback(message, sender, sendResponse);
             if (response instanceof Promise) {
               response.then(sendResponse).catch((error) => {
                 console.error("Message handler error:", error);
@@ -170,8 +179,8 @@ export const runtime = {
               });
               return true; // Required for async responses
             }
-            sendResponse(response);
-            return false;
+            // Don't call sendResponse if callback handles it
+            return true;
           }
         );
       }
@@ -207,6 +216,38 @@ export const runtime = {
       }
     });
   },
+
+  onInstalled: {
+    addListener(callback) {
+      if (browserInfo.isFirefox) {
+        browser.runtime.onInstalled.addListener(callback);
+      } else {
+        browserAPI.runtime.onInstalled.addListener(callback);
+      }
+    },
+  },
+
+  onStartup: {
+    addListener(callback) {
+      if (browserInfo.isFirefox) {
+        browser.runtime.onStartup.addListener(callback);
+      } else {
+        browserAPI.runtime.onStartup.addListener(callback);
+      }
+    },
+  },
+
+  onSuspend: browserAPI.runtime.onSuspend
+    ? {
+        addListener(callback) {
+          if (browserInfo.isFirefox) {
+            browser.runtime.onSuspend.addListener(callback);
+          } else {
+            browserAPI.runtime.onSuspend.addListener(callback);
+          }
+        },
+      }
+    : null,
 };
 
 // Web Request API compatibility

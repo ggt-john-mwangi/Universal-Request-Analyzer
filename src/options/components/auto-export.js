@@ -200,9 +200,14 @@ export default function renderAutoExport() {
     tag.className = "tag";
     tag.innerHTML = `
       ${domain}
-      <button class="remove-tag" onclick="this.parentElement.remove();">×</button>
+      <button class="remove-tag">×</button>
     `;
     tagList.appendChild(tag);
+
+    // Add event listener for the remove button
+    tag.querySelector(".remove-tag").addEventListener("click", function () {
+      tag.remove();
+    });
   }
 
   // Show status message

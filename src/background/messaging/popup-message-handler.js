@@ -3,6 +3,7 @@
 
 import requestRunner from "../capture/request-runner.js";
 import runnerCollections from "../capture/runner-collections.js";
+import settingsManager from "../../lib/shared-components/settings-manager-core.js";
 
 let localAuthManager = null;
 let dbManager = null;
@@ -16,6 +17,12 @@ export function initializePopupMessageHandler(auth, database) {
   if (database && requestRunner) {
     requestRunner.setDbManager(database);
     console.log("✓ RequestRunner initialized with database manager");
+  }
+
+  // Initialize runnerCollections with database manager
+  if (database && runnerCollections) {
+    runnerCollections.setDbManager(database);
+    console.log("✓ RunnerCollections initialized with database manager");
   }
 
   console.log("Popup message handler initialized");
@@ -66,6 +73,9 @@ async function handleMessage(message, sender) {
       case "getWebVitals":
         return await handleGetWebVitals(message.filters);
 
+      case "getSettings":
+        return await handleGetSettings();
+
       // getSessionMetrics removed - session engagement metrics are not meaningful
       // for single-user browser extension (only tracks developer's own behavior)
 
@@ -77,6 +87,15 @@ async function handleMessage(message, sender) {
 
       case "syncSettingsToStorage":
         return await handleSyncSettingsToStorage();
+
+      case "saveSetting":
+        return await handleSaveSetting(message);
+
+      case "getSetting":
+        return await handleGetSetting(message);
+
+      case "getSettingsByCategory":
+        return await handleGetSettingsByCategory(message);
 
       case "getRequestTypes":
         return await handleGetRequestTypes();
@@ -147,6 +166,15 @@ async function handleMessage(message, sender) {
 
       case "exportAsHAR":
         return await handleExportAsHAR(message.filters);
+
+      case "exportToSQLite":
+        return await handleExportToSQLite(message.options);
+
+      case "exportToJSON":
+        return await handleExportToJSON(message.options);
+
+      case "exportToCSV":
+        return await handleExportToCSV(message.options);
 
       case "getRecentErrors":
         return await handleGetRecentErrors(data);
@@ -231,7 +259,7 @@ async function handleMessage(message, sender) {
         return await handleGetRunnerDefinition(message.runnerId);
 
       case "getAllRunners":
-        return await handleGetAllRunners();
+        return await handleGetAllRunners(data);
 
       case "ensureRunnerTables":
         return await handleEnsureRunnerTables();
@@ -260,6 +288,38 @@ async function handleMessage(message, sender) {
 
       case "deleteRunner":
         return await handleDeleteRunner(message.runnerId);
+
+      // Collection operations
+      case "createCollection":
+        return await handleCreateCollection(
+          message.name,
+          message.description,
+          message.config
+        );
+
+      case "getCollections":
+        return await handleGetCollections(message.activeOnly);
+
+      case "getCollection":
+        return await handleGetCollection(message.collectionId);
+
+      case "updateCollection":
+        return await handleUpdateCollection(
+          message.collectionId,
+          message.updates
+        );
+
+      case "deleteCollection":
+        return await handleDeleteCollection(message.collectionId);
+
+      case "assignRunnersToCollection":
+        return await handleAssignRunnersToCollection(
+          message.runnerIds,
+          message.collectionId
+        );
+
+      case "removeRunnersFromCollection":
+        return await handleRemoveRunnersFromCollection(message.runnerIds);
 
       case "getRequestsByFilters":
         return await handleGetRequestsByFilters(message.filters);
@@ -991,46 +1051,62 @@ async function handleGetWebVitals(filters = {}) {
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
-    // Build WHERE clause based on filters (inline values - SQL.js doesn't support ? placeholders)
-    const whereConditions = [`created_at > ${startTime}`];
+    // Build WHERE clause based on filters - query bronze_web_vitals table
+    const whereConditions = [`timestamp >= ${startTime}`];
 
     if (filters.domain) {
-      const escapedDomain = String(filters.domain)
-        .replace(/'/g, "''")
-        .replace(/%/g, "");
-      whereConditions.push(`metrics LIKE '%${escapedDomain}%'`);
+      const escapedDomain = String(filters.domain).replace(/'/g, "''");
+      whereConditions.push(`domain = ${escapeStr(escapedDomain)}`);
     }
 
     if (filters.pageUrl) {
-      const escapedUrl = String(filters.pageUrl)
-        .replace(/'/g, "''")
-        .replace(/%/g, "");
-      whereConditions.push(`metrics LIKE '%${escapedUrl}%'`);
+      const escapedUrl = String(filters.pageUrl).replace(/'/g, "''");
+      whereConditions.push(`page_url = ${escapeStr(escapedUrl)}`);
     }
 
-    const whereClause =
-      whereConditions.length > 0
-        ? `WHERE ${whereConditions.join(" AND ")}`
-        : "";
+    const whereClause = whereConditions.join(" AND ");
 
-    // First, check if table exists and has data
-    console.log("[WebVitals] Checking for performance data...");
+    console.log(
+      "[WebVitals] Querying bronze_web_vitals with filters:",
+      filters
+    );
+    console.log("[WebVitals] WHERE clause:", whereClause);
+
+    // Debug: Check total count and available domains
     try {
       if (dbManager?.db) {
-        const checkQuery = `SELECT COUNT(*) as count FROM bronze_performance_entries WHERE entry_type = 'web-vital'`;
-        const checkResult = dbManager.db.exec(checkQuery);
-        if (checkResult && checkResult[0]?.values) {
-          const count = checkResult[0].values[0][0];
+        const countQuery = `SELECT COUNT(*) as total FROM bronze_web_vitals`;
+        const countResult = dbManager.db.exec(countQuery);
+        if (countResult && countResult[0]?.values) {
           console.log(
-            `[WebVitals] Found ${count} web vital entries in database`
+            "[WebVitals] Total records in bronze_web_vitals:",
+            countResult[0].values[0][0]
+          );
+        }
+
+        const domainsQuery = `SELECT DISTINCT domain FROM bronze_web_vitals LIMIT 10`;
+        const domainsResult = dbManager.db.exec(domainsQuery);
+        if (domainsResult && domainsResult[0]?.values) {
+          console.log(
+            "[WebVitals] Available domains:",
+            domainsResult[0].values.map((row) => row[0])
+          );
+        }
+
+        const metricsQuery = `SELECT DISTINCT metric_name FROM bronze_web_vitals`;
+        const metricsResult = dbManager.db.exec(metricsQuery);
+        if (metricsResult && metricsResult[0]?.values) {
+          console.log(
+            "[WebVitals] Available metrics:",
+            metricsResult[0].values.map((row) => row[0])
           );
         }
       }
-    } catch (e) {
-      console.error("[WebVitals] Error checking table:", e);
+    } catch (debugError) {
+      console.error("[WebVitals] Debug query failed:", debugError);
     }
 
-    // Query each Web Vital metric
+    // Query each Web Vital metric from bronze_web_vitals table
     for (const metric of [
       "LCP",
       "FID",
@@ -1043,101 +1119,33 @@ async function handleGetWebVitals(filters = {}) {
     ]) {
       const query = `
         SELECT 
-          AVG(duration) as avg_value,
-          metrics
-        FROM bronze_performance_entries
-        ${whereClause} AND entry_type = 'web-vital' AND name = ${escapeStr(
-        metric
-      )}
+          metric_name,
+          value,
+          rating,
+          timestamp
+        FROM bronze_web_vitals
+        WHERE ${whereClause} 
+          AND metric_name = ${escapeStr(metric)}
+        ORDER BY timestamp DESC
         LIMIT 1
       `;
 
-      console.log(`[WebVitals] Querying ${metric}...`);
+      console.log(`[WebVitals] Query for ${metric}:`, query);
 
       try {
         if (dbManager?.db) {
           const result = dbManager.db.exec(query);
+          console.log(`[WebVitals] Raw result for ${metric}:`, result);
           if (result && result[0]?.values && result[0].values.length > 0) {
             const row = result[0].values[0];
-            const avgValue = row[0];
-            const metricsJson = row[1];
-            console.log(`[WebVitals] ${metric} raw value:`, avgValue);
+            const value = row[1];
+            const rating = row[2] || "needs-improvement";
 
-            if (avgValue !== null) {
-              // Parse metrics to get rating
-              let rating = "good";
-              try {
-                const metricsData = JSON.parse(metricsJson);
-                rating = metricsData.rating || "good";
-              } catch (e) {
-                // Calculate rating based on thresholds
-                if (metric === "LCP") {
-                  rating =
-                    avgValue < 2500
-                      ? "good"
-                      : avgValue < 4000
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "FID") {
-                  rating =
-                    avgValue < 100
-                      ? "good"
-                      : avgValue < 300
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "CLS") {
-                  rating =
-                    avgValue < 0.1
-                      ? "good"
-                      : avgValue < 0.25
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "FCP") {
-                  rating =
-                    avgValue < 1800
-                      ? "good"
-                      : avgValue < 3000
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "TTFB") {
-                  rating =
-                    avgValue < 800
-                      ? "good"
-                      : avgValue < 1800
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "TTI") {
-                  rating =
-                    avgValue < 3800
-                      ? "good"
-                      : avgValue < 7300
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "DCL") {
-                  rating =
-                    avgValue < 1500
-                      ? "good"
-                      : avgValue < 2500
-                      ? "needs-improvement"
-                      : "poor";
-                } else if (metric === "Load") {
-                  rating =
-                    avgValue < 2500
-                      ? "good"
-                      : avgValue < 4000
-                      ? "needs-improvement"
-                      : "poor";
-                }
-              }
-
-              vitals[metric] = {
-                value: avgValue,
-                rating: rating,
-              };
-              console.log(`[WebVitals] ${metric} result:`, vitals[metric]);
-            }
-          } else {
-            console.log(`[WebVitals] ${metric} - No data found`);
+            vitals[metric] = {
+              value: value,
+              rating: rating,
+            };
+            console.log(`[WebVitals] ${metric}:`, vitals[metric]);
           }
         }
       } catch (queryError) {
@@ -1146,9 +1154,50 @@ async function handleGetWebVitals(filters = {}) {
     }
 
     console.log("[WebVitals] Final vitals object:", vitals);
+    console.log(
+      "[WebVitals] Returning:",
+      JSON.stringify({ success: true, vitals }, null, 2)
+    );
     return { success: true, vitals };
   } catch (error) {
     console.error("Get Web Vitals error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Handle get settings - returns all settings including variables
+async function handleGetSettings() {
+  try {
+    console.log("[Background] handleGetSettings() called");
+    console.log(
+      "[Background] settingsManager initialized:",
+      settingsManager.initialized
+    );
+
+    const settings = await settingsManager.getSettings();
+
+    console.log(
+      "[Background] Settings retrieved:",
+      settings ? "success" : "failed"
+    );
+    console.log(
+      "[Background] Settings keys:",
+      settings ? Object.keys(settings) : "null"
+    );
+    console.log(
+      "[Background] Has variables key:",
+      settings?.hasOwnProperty("variables")
+    );
+    console.log("[Background] Variables object:", settings?.variables);
+    console.log(
+      "[Background] Variables list length:",
+      settings?.variables?.list?.length || 0
+    );
+    console.log("[Background] Variables list:", settings?.variables?.list);
+
+    return { success: true, settings };
+  } catch (error) {
+    console.error("[Background] Get settings error:", error);
     return { success: false, error: error.message };
   }
 }
@@ -3016,18 +3065,32 @@ async function handleSaveSettingToDb(key, value) {
       return { success: false, error: "Database not available" };
     }
 
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      if (typeof val === "number") return val;
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
     const valueJson = JSON.stringify(value);
     const timestamp = Date.now();
 
-    // Insert or update setting in config_app_settings table
+    // Insert or update setting in config_app_settings table (using inline values)
     const query = `
       INSERT OR REPLACE INTO config_app_settings (key, value, category, updated_at)
-      VALUES (?, ?, 'user_preferences', ?)
+      VALUES (${escapeStr(key)}, ${escapeStr(
+      valueJson
+    )}, 'user_preferences', ${timestamp})
     `;
 
-    dbManager.executeQuery(query, [key, valueJson, timestamp]);
+    dbManager.executeQuery(query);
 
     console.log(`[Settings] Saved ${key} to database`);
+
+    // Also update in-memory settings if settingsManager is available
+    if (settingsManager) {
+      await settingsManager.initialize();
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Save setting to DB error:", error);
@@ -3107,6 +3170,198 @@ async function handleSyncSettingsToStorage() {
     };
   } catch (error) {
     console.error("Sync settings to storage error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Save individual setting to DB with category
+ * Used by db-storage-sync utility
+ */
+async function handleSaveSetting(data) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const { category, key, value } = data;
+
+    if (!category || !key) {
+      return { success: false, error: "Category and key are required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      if (typeof val === "number") return val;
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const timestamp = Date.now();
+    let valueStr, dataType;
+
+    // Determine data type and format value
+    if (typeof value === "string") {
+      valueStr = escapeStr(value);
+      dataType = "string";
+    } else if (typeof value === "number") {
+      valueStr = value;
+      dataType = "number";
+    } else if (typeof value === "boolean") {
+      valueStr = value ? 1 : 0;
+      dataType = "boolean";
+    } else {
+      valueStr = escapeStr(JSON.stringify(value));
+      dataType = "json";
+    }
+
+    // Insert or replace in config_app_settings
+    const query = `
+      INSERT OR REPLACE INTO config_app_settings 
+      (key, value, data_type, category, created_at, updated_at)
+      VALUES (
+        ${escapeStr(key)},
+        ${valueStr},
+        ${escapeStr(dataType)},
+        ${escapeStr(category)},
+        COALESCE((SELECT created_at FROM config_app_settings WHERE key = ${escapeStr(
+          key
+        )}), ${timestamp}),
+        ${timestamp}
+      )
+    `;
+
+    dbManager.db.exec(query);
+    console.log(`[Settings] Saved ${category}.${key} to database`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("[Settings] Save setting error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get individual setting from DB by category and key
+ * Used by db-storage-sync utility
+ */
+async function handleGetSetting(data) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const { category, key } = data;
+
+    if (!category || !key) {
+      return { success: false, error: "Category and key are required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const query = `
+      SELECT value, data_type FROM config_app_settings
+      WHERE category = ${escapeStr(category)} AND key = ${escapeStr(key)}
+      LIMIT 1
+    `;
+
+    const result = dbManager.db.exec(query);
+
+    if (result && result[0]?.values && result[0].values.length > 0) {
+      const row = result[0].values[0];
+      const valueStr = row[0];
+      const dataType = row[1];
+
+      let value;
+      // Parse value based on data type
+      if (dataType === "json") {
+        try {
+          value = JSON.parse(valueStr);
+        } catch (e) {
+          value = valueStr;
+        }
+      } else if (dataType === "boolean") {
+        value = valueStr === 1 || valueStr === "1" || valueStr === true;
+      } else if (dataType === "number") {
+        value = parseFloat(valueStr);
+      } else {
+        value = valueStr;
+      }
+
+      console.log(`[Settings] Retrieved ${category}.${key} from database`);
+      return { success: true, value };
+    }
+
+    return { success: false, error: "Setting not found" };
+  } catch (error) {
+    console.error("[Settings] Get setting error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all settings by category
+ * Used by db-storage-sync utility for batch sync
+ */
+async function handleGetSettingsByCategory(data) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    const { category } = data;
+
+    if (!category) {
+      return { success: false, error: "Category is required" };
+    }
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const query = `
+      SELECT key, value, data_type FROM config_app_settings
+      WHERE category = ${escapeStr(category)}
+    `;
+
+    const result = dbManager.db.exec(query);
+    const settings = [];
+
+    if (result && result[0]?.values) {
+      for (const row of result[0].values) {
+        const key = row[0];
+        const valueStr = row[1];
+        const dataType = row[2];
+
+        let value;
+        // Parse value based on data type
+        if (dataType === "json") {
+          try {
+            value = JSON.parse(valueStr);
+          } catch (e) {
+            value = valueStr;
+          }
+        } else if (dataType === "boolean") {
+          value = valueStr === 1 || valueStr === "1" || valueStr === true;
+        } else if (dataType === "number") {
+          value = parseFloat(valueStr);
+        } else {
+          value = valueStr;
+        }
+
+        settings.push({ key, value });
+      }
+    }
+
+    console.log(
+      `[Settings] Retrieved ${settings.length} settings from ${category}`
+    );
+    return { success: true, settings };
+  } catch (error) {
+    console.error("[Settings] Get settings by category error:", error);
     return { success: false, error: error.message };
   }
 }
@@ -4002,17 +4257,25 @@ async function handleGetRunnerDefinition(runnerId) {
 /**
  * Get all runners (permanent + recent temporary)
  */
-async function handleGetAllRunners() {
+async function handleGetAllRunners(data) {
   try {
     if (!dbManager || !dbManager.runner) {
       return { success: false, error: "Database not initialized" };
     }
 
-    const runners = await dbManager.runner.getAllRunners();
+    // Extract pagination and search options from data
+    const options = {
+      offset: data?.offset || 0,
+      limit: data?.limit || 50,
+      searchQuery: data?.searchQuery || null,
+    };
+
+    const result = await dbManager.runner.getAllRunners(options);
 
     return {
       success: true,
-      runners,
+      runners: result.runners || [],
+      totalCount: result.totalCount || 0,
     };
   } catch (error) {
     console.error("Get all runners error:", error);
@@ -4186,6 +4449,168 @@ async function handleDeleteRunner(runnerId) {
 }
 
 /**
+ * ============================================================================
+ * Collection Handler Functions
+ * ============================================================================
+ */
+
+/**
+ * Create a new collection
+ */
+async function handleCreateCollection(name, description, config) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.createCollection(
+      name,
+      description,
+      config
+    );
+
+    return {
+      success: true,
+      collection: result,
+    };
+  } catch (error) {
+    console.error("Create collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all collections
+ */
+async function handleGetCollections(activeOnly = false) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const collections = await runnerCollections.getCollections(false); // Force refresh
+
+    return {
+      success: true,
+      collections,
+    };
+  } catch (error) {
+    console.error("Get collections error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get a specific collection with its runners
+ */
+async function handleGetCollection(collectionId) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const collection = await runnerCollections.getCollection(collectionId);
+
+    if (!collection) {
+      return { success: false, error: "Collection not found" };
+    }
+
+    return {
+      success: true,
+      collection,
+    };
+  } catch (error) {
+    console.error("Get collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update a collection
+ */
+async function handleUpdateCollection(collectionId, updates) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.updateCollection(
+      collectionId,
+      updates
+    );
+
+    return {
+      success: true,
+      collection: result,
+    };
+  } catch (error) {
+    console.error("Update collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete a collection
+ */
+async function handleDeleteCollection(collectionId) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.deleteCollection(collectionId);
+
+    return {
+      success: result,
+    };
+  } catch (error) {
+    console.error("Delete collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Assign runner(s) to a collection
+ */
+async function handleAssignRunnersToCollection(runnerIds, collectionId) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.assignRunnersToCollection(
+      runnerIds,
+      collectionId
+    );
+
+    return result;
+  } catch (error) {
+    console.error("Assign runners error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Remove runner(s) from their collection
+ */
+async function handleRemoveRunnersFromCollection(runnerIds) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.removeRunnersFromCollection(
+      runnerIds
+    );
+
+    return result;
+  } catch (error) {
+    console.error("Remove runners error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Ensure runner tables exist (manual trigger)
  */
 async function handleEnsureRunnerTables() {
@@ -4351,6 +4776,7 @@ async function handleGetRequestsByFilters(filters) {
     const timeRangeMs = 7 * 24 * 60 * 60 * 1000;
     const startTime = Date.now() - timeRangeMs;
 
+    // Get requests without headers/body (fetch those on-demand in Step 3)
     let query = `
       SELECT id, url, method, type, timestamp, status, duration, page_url
       FROM bronze_requests 
@@ -4388,5 +4814,228 @@ async function handleGetRequestsByFilters(filters) {
   } catch (error) {
     console.error("Get requests by filters error:", error);
     return { success: false, error: error.message, requests: [] };
+  }
+}
+
+/**
+ * Export database to SQLite format
+ * Returns Uint8Array serialized as regular array for message passing
+ */
+async function handleExportToSQLite(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting SQLite export with options:", options);
+
+    // Export the database
+    const data = dbManager.db.export();
+    const uint8Data = new Uint8Array(data);
+
+    // Generate filename
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, -5);
+    const filename = `URA_Export_${timestamp}.sqlite`;
+
+    console.log(`[Export] SQLite export complete: ${uint8Data.length} bytes`);
+
+    return {
+      success: true,
+      data: Array.from(uint8Data), // Serialize for chrome.runtime.sendMessage
+      filename,
+      size: uint8Data.length,
+      mimeType: "application/x-sqlite3",
+    };
+  } catch (error) {
+    console.error("[Export] SQLite export error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Export database to JSON format
+ * Structure: { database: { tableName: [rows...] }, metadata: {...} }
+ */
+async function handleExportToJSON(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting JSON export with options:", options);
+
+    const { tables = null, prettify = true } = options;
+
+    // Get all table names or use specified ones
+    const tableNamesResult = dbManager.db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `);
+
+    const allTables = tableNamesResult[0]?.values.map((row) => row[0]) || [];
+    const tablesToExport = tables || allTables;
+
+    console.log(`[Export] Exporting ${tablesToExport.length} tables to JSON`);
+
+    // Build export data
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        version: chrome.runtime.getManifest()?.version || "unknown",
+        tables: tablesToExport,
+        recordCounts: {},
+      },
+      database: {},
+    };
+
+    // Export each table
+    for (const tableName of tablesToExport) {
+      try {
+        const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
+
+        if (result.length > 0) {
+          const columns = result[0].columns;
+          const rows = result[0].values.map((row) => {
+            const obj = {};
+            columns.forEach((col, idx) => {
+              obj[col] = row[idx];
+            });
+            return obj;
+          });
+
+          exportData.database[tableName] = rows;
+          exportData.metadata.recordCounts[tableName] = rows.length;
+        } else {
+          exportData.database[tableName] = [];
+          exportData.metadata.recordCounts[tableName] = 0;
+        }
+      } catch (tableError) {
+        console.warn(
+          `[Export] Failed to export table ${tableName}:`,
+          tableError
+        );
+        exportData.database[tableName] = [];
+        exportData.metadata.recordCounts[tableName] = 0;
+      }
+    }
+
+    // Convert to JSON string
+    const jsonString = JSON.stringify(exportData, null, prettify ? 2 : 0);
+    const jsonBytes = new TextEncoder().encode(jsonString);
+
+    // Generate filename
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, -5);
+    const filename = `URA_Export_${timestamp}.json`;
+
+    console.log(`[Export] JSON export complete: ${jsonBytes.length} bytes`);
+
+    return {
+      success: true,
+      data: Array.from(jsonBytes), // Serialize for chrome.runtime.sendMessage
+      filename,
+      size: jsonBytes.length,
+      mimeType: "application/json",
+      tableCount: tablesToExport.length,
+      totalRecords: Object.values(exportData.metadata.recordCounts).reduce(
+        (a, b) => a + b,
+        0
+      ),
+    };
+  } catch (error) {
+    console.error("[Export] JSON export error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Export database to CSV format (one CSV per table, packaged in ZIP)
+ * Note: Full ZIP implementation requires additional library
+ * For now, returns CSV data for single table or instructions for multiple
+ */
+async function handleExportToCSV(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting CSV export with options:", options);
+
+    const { tables = null, tableName = null } = options;
+
+    // If single table specified, export just that table as CSV
+    if (tableName) {
+      const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
+
+      if (result.length === 0) {
+        return {
+          success: false,
+          error: `Table ${tableName} is empty or does not exist`,
+        };
+      }
+
+      const columns = result[0].columns;
+      const rows = result[0].values;
+
+      // Build CSV
+      let csv = columns.join(",") + "\n";
+      for (const row of rows) {
+        const escapedRow = row.map((val) => {
+          if (val === null) return "";
+          const str = String(val);
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        });
+        csv += escapedRow.join(",") + "\n";
+      }
+
+      const csvBytes = new TextEncoder().encode(csv);
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .slice(0, -5);
+      const filename = `${tableName}_${timestamp}.csv`;
+
+      console.log(
+        `[Export] CSV export complete for ${tableName}: ${csvBytes.length} bytes`
+      );
+
+      return {
+        success: true,
+        data: Array.from(csvBytes),
+        filename,
+        size: csvBytes.length,
+        mimeType: "text/csv",
+        recordCount: rows.length,
+      };
+    }
+
+    // Multiple tables - return info about tables available
+    const tableNamesResult = dbManager.db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `);
+
+    const allTables = tableNamesResult[0]?.values.map((row) => row[0]) || [];
+
+    return {
+      success: true,
+      message: "Multiple table export requires specifying tableName",
+      availableTables: allTables,
+      hint: 'Call with { tableName: "table_name" } to export a specific table',
+    };
+  } catch (error) {
+    console.error("[Export] CSV export error:", error);
+    return { success: false, error: error.message };
   }
 }

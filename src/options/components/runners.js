@@ -8,6 +8,15 @@ class RunnersManager {
     this.runners = [];
     this.selectedRunner = null;
     this.refreshInterval = null;
+    this.runningRunners = new Set(); // Track which runners are currently executing
+    this.isCreatingRunner = false; // Prevent duplicate runner creation
+
+    // Pagination state
+    this.currentPage = 1;
+    this.perPage = 50;
+    this.totalCount = 0;
+    this.searchQuery = "";
+    this.searchTimeout = null;
   }
 
   async initialize() {
@@ -53,9 +62,18 @@ class RunnersManager {
     // Search/filter
     const runnerSearch = document.getElementById("runnerSearch");
     if (runnerSearch) {
-      runnerSearch.addEventListener("input", (e) =>
-        this.filterRunners(e.target.value)
-      );
+      runnerSearch.addEventListener("input", (e) => {
+        // Debounce search - wait 300ms after user stops typing
+        if (this.searchTimeout) {
+          clearTimeout(this.searchTimeout);
+        }
+
+        this.searchTimeout = setTimeout(() => {
+          this.searchQuery = e.target.value.trim();
+          this.currentPage = 1; // Reset to first page on new search
+          this.loadRunners(1);
+        }, 300);
+      });
     }
 
     const runnerTypeFilter = document.getElementById("runnerTypeFilter");
@@ -88,10 +106,57 @@ class RunnersManager {
         }
       });
     }
+
+    // Event delegation for modal close buttons
+    document.addEventListener("click", (e) => {
+      // Close modal when clicking X button or Close button
+      if (
+        e.target.closest(".modal-close") ||
+        e.target.closest(".close-modal-btn")
+      ) {
+        const modal = e.target.closest(".modal");
+        if (modal) {
+          modal.style.display = "none";
+        }
+      }
+
+      // Close modal when clicking outside modal content
+      if (e.target.classList.contains("modal")) {
+        e.target.style.display = "none";
+      }
+
+      // Handle view results button clicks
+      const viewResultsBtn = e.target.closest(".view-results-btn");
+      if (viewResultsBtn) {
+        const executionId = viewResultsBtn.dataset.executionId;
+        if (executionId) {
+          this.showExecutionResults(executionId);
+        }
+      }
+
+      // Handle convert to saved button clicks
+      const convertBtn = e.target.closest(".convert-to-saved-btn");
+      if (convertBtn) {
+        const runnerId = convertBtn.dataset.runnerId;
+        if (runnerId) {
+          this.convertToSaved(runnerId);
+        }
+      }
+
+      // Handle assign to collection button clicks
+      const assignCollectionBtn = e.target.closest(".assign-collection-btn");
+      if (assignCollectionBtn) {
+        const runnerId = assignCollectionBtn.dataset.runnerId;
+        if (runnerId) {
+          this.showCollectionAssignment(runnerId);
+        }
+      }
+    });
   }
 
-  async loadRunners() {
+  async loadRunners(page = 1) {
     const runnersGrid = document.getElementById("runnersGrid");
+    this.currentPage = page;
 
     try {
       // Show loading state
@@ -104,13 +169,19 @@ class RunnersManager {
         `;
       }
 
+      const offset = (page - 1) * this.perPage;
       const response = await chrome.runtime.sendMessage({
         action: "getAllRunners",
+        offset: offset,
+        limit: this.perPage,
+        searchQuery: this.searchQuery || null,
       });
 
       if (response && response.success) {
         this.runners = response.runners || [];
+        this.totalCount = response.totalCount || 0;
         this.renderRunners();
+        this.renderPagination();
       } else {
         // Show error in grid
         if (runnersGrid) {
@@ -153,9 +224,108 @@ class RunnersManager {
     }
   }
 
+  renderPagination() {
+    const container = document.getElementById("runnersPagination");
+    if (!container) return;
+
+    // No items
+    if (this.totalCount === 0) {
+      container.innerHTML = "";
+      return;
+    }
+
+    const totalPages = Math.ceil(this.totalCount / this.perPage);
+
+    // Single page
+    if (totalPages <= 1) {
+      container.innerHTML = `
+        <span class="pagination-info">
+          Showing ${this.totalCount} runner${this.totalCount !== 1 ? "s" : ""}
+        </span>
+      `;
+      return;
+    }
+
+    // Multiple pages - build pagination UI
+    let html = `
+      <span class="pagination-info">
+        Page ${this.currentPage} of ${totalPages} (${this.totalCount} total)
+      </span>
+      <div class="pagination-buttons">
+    `;
+
+    // Previous button
+    if (this.currentPage > 1) {
+      html += `
+        <button class="pagination-btn" data-page="${
+          this.currentPage - 1
+        }" title="Previous page">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+      `;
+    }
+
+    // Page numbers
+    const pages = new Set();
+    pages.add(1);
+    if (this.currentPage > 1) pages.add(this.currentPage - 1);
+    pages.add(this.currentPage);
+    if (this.currentPage < totalPages) pages.add(this.currentPage + 1);
+    pages.add(totalPages);
+
+    const sortedPages = Array.from(pages).sort((a, b) => a - b);
+    let lastPage = 0;
+
+    sortedPages.forEach((p) => {
+      if (lastPage && p - lastPage > 1) {
+        html += '<span class="pagination-ellipsis">...</span>';
+      }
+      const activeClass = p === this.currentPage ? "active" : "";
+      html += `
+        <button class="pagination-btn ${activeClass}" data-page="${p}" title="Go to page ${p}">
+          ${p}
+        </button>
+      `;
+      lastPage = p;
+    });
+
+    // Next button
+    if (this.currentPage < totalPages) {
+      html += `
+        <button class="pagination-btn" data-page="${
+          this.currentPage + 1
+        }" title="Next page">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      `;
+    }
+
+    html += "</div>";
+    container.innerHTML = html;
+
+    // Add click handlers
+    container.querySelectorAll(".pagination-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const page = parseInt(btn.dataset.page);
+        if (page && page !== this.currentPage) {
+          this.loadRunners(page);
+        }
+      });
+    });
+  }
+
   renderRunners() {
     const runnersGrid = document.getElementById("runnersGrid");
     if (!runnersGrid) return;
+
+    console.log(
+      `[Runners] Rendering ${this.runners.length} runners:`,
+      this.runners.map((r) => ({
+        id: r.id,
+        name: r.name,
+        requests: r.total_requests,
+      }))
+    );
 
     if (this.runners.length === 0) {
       runnersGrid.innerHTML = `
@@ -230,24 +400,59 @@ class RunnersManager {
       ? '<span class="runner-badge temporary">Quick Run</span>'
       : '<span class="runner-badge permanent">Saved</span>';
 
+    // Collection badge
+    const collectionBadge =
+      runner.collection_id && runner.collection_name
+        ? `<span class="runner-badge collection" title="Collection: ${this.escapeHtml(
+            runner.collection_name
+          )}">
+          <i class="fas fa-folder"></i> ${this.escapeHtml(
+            runner.collection_name
+          )}
+        </span>`
+        : "";
+
+    // Check if this runner is currently executing (with safety check)
+    if (!this.runningRunners) {
+      this.runningRunners = new Set();
+    }
+    const isRunning = this.runningRunners.has(runner.id);
+    const runButtonClass = isRunning
+      ? "runner-action-btn running"
+      : "runner-action-btn";
+    const runButtonIcon = isRunning ? "fa-spinner fa-spin" : "fa-play";
+    const runButtonTitle = isRunning ? "Running..." : "Run Now";
+    const runButtonDisabled = isRunning ? "disabled" : "";
+
     return `
-      <div class="runner-card" data-runner-id="${runner.id}">
+      <div class="runner-card ${
+        isRunning ? "runner-executing" : ""
+      }" data-runner-id="${runner.id}">
         <div class="runner-card-header">
           <div>
             <h4 class="runner-card-title">
-              <i class="fas fa-play-circle"></i>
+              <i class="fas ${
+                isRunning ? "fa-sync fa-spin" : "fa-play-circle"
+              }"></i>
               ${this.escapeHtml(runner.name)}
             </h4>
             ${badge}
+            ${collectionBadge}
+            ${
+              isRunning
+                ? '<span class="runner-badge status">Running...</span>'
+                : ""
+            }
           </div>
           <div class="runner-card-actions">
             <button 
-              class="icon-btn runner-action-btn" 
-              title="Run Now"
+              class="icon-btn ${runButtonClass}" 
+              title="${runButtonTitle}"
               data-action="run"
               data-runner-id="${runner.id}"
+              ${runButtonDisabled}
             >
-              <i class="fas fa-play"></i>
+              <i class="fas ${runButtonIcon}"></i>
             </button>
             <button 
               class="icon-btn runner-action-btn" 
@@ -297,19 +502,40 @@ class RunnersManager {
           <span class="runner-last-run">
             <i class="fas fa-clock"></i> Last run: ${lastRun}
           </span>
-          ${
-            isTemporary
-              ? `
+          <div style="display: flex; gap: 8px; align-items: center;">
+            ${
+              !isTemporary
+                ? `
+              <button 
+                class="link-btn assign-collection-btn" 
+                data-runner-id="${runner.id}"
+                title="${
+                  runner.collection_id
+                    ? "Change collection"
+                    : "Assign to collection"
+                }"
+              >
+                <i class="fas fa-folder-plus"></i> ${
+                  runner.collection_id ? "Change" : "Add to"
+                } Collection
+              </button>
+            `
+                : ""
+            }
+            ${
+              isTemporary
+                ? `
             <button 
-              class="link-btn" 
-              onclick="runnersManager.convertToSaved('${runner.id}')"
+              class="link-btn convert-to-saved-btn" 
+              data-runner-id="${runner.id}"
               title="Save this runner permanently"
             >
               <i class="fas fa-save"></i> Save
             </button>
           `
-              : ""
-          }
+                : ""
+            }
+          </div>
         </div>
       </div>
     `;
@@ -317,6 +543,15 @@ class RunnersManager {
 
   async runRunner(runnerId) {
     try {
+      // Ensure runningRunners is initialized
+      if (!this.runningRunners) {
+        this.runningRunners = new Set();
+      }
+
+      // Mark as running
+      this.runningRunners.add(runnerId);
+      this.updateRunnerCardState(runnerId);
+
       this.showToast("Starting runner...", "info");
 
       const response = await chrome.runtime.sendMessage({
@@ -325,18 +560,85 @@ class RunnersManager {
       });
 
       if (response && response.success) {
-        this.showToast("Runner started successfully!", "success");
-        // Reload runners to update stats
-        setTimeout(() => this.loadRunners(), 2000);
+        this.showToast("Runner completed successfully!", "success");
       } else {
         this.showToast(
-          "Failed to start runner: " + (response?.error || "Unknown error"),
+          "Runner failed: " + (response?.error || "Unknown error"),
           "error"
         );
       }
     } catch (error) {
       console.error("[Runners] Error running runner:", error);
-      this.showToast("Error starting runner", "error");
+      this.showToast("Error running runner", "error");
+    } finally {
+      // Remove from running state
+      this.runningRunners.delete(runnerId);
+      this.updateRunnerCardState(runnerId);
+
+      // Reload runners to update stats
+      setTimeout(() => this.loadRunners(), 1000);
+    }
+  }
+
+  // Update individual runner card state without full reload
+  updateRunnerCardState(runnerId) {
+    // Ensure runningRunners is initialized
+    if (!this.runningRunners) {
+      this.runningRunners = new Set();
+    }
+
+    const card = document.querySelector(`[data-runner-id="${runnerId}"]`);
+    if (!card) return;
+
+    const isRunning = this.runningRunners.has(runnerId);
+    const runButton = card.querySelector('[data-action="run"]');
+    const titleIcon = card.querySelector(".runner-card-title i");
+    const statusBadge = card.querySelector(".runner-badge.status");
+
+    if (isRunning) {
+      // Update to running state
+      card.classList.add("runner-executing");
+      if (runButton) {
+        runButton.classList.add("running");
+        runButton.disabled = true;
+        runButton.title = "Running...";
+        const icon = runButton.querySelector("i");
+        if (icon) {
+          icon.className = "fas fa-spinner fa-spin";
+        }
+      }
+      if (titleIcon) {
+        titleIcon.className = "fas fa-sync fa-spin";
+      }
+      // Add status badge if it doesn't exist
+      if (!statusBadge) {
+        const badgeContainer = card.querySelector(".runner-card-header > div");
+        if (badgeContainer) {
+          const badge = document.createElement("span");
+          badge.className = "runner-badge status";
+          badge.textContent = "Running...";
+          badgeContainer.appendChild(badge);
+        }
+      }
+    } else {
+      // Update to idle state
+      card.classList.remove("runner-executing");
+      if (runButton) {
+        runButton.classList.remove("running");
+        runButton.disabled = false;
+        runButton.title = "Run Now";
+        const icon = runButton.querySelector("i");
+        if (icon) {
+          icon.className = "fas fa-play";
+        }
+      }
+      if (titleIcon) {
+        titleIcon.className = "fas fa-play-circle";
+      }
+      // Remove status badge
+      if (statusBadge) {
+        statusBadge.remove();
+      }
     }
   }
 
@@ -394,8 +696,8 @@ class RunnersManager {
             <td>${exec.success_count || 0} / ${exec.total_requests || 0}</td>
             <td>
               <button 
-                class="link-btn" 
-                onclick="runnersManager.showExecutionResults('${exec.id}')"
+                class="link-btn view-results-btn" 
+                data-execution-id="${exec.id}"
               >
                 <i class="fas fa-list"></i> View Results
               </button>
@@ -405,6 +707,103 @@ class RunnersManager {
             )
             .join("")
         : '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">No executions yet</td></tr>';
+
+    // Parse variables if they're stored as JSON string
+    let variables = [];
+    if (runner.variables) {
+      try {
+        variables =
+          typeof runner.variables === "string"
+            ? JSON.parse(runner.variables)
+            : runner.variables;
+      } catch (e) {
+        console.warn("[Runners] Failed to parse variables:", e);
+      }
+    }
+
+    // Build variables section HTML
+    const variablesHtml =
+      variables.length > 0
+        ? `
+        <div class="details-section">
+          <h3><i class="fas fa-code"></i> Variables in Use (${
+            variables.length
+          })</h3>
+          <div class="variables-list">
+            ${variables
+              .map(
+                (variable) => `
+              <div class="variable-item">
+                <div class="variable-name">
+                  <i class="fas fa-dollar-sign"></i>
+                  <code>{{${this.escapeHtml(variable.name)}}}</code>
+                </div>
+                <div class="variable-value">
+                  <span class="value-preview">${this.escapeHtml(
+                    variable.value || "(not set)"
+                  )}</span>
+                </div>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+          <style>
+            .variables-list {
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              margin-top: 12px;
+            }
+            .variable-item {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 12px;
+              background: var(--surface-color);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              gap: 16px;
+            }
+            .variable-name {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-weight: 500;
+              color: var(--text-primary);
+            }
+            .variable-name i {
+              color: var(--primary-color);
+              font-size: 12px;
+            }
+            .variable-name code {
+              background: var(--background-color);
+              padding: 4px 8px;
+              border-radius: 4px;
+              font-size: 13px;
+              color: var(--primary-color);
+            }
+            .variable-value {
+              flex: 1;
+              text-align: right;
+            }
+            .value-preview {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              color: var(--text-secondary);
+              padding: 4px 8px;
+              background: var(--background-color);
+              border-radius: 4px;
+              max-width: 300px;
+              display: inline-block;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
+          </style>
+        </div>
+      `
+        : "";
 
     const modalContent = modal.querySelector(".modal-body");
     modalContent.innerHTML = `
@@ -442,6 +841,22 @@ class RunnersManager {
               <th>Total Requests:</th>
               <td>${runner.total_requests || 0}</td>
             </tr>
+            ${
+              variables.length > 0
+                ? `
+            <tr>
+              <th>Variables:</th>
+              <td>
+                <span class="badge" style="background: var(--info-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
+                  ${variables.length} variable${
+                    variables.length !== 1 ? "s" : ""
+                  }
+                </span>
+              </td>
+            </tr>
+            `
+                : ""
+            }
             <tr>
               <th>Total Runs:</th>
               <td>${runner.run_count || 0}</td>
@@ -452,6 +867,8 @@ class RunnersManager {
             </tr>
           </table>
         </div>
+
+        ${variablesHtml}
 
         <div class="details-section">
           <h3><i class="fas fa-history"></i> Execution History</h3>
@@ -812,6 +1229,7 @@ class RunnersManager {
       selectedPage: null,
       selectedType: null,
       selectedRequests: [],
+      variables: [],
       config: {},
     };
 
@@ -874,6 +1292,11 @@ class RunnersManager {
 
     document.getElementById("wizardCreateBtn").addEventListener("click", () => {
       this.createRunnerFromWizard();
+    });
+
+    // Add variable button
+    document.getElementById("btnAddVariable").addEventListener("click", () => {
+      this.addVariable();
     });
 
     // Cancel/Close
@@ -986,6 +1409,13 @@ class RunnersManager {
       return;
     }
 
+    if (this.wizardState.selectedPage === null) {
+      container.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: var(--text-secondary)">Select a page to view available requests</div>';
+      countEl.textContent = "0 requests selected";
+      return;
+    }
+
     container.innerHTML =
       '<div style="padding: 20px; text-align: center"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
 
@@ -1009,13 +1439,14 @@ class RunnersManager {
           return;
         }
 
+        // Store full request data for later use
+        this.wizardState.availableRequests = requests;
+
         container.innerHTML = requests
           .map(
             (req, idx) => `
           <div class="request-item">
-            <input type="checkbox" id="req-${idx}" data-url="${
-              req.url
-            }" data-method="${req.method}">
+            <input type="checkbox" id="req-${idx}" data-index="${idx}">
             <div class="request-details">
               <div class="request-url">${req.url}</div>
               <div class="request-meta">
@@ -1057,15 +1488,98 @@ class RunnersManager {
       '#wizardRequestList input[type="checkbox"]'
     ).length;
 
-    this.wizardState.selectedRequests = Array.from(checkboxes).map((cb) => ({
-      url: cb.dataset.url,
-      method: cb.dataset.method,
-    }));
+    // Get full request data from stored array (headers/body will be fetched in Step 3)
+    this.wizardState.selectedRequests = Array.from(checkboxes).map((cb) => {
+      const idx = parseInt(cb.dataset.index);
+      const fullReq = this.wizardState.availableRequests[idx];
+
+      return {
+        id: fullReq.id,
+        url: fullReq.url,
+        method: fullReq.method,
+        type: fullReq.type,
+        status: fullReq.status,
+        timestamp: fullReq.timestamp,
+        page_url: fullReq.page_url,
+      };
+    });
+
+    // Auto-extract variables from headers and body
+    this.autoExtractVariables();
 
     countEl.textContent = `${this.wizardState.selectedRequests.length} of ${total} requests selected`;
   }
 
-  updateWizardStep(step) {
+  autoExtractVariables() {
+    // Extract common variable patterns from requests
+    const potentialVars = new Map();
+
+    this.wizardState.selectedRequests.forEach((req) => {
+      // Check headers for tokens/keys
+      if (req.headers) {
+        try {
+          const headers =
+            typeof req.headers === "string"
+              ? JSON.parse(req.headers)
+              : req.headers;
+
+          // Look for Authorization headers
+          if (headers.Authorization) {
+            const authValue = headers.Authorization;
+            if (
+              authValue.startsWith("Bearer ") &&
+              !potentialVars.has("authToken")
+            ) {
+              potentialVars.set("authToken", authValue.replace("Bearer ", ""));
+            } else if (
+              authValue.startsWith("Token ") &&
+              !potentialVars.has("apiToken")
+            ) {
+              potentialVars.set("apiToken", authValue.replace("Token ", ""));
+            }
+          }
+
+          // Look for API keys
+          if (headers["X-API-Key"] && !potentialVars.has("apiKey")) {
+            potentialVars.set("apiKey", headers["X-API-Key"]);
+          }
+          if (headers["Api-Key"] && !potentialVars.has("apiKey")) {
+            potentialVars.set("apiKey", headers["Api-Key"]);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      // Check URL for common patterns like IDs
+      try {
+        const url = new URL(req.url);
+        const pathParts = url.pathname.split("/").filter((p) => p);
+
+        // Look for numeric IDs in path
+        pathParts.forEach((part, idx) => {
+          if (/^\d+$/.test(part) && idx > 0) {
+            const prevPart = pathParts[idx - 1];
+            const varName = `${prevPart}Id`;
+            if (!potentialVars.has(varName)) {
+              potentialVars.set(varName, part);
+            }
+          }
+        });
+      } catch (e) {
+        // Ignore URL parse errors
+      }
+    });
+
+    // Add extracted variables to wizard state if not already present
+    potentialVars.forEach((value, name) => {
+      if (!this.wizardState.variables.some((v) => v.name === name)) {
+        this.wizardState.variables.push({ name, value });
+      }
+    });
+  }
+
+  async updateWizardStep(step) {
     // Update progress indicator
     document.querySelectorAll(".wizard-step").forEach((el) => {
       const stepNum = parseInt(el.dataset.step);
@@ -1088,14 +1602,23 @@ class RunnersManager {
       currentContent.style.display = "block";
     }
 
+    // Load step-specific data
+    if (step === 3) {
+      this.loadRequestsEditor();
+      // Load existing variables from settings
+      if (this.wizardState.variables.length === 0) {
+        await this.loadExistingVariables();
+      }
+    }
+
     // Update buttons
     const prevBtn = document.getElementById("wizardPrevBtn");
     const nextBtn = document.getElementById("wizardNextBtn");
     const createBtn = document.getElementById("wizardCreateBtn");
 
     prevBtn.style.display = step > 1 ? "block" : "none";
-    nextBtn.style.display = step < 3 ? "block" : "none";
-    createBtn.style.display = step === 3 ? "block" : "none";
+    nextBtn.style.display = step < 4 ? "block" : "none";
+    createBtn.style.display = step === 4 ? "block" : "none";
 
     this.wizardState.currentStep = step;
   }
@@ -1109,6 +1632,10 @@ class RunnersManager {
         alert("Please select a domain");
         return;
       }
+      if (this.wizardState.selectedPage === null) {
+        alert("Please select a page (or choose 'All pages')");
+        return;
+      }
       // Check actual DOM state for selected checkboxes
       const checkedBoxes = document.querySelectorAll(
         '#wizardRequestList input[type="checkbox"]:checked'
@@ -1119,7 +1646,15 @@ class RunnersManager {
       }
     }
 
-    if (currentStep < 3) {
+    if (currentStep === 4) {
+      const name = document.getElementById("wizardRunnerName").value.trim();
+      if (!name) {
+        alert("Please enter a runner name");
+        return;
+      }
+    }
+
+    if (currentStep < 4) {
       this.updateWizardStep(currentStep + 1);
     }
   }
@@ -1131,13 +1666,408 @@ class RunnersManager {
     }
   }
 
+  async loadExistingVariables() {
+    try {
+      // Import settingsManager dynamically if not already available
+      if (!window.settingsManager) {
+        const module = await import(
+          "../../lib/shared-components/settings-manager.js"
+        );
+        window.settingsManager = module.default;
+        await window.settingsManager.initialize();
+      }
+
+      const existingVars = window.settingsManager.getVariables();
+      console.log("[Wizard] Loaded existing variables:", existingVars);
+
+      // Add to wizard state if not already present
+      existingVars.forEach((v) => {
+        if (!this.wizardState.variables.some((wv) => wv.name === v.name)) {
+          this.wizardState.variables.push({
+            id: v.id,
+            name: v.name,
+            value: v.value,
+            description: v.description || "",
+            isGlobal: true, // Mark as coming from global settings
+          });
+        }
+      });
+
+      this.renderVariablesList();
+    } catch (error) {
+      console.error("[Wizard] Failed to load existing variables:", error);
+    }
+  }
+
+  async loadRequestsEditor() {
+    const container = document.getElementById("wizardRequestsEditor");
+
+    if (this.wizardState.selectedRequests.length === 0) {
+      container.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: var(--text-secondary)">No requests selected</div>';
+      return;
+    }
+
+    // Show loading indicator
+    container.innerHTML =
+      '<div style="padding: 20px; text-align: center; color: var(--text-secondary)"><i class="fas fa-spinner fa-spin"></i> Loading request details...</div>';
+
+    // Also render variables list if variables were auto-extracted
+    if (this.wizardState.variables.length > 0) {
+      this.renderVariablesList();
+    }
+
+    // Fetch headers and body for ALL requests in parallel (much faster)
+    await Promise.all(
+      this.wizardState.selectedRequests.map(async (req) => {
+        // Fetch headers and body in parallel for this request
+        const [headers, body] = await Promise.all([
+          this.getRequestHeaders(req.id),
+          this.getRequestBody(req.id),
+        ]);
+        req.headers = headers || {};
+        req.body = body || null;
+      })
+    );
+
+    container.innerHTML = this.wizardState.selectedRequests
+      .map((req, idx) => {
+        // Format headers for display (already an object with header name/value pairs)
+        let headersStr = "";
+        if (req.headers && Object.keys(req.headers).length > 0) {
+          try {
+            headersStr = JSON.stringify(req.headers, null, 2);
+          } catch (e) {
+            console.error(
+              `[Wizard] Failed to stringify headers for request #${idx}:`,
+              e
+            );
+            headersStr = String(req.headers);
+          }
+        }
+
+        // Format body for display (already parsed as object in updateSelectedRequests)
+        let bodyStr = "";
+        if (req.body) {
+          try {
+            bodyStr =
+              typeof req.body === "object"
+                ? JSON.stringify(req.body, null, 2)
+                : String(req.body);
+          } catch (e) {
+            console.error(
+              `[Wizard] Failed to stringify body for request #${idx}:`,
+              e
+            );
+            bodyStr = String(req.body);
+          }
+        }
+
+        return `
+      <div class="request-editor-item" data-index="${idx}" style="border-bottom: 1px solid var(--border-color); padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="color: var(--primary-color);">${req.method} #${
+          idx + 1
+        }</strong>
+          <button class="toggle-request-details" data-index="${idx}" style="background: none; border: none; cursor: pointer; color: var(--text-secondary);">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+        <div class="request-url-preview" style="font-size: 12px; color: var(--text-secondary); word-break: break-all;">${
+          req.url
+        }</div>
+        <div class="request-details-editor" data-index="${idx}" style="display: none; margin-top: 12px;">
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">URL:</label>
+            <input type="text" class="request-url-input" data-index="${idx}" value="${
+          req.url
+        }" 
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-family: monospace;" />
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Headers (JSON):</label>
+            <textarea class="request-headers-input" data-index="${idx}" rows="3" placeholder='{"Authorization": "Bearer {{token}}"}'
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-family: monospace;">${headersStr}</textarea>
+            <small style="color: var(--text-secondary); font-size: 11px;">Use {{variableName}} to reference variables</small>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Body:</label>
+            <textarea class="request-body-input" data-index="${idx}" rows="3" placeholder='{"key": "{{value}}"}'
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-family: monospace;">${bodyStr}</textarea>
+            <small style="color: var(--text-secondary); font-size: 11px;">Use {{variableName}} to reference variables</small>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Description:</label>
+            <input type="text" class="request-description-input" data-index="${idx}" value="${
+          req.description || ""
+        }" placeholder="Optional description"
+              style="width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px;" />
+          </div>
+        </div>
+      </div>
+    `;
+      })
+      .join("");
+
+    // Add event listeners for toggling details
+    container.querySelectorAll(".toggle-request-details").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = e.currentTarget.dataset.index;
+        const details = container.querySelector(
+          `.request-details-editor[data-index="${idx}"]`
+        );
+        const icon = e.currentTarget.querySelector("i");
+
+        if (details.style.display === "none") {
+          details.style.display = "block";
+          icon.className = "fas fa-chevron-up";
+        } else {
+          details.style.display = "none";
+          icon.className = "fas fa-chevron-down";
+        }
+      });
+    });
+
+    // Add event listeners for input changes
+    container.querySelectorAll(".request-url-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.wizardState.selectedRequests[idx].url = e.target.value;
+      });
+    });
+
+    container.querySelectorAll(".request-headers-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.wizardState.selectedRequests[idx].headers = e.target.value;
+      });
+    });
+
+    container.querySelectorAll(".request-body-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.wizardState.selectedRequests[idx].body = e.target.value;
+      });
+    });
+
+    container
+      .querySelectorAll(".request-description-input")
+      .forEach((input) => {
+        input.addEventListener("change", (e) => {
+          const idx = parseInt(e.target.dataset.index);
+          this.wizardState.selectedRequests[idx].description = e.target.value;
+        });
+      });
+  }
+
+  async addVariable() {
+    const name = prompt("Variable name (without {{ }}):");
+    if (!name) return;
+
+    // Validate name
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+      alert(
+        "Variable name must start with a letter or underscore and contain only letters, numbers, and underscores"
+      );
+      return;
+    }
+
+    // Check if variable already exists in local list
+    if (this.wizardState.variables.some((v) => v.name === name)) {
+      alert("Variable with this name already exists");
+      return;
+    }
+
+    const value = prompt("Variable value:");
+    if (value === null) return;
+
+    const description = prompt("Variable description (optional):", "");
+
+    try {
+      // Import settingsManager dynamically if not already available
+      if (!window.settingsManager) {
+        const module = await import(
+          "../../lib/shared-components/settings-manager.js"
+        );
+        window.settingsManager = module.default;
+        await window.settingsManager.initialize();
+      }
+
+      // Add variable using settingsManager (saves to both storage and database)
+      await window.settingsManager.addVariable({
+        name,
+        value,
+        description: description || "",
+      });
+
+      // Add to local wizard state
+      const newVariable = {
+        name,
+        value,
+        description: description || "",
+        isGlobal: true,
+        id: `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      this.wizardState.variables.push(newVariable);
+
+      console.log(`[Wizard] Variable "${name}" saved to global settings`);
+
+      // Trigger storage changed event to notify other components
+      window.dispatchEvent(
+        new CustomEvent("settingsChanged", {
+          detail: { key: "variables" },
+        })
+      );
+
+      alert(`Variable "${name}" created successfully!`);
+    } catch (error) {
+      console.error("[Wizard] Failed to save variable:", error);
+      alert(`Failed to save variable: ${error.message}`);
+      return;
+    }
+
+    this.renderVariablesList();
+  }
+
+  renderVariablesList() {
+    const container = document.getElementById("wizardVariablesList");
+
+    if (this.wizardState.variables.length === 0) {
+      container.innerHTML =
+        '<div style="text-align: center; color: var(--text-secondary); padding: 8px">No variables defined. Click "Add Variable" to create one or use existing global variables.</div>';
+      return;
+    }
+
+    container.innerHTML = this.wizardState.variables
+      .map(
+        (variable, idx) => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px; border-bottom: 1px solid var(--border-color);">
+        <div style="flex: 1;">
+          <strong style="font-family: monospace; color: var(--primary-color);">{{${
+            variable.name
+          }}}</strong>
+          ${
+            variable.isGlobal
+              ? '<span style="margin-left: 6px; font-size: 10px; background: var(--primary-color); color: white; padding: 2px 6px; border-radius: 3px;">Global</span>'
+              : ""
+          }
+          <span style="margin-left: 12px; color: var(--text-secondary); font-size: 12px;">=</span>
+          <span style="margin-left: 8px; font-family: monospace; font-size: 12px;">${
+            variable.value
+          }</span>
+          ${
+            variable.description
+              ? `<div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">${variable.description}</div>`
+              : ""
+          }
+        </div>
+        <div>
+          <button class="edit-variable-btn" data-index="${idx}" style="background: none; border: none; cursor: pointer; color: var(--primary-color); padding: 4px 8px;">
+            <i class="fas fa-edit"></i>
+          </button>
+          ${
+            !variable.isGlobal
+              ? `<button class="delete-variable-btn" data-index="${idx}" style="background: none; border: none; cursor: pointer; color: var(--danger-color); padding: 4px 8px;">
+            <i class="fas fa-trash"></i>
+          </button>`
+              : ""
+          }
+        </div>
+      </div>
+    `
+      )
+      .join("");
+
+    // Add event listeners
+    container.querySelectorAll(".edit-variable-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        this.editVariable(idx);
+      });
+    });
+
+    container.querySelectorAll(".delete-variable-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        if (
+          confirm(
+            `Delete variable "{{${this.wizardState.variables[idx].name}}}"?`
+          )
+        ) {
+          this.wizardState.variables.splice(idx, 1);
+          this.renderVariablesList();
+        }
+      });
+    });
+  }
+
+  async editVariable(idx) {
+    const variable = this.wizardState.variables[idx];
+    const newValue = prompt(
+      `Edit value for "{{${variable.name}}}"`,
+      variable.value
+    );
+    if (newValue !== null && newValue !== variable.value) {
+      variable.value = newValue;
+
+      // If it's a global variable, update in global settings too
+      if (variable.isGlobal && variable.id) {
+        try {
+          // Import settingsManager dynamically if not already available
+          if (!window.settingsManager) {
+            const module = await import(
+              "../../lib/shared-components/settings-manager.js"
+            );
+            window.settingsManager = module.default;
+            await window.settingsManager.initialize();
+          }
+
+          // Update using settingsManager
+          await window.settingsManager.updateVariable(variable.id, {
+            value: newValue,
+          });
+
+          console.log(
+            `[Wizard] Variable "${variable.name}" updated in global settings`
+          );
+
+          // Trigger storage changed event
+          window.dispatchEvent(
+            new CustomEvent("settingsChanged", {
+              detail: { key: "variables" },
+            })
+          );
+        } catch (error) {
+          console.error(
+            "[Wizard] Failed to update variable in global settings:",
+            error
+          );
+          alert(`Failed to update variable: ${error.message}`);
+        }
+      }
+
+      this.renderVariablesList();
+    }
+  }
+
   async createRunnerFromWizard() {
-    // Validate step 3
+    // Prevent double-clicking
+    if (this.isCreatingRunner) {
+      console.log(
+        "[Wizard] Runner creation already in progress, ignoring duplicate call"
+      );
+      return;
+    }
+
+    // Validate step 4
     const name = document.getElementById("wizardRunnerName").value.trim();
     if (!name) {
       alert("Please enter a runner name");
       return;
     }
+
+    // Set flag to prevent double-creation
+    this.isCreatingRunner = true;
 
     // Collect all configuration
     const now = Date.now();
@@ -1165,22 +2095,47 @@ class RunnersManager {
       updated_at: now,
     };
 
-    const requests = this.wizardState.selectedRequests.map((req, idx) => ({
-      id: `${runnerId}_req_${idx}_${Math.random().toString(36).substr(2, 6)}`,
-      runner_id: runnerId,
-      url: req.url,
-      method: req.method,
-      sequence_order: idx + 1,
-      domain: this.wizardState.selectedDomain,
-      page_url: this.wizardState.selectedPage || null,
-      headers: null,
-      body: null,
-      captured_request_id: req.id || null,
-      assertions: null,
-      description: null,
-      is_enabled: true,
-      created_at: now,
-    }));
+    const requests = this.wizardState.selectedRequests.map((req, idx) => {
+      // Extract domain from URL if not provided
+      let domain = this.wizardState.selectedDomain;
+      let pageUrl = this.wizardState.selectedPage;
+
+      if (!domain) {
+        try {
+          const urlObj = new URL(req.url);
+          domain = urlObj.hostname;
+        } catch (e) {
+          domain = "unknown";
+        }
+      }
+
+      // Use empty string "All pages" as the URL, or the actual page URL, or domain as fallback
+      if (!pageUrl || pageUrl === "") {
+        pageUrl = `https://${domain}`; // Fallback to domain root
+      }
+
+      return {
+        id: `${runnerId}_req_${idx}_${Math.random().toString(36).substr(2, 6)}`,
+        runner_id: runnerId,
+        url: req.url,
+        method: req.method,
+        sequence_order: idx + 1,
+        domain: domain,
+        page_url: pageUrl,
+        headers: req.headers || null,
+        body: req.body || null,
+        captured_request_id: req.id || null,
+        assertions: req.assertions || null,
+        description: req.description || null,
+        is_enabled: true,
+        created_at: now,
+      };
+    });
+
+    // Add variables to definition if any
+    if (this.wizardState.variables.length > 0) {
+      definition.variables = this.wizardState.variables;
+    }
 
     // Show loading state
     const createBtn = document.getElementById("wizardCreateBtn");
@@ -1202,6 +2157,9 @@ class RunnersManager {
         // Show success message
         this.showToast(`✓ Runner "${name}" created successfully!`, "success");
 
+        // Wait for database write to complete before reloading
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
         // Reload runners list
         await this.loadRunners();
       } else {
@@ -1212,6 +2170,9 @@ class RunnersManager {
       alert(`Failed to create runner: ${error.message}`);
       createBtn.disabled = false;
       createBtn.innerHTML = originalText;
+    } finally {
+      // Always reset the flag
+      this.isCreatingRunner = false;
     }
   }
 
@@ -1256,12 +2217,279 @@ class RunnersManager {
     return div.innerHTML;
   }
 
+  // Fetch request headers from database (same as dashboard)
+  async getRequestHeaders(requestId) {
+    try {
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT name, value
+          FROM bronze_request_headers
+          WHERE request_id = ${escapeStr(requestId)} AND header_type = 'request'
+          ORDER BY name
+        `,
+      });
+
+      if (response && response.success && response.data) {
+        // Convert array of {name, value} to object {name: value}
+        const headersObj = {};
+        response.data.forEach((header) => {
+          headersObj[header.name] = header.value;
+        });
+        return headersObj;
+      }
+      return {};
+    } catch (error) {
+      console.error("[Wizard] Error fetching headers:", error);
+      return {};
+    }
+  }
+
+  // Fetch request body from database (same as dashboard)
+  async getRequestBody(requestId) {
+    try {
+      const escapeStr = (val) => {
+        if (val === undefined || val === null) return "NULL";
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
+
+      const response = await chrome.runtime.sendMessage({
+        action: "executeDirectQuery",
+        query: `
+          SELECT request_body
+          FROM bronze_requests
+          WHERE id = ${escapeStr(requestId)}
+        `,
+      });
+
+      if (
+        response &&
+        response.success &&
+        response.data &&
+        response.data.length > 0
+      ) {
+        return response.data[0].request_body;
+      }
+      return null;
+    } catch (error) {
+      console.error("[Wizard] Error fetching request body:", error);
+      return null;
+    }
+  }
+
   showToast(message, type = "info") {
     // Reuse dashboard toast if available
     if (window.dashboardManager && window.dashboardManager.showToast) {
       window.dashboardManager.showToast(message, type);
     } else {
       console.log(`[Runners] ${type.toUpperCase()}: ${message}`);
+    }
+  }
+
+  /**
+   * Show collection assignment modal for a runner
+   */
+  async showCollectionAssignment(runnerId) {
+    const runner = this.runners.find((r) => r.id === runnerId);
+    if (!runner) return;
+
+    try {
+      // Fetch all collections
+      const response = await chrome.runtime.sendMessage({
+        action: "getCollections",
+      });
+
+      if (!response || !response.success) {
+        this.showToast("Failed to load collections", "error");
+        return;
+      }
+
+      const collections = response.collections || [];
+
+      // Create modal HTML
+      const modalHtml = `
+        <div class="modal" id="collectionAssignModal" style="display: block;">
+          <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+              <h3>
+                <i class="fas fa-folder"></i> 
+                ${runner.collection_id ? "Change" : "Assign"} Collection
+              </h3>
+              <button class="modal-close" id="closeCollectionAssignModal">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                Runner: <strong>${this.escapeHtml(runner.name)}</strong>
+              </p>
+              
+              ${
+                collections.length === 0
+                  ? `
+                <p style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                  No collections available. Create one in the Collections tab first.
+                </p>
+              `
+                  : `
+                <div class="form-group">
+                  <label>Select Collection:</label>
+                  <select id="collectionSelect" class="form-control" style="width: 100%;">
+                    <option value="">-- No Collection --</option>
+                    ${collections
+                      .map(
+                        (c) => `
+                      <option value="${c.id}" ${
+                          c.id === runner.collection_id ? "selected" : ""
+                        }>
+                        ${this.escapeHtml(c.name)} (${
+                          c.runner_count || 0
+                        } runners)
+                      </option>
+                    `
+                      )
+                      .join("")}
+                  </select>
+                </div>
+              `
+              }
+            </div>
+            <div class="modal-footer">
+              <button 
+                class="secondary-btn" 
+                id="cancelCollectionAssign"
+              >
+                Cancel
+              </button>
+              ${
+                collections.length > 0
+                  ? `
+                <button 
+                  class="btn-primary" 
+                  id="saveCollectionAssign"
+                  data-runner-id="${runnerId}"
+                >
+                  <i class="fas fa-save"></i> Save
+                </button>
+              `
+                  : `
+                <button 
+                  class="btn-primary" 
+                  id="btnCreateCollectionFromAssign"
+                >
+                  <i class="fas fa-plus"></i> Create Collection
+                </button>
+              `
+              }
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Remove any existing modal
+      const existingModal = document.getElementById("collectionAssignModal");
+      if (existingModal) existingModal.remove();
+
+      // Add modal to page
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      // Wire up close buttons
+      const closeBtn = document.getElementById("closeCollectionAssignModal");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          document.getElementById("collectionAssignModal")?.remove();
+        });
+      }
+
+      const cancelBtn = document.getElementById("cancelCollectionAssign");
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", () => {
+          document.getElementById("collectionAssignModal")?.remove();
+        });
+      }
+
+      // Wire up Save button
+      const saveBtn = document.getElementById("saveCollectionAssign");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+          const runnerId = saveBtn.dataset.runnerId;
+          this.assignRunnerToCollection(runnerId);
+        });
+      }
+
+      // Wire up Create Collection button if it exists
+      const btnCreate = document.getElementById(
+        "btnCreateCollectionFromAssign"
+      );
+      if (btnCreate) {
+        btnCreate.addEventListener("click", () => {
+          // Close this modal
+          const modal = document.getElementById("collectionAssignModal");
+          if (modal) modal.remove();
+
+          // Switch to collections tab
+          const collectionsTab = document.querySelector(
+            '[data-subtab="collections-list"]'
+          );
+          if (collectionsTab) collectionsTab.click();
+
+          // Open create collection modal
+          if (window.collectionsManager) {
+            setTimeout(() => {
+              window.collectionsManager.showCreateCollectionModal();
+            }, 100);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("[Runners] Error showing collection assignment:", error);
+      this.showToast("Failed to load collections", "error");
+    }
+  }
+
+  /**
+   * Assign runner to selected collection
+   */
+  async assignRunnerToCollection(runnerId) {
+    const select = document.getElementById("collectionSelect");
+    if (!select) return;
+
+    const collectionId = select.value || null;
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: collectionId
+          ? "assignRunnersToCollection"
+          : "removeRunnersFromCollection",
+        runnerIds: [runnerId],
+        collectionId: collectionId,
+      });
+
+      if (response && response.success) {
+        this.showToast(
+          collectionId
+            ? "Runner assigned to collection"
+            : "Runner removed from collection",
+          "success"
+        );
+
+        // Close modal
+        const modal = document.getElementById("collectionAssignModal");
+        if (modal) modal.remove();
+
+        // Reload runners to show updated collection
+        await this.loadRunners();
+      } else {
+        throw new Error(response?.error || "Failed to update collection");
+      }
+    } catch (error) {
+      console.error("[Runners] Error assigning to collection:", error);
+      this.showToast("Failed to update collection", "error");
     }
   }
 

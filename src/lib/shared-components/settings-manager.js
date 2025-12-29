@@ -64,6 +64,7 @@ class SettingsManager {
             "other",
           ],
         },
+        trackOnlyConfiguredSites: true, // Default: only track configured sites
       },
       display: {
         requestsPerPage: 50,
@@ -194,11 +195,13 @@ class SettingsManager {
         onUpdate: this.handleAclUpdate.bind(this),
       });
 
-      // Initialize theme manager
-      await themeManager.initialize({
-        initialTheme: "light",
-        onUpdate: this.handleThemeUpdate.bind(this),
-      });
+      // Initialize theme manager (only in browser context with document)
+      if (typeof document !== "undefined") {
+        await themeManager.initialize({
+          initialTheme: "light",
+          onUpdate: this.handleThemeUpdate.bind(this),
+        });
+      }
 
       this.initialized = true;
 
@@ -209,7 +212,10 @@ class SettingsManager {
         settings: this.settings,
         featureFlags: featureFlags.flags,
         role: aclManager.currentRole,
-        theme: themeManager.currentTheme,
+        theme:
+          typeof document !== "undefined"
+            ? themeManager.currentTheme
+            : "N/A (service worker)",
       });
     } catch (error) {
       console.error("Error initializing settings manager:", error);
@@ -247,6 +253,11 @@ class SettingsManager {
         general: {},
         display: {},
         advanced: {},
+        variables: {
+          enabled: true,
+          autoDetect: true,
+          list: [],
+        },
       };
 
       // Load capture settings
@@ -280,6 +291,18 @@ class SettingsManager {
       if (advancedSettings && Object.keys(advancedSettings).length > 0) {
         settings.advanced = advancedSettings;
       }
+
+      // Load variables settings
+      const variablesSettings = await configSchemaManager.getSettingsByCategory(
+        "variables"
+      );
+      if (variablesSettings && Object.keys(variablesSettings).length > 0) {
+        settings.variables = variablesSettings;
+      }
+      console.log(
+        "[SettingsManager] Loaded variables from DB:",
+        settings.variables
+      );
 
       return settings;
     } catch (error) {
@@ -378,8 +401,10 @@ class SettingsManager {
         permissions: aclManager.getPermissionsInfo(),
       },
       theme: {
-        current: themeManager.currentTheme,
-        themes: themeManager.getThemesInfo(),
+        current:
+          typeof document !== "undefined" ? themeManager.currentTheme : "light",
+        themes:
+          typeof document !== "undefined" ? themeManager.getThemesInfo() : [],
       },
     };
   }
@@ -453,8 +478,18 @@ class SettingsManager {
     }
   }
 
-  /**
-   * Update feature flags
+  /**   * Get all settings
+   * @returns {Object} Current settings object
+   */
+  getSettings() {
+    console.log("[SettingsManager] getSettings() called");
+    console.log("[SettingsManager] Initialized:", this.initialized);
+    console.log("[SettingsManager] Settings keys:", Object.keys(this.settings));
+    console.log("[SettingsManager] Variables:", this.settings.variables);
+    return this.settings;
+  }
+
+  /**   * Update feature flags
    * @param {Object} flags - Feature flags to update
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
@@ -477,6 +512,12 @@ class SettingsManager {
    * @returns {Promise<boolean>} - Whether the operation was successful
    */
   async setTheme(themeId) {
+    if (typeof document === "undefined") {
+      console.warn(
+        "[SettingsManager] setTheme called in service worker context - skipping"
+      );
+      return false;
+    }
     return await themeManager.setTheme(themeId);
   }
 
@@ -573,7 +614,9 @@ class SettingsManager {
       // Reset feature flags, ACL, and theme
       await featureFlags.resetToDefaults();
       await aclManager.resetToDefaults();
-      await themeManager.resetToDefaults();
+      if (typeof document !== "undefined") {
+        await themeManager.resetToDefaults();
+      }
 
       // Save settings
       await this.saveToStorage();
@@ -599,8 +642,10 @@ class SettingsManager {
         permissions: aclManager.getPermissionsInfo(),
       },
       theme: {
-        current: themeManager.currentTheme,
-        themes: themeManager.getThemesInfo(),
+        current:
+          typeof document !== "undefined" ? themeManager.currentTheme : "light",
+        themes:
+          typeof document !== "undefined" ? themeManager.getThemesInfo() : [],
       },
       exportMeta: {
         version: chrome.runtime.getManifest().version,
@@ -636,7 +681,7 @@ class SettingsManager {
       }
 
       // Update theme if present
-      if (importData.theme) {
+      if (importData.theme && typeof document !== "undefined") {
         await themeManager.setTheme(importData.theme.current);
       }
 
@@ -730,6 +775,8 @@ class SettingsManager {
    */
   async addVariable(variable) {
     try {
+      console.log("[SettingsManager] addVariable called with:", variable);
+
       if (!variable.name || !this.isValidVariableName(variable.name)) {
         throw new Error(
           "Invalid variable name. Use alphanumeric characters and underscores only."
@@ -754,10 +801,25 @@ class SettingsManager {
         updatedAt: Date.now(),
       };
 
+      console.log(
+        "[SettingsManager] Created new variable object:",
+        newVariable
+      );
+
       this.settings.variables.list.push(newVariable);
+
+      console.log(
+        "[SettingsManager] Total variables now:",
+        this.settings.variables.list.length
+      );
+      console.log("[SettingsManager] Saving to storage...");
+
       await this.saveToStorage();
+
+      console.log("[SettingsManager] Broadcasting update...");
       await this.broadcastSettingsUpdate(this.settings);
 
+      console.log("[SettingsManager] Variable added successfully");
       return true;
     } catch (error) {
       console.error("Failed to add variable:", error);

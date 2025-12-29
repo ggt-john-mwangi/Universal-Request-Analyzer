@@ -1,66 +1,97 @@
 // Runner Collections - Group and manage request runner sessions
 // Supports saving, scheduling, and organizing runner configurations
+// NOW USING DATABASE INSTEAD OF CHROME.STORAGE
 
 import { storage } from "../compat/browser-compat.js";
 
 class RunnerCollections {
   constructor() {
-    this.collections = [];
-    this.scheduledRuns = [];
+    this.collectionsCache = []; // In-memory cache for performance
+    this.dbManager = null; // Will be set by message handler
+    this.scheduledRuns = []; // TODO: Migrate to database table
     this.initialized = false;
   }
 
   /**
-   * Initialize collections from storage
+   * Set the database manager instance
+   */
+  setDbManager(dbManager) {
+    this.dbManager = dbManager;
+    console.log("[Collections] Database manager set");
+  }
+
+  /**
+   * Initialize collections from database
    */
   async initialize() {
     try {
-      const data = await storage.get(["runnerCollections", "scheduledRuns"]);
-      this.collections = data.runnerCollections || [];
+      if (!this.dbManager) {
+        console.warn(
+          "[Collections] Database manager not set yet, deferring initialization"
+        );
+        return;
+      }
+
+      // Load collections from database
+      this.collectionsCache = await this.dbManager.collection.getCollections();
+
+      // Load scheduled runs from storage (TODO: migrate to database)
+      const data = await storage.get(["scheduledRuns"]);
       this.scheduledRuns = data.scheduledRuns || [];
+
       this.initialized = true;
-      console.log("Runner collections initialized");
+      console.log(
+        `[Collections] Initialized with ${this.collectionsCache.length} collections from database`
+      );
     } catch (error) {
-      console.error("Failed to initialize runner collections:", error);
+      console.error("[Collections] Failed to initialize:", error);
+      this.collectionsCache = [];
+      this.scheduledRuns = [];
     }
   }
 
   /**
    * Create a new runner collection
    */
-  async createCollection(name, description, requests, config = {}) {
+  async createCollection(name, description, config = {}) {
     if (!this.initialized) await this.initialize();
 
-    const collection = {
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
+    }
+
+    const collectionData = {
       id: `collection_${Date.now()}`,
       name,
       description,
-      requests: requests.map((req) => ({
-        id: req.id,
-        url: req.url,
-        method: req.method,
-        request_headers: req.request_headers,
-        request_payload: req.request_payload,
-        type: req.type,
-      })),
-      config: {
-        mode: config.mode || "sequential",
-        delay: config.delay || 1000,
-        followRedirects: config.followRedirects !== false,
-        validateStatus: config.validateStatus || false,
-        headerOverrides: config.headerOverrides || {},
-        useVariables: config.useVariables !== false,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      runCount: 0,
-      lastRunAt: null,
+      color: config.color || "#007bff",
+      icon: config.icon || "fa-folder",
+      is_active: true,
+      created_at: Date.now(),
+      updated_at: Date.now(),
     };
 
-    this.collections.push(collection);
-    await this.saveCollections();
+    try {
+      const result = await this.dbManager.collection.createCollection(
+        collectionData
+      );
 
-    return collection;
+      if (result.success) {
+        // Add to cache
+        this.collectionsCache.push({
+          ...collectionData,
+          runner_count: 0,
+        });
+
+        console.log(`[Collections] Created collection: ${name}`);
+        return collectionData;
+      }
+
+      throw new Error("Failed to create collection in database");
+    } catch (error) {
+      console.error("[Collections] Failed to create collection:", error);
+      throw error;
+    }
   }
 
   /**
@@ -69,19 +100,38 @@ class RunnerCollections {
   async updateCollection(collectionId, updates) {
     if (!this.initialized) await this.initialize();
 
-    const index = this.collections.findIndex((c) => c.id === collectionId);
-    if (index === -1) {
-      throw new Error("Collection not found");
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
     }
 
-    this.collections[index] = {
-      ...this.collections[index],
-      ...updates,
-      updatedAt: Date.now(),
-    };
+    try {
+      const result = await this.dbManager.collection.updateCollection(
+        collectionId,
+        updates
+      );
 
-    await this.saveCollections();
-    return this.collections[index];
+      if (result.success) {
+        // Update cache
+        const index = this.collectionsCache.findIndex(
+          (c) => c.id === collectionId
+        );
+        if (index !== -1) {
+          this.collectionsCache[index] = {
+            ...this.collectionsCache[index],
+            ...updates,
+            updated_at: Date.now(),
+          };
+        }
+
+        console.log(`[Collections] Updated collection: ${collectionId}`);
+        return this.collectionsCache[index];
+      }
+
+      throw new Error("Failed to update collection in database");
+    } catch (error) {
+      console.error("[Collections] Failed to update collection:", error);
+      throw error;
+    }
   }
 
   /**
@@ -90,50 +140,127 @@ class RunnerCollections {
   async deleteCollection(collectionId) {
     if (!this.initialized) await this.initialize();
 
-    const index = this.collections.findIndex((c) => c.id === collectionId);
-    if (index === -1) {
-      return false;
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
     }
 
-    this.collections.splice(index, 1);
-    await this.saveCollections();
+    try {
+      const result = await this.dbManager.collection.deleteCollection(
+        collectionId
+      );
 
-    // Also remove any scheduled runs for this collection
-    this.scheduledRuns = this.scheduledRuns.filter(
-      (s) => s.collectionId !== collectionId
-    );
-    await this.saveScheduledRuns();
+      if (result.success) {
+        // Remove from cache
+        this.collectionsCache = this.collectionsCache.filter(
+          (c) => c.id !== collectionId
+        );
 
-    return true;
+        // Also remove any scheduled runs for this collection
+        this.scheduledRuns = this.scheduledRuns.filter(
+          (s) => s.collectionId !== collectionId
+        );
+        await this.saveScheduledRuns();
+
+        console.log(`[Collections] Deleted collection: ${collectionId}`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("[Collections] Failed to delete collection:", error);
+      return false;
+    }
   }
 
   /**
-   * Get all collections
+   * Get all collections from database
    */
-  async getCollections() {
+  async getCollections(forceRefresh = false) {
     if (!this.initialized) await this.initialize();
-    return this.collections;
+
+    if (!this.dbManager) {
+      console.error("[Collections] Database manager not initialized");
+      return this.collectionsCache;
+    }
+
+    // Return cache unless force refresh requested
+    if (!forceRefresh && this.collectionsCache.length > 0) {
+      return this.collectionsCache;
+    }
+
+    try {
+      this.collectionsCache = await this.dbManager.collection.getCollections();
+      return this.collectionsCache;
+    } catch (error) {
+      console.error("[Collections] Failed to get collections:", error);
+      return this.collectionsCache; // Return cache on error
+    }
   }
 
   /**
-   * Get specific collection
+   * Get specific collection with its runners
    */
   async getCollection(collectionId) {
     if (!this.initialized) await this.initialize();
-    return this.collections.find((c) => c.id === collectionId);
+
+    try {
+      const collection =
+        await this.dbManager.collection.getCollectionWithRunners(collectionId);
+      return collection;
+    } catch (error) {
+      console.error("[Collections] Failed to get collection:", error);
+      // Fallback to cache
+      return this.collectionsCache.find((c) => c.id === collectionId) || null;
+    }
   }
 
   /**
-   * Increment run count for collection
+   * Assign runner(s) to a collection
    */
-  async incrementRunCount(collectionId) {
+  async assignRunnersToCollection(runnerIds, collectionId) {
     if (!this.initialized) await this.initialize();
 
-    const index = this.collections.findIndex((c) => c.id === collectionId);
-    if (index !== -1) {
-      this.collections[index].runCount++;
-      this.collections[index].lastRunAt = Date.now();
-      await this.saveCollections();
+    try {
+      const result = await this.dbManager.collection.assignRunnersToCollection(
+        runnerIds,
+        collectionId
+      );
+
+      if (result.success) {
+        // Refresh cache to update runner counts
+        await this.getCollections(true);
+        console.log(
+          `[Collections] Assigned runners to collection: ${collectionId}`
+        );
+      }
+
+      return result;
+    } catch (error) {
+      console.error("[Collections] Failed to assign runners:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove runner(s) from their collection
+   */
+  async removeRunnersFromCollection(runnerIds) {
+    if (!this.initialized) await this.initialize();
+
+    try {
+      const result =
+        await this.dbManager.collection.removeRunnersFromCollection(runnerIds);
+
+      if (result.success) {
+        // Refresh cache to update runner counts
+        await this.getCollections(true);
+        console.log(`[Collections] Removed runners from collection`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("[Collections] Failed to remove runners:", error);
+      throw error;
     }
   }
 
@@ -335,24 +462,13 @@ class RunnerCollections {
   }
 
   /**
-   * Save collections to storage
-   */
-  async saveCollections() {
-    try {
-      await storage.set({ runnerCollections: this.collections });
-    } catch (error) {
-      console.error("Failed to save runner collections:", error);
-    }
-  }
-
-  /**
-   * Save scheduled runs to storage
+   * Save scheduled runs to storage (TODO: migrate to database)
    */
   async saveScheduledRuns() {
     try {
       await storage.set({ scheduledRuns: this.scheduledRuns });
     } catch (error) {
-      console.error("Failed to save scheduled runs:", error);
+      console.error("[Collections] Failed to save scheduled runs:", error);
     }
   }
 }

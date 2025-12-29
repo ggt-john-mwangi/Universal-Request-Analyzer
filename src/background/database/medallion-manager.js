@@ -869,6 +869,14 @@ export class MedallionManager {
     const timestamp = metric.timestamp || Date.now();
 
     try {
+      console.log("[Medallion] Inserting web vital:", {
+        metric: metric.metric,
+        value: metric.value,
+        rating: metric.rating,
+        domain: domain,
+        url: metric.url,
+      });
+
       this.db.exec(`
         INSERT INTO bronze_web_vitals (
           id, page_url, domain, metric_name, value, rating,
@@ -886,6 +894,11 @@ export class MedallionManager {
           ${Date.now()}
         )
       `);
+
+      console.log(
+        "[Medallion] ✓ Web vital inserted successfully:",
+        metric.metric
+      );
       return true;
     } catch (error) {
       console.error("[Medallion] Error inserting web vital:", error);

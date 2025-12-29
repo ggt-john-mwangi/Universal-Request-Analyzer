@@ -61,7 +61,10 @@ class Dashboard {
 
     const pageFilter = document.getElementById("dashboardPageFilter");
     if (pageFilter) {
-      pageFilter.addEventListener("change", () => this.refreshDashboard());
+      pageFilter.addEventListener("change", () => {
+        console.log("[Dashboard] Page filter changed to:", pageFilter.value);
+        this.refreshDashboard();
+      });
     }
 
     const requestTypeFilter = document.getElementById(
@@ -367,7 +370,28 @@ class Dashboard {
     };
   }
 
-  initializeCharts() {
+  async initializeCharts() {
+    // Check if plots/visualizations are enabled in settings
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings"
+      });
+
+      if (response && response.success && response.settings) {
+        const visualizationSettings = response.settings.visualizations || response.settings.settings?.visualizations;
+        const enablePlots = visualizationSettings?.enablePlots;
+
+        if (enablePlots === false) {
+          console.log("[Dashboard] Plots disabled in settings, showing message");
+          this.showPlotsDisabledMessage();
+          return; // Don't initialize charts
+        }
+      }
+    } catch (error) {
+      console.warn("[Dashboard] Could not check visualization settings:", error);
+      // Continue with chart initialization if settings check fails
+    }
+
     const colors = this.getChartColors();
 
     // Volume Chart - Line chart for request volume over time
@@ -522,6 +546,63 @@ class Dashboard {
         },
       });
     }
+  }
+
+  showPlotsDisabledMessage() {
+    const chartsSection = document.querySelector(".dashboard-charts");
+    if (!chartsSection) return;
+
+    chartsSection.innerHTML = `
+      <div style="
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--surface-color);
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        margin: 20px 0;
+      ">
+        <div style="font-size: 48px; color: var(--warning-color); margin-bottom: 16px;">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <h3 style="
+          color: var(--text-primary);
+          margin: 0 0 12px 0;
+          font-size: 20px;
+          font-weight: 600;
+        ">
+          Visualizations Disabled
+        </h3>
+        <p style="
+          color: var(--text-secondary);
+          margin: 0 0 24px 0;
+          font-size: 14px;
+          max-width: 400px;
+          margin-left: auto;
+          margin-right: auto;
+        ">
+          Chart visualizations are currently disabled in your settings.
+          Enable them to see request volume, status distribution, and performance trends.
+        </p>
+        <button 
+          onclick="window.location.hash = '#settings'; document.querySelector('[data-section=\\'general\\']')?.click();"
+          style="
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+          "
+          onmouseover="this.style.opacity='0.9'"
+          onmouseout="this.style.opacity='1'"
+        >
+          <i class="fas fa-cog"></i> Enable in Settings
+        </button>
+      </div>
+    `;
   }
 
   async refreshDashboard() {
@@ -3122,15 +3203,28 @@ class Dashboard {
     // Load and display variables
     await this.loadRunnerVariables();
 
+    // Show variables preview if "Use Variables" is checked
+    const useVariablesCheckbox = document.getElementById("runnerUseVariables");
+    const previewContainer = document.getElementById("runnerVariablesPreview");
+    if (useVariablesCheckbox && previewContainer) {
+      previewContainer.style.display = useVariablesCheckbox.checked
+        ? "block"
+        : "none";
+    }
+
     document.getElementById("runnerConfigModal").style.display = "flex";
   }
 
   async loadRunnerVariables() {
     try {
+      console.log("[Runner Variables] Starting to load variables...");
+
       // Fetch settings from background
       const response = await chrome.runtime.sendMessage({
         action: "getSettings",
       });
+
+      console.log("[Runner Variables] Settings response:", response);
 
       if (!response || !response.success) {
         console.warn("Failed to load settings for variables");
@@ -3139,6 +3233,13 @@ class Dashboard {
 
       const variables = response.settings?.variables?.list || [];
       const variableCount = variables.length;
+
+      console.log(
+        "[Runner Variables] Found",
+        variableCount,
+        "variables:",
+        variables
+      );
 
       // Update count
       document.getElementById(
@@ -3196,9 +3297,11 @@ class Dashboard {
       const previewContainer = document.getElementById(
         "runnerVariablesPreview"
       );
-      previewContainer.style.display = useVariablesCheckbox.checked
-        ? "block"
-        : "none";
+      if (previewContainer && useVariablesCheckbox) {
+        previewContainer.style.display = useVariablesCheckbox.checked
+          ? "block"
+          : "none";
+      }
     } catch (error) {
       console.error("Error loading runner variables:", error);
     }
@@ -3827,6 +3930,8 @@ class Dashboard {
       "dashboardRequestTypeFilter"
     )?.value;
 
+    console.log("[Dashboard] Reading filters - domain:", domainFilter, "page:", pageFilter, "type:", requestTypeFilter);
+
     const filters = {};
 
     // Add domain filter (if "all" is selected, no domain filter is added, showing all domains)
@@ -3837,6 +3942,7 @@ class Dashboard {
     // Add page filter (if specific page selected)
     if (pageFilter && pageFilter !== "") {
       filters.pageUrl = pageFilter;
+      console.log("[Dashboard] Page filter applied:", pageFilter);
     }
 
     // Add request type filter
@@ -3890,7 +3996,18 @@ class Dashboard {
     try {
       const filters = this.getActiveFilters();
 
+      // Web Vitals are page-specific metrics - require page selection
+      if (!filters.pageUrl) {
+        console.log("[Dashboard] Skipping Web Vitals - no page selected (page-level metrics only)");
+        this.hideWebVitals("Please select a specific page to view Core Web Vitals");
+        return;
+      }
+
       console.log("[Dashboard] Requesting Web Vitals with filters:", filters);
+
+      // Show the Web Vitals section immediately when page is selected
+      // This removes the overlay even if we don't have data yet
+      this.showWebVitals();
 
       // Get Web Vitals from background
       const response = await chrome.runtime.sendMessage({
@@ -3936,6 +4053,73 @@ class Dashboard {
     } catch (error) {
       console.error("[Dashboard] Failed to update web vitals:", error);
     }
+  }
+
+  hideWebVitals(message = "Select a specific page to view Core Web Vitals") {
+    const webVitalsSection = document.querySelector(".web-vitals-grid");
+    if (!webVitalsSection) return;
+
+    console.log("[Dashboard] hideWebVitals: Hiding vitals section");
+
+    // Hide the actual vitals cards and show a message
+    webVitalsSection.style.opacity = "0.5";
+    webVitalsSection.style.pointerEvents = "none";
+
+    // Add overlay message if not exists
+    let overlay = webVitalsSection.parentElement.querySelector(".page-level-overlay");
+    if (!overlay) {
+      console.log("[Dashboard] hideWebVitals: Creating new overlay");
+      overlay = document.createElement("div");
+      overlay.className = "page-level-overlay";
+      overlay.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--surface-color);
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        padding: 24px;
+        text-align: center;
+        max-width: 400px;
+        z-index: 10;
+      `;
+      overlay.innerHTML = `
+        <i class="fas fa-info-circle" style="font-size: 32px; color: var(--info-color); margin-bottom: 12px;"></i>
+        <p style="margin: 0; color: var(--text-primary); font-weight: 500;">${message}</p>
+        <p style="margin: 8px 0 0 0; font-size: 13px; color: var(--text-secondary);">
+          Core Web Vitals are page-specific performance metrics
+        </p>
+      `;
+
+      // Ensure parent has position: relative
+      webVitalsSection.parentElement.style.position = "relative";
+      webVitalsSection.parentElement.appendChild(overlay);
+    } else {
+      console.log("[Dashboard] hideWebVitals: Overlay already exists");
+    }
+  }
+
+  showWebVitals() {
+    const webVitalsSection = document.querySelector(".web-vitals-grid");
+    if (!webVitalsSection) return;
+
+    // Remove all overlays (check both parent and section itself)
+    const parent = webVitalsSection.parentElement;
+    if (parent) {
+      const overlays = parent.querySelectorAll(".page-level-overlay");
+      overlays.forEach(overlay => overlay.remove());
+    }
+    
+    // Also check if overlay is a sibling
+    const siblingOverlays = document.querySelectorAll(".web-vitals-section .page-level-overlay");
+    siblingOverlays.forEach(overlay => overlay.remove());
+
+    // Show the vitals cards
+    webVitalsSection.style.opacity = "1";
+    webVitalsSection.style.pointerEvents = "auto";
+    
+    console.log("[Dashboard] showWebVitals: Overlay removed, vitals section visible");
   }
 
   updateVitalCard(metric, data) {
@@ -4887,11 +5071,18 @@ class Dashboard {
    */
   async populateVariablesDropdown(type) {
     try {
+      console.log(
+        `[Variables Dropdown] Populating ${type} variables dropdown...`
+      );
+
       const response = await chrome.runtime.sendMessage({
         action: "getSettings",
       });
 
-      console.log("Settings response for variables:", response);
+      console.log(
+        `[Variables Dropdown] Settings response for ${type}:`,
+        response
+      );
 
       if (!response || !response.success) {
         console.warn("Failed to get settings for variables");
@@ -4899,12 +5090,23 @@ class Dashboard {
       }
 
       const variables = response.settings?.variables?.list || [];
-      console.log("Variables found:", variables.length);
+      console.log(
+        `[Variables Dropdown] Found ${variables.length} variables:`,
+        variables
+      );
+
       const selectId =
         type === "curl" ? "curlVariableSelect" : "fetchVariableSelect";
       const select = document.getElementById(selectId);
 
-      if (!select) return;
+      console.log(`[Variables Dropdown] Select element (${selectId}):`, select);
+
+      if (!select) {
+        console.warn(
+          `[Variables Dropdown] Select element ${selectId} not found!`
+        );
+        return;
+      }
 
       // Clear existing options except first
       select.innerHTML = '<option value="">Insert Variable...</option>';
@@ -4917,6 +5119,10 @@ class Dashboard {
         option.title = variable.description || variable.name;
         select.appendChild(option);
       });
+
+      console.log(
+        `[Variables Dropdown] Added ${variables.length} options to ${type} dropdown`
+      );
     } catch (error) {
       console.error("Failed to populate variables dropdown:", error);
     }
