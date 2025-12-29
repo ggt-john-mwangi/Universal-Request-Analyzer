@@ -47,7 +47,7 @@
           </button>
           <button class="nav-item" data-tab="retention">
             <i class="fas fa-database"></i>
-            <span>Data Management</span>
+            <span>Data</span>
           </button>
           <button class="nav-item" data-tab="security">
             <i class="fas fa-shield-alt"></i>
@@ -1196,64 +1196,122 @@
           <!-- Runners Tab -->
           <section id="runners" class="tab-content">
             <div class="dashboard-container" style="max-width: 1400px">
-              <!-- Runners Header -->
+              <!-- Runners Header with Sub-tabs -->
               <div class="dashboard-header">
                 <h2><i class="fas fa-play-circle"></i> Request Runners</h2>
                 <p style="margin: 8px 0 0 0; color: var(--text-secondary)">
-                  Manage and execute saved runners and recent quick runs
+                  Manage runners and organize them into collections
                 </p>
               </div>
 
-              <!-- Runners Controls -->
-              <div class="dashboard-controls" style="margin-bottom: 24px">
-                <div style="display: flex; gap: 12px; flex: 1">
-                  <input
-                    type="text"
-                    id="runnerSearch"
-                    placeholder="Search runners..."
-                    class="filter-select"
-                    style="flex: 1; max-width: 400px"
-                  />
-                  <select
-                    id="runnerTypeFilter"
-                    class="filter-select"
-                    style="width: 150px"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="saved">Saved Only</option>
-                    <option value="temporary">Quick Runs Only</option>
-                  </select>
+              <!-- Sub-navigation for Runners and Collections -->
+              <div
+                class="sub-tabs"
+                style="
+                  margin-bottom: 24px;
+                  border-bottom: 2px solid var(--border-color);
+                "
+              >
+                <button class="sub-tab-btn active" data-subtab="runners-list">
+                  <i class="fas fa-play-circle"></i> Runners
+                </button>
+                <button class="sub-tab-btn" data-subtab="collections-list">
+                  <i class="fas fa-folder"></i> Collections
+                </button>
+              </div>
+
+              <!-- Runners List View -->
+              <div id="runners-list" class="sub-tab-content active">
+                <!-- Runners Controls -->
+                <div class="dashboard-controls" style="margin-bottom: 24px">
+                  <div style="display: flex; gap: 12px; flex: 1">
+                    <input
+                      type="text"
+                      id="runnerSearch"
+                      placeholder="Search runners..."
+                      class="filter-select"
+                      style="flex: 1; max-width: 400px"
+                    />
+                    <select
+                      id="runnerTypeFilter"
+                      class="filter-select"
+                      style="width: 150px"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="saved">Saved Only</option>
+                      <option value="temporary">Quick Runs Only</option>
+                    </select>
+                  </div>
+                  <div style="display: flex; gap: 8px">
+                    <button
+                      id="btnRefreshRunners"
+                      class="secondary-btn"
+                      title="Refresh"
+                    >
+                      <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="btnCreateRunner" class="btn-primary">
+                      <i class="fas fa-plus"></i> Create Runner
+                    </button>
+                  </div>
                 </div>
-                <div style="display: flex; gap: 8px">
-                  <button
-                    id="btnRefreshRunners"
-                    class="secondary-btn"
-                    title="Refresh"
+
+                <!-- Runners Grid -->
+                <div id="runnersGrid" class="runners-grid">
+                  <!-- Runners will be loaded here -->
+                  <div
+                    style="
+                      grid-column: 1 / -1;
+                      text-align: center;
+                      padding: 60px 20px;
+                      color: var(--text-secondary);
+                    "
                   >
-                    <i class="fas fa-sync-alt"></i>
-                  </button>
-                  <button id="btnCreateRunner" class="btn-primary">
-                    <i class="fas fa-plus"></i> Create Runner
-                  </button>
+                    <i
+                      class="fas fa-spinner fa-pulse"
+                      style="font-size: 48px; margin-bottom: 16px"
+                    ></i>
+                    <p>Loading runners...</p>
+                  </div>
                 </div>
               </div>
 
-              <!-- Runners Grid -->
-              <div id="runnersGrid" class="runners-grid">
-                <!-- Runners will be loaded here -->
-                <div
-                  style="
-                    grid-column: 1 / -1;
-                    text-align: center;
-                    padding: 60px 20px;
-                    color: var(--text-secondary);
-                  "
-                >
-                  <i
-                    class="fas fa-spinner fa-pulse"
-                    style="font-size: 48px; margin-bottom: 16px"
-                  ></i>
-                  <p>Loading runners...</p>
+              <!-- Collections List View -->
+              <div id="collections-list" class="sub-tab-content">
+                <!-- Collections Controls -->
+                <div class="dashboard-controls" style="margin-bottom: 24px">
+                  <div style="flex: 1"></div>
+                  <div style="display: flex; gap: 8px">
+                    <button
+                      id="btnRefreshCollections"
+                      class="secondary-btn"
+                      title="Refresh"
+                    >
+                      <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="btnCreateCollection" class="btn-primary">
+                      <i class="fas fa-plus"></i> Create Collection
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Collections Grid -->
+                <div id="collectionsGrid" class="collections-grid">
+                  <!-- Collections will be loaded here -->
+                  <div
+                    style="
+                      grid-column: 1 / -1;
+                      text-align: center;
+                      padding: 60px 20px;
+                      color: var(--text-secondary);
+                    "
+                  >
+                    <i
+                      class="fas fa-spinner fa-spin"
+                      style="font-size: 32px"
+                    ></i>
+                    <p style="margin-top: 16px">Loading collections...</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3884,6 +3942,104 @@ fetch('https://api.example.com/data', {
         <div class="modal-footer">
           <button id="closeHistoryBtn" class="secondary-btn">Close</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Collection Edit Modal -->
+    <div id="collectionModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 600px">
+        <div class="modal-header">
+          <h2 id="collectionModalTitle">
+            <i class="fas fa-folder"></i> Create Collection
+          </h2>
+          <button class="modal-close" id="collectionModalClose">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="collectionId" />
+
+          <div class="form-group">
+            <label for="collectionName">Collection Name *</label>
+            <input
+              type="text"
+              id="collectionName"
+              class="form-control"
+              placeholder="e.g., API Test Suite"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="collectionDescription">Description</label>
+            <textarea
+              id="collectionDescription"
+              class="form-control"
+              rows="3"
+              placeholder="Optional description..."
+            ></textarea>
+          </div>
+
+          <div
+            class="form-row"
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px"
+          >
+            <div class="form-group">
+              <label for="collectionColor">Color</label>
+              <input
+                type="color"
+                id="collectionColor"
+                class="form-control"
+                value="#007bff"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="collectionIcon">Icon Class</label>
+              <input
+                type="text"
+                id="collectionIcon"
+                class="form-control"
+                placeholder="fa-folder"
+                value="fa-folder"
+              />
+              <small class="form-text"
+                >FontAwesome icon class (e.g., fa-folder, fa-rocket)</small
+              >
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="collectionRunners">Runners in this Collection</label>
+            <div id="collectionRunnersList" class="runner-selection-list">
+              <div
+                style="
+                  text-align: center;
+                  padding: 20px;
+                  color: var(--text-secondary);
+                "
+              >
+                <i class="fas fa-spinner fa-spin"></i> Loading runners...
+              </div>
+            </div>
+            <small class="form-text"
+              >Select runners to include in this collection</small
+            >
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnCancelCollection" class="secondary-btn">Cancel</button>
+          <button id="btnSaveCollection" class="btn-primary">
+            <i class="fas fa-save"></i> Save Collection
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Collection View Modal -->
+    <div id="collectionViewModal" class="modal" style="display: none">
+      <div class="modal-content" style="max-width: 700px">
+        <!-- Content will be dynamically generated -->
       </div>
     </div>
 

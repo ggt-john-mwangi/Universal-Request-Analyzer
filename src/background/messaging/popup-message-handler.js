@@ -19,6 +19,12 @@ export function initializePopupMessageHandler(auth, database) {
     console.log("✓ RequestRunner initialized with database manager");
   }
 
+  // Initialize runnerCollections with database manager
+  if (database && runnerCollections) {
+    runnerCollections.setDbManager(database);
+    console.log("✓ RunnerCollections initialized with database manager");
+  }
+
   console.log("Popup message handler initialized");
 
   // Return the handler function to be used by central listener
@@ -282,6 +288,38 @@ async function handleMessage(message, sender) {
 
       case "deleteRunner":
         return await handleDeleteRunner(message.runnerId);
+
+      // Collection operations
+      case "createCollection":
+        return await handleCreateCollection(
+          message.name,
+          message.description,
+          message.config
+        );
+
+      case "getCollections":
+        return await handleGetCollections(message.activeOnly);
+
+      case "getCollection":
+        return await handleGetCollection(message.collectionId);
+
+      case "updateCollection":
+        return await handleUpdateCollection(
+          message.collectionId,
+          message.updates
+        );
+
+      case "deleteCollection":
+        return await handleDeleteCollection(message.collectionId);
+
+      case "assignRunnersToCollection":
+        return await handleAssignRunnersToCollection(
+          message.runnerIds,
+          message.collectionId
+        );
+
+      case "removeRunnersFromCollection":
+        return await handleRemoveRunnersFromCollection(message.runnerIds);
 
       case "getRequestsByFilters":
         return await handleGetRequestsByFilters(message.filters);
@@ -3147,7 +3185,7 @@ async function handleSaveSetting(data) {
     }
 
     const { category, key, value } = data;
-    
+
     if (!category || !key) {
       return { success: false, error: "Category and key are required" };
     }
@@ -3162,18 +3200,18 @@ async function handleSaveSetting(data) {
     let valueStr, dataType;
 
     // Determine data type and format value
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       valueStr = escapeStr(value);
-      dataType = 'string';
-    } else if (typeof value === 'number') {
+      dataType = "string";
+    } else if (typeof value === "number") {
       valueStr = value;
-      dataType = 'number';
-    } else if (typeof value === 'boolean') {
+      dataType = "number";
+    } else if (typeof value === "boolean") {
       valueStr = value ? 1 : 0;
-      dataType = 'boolean';
+      dataType = "boolean";
     } else {
       valueStr = escapeStr(JSON.stringify(value));
-      dataType = 'json';
+      dataType = "json";
     }
 
     // Insert or replace in config_app_settings
@@ -3185,7 +3223,9 @@ async function handleSaveSetting(data) {
         ${valueStr},
         ${escapeStr(dataType)},
         ${escapeStr(category)},
-        COALESCE((SELECT created_at FROM config_app_settings WHERE key = ${escapeStr(key)}), ${timestamp}),
+        COALESCE((SELECT created_at FROM config_app_settings WHERE key = ${escapeStr(
+          key
+        )}), ${timestamp}),
         ${timestamp}
       )
     `;
@@ -3211,7 +3251,7 @@ async function handleGetSetting(data) {
     }
 
     const { category, key } = data;
-    
+
     if (!category || !key) {
       return { success: false, error: "Category and key are required" };
     }
@@ -3236,15 +3276,15 @@ async function handleGetSetting(data) {
 
       let value;
       // Parse value based on data type
-      if (dataType === 'json') {
+      if (dataType === "json") {
         try {
           value = JSON.parse(valueStr);
         } catch (e) {
           value = valueStr;
         }
-      } else if (dataType === 'boolean') {
-        value = valueStr === 1 || valueStr === '1' || valueStr === true;
-      } else if (dataType === 'number') {
+      } else if (dataType === "boolean") {
+        value = valueStr === 1 || valueStr === "1" || valueStr === true;
+      } else if (dataType === "number") {
         value = parseFloat(valueStr);
       } else {
         value = valueStr;
@@ -3272,7 +3312,7 @@ async function handleGetSettingsByCategory(data) {
     }
 
     const { category } = data;
-    
+
     if (!category) {
       return { success: false, error: "Category is required" };
     }
@@ -3298,15 +3338,15 @@ async function handleGetSettingsByCategory(data) {
 
         let value;
         // Parse value based on data type
-        if (dataType === 'json') {
+        if (dataType === "json") {
           try {
             value = JSON.parse(valueStr);
           } catch (e) {
             value = valueStr;
           }
-        } else if (dataType === 'boolean') {
-          value = valueStr === 1 || valueStr === '1' || valueStr === true;
-        } else if (dataType === 'number') {
+        } else if (dataType === "boolean") {
+          value = valueStr === 1 || valueStr === "1" || valueStr === true;
+        } else if (dataType === "number") {
           value = parseFloat(valueStr);
         } else {
           value = valueStr;
@@ -3316,7 +3356,9 @@ async function handleGetSettingsByCategory(data) {
       }
     }
 
-    console.log(`[Settings] Retrieved ${settings.length} settings from ${category}`);
+    console.log(
+      `[Settings] Retrieved ${settings.length} settings from ${category}`
+    );
     return { success: true, settings };
   } catch (error) {
     console.error("[Settings] Get settings by category error:", error);
@@ -4225,7 +4267,7 @@ async function handleGetAllRunners(data) {
     const options = {
       offset: data?.offset || 0,
       limit: data?.limit || 50,
-      searchQuery: data?.searchQuery || null
+      searchQuery: data?.searchQuery || null,
     };
 
     const result = await dbManager.runner.getAllRunners(options);
@@ -4402,6 +4444,168 @@ async function handleDeleteRunner(runnerId) {
     };
   } catch (error) {
     console.error("Delete runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * ============================================================================
+ * Collection Handler Functions
+ * ============================================================================
+ */
+
+/**
+ * Create a new collection
+ */
+async function handleCreateCollection(name, description, config) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.createCollection(
+      name,
+      description,
+      config
+    );
+
+    return {
+      success: true,
+      collection: result,
+    };
+  } catch (error) {
+    console.error("Create collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all collections
+ */
+async function handleGetCollections(activeOnly = false) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const collections = await runnerCollections.getCollections(false); // Force refresh
+
+    return {
+      success: true,
+      collections,
+    };
+  } catch (error) {
+    console.error("Get collections error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get a specific collection with its runners
+ */
+async function handleGetCollection(collectionId) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const collection = await runnerCollections.getCollection(collectionId);
+
+    if (!collection) {
+      return { success: false, error: "Collection not found" };
+    }
+
+    return {
+      success: true,
+      collection,
+    };
+  } catch (error) {
+    console.error("Get collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update a collection
+ */
+async function handleUpdateCollection(collectionId, updates) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.updateCollection(
+      collectionId,
+      updates
+    );
+
+    return {
+      success: true,
+      collection: result,
+    };
+  } catch (error) {
+    console.error("Update collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete a collection
+ */
+async function handleDeleteCollection(collectionId) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.deleteCollection(collectionId);
+
+    return {
+      success: result,
+    };
+  } catch (error) {
+    console.error("Delete collection error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Assign runner(s) to a collection
+ */
+async function handleAssignRunnersToCollection(runnerIds, collectionId) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.assignRunnersToCollection(
+      runnerIds,
+      collectionId
+    );
+
+    return result;
+  } catch (error) {
+    console.error("Assign runners error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Remove runner(s) from their collection
+ */
+async function handleRemoveRunnersFromCollection(runnerIds) {
+  try {
+    if (!dbManager || !dbManager.collection) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const result = await runnerCollections.removeRunnersFromCollection(
+      runnerIds
+    );
+
+    return result;
+  } catch (error) {
+    console.error("Remove runners error:", error);
     return { success: false, error: error.message };
   }
 }
@@ -4630,7 +4834,10 @@ async function handleExportToSQLite(options = {}) {
     const uint8Data = new Uint8Array(data);
 
     // Generate filename
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, -5);
     const filename = `URA_Export_${timestamp}.sqlite`;
 
     console.log(`[Export] SQLite export complete: ${uint8Data.length} bytes`);
@@ -4640,7 +4847,7 @@ async function handleExportToSQLite(options = {}) {
       data: Array.from(uint8Data), // Serialize for chrome.runtime.sendMessage
       filename,
       size: uint8Data.length,
-      mimeType: 'application/x-sqlite3'
+      mimeType: "application/x-sqlite3",
     };
   } catch (error) {
     console.error("[Export] SQLite export error:", error);
@@ -4669,7 +4876,7 @@ async function handleExportToJSON(options = {}) {
       ORDER BY name
     `);
 
-    const allTables = tableNamesResult[0]?.values.map(row => row[0]) || [];
+    const allTables = tableNamesResult[0]?.values.map((row) => row[0]) || [];
     const tablesToExport = tables || allTables;
 
     console.log(`[Export] Exporting ${tablesToExport.length} tables to JSON`);
@@ -4678,21 +4885,21 @@ async function handleExportToJSON(options = {}) {
     const exportData = {
       metadata: {
         exportDate: new Date().toISOString(),
-        version: chrome.runtime.getManifest()?.version || 'unknown',
+        version: chrome.runtime.getManifest()?.version || "unknown",
         tables: tablesToExport,
-        recordCounts: {}
+        recordCounts: {},
       },
-      database: {}
+      database: {},
     };
 
     // Export each table
     for (const tableName of tablesToExport) {
       try {
         const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
-        
+
         if (result.length > 0) {
           const columns = result[0].columns;
-          const rows = result[0].values.map(row => {
+          const rows = result[0].values.map((row) => {
             const obj = {};
             columns.forEach((col, idx) => {
               obj[col] = row[idx];
@@ -4707,7 +4914,10 @@ async function handleExportToJSON(options = {}) {
           exportData.metadata.recordCounts[tableName] = 0;
         }
       } catch (tableError) {
-        console.warn(`[Export] Failed to export table ${tableName}:`, tableError);
+        console.warn(
+          `[Export] Failed to export table ${tableName}:`,
+          tableError
+        );
         exportData.database[tableName] = [];
         exportData.metadata.recordCounts[tableName] = 0;
       }
@@ -4718,7 +4928,10 @@ async function handleExportToJSON(options = {}) {
     const jsonBytes = new TextEncoder().encode(jsonString);
 
     // Generate filename
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, -5);
     const filename = `URA_Export_${timestamp}.json`;
 
     console.log(`[Export] JSON export complete: ${jsonBytes.length} bytes`);
@@ -4728,9 +4941,12 @@ async function handleExportToJSON(options = {}) {
       data: Array.from(jsonBytes), // Serialize for chrome.runtime.sendMessage
       filename,
       size: jsonBytes.length,
-      mimeType: 'application/json',
+      mimeType: "application/json",
       tableCount: tablesToExport.length,
-      totalRecords: Object.values(exportData.metadata.recordCounts).reduce((a, b) => a + b, 0)
+      totalRecords: Object.values(exportData.metadata.recordCounts).reduce(
+        (a, b) => a + b,
+        0
+      ),
     };
   } catch (error) {
     console.error("[Export] JSON export error:", error);
@@ -4756,11 +4972,11 @@ async function handleExportToCSV(options = {}) {
     // If single table specified, export just that table as CSV
     if (tableName) {
       const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
-      
+
       if (result.length === 0) {
         return {
           success: false,
-          error: `Table ${tableName} is empty or does not exist`
+          error: `Table ${tableName} is empty or does not exist`,
         };
       }
 
@@ -4768,33 +4984,38 @@ async function handleExportToCSV(options = {}) {
       const rows = result[0].values;
 
       // Build CSV
-      let csv = columns.join(',') + '\n';
+      let csv = columns.join(",") + "\n";
       for (const row of rows) {
-        const escapedRow = row.map(val => {
-          if (val === null) return '';
+        const escapedRow = row.map((val) => {
+          if (val === null) return "";
           const str = String(val);
           // Escape quotes and wrap in quotes if contains comma, quote, or newline
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
             return `"${str.replace(/"/g, '""')}"`;
           }
           return str;
         });
-        csv += escapedRow.join(',') + '\n';
+        csv += escapedRow.join(",") + "\n";
       }
 
       const csvBytes = new TextEncoder().encode(csv);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .slice(0, -5);
       const filename = `${tableName}_${timestamp}.csv`;
 
-      console.log(`[Export] CSV export complete for ${tableName}: ${csvBytes.length} bytes`);
+      console.log(
+        `[Export] CSV export complete for ${tableName}: ${csvBytes.length} bytes`
+      );
 
       return {
         success: true,
         data: Array.from(csvBytes),
         filename,
         size: csvBytes.length,
-        mimeType: 'text/csv',
-        recordCount: rows.length
+        mimeType: "text/csv",
+        recordCount: rows.length,
       };
     }
 
@@ -4805,13 +5026,13 @@ async function handleExportToCSV(options = {}) {
       ORDER BY name
     `);
 
-    const allTables = tableNamesResult[0]?.values.map(row => row[0]) || [];
+    const allTables = tableNamesResult[0]?.values.map((row) => row[0]) || [];
 
     return {
       success: true,
-      message: 'Multiple table export requires specifying tableName',
+      message: "Multiple table export requires specifying tableName",
       availableTables: allTables,
-      hint: 'Call with { tableName: "table_name" } to export a specific table'
+      hint: 'Call with { tableName: "table_name" } to export a specific table',
     };
   } catch (error) {
     console.error("[Export] CSV export error:", error);

@@ -10,7 +10,7 @@ class RunnersManager {
     this.refreshInterval = null;
     this.runningRunners = new Set(); // Track which runners are currently executing
     this.isCreatingRunner = false; // Prevent duplicate runner creation
-    
+
     // Pagination state
     this.currentPage = 1;
     this.perPage = 50;
@@ -67,7 +67,7 @@ class RunnersManager {
         if (this.searchTimeout) {
           clearTimeout(this.searchTimeout);
         }
-        
+
         this.searchTimeout = setTimeout(() => {
           this.searchQuery = e.target.value.trim();
           this.currentPage = 1; // Reset to first page on new search
@@ -142,6 +142,15 @@ class RunnersManager {
           this.convertToSaved(runnerId);
         }
       }
+
+      // Handle assign to collection button clicks
+      const assignCollectionBtn = e.target.closest(".assign-collection-btn");
+      if (assignCollectionBtn) {
+        const runnerId = assignCollectionBtn.dataset.runnerId;
+        if (runnerId) {
+          this.showCollectionAssignment(runnerId);
+        }
+      }
     });
   }
 
@@ -165,7 +174,7 @@ class RunnersManager {
         action: "getAllRunners",
         offset: offset,
         limit: this.perPage,
-        searchQuery: this.searchQuery || null
+        searchQuery: this.searchQuery || null,
       });
 
       if (response && response.success) {
@@ -248,7 +257,9 @@ class RunnersManager {
     // Previous button
     if (this.currentPage > 1) {
       html += `
-        <button class="pagination-btn" data-page="${this.currentPage - 1}" title="Previous page">
+        <button class="pagination-btn" data-page="${
+          this.currentPage - 1
+        }" title="Previous page">
           <i class="fas fa-chevron-left"></i>
         </button>
       `;
@@ -281,7 +292,9 @@ class RunnersManager {
     // Next button
     if (this.currentPage < totalPages) {
       html += `
-        <button class="pagination-btn" data-page="${this.currentPage + 1}" title="Next page">
+        <button class="pagination-btn" data-page="${
+          this.currentPage + 1
+        }" title="Next page">
           <i class="fas fa-chevron-right"></i>
         </button>
       `;
@@ -387,6 +400,18 @@ class RunnersManager {
       ? '<span class="runner-badge temporary">Quick Run</span>'
       : '<span class="runner-badge permanent">Saved</span>';
 
+    // Collection badge
+    const collectionBadge =
+      runner.collection_id && runner.collection_name
+        ? `<span class="runner-badge collection" title="Collection: ${this.escapeHtml(
+            runner.collection_name
+          )}">
+          <i class="fas fa-folder"></i> ${this.escapeHtml(
+            runner.collection_name
+          )}
+        </span>`
+        : "";
+
     // Check if this runner is currently executing (with safety check)
     if (!this.runningRunners) {
       this.runningRunners = new Set();
@@ -412,6 +437,7 @@ class RunnersManager {
               ${this.escapeHtml(runner.name)}
             </h4>
             ${badge}
+            ${collectionBadge}
             ${
               isRunning
                 ? '<span class="runner-badge status">Running...</span>'
@@ -476,9 +502,29 @@ class RunnersManager {
           <span class="runner-last-run">
             <i class="fas fa-clock"></i> Last run: ${lastRun}
           </span>
-          ${
-            isTemporary
-              ? `
+          <div style="display: flex; gap: 8px; align-items: center;">
+            ${
+              !isTemporary
+                ? `
+              <button 
+                class="link-btn assign-collection-btn" 
+                data-runner-id="${runner.id}"
+                title="${
+                  runner.collection_id
+                    ? "Change collection"
+                    : "Assign to collection"
+                }"
+              >
+                <i class="fas fa-folder-plus"></i> ${
+                  runner.collection_id ? "Change" : "Add to"
+                } Collection
+              </button>
+            `
+                : ""
+            }
+            ${
+              isTemporary
+                ? `
             <button 
               class="link-btn convert-to-saved-btn" 
               data-runner-id="${runner.id}"
@@ -487,8 +533,9 @@ class RunnersManager {
               <i class="fas fa-save"></i> Save
             </button>
           `
-              : ""
-          }
+                : ""
+            }
+          </div>
         </div>
       </div>
     `;
@@ -665,31 +712,41 @@ class RunnersManager {
     let variables = [];
     if (runner.variables) {
       try {
-        variables = typeof runner.variables === 'string' 
-          ? JSON.parse(runner.variables) 
-          : runner.variables;
+        variables =
+          typeof runner.variables === "string"
+            ? JSON.parse(runner.variables)
+            : runner.variables;
       } catch (e) {
-        console.warn('[Runners] Failed to parse variables:', e);
+        console.warn("[Runners] Failed to parse variables:", e);
       }
     }
 
     // Build variables section HTML
-    const variablesHtml = variables.length > 0
-      ? `
+    const variablesHtml =
+      variables.length > 0
+        ? `
         <div class="details-section">
-          <h3><i class="fas fa-code"></i> Variables in Use (${variables.length})</h3>
+          <h3><i class="fas fa-code"></i> Variables in Use (${
+            variables.length
+          })</h3>
           <div class="variables-list">
-            ${variables.map(variable => `
+            ${variables
+              .map(
+                (variable) => `
               <div class="variable-item">
                 <div class="variable-name">
                   <i class="fas fa-dollar-sign"></i>
                   <code>{{${this.escapeHtml(variable.name)}}}</code>
                 </div>
                 <div class="variable-value">
-                  <span class="value-preview">${this.escapeHtml(variable.value || '(not set)')}</span>
+                  <span class="value-preview">${this.escapeHtml(
+                    variable.value || "(not set)"
+                  )}</span>
                 </div>
               </div>
-            `).join('')}
+            `
+              )
+              .join("")}
           </div>
           <style>
             .variables-list {
@@ -746,7 +803,7 @@ class RunnersManager {
           </style>
         </div>
       `
-      : '';
+        : "";
 
     const modalContent = modal.querySelector(".modal-body");
     modalContent.innerHTML = `
@@ -784,16 +841,22 @@ class RunnersManager {
               <th>Total Requests:</th>
               <td>${runner.total_requests || 0}</td>
             </tr>
-            ${variables.length > 0 ? `
+            ${
+              variables.length > 0
+                ? `
             <tr>
               <th>Variables:</th>
               <td>
                 <span class="badge" style="background: var(--info-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
-                  ${variables.length} variable${variables.length !== 1 ? 's' : ''}
+                  ${variables.length} variable${
+                    variables.length !== 1 ? "s" : ""
+                  }
                 </span>
               </td>
             </tr>
-            ` : ''}
+            `
+                : ""
+            }
             <tr>
               <th>Total Runs:</th>
               <td>${runner.run_count || 0}</td>
@@ -2095,7 +2158,7 @@ class RunnersManager {
         this.showToast(`✓ Runner "${name}" created successfully!`, "success");
 
         // Wait for database write to complete before reloading
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Reload runners list
         await this.loadRunners();
@@ -2225,6 +2288,208 @@ class RunnersManager {
       window.dashboardManager.showToast(message, type);
     } else {
       console.log(`[Runners] ${type.toUpperCase()}: ${message}`);
+    }
+  }
+
+  /**
+   * Show collection assignment modal for a runner
+   */
+  async showCollectionAssignment(runnerId) {
+    const runner = this.runners.find((r) => r.id === runnerId);
+    if (!runner) return;
+
+    try {
+      // Fetch all collections
+      const response = await chrome.runtime.sendMessage({
+        action: "getCollections",
+      });
+
+      if (!response || !response.success) {
+        this.showToast("Failed to load collections", "error");
+        return;
+      }
+
+      const collections = response.collections || [];
+
+      // Create modal HTML
+      const modalHtml = `
+        <div class="modal" id="collectionAssignModal" style="display: block;">
+          <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+              <h3>
+                <i class="fas fa-folder"></i> 
+                ${runner.collection_id ? "Change" : "Assign"} Collection
+              </h3>
+              <button class="modal-close" id="closeCollectionAssignModal">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                Runner: <strong>${this.escapeHtml(runner.name)}</strong>
+              </p>
+              
+              ${
+                collections.length === 0
+                  ? `
+                <p style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                  No collections available. Create one in the Collections tab first.
+                </p>
+              `
+                  : `
+                <div class="form-group">
+                  <label>Select Collection:</label>
+                  <select id="collectionSelect" class="form-control" style="width: 100%;">
+                    <option value="">-- No Collection --</option>
+                    ${collections
+                      .map(
+                        (c) => `
+                      <option value="${c.id}" ${
+                          c.id === runner.collection_id ? "selected" : ""
+                        }>
+                        ${this.escapeHtml(c.name)} (${
+                          c.runner_count || 0
+                        } runners)
+                      </option>
+                    `
+                      )
+                      .join("")}
+                  </select>
+                </div>
+              `
+              }
+            </div>
+            <div class="modal-footer">
+              <button 
+                class="secondary-btn" 
+                id="cancelCollectionAssign"
+              >
+                Cancel
+              </button>
+              ${
+                collections.length > 0
+                  ? `
+                <button 
+                  class="btn-primary" 
+                  id="saveCollectionAssign"
+                  data-runner-id="${runnerId}"
+                >
+                  <i class="fas fa-save"></i> Save
+                </button>
+              `
+                  : `
+                <button 
+                  class="btn-primary" 
+                  id="btnCreateCollectionFromAssign"
+                >
+                  <i class="fas fa-plus"></i> Create Collection
+                </button>
+              `
+              }
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Remove any existing modal
+      const existingModal = document.getElementById("collectionAssignModal");
+      if (existingModal) existingModal.remove();
+
+      // Add modal to page
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      // Wire up close buttons
+      const closeBtn = document.getElementById("closeCollectionAssignModal");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          document.getElementById("collectionAssignModal")?.remove();
+        });
+      }
+
+      const cancelBtn = document.getElementById("cancelCollectionAssign");
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", () => {
+          document.getElementById("collectionAssignModal")?.remove();
+        });
+      }
+
+      // Wire up Save button
+      const saveBtn = document.getElementById("saveCollectionAssign");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+          const runnerId = saveBtn.dataset.runnerId;
+          this.assignRunnerToCollection(runnerId);
+        });
+      }
+
+      // Wire up Create Collection button if it exists
+      const btnCreate = document.getElementById(
+        "btnCreateCollectionFromAssign"
+      );
+      if (btnCreate) {
+        btnCreate.addEventListener("click", () => {
+          // Close this modal
+          const modal = document.getElementById("collectionAssignModal");
+          if (modal) modal.remove();
+
+          // Switch to collections tab
+          const collectionsTab = document.querySelector(
+            '[data-subtab="collections-list"]'
+          );
+          if (collectionsTab) collectionsTab.click();
+
+          // Open create collection modal
+          if (window.collectionsManager) {
+            setTimeout(() => {
+              window.collectionsManager.showCreateCollectionModal();
+            }, 100);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("[Runners] Error showing collection assignment:", error);
+      this.showToast("Failed to load collections", "error");
+    }
+  }
+
+  /**
+   * Assign runner to selected collection
+   */
+  async assignRunnerToCollection(runnerId) {
+    const select = document.getElementById("collectionSelect");
+    if (!select) return;
+
+    const collectionId = select.value || null;
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: collectionId
+          ? "assignRunnersToCollection"
+          : "removeRunnersFromCollection",
+        runnerIds: [runnerId],
+        collectionId: collectionId,
+      });
+
+      if (response && response.success) {
+        this.showToast(
+          collectionId
+            ? "Runner assigned to collection"
+            : "Runner removed from collection",
+          "success"
+        );
+
+        // Close modal
+        const modal = document.getElementById("collectionAssignModal");
+        if (modal) modal.remove();
+
+        // Reload runners to show updated collection
+        await this.loadRunners();
+      } else {
+        throw new Error(response?.error || "Failed to update collection");
+      }
+    } catch (error) {
+      console.error("[Runners] Error assigning to collection:", error);
+      this.showToast("Failed to update collection", "error");
     }
   }
 

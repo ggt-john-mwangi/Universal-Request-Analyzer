@@ -61,7 +61,10 @@ class Dashboard {
 
     const pageFilter = document.getElementById("dashboardPageFilter");
     if (pageFilter) {
-      pageFilter.addEventListener("change", () => this.refreshDashboard());
+      pageFilter.addEventListener("change", () => {
+        console.log("[Dashboard] Page filter changed to:", pageFilter.value);
+        this.refreshDashboard();
+      });
     }
 
     const requestTypeFilter = document.getElementById(
@@ -3927,6 +3930,8 @@ class Dashboard {
       "dashboardRequestTypeFilter"
     )?.value;
 
+    console.log("[Dashboard] Reading filters - domain:", domainFilter, "page:", pageFilter, "type:", requestTypeFilter);
+
     const filters = {};
 
     // Add domain filter (if "all" is selected, no domain filter is added, showing all domains)
@@ -3937,6 +3942,7 @@ class Dashboard {
     // Add page filter (if specific page selected)
     if (pageFilter && pageFilter !== "") {
       filters.pageUrl = pageFilter;
+      console.log("[Dashboard] Page filter applied:", pageFilter);
     }
 
     // Add request type filter

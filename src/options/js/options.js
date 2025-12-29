@@ -3,6 +3,7 @@ import "../components/dashboard.js";
 import "../components/analytics.js"; // Analytics features available through Dashboard
 import "../components/alerts.js";
 import "../components/runners.js";
+import "../components/collections.js"; // Collections integrated into Runners tab
 import "../components/auto-export.js";
 import "../components/capture-filters.js";
 import "../components/capture-settings.js";
@@ -30,6 +31,12 @@ import "../../config/feature-flags.js";
 import themeManager from "../../lib/ui/theme-manager.js";
 import "../../lib/chart.min.js";
 import variablesManager from "./variables-manager.js";
+import {
+  groupTablesBySchema,
+  renderSchemaSection,
+  getSchemaDescriptions,
+  getSchemaTitles,
+} from "../utils/database-helpers.js";
 
 // Configure Chart.js date adapter using date-fns
 import { format, parseISO } from "date-fns";
@@ -302,11 +309,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (error) {
     console.error("Error initializing options:", error);
     console.error("Error stack:", error.stack);
-    
+
     // Check if it's an extension context invalidated error
     if (error.message?.includes("Extension context invalidated")) {
-      console.warn("Extension context was invalidated during initialization. This usually happens after an extension reload.");
-      showNotification("Extension was reloaded. Please refresh this page.", true);
+      console.warn(
+        "Extension context was invalidated during initialization. This usually happens after an extension reload."
+      );
+      showNotification(
+        "Extension was reloaded. Please refresh this page.",
+        true
+      );
     } else {
       showNotification("Failed to initialize options: " + error.message, true);
     }
@@ -1549,6 +1561,9 @@ function setupTabNavigation() {
     });
   });
 
+  // Setup sub-tab navigation (for Runners/Collections)
+  setupSubTabNavigation();
+
   // Also support old tab-button class for backwards compatibility
   const oldTabs = document.querySelectorAll(".tab-button");
   oldTabs.forEach((tab) => {
@@ -1564,6 +1579,38 @@ function setupTabNavigation() {
       const content = document.getElementById(tabId);
       if (content) {
         content.classList.add("active");
+      }
+    });
+  });
+}
+
+// Setup sub-tab navigation (for Runners/Collections within Runners tab)
+function setupSubTabNavigation() {
+  const subTabButtons = document.querySelectorAll(".sub-tab-btn");
+  const subTabContents = document.querySelectorAll(".sub-tab-content");
+
+  subTabButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      const targetSubTab = button.dataset.subtab;
+
+      // Remove active class from all sub-tab buttons and contents
+      subTabButtons.forEach((btn) => btn.classList.remove("active"));
+      subTabContents.forEach((content) => content.classList.remove("active"));
+
+      // Add active class to clicked button and corresponding content
+      button.classList.add("active");
+      const targetContent = document.getElementById(targetSubTab);
+      if (targetContent) {
+        targetContent.classList.add("active");
+        console.log(`Activated sub-tab: ${targetSubTab}`);
+
+        // Reload runners when Runners sub-tab is activated
+        if (targetSubTab === "runners-list" && window.runnersManager) {
+          console.log("[Options] Reloading runners on tab activation");
+          window.runnersManager.loadRunners();
+        }
+      } else {
+        console.error(`No content found for sub-tab: ${targetSubTab}`);
       }
     });
   });
@@ -1755,59 +1802,62 @@ function setupEventListeners() {
     const modalDomain = document.getElementById("dashboardModalDomainFilter");
     const modalPage = document.getElementById("dashboardModalPageFilter");
 
-    if (modalDomain && modalPage) {
-      modalDomain.addEventListener("change", async function () {
-        const selectedDomain = modalDomain.value;
+    // Store the load pages function so we can await it
+    const loadModalPages = async function (selectedDomain) {
+      // Clear and disable page filter if "all" selected
+      if (!selectedDomain || selectedDomain === "all") {
+        modalPage.innerHTML =
+          '<option value="">All Pages (Aggregated)</option>';
+        modalPage.disabled = true;
+        return;
+      }
 
-        // Clear and disable page filter if "all" selected
-        if (!selectedDomain || selectedDomain === "all") {
-          modalPage.innerHTML =
-            '<option value="">All Pages (Aggregated)</option>';
-          modalPage.disabled = true;
-          return;
-        }
+      // Load pages for selected domain
+      modalPage.disabled = false;
+      modalPage.innerHTML = '<option value="">Loading pages...</option>';
 
-        // Load pages for selected domain
-        modalPage.disabled = false;
-        modalPage.innerHTML = '<option value="">Loading pages...</option>';
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: "getPagesByDomain",
+          domain: selectedDomain,
+          timeRange: 604800, // Last 7 days
+        });
 
-        try {
-          const response = await chrome.runtime.sendMessage({
-            action: "getPagesByDomain",
-            domain: selectedDomain,
-            timeRange: 604800, // Last 7 days
-          });
+        // Reset with default option
+        modalPage.innerHTML =
+          '<option value="">All Pages (Aggregated)</option>';
 
-          // Reset with default option
-          modalPage.innerHTML =
-            '<option value="">All Pages (Aggregated)</option>';
-
-          if (
-            response &&
-            response.success &&
-            response.pages &&
-            response.pages.length > 0
-          ) {
-            response.pages.forEach((pageObj) => {
-              const pageUrl = pageObj.pageUrl;
-              if (pageUrl) {
-                const option = document.createElement("option");
-                option.value = pageUrl;
-                try {
-                  const url = new URL(pageUrl);
-                  const displayPath = url.pathname + url.search || "/";
-                  option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
-                } catch (e) {
-                  option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
-                }
-                modalPage.appendChild(option);
+        if (
+          response &&
+          response.success &&
+          response.pages &&
+          response.pages.length > 0
+        ) {
+          response.pages.forEach((pageObj) => {
+            const pageUrl = pageObj.pageUrl;
+            if (pageUrl) {
+              const option = document.createElement("option");
+              option.value = pageUrl;
+              try {
+                const url = new URL(pageUrl);
+                const displayPath = url.pathname + url.search || "/";
+                option.textContent = `${displayPath} (${pageObj.requestCount} req)`;
+              } catch (e) {
+                option.textContent = `${pageUrl} (${pageObj.requestCount} req)`;
               }
-            });
-          }
-        } catch (error) {
-          console.error("Failed to load pages:", error);
-          modalPage.innerHTML = '<option value="">Error loading pages</option>';
+              modalPage.appendChild(option);
+            }
+          });
         }
+      } catch (error) {
+        console.error("Failed to load pages:", error);
+        modalPage.innerHTML = '<option value="">Error loading pages</option>';
+      }
+    };
+
+    if (modalDomain && modalPage) {
+      modalDomain.addEventListener("change", function () {
+        loadModalPages(modalDomain.value);
       });
     }
 
@@ -1827,12 +1877,18 @@ function setupEventListeners() {
       );
 
       if (modalDomain) modalDomain.value = currentDomain;
-      if (modalPage) modalPage.value = currentPage;
       if (modalType) modalType.value = currentType;
 
-      // Trigger domain change to load pages
-      if (modalDomain && currentDomain && currentDomain !== "all") {
-        modalDomain.dispatchEvent(new Event("change"));
+      // Load pages for selected domain, then restore page selection
+      if (currentDomain && currentDomain !== "all") {
+        await loadModalPages(currentDomain);
+        // Now restore the page selection after pages are loaded
+        if (modalPage && currentPage) {
+          modalPage.value = currentPage;
+        }
+      } else if (modalPage) {
+        // No domain selected or "all" - just set the page value
+        modalPage.value = currentPage;
       }
 
       dashboardFilterModal.style.display = "flex";
@@ -2542,7 +2598,7 @@ async function loadAdvancedStats() {
   }
 }
 
-// Load database tables with counts
+// Load database tables with counts, grouped by medallion schema
 async function loadDatabaseTables() {
   const tablesListContainer = document.getElementById("tablesListContainer");
   if (!tablesListContainer) return;
@@ -2592,22 +2648,67 @@ async function loadDatabaseTables() {
         }
       }
 
-      // Render table items
+      // Group tables by schema and add metadata
+      const schemas = groupTablesBySchema(tableData);
+      const schemaTitles = getSchemaTitles();
+      const schemaDescriptions = getSchemaDescriptions();
+
+      // Render tables grouped by schema
       let html = "";
-      tableData.forEach((table) => {
-        html += `
-          <div class="table-item" data-table="${table.name}">
-            <div class="table-item-name">
-              <i class="fas fa-table"></i>
-              ${table.name}
-            </div>
-            <div class="table-item-count">${table.count} records</div>
-          </div>
-        `;
-      });
+
+      // Config Schema
+      if (schemas.config.length > 0) {
+        html += renderSchemaSection(
+          schemaTitles.config,
+          "config",
+          schemas.config,
+          schemaDescriptions.config
+        );
+      }
+
+      // Bronze Schema
+      if (schemas.bronze.length > 0) {
+        html += renderSchemaSection(
+          schemaTitles.bronze,
+          "bronze",
+          schemas.bronze,
+          schemaDescriptions.bronze
+        );
+      }
+
+      // Silver Schema
+      if (schemas.silver.length > 0) {
+        html += renderSchemaSection(
+          schemaTitles.silver,
+          "silver",
+          schemas.silver,
+          schemaDescriptions.silver
+        );
+      }
+
+      // Gold Schema
+      if (schemas.gold.length > 0) {
+        html += renderSchemaSection(
+          schemaTitles.gold,
+          "gold",
+          schemas.gold,
+          schemaDescriptions.gold
+        );
+      }
+
+      // Legacy/Other tables
+      if (schemas.other.length > 0) {
+        html += renderSchemaSection(
+          schemaTitles.other,
+          "other",
+          schemas.other,
+          schemaDescriptions.other
+        );
+      }
+
       tablesListContainer.innerHTML = html;
 
-      // Add click handlers
+      // Add click handlers to all table items
       const tableItems = tablesListContainer.querySelectorAll(".table-item");
       tableItems.forEach((item) => {
         item.addEventListener("click", async () => {
@@ -2618,6 +2719,16 @@ async function loadDatabaseTables() {
 
           const tableName = item.dataset.table;
           await loadTablePreview(tableName);
+        });
+      });
+
+      // Add collapsible functionality to schema sections
+      const schemaHeaders =
+        tablesListContainer.querySelectorAll(".schema-header");
+      schemaHeaders.forEach((header) => {
+        header.addEventListener("click", () => {
+          const section = header.closest(".schema-section");
+          section.classList.toggle("collapsed");
         });
       });
     } else {
@@ -3632,26 +3743,37 @@ if (addCurrentSiteBtn) {
       });
       if (tabs.length > 0 && tabs[0].url) {
         const url = new URL(tabs[0].url);
-        
+
         // Validate URL - Block browser internal and extension pages
-        const blockedProtocols = ['chrome:', 'edge:', 'about:', 'moz-extension:', 'chrome-extension:'];
-        if (blockedProtocols.some(protocol => url.protocol.startsWith(protocol))) {
-          showNotification("Cannot add browser internal or extension pages", true);
+        const blockedProtocols = [
+          "chrome:",
+          "edge:",
+          "about:",
+          "moz-extension:",
+          "chrome-extension:",
+        ];
+        if (
+          blockedProtocols.some((protocol) => url.protocol.startsWith(protocol))
+        ) {
+          showNotification(
+            "Cannot add browser internal or extension pages",
+            true
+          );
           return;
         }
-        
+
         const site = `${url.protocol}//${url.hostname}`;
 
         const trackingSites = document.getElementById("trackingSites");
         if (trackingSites) {
           const currentSites = trackingSites.value.trim();
-          
+
           // Check for duplicates
-          if (currentSites.split('\n').some(s => s.trim() === site)) {
+          if (currentSites.split("\n").some((s) => s.trim() === site)) {
             showNotification(`Site already added: ${site}`, true);
             return;
           }
-          
+
           trackingSites.value = currentSites
             ? `${currentSites}\n${site}`
             : site;

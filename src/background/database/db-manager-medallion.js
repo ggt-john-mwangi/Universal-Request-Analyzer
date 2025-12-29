@@ -211,6 +211,17 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
         cleanupTemporaryRunners,
         deleteRunner,
       },
+
+      // Collection operations
+      collection: {
+        createCollection,
+        getCollections,
+        getCollectionWithRunners,
+        updateCollection,
+        deleteCollection,
+        assignRunnersToCollection,
+        removeRunnersFromCollection,
+      },
     };
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -829,7 +840,9 @@ async function createRunner(definition, requests) {
         ${definition.validate_status ? 1 : 0},
         ${definition.use_variables ? 1 : 0},
         ${escapeStr(definition.header_overrides)},
-        ${escapeStr(definition.variables ? JSON.stringify(definition.variables) : null)},
+        ${escapeStr(
+          definition.variables ? JSON.stringify(definition.variables) : null
+        )},
         1,
         ${definition.created_at},
         ${definition.updated_at},
@@ -1194,22 +1207,38 @@ async function getAllRunners(options = {}) {
     `;
 
     const countResult = db.exec(countQuery);
-    const totalCount = countResult && countResult[0] && countResult[0].values[0]
-      ? countResult[0].values[0][0]
-      : 0;
+    const totalCount =
+      countResult && countResult[0] && countResult[0].values[0]
+        ? countResult[0].values[0][0]
+        : 0;
 
     // Get paginated runners with stats
+    // Use subqueries to avoid cartesian product issues with multiple LEFT JOINs
     const query = `
       SELECT
         rd.*,
-        COUNT(DISTINCT re.id) as execution_count,
-        MAX(re.start_time) as last_execution_time,
-        COUNT(DISTINCT rr.id) as total_requests,
-        COALESCE(SUM(CASE WHEN rer.success = 1 THEN 1 ELSE 0 END), 0) as total_success
+        COALESCE(exec_stats.execution_count, 0) as execution_count,
+        exec_stats.last_execution_time,
+        COALESCE(req_stats.total_requests, 0) as total_requests,
+        COALESCE(exec_stats.total_success, 0) as total_success
       FROM config_runner_definitions rd
-      LEFT JOIN bronze_runner_executions re ON rd.id = re.runner_id
-      LEFT JOIN config_runner_requests rr ON rd.id = rr.runner_id
-      LEFT JOIN bronze_runner_execution_results rer ON re.id = rer.execution_id
+      LEFT JOIN (
+        SELECT 
+          runner_id,
+          COUNT(DISTINCT id) as execution_count,
+          MAX(start_time) as last_execution_time,
+          COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as total_success
+        FROM bronze_runner_executions
+        GROUP BY runner_id
+      ) exec_stats ON rd.id = exec_stats.runner_id
+      LEFT JOIN (
+        SELECT 
+          runner_id,
+          COUNT(*) as total_requests
+        FROM config_runner_requests
+        WHERE is_enabled = 1
+        GROUP BY runner_id
+      ) req_stats ON rd.id = req_stats.runner_id
       ${whereClause}
       GROUP BY rd.id
       ORDER BY rd.last_run_at DESC, rd.created_at DESC
@@ -1374,6 +1403,294 @@ async function deleteRunner(runnerId) {
 }
 
 /**
+ * ============================================================================
+ * Runner Collection Database Operations
+ * ============================================================================
+ */
+
+/**
+ * Create a new runner collection
+ */
+async function createCollection(collectionData) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      INSERT INTO config_runner_collections (
+        id, name, description, color, icon,
+        is_active, created_at, updated_at
+      ) VALUES (
+        ${escapeStr(collectionData.id)},
+        ${escapeStr(collectionData.name)},
+        ${escapeStr(collectionData.description || null)},
+        ${escapeStr(collectionData.color || "#007bff")},
+        ${escapeStr(collectionData.icon || "fa-folder")},
+        ${collectionData.is_active !== false ? 1 : 0},
+        ${collectionData.created_at || Date.now()},
+        ${collectionData.updated_at || Date.now()}
+      )
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[Collection] Created collection: ${collectionData.name}`);
+    return { success: true, collectionId: collectionData.id };
+  } catch (error) {
+    console.error("[Collection] Failed to create collection:", error);
+    throw new DatabaseError(`Failed to create collection: ${error.message}`);
+  }
+}
+
+/**
+ * Get all collections with runner counts
+ */
+async function getCollections(activeOnly = false) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const whereClause = activeOnly ? "WHERE c.is_active = 1" : "";
+
+    const query = `
+      SELECT
+        c.*,
+        COALESCE(COUNT(DISTINCT rd.id), 0) as runner_count
+      FROM config_runner_collections c
+      LEFT JOIN config_runner_definitions rd 
+        ON c.id = rd.collection_id AND rd.is_active = 1
+      ${whereClause}
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `;
+
+    const result = db.exec(query);
+    if (!result || result.length === 0 || !result[0].values) {
+      return [];
+    }
+
+    const columns = result[0].columns;
+    const collections = result[0].values.map((values) => {
+      const collection = {};
+      columns.forEach((col, idx) => {
+        collection[col] = values[idx];
+      });
+      return collection;
+    });
+
+    return collections;
+  } catch (error) {
+    console.error("[Collection] Failed to get collections:", error);
+    throw new DatabaseError(`Failed to get collections: ${error.message}`);
+  }
+}
+
+/**
+ * Get a single collection by ID with its runners
+ */
+async function getCollectionWithRunners(collectionId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    // Get collection details
+    const collectionQuery = `
+      SELECT * FROM config_runner_collections
+      WHERE id = ${escapeStr(collectionId)}
+    `;
+
+    const collectionResult = db.exec(collectionQuery);
+    if (
+      !collectionResult ||
+      collectionResult.length === 0 ||
+      !collectionResult[0].values ||
+      collectionResult[0].values.length === 0
+    ) {
+      return null;
+    }
+
+    const collectionColumns = collectionResult[0].columns;
+    const collection = {};
+    collectionColumns.forEach((col, idx) => {
+      collection[col] = collectionResult[0].values[0][idx];
+    });
+
+    // Get runners in this collection
+    const runnersQuery = `
+      SELECT
+        rd.*,
+        COALESCE(COUNT(DISTINCT rr.id), 0) as total_requests
+      FROM config_runner_definitions rd
+      LEFT JOIN config_runner_requests rr ON rd.id = rr.runner_id
+      WHERE rd.collection_id = ${escapeStr(collectionId)}
+      GROUP BY rd.id
+      ORDER BY rd.created_at DESC
+    `;
+
+    const runnersResult = db.exec(runnersQuery);
+    const runners = [];
+
+    if (runnersResult && runnersResult.length > 0 && runnersResult[0].values) {
+      const runnerColumns = runnersResult[0].columns;
+      runnersResult[0].values.forEach((values) => {
+        const runner = {};
+        runnerColumns.forEach((col, idx) => {
+          runner[col] = values[idx];
+        });
+        runners.push(runner);
+      });
+    }
+
+    collection.runners = runners;
+    return collection;
+  } catch (error) {
+    console.error("[Collection] Failed to get collection with runners:", error);
+    throw new DatabaseError(`Failed to get collection: ${error.message}`);
+  }
+}
+
+/**
+ * Update a collection
+ */
+async function updateCollection(collectionId, updates) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const setClauses = [];
+
+    if (updates.name !== undefined) {
+      setClauses.push(`name = ${escapeStr(updates.name)}`);
+    }
+    if (updates.description !== undefined) {
+      setClauses.push(`description = ${escapeStr(updates.description)}`);
+    }
+    if (updates.color !== undefined) {
+      setClauses.push(`color = ${escapeStr(updates.color)}`);
+    }
+    if (updates.icon !== undefined) {
+      setClauses.push(`icon = ${escapeStr(updates.icon)}`);
+    }
+    if (updates.is_active !== undefined) {
+      setClauses.push(`is_active = ${updates.is_active ? 1 : 0}`);
+    }
+
+    setClauses.push(`updated_at = ${Date.now()}`);
+
+    if (setClauses.length === 1) {
+      // Only updated_at was added, no actual changes
+      return { success: true };
+    }
+
+    const query = `
+      UPDATE config_runner_collections
+      SET ${setClauses.join(", ")}
+      WHERE id = ${escapeStr(collectionId)}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[Collection] Updated collection: ${collectionId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("[Collection] Failed to update collection:", error);
+    throw new DatabaseError(`Failed to update collection: ${error.message}`);
+  }
+}
+
+/**
+ * Delete a collection (will unlink runners, not delete them)
+ */
+async function deleteCollection(collectionId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    // Unlink runners from this collection
+    const unlinkQuery = `
+      UPDATE config_runner_definitions
+      SET collection_id = NULL
+      WHERE collection_id = ${escapeStr(collectionId)}
+    `;
+    db.exec(unlinkQuery);
+
+    // Delete the collection
+    const deleteQuery = `
+      DELETE FROM config_runner_collections
+      WHERE id = ${escapeStr(collectionId)}
+    `;
+    db.exec(deleteQuery);
+
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[Collection] Deleted collection: ${collectionId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("[Collection] Failed to delete collection:", error);
+    throw new DatabaseError(`Failed to delete collection: ${error.message}`);
+  }
+}
+
+/**
+ * Assign runner(s) to a collection
+ */
+async function assignRunnersToCollection(runnerIds, collectionId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const runnerIdList = Array.isArray(runnerIds) ? runnerIds : [runnerIds];
+
+    for (const runnerId of runnerIdList) {
+      const query = `
+        UPDATE config_runner_definitions
+        SET collection_id = ${escapeStr(collectionId)},
+            updated_at = ${Date.now()}
+        WHERE id = ${escapeStr(runnerId)}
+      `;
+      db.exec(query);
+    }
+
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(
+      `[Collection] Assigned ${runnerIdList.length} runner(s) to collection: ${collectionId}`
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("[Collection] Failed to assign runners:", error);
+    throw new DatabaseError(`Failed to assign runners: ${error.message}`);
+  }
+}
+
+/**
+ * Remove runner(s) from their collection
+ */
+async function removeRunnersFromCollection(runnerIds) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const runnerIdList = Array.isArray(runnerIds) ? runnerIds : [runnerIds];
+
+    for (const runnerId of runnerIdList) {
+      const query = `
+        UPDATE config_runner_definitions
+        SET collection_id = NULL,
+            updated_at = ${Date.now()}
+        WHERE id = ${escapeStr(runnerId)}
+      `;
+      db.exec(query);
+    }
+
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(
+      `[Collection] Removed ${runnerIdList.length} runner(s) from collection`
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("[Collection] Failed to remove runners:", error);
+    throw new DatabaseError(`Failed to remove runners: ${error.message}`);
+  }
+}
+
+/**
  * Class wrapper for backward compatibility
  */
 export class DatabaseManagerMedallion {
@@ -1499,6 +1816,12 @@ export class DatabaseManagerMedallion {
   get runner() {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.runner;
+  }
+
+  // Collection operations proxy
+  get collection() {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    return this.dbApi.collection;
   }
 
   async cleanup() {
