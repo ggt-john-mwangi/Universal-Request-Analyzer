@@ -2222,6 +2222,219 @@ function handleSitePreset(preset) {
   }
 }
 
+// ============================================================================
+// Advanced Query Safety and Enhancement Utilities
+// ============================================================================
+
+/**
+ * IMPROVEMENT 1: Check if query contains dangerous operations
+ * Detects DELETE, DROP, TRUNCATE, ALTER, and UPDATE without WHERE clause
+ */
+function checkQuerySafety(query) {
+  const upperQuery = query.toUpperCase().trim();
+  const result = {
+    isDangerous: false,
+    warnings: [],
+    level: 'safe' // 'safe', 'warning', 'danger'
+  };
+
+  // Check for DROP statements
+  if (/\bDROP\s+(TABLE|DATABASE|INDEX|VIEW)/i.test(query)) {
+    result.isDangerous = true;
+    result.level = 'danger';
+    result.warnings.push('⚠️ DROP operation - Will permanently delete database objects');
+  }
+
+  // Check for TRUNCATE statements
+  if (/\bTRUNCATE\s+TABLE/i.test(query)) {
+    result.isDangerous = true;
+    result.level = 'danger';
+    result.warnings.push('⚠️ TRUNCATE operation - Will delete all rows from table');
+  }
+
+  // Check for DELETE without WHERE
+  if (/\bDELETE\s+FROM/i.test(query) && !/\bWHERE\b/i.test(query)) {
+    result.isDangerous = true;
+    result.level = 'danger';
+    result.warnings.push('⚠️ DELETE without WHERE clause - Will delete all rows');
+  }
+
+  // Check for UPDATE without WHERE
+  if (/\bUPDATE\s+\w+\s+SET/i.test(query) && !/\bWHERE\b/i.test(query)) {
+    result.isDangerous = true;
+    result.level = 'danger';
+    result.warnings.push('⚠️ UPDATE without WHERE clause - Will modify all rows');
+  }
+
+  // Check for ALTER statements
+  if (/\bALTER\s+TABLE/i.test(query)) {
+    result.isDangerous = true;
+    result.level = 'warning';
+    result.warnings.push('⚠️ ALTER TABLE operation - Will modify table structure');
+  }
+
+  // Check for CREATE INDEX (less dangerous but still structural)
+  if (/\bCREATE\s+(UNIQUE\s+)?INDEX/i.test(query)) {
+    result.level = 'warning';
+    result.warnings.push('ℹ️ CREATE INDEX operation - Will modify table structure');
+  }
+
+  return result;
+}
+
+/**
+ * IMPROVEMENT 1: Show confirmation dialog for dangerous queries
+ */
+async function showQueryWarningDialog(safetyCheck) {
+  const warnings = safetyCheck.warnings.join('\n');
+  const message = `DANGER: This query contains potentially destructive operations!\n\n${warnings}\n\nAre you sure you want to execute this query?`;
+  
+  return confirm(message);
+}
+
+/**
+ * IMPROVEMENT 4: Execute query with timeout protection
+ */
+async function executeQueryWithTimeout(query, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Query execution timeout'));
+    }, timeoutMs);
+
+    chrome.runtime.sendMessage({
+      action: "executeDirectQuery",
+      query: query,
+    }).then(response => {
+      clearTimeout(timeoutId);
+      resolve(response);
+    }).catch(error => {
+      clearTimeout(timeoutId);
+      reject(error);
+    });
+  });
+}
+
+/**
+ * IMPROVEMENT 4: Format query errors with enhanced details
+ */
+function formatQueryError(errorMessage, query) {
+  let html = '<div style="color: #d32f2f; padding: 15px; background: #ffebee; border-radius: 4px; border-left: 4px solid #d32f2f;">';
+  html += '<h4 style="margin: 0 0 10px 0; font-size: 14px;">❌ Query Execution Error</h4>';
+  html += `<p style="margin: 5px 0; font-family: monospace; font-size: 13px;">${escapeHtml(errorMessage)}</p>`;
+  
+  // Try to extract line number from error message
+  const lineMatch = errorMessage.match(/line (\d+)/i);
+  if (lineMatch) {
+    html += `<p style="margin: 5px 0; color: #c62828;"><strong>Error at line ${lineMatch[1]}</strong></p>`;
+  }
+
+  // Show query excerpt if available
+  if (query && query.length < 500) {
+    html += '<details style="margin-top: 10px;">';
+    html += '<summary style="cursor: pointer; color: #666;">View Query</summary>';
+    html += `<pre style="margin: 10px 0; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 4px; overflow-x: auto; font-size: 12px;">${escapeHtml(query)}</pre>`;
+    html += '</details>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+/**
+ * IMPROVEMENT 3: Export query results to CSV
+ */
+function exportQueryResultToCSV(data, filename = 'query_results.csv') {
+  if (!data || data.length === 0) {
+    showNotification('No data to export', true);
+    return;
+  }
+
+  const columns = Object.keys(data[0]);
+  
+  // Create CSV content
+  let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+  
+  data.forEach(row => {
+    const values = columns.map(col => {
+      const val = row[col];
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    });
+    csv += values.join(',') + '\n';
+  });
+
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  showNotification(`Exported ${data.length} rows to CSV`, false);
+}
+
+/**
+ * IMPROVEMENT 3: Export query results to JSON
+ */
+function exportQueryResultToJSON(data, filename = 'query_results.json') {
+  if (!data || data.length === 0) {
+    showNotification('No data to export', true);
+    return;
+  }
+
+  const json = JSON.stringify(data, null, 2);
+  
+  // Download
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  showNotification(`Exported ${data.length} rows to JSON`, false);
+}
+
+/**
+ * IMPROVEMENT 3: SQL Query Templates
+ */
+const SQL_TEMPLATES = {
+  'Select All from Table': 'SELECT * FROM table_name LIMIT 100;',
+  'Count Records': 'SELECT COUNT(*) as total FROM table_name;',
+  'Recent Records (24h)': "SELECT * FROM table_name WHERE timestamp > (strftime('%s', 'now') - 86400) * 1000 LIMIT 100;",
+  'Group By Domain': 'SELECT domain, COUNT(*) as count FROM silver_requests GROUP BY domain ORDER BY count DESC;',
+  'Top Status Codes': 'SELECT status, COUNT(*) as count FROM bronze_requests GROUP BY status ORDER BY count DESC LIMIT 10;',
+  'Slow Requests (>1s)': 'SELECT url, duration, timestamp FROM bronze_requests WHERE duration > 1000 ORDER BY duration DESC LIMIT 50;',
+  'Failed Requests (4xx/5xx)': 'SELECT url, status, timestamp FROM bronze_requests WHERE status >= 400 ORDER BY timestamp DESC LIMIT 100;',
+  'Request Methods Distribution': 'SELECT method, COUNT(*) as count FROM silver_requests GROUP BY method ORDER BY count DESC;',
+  'Schema Inspection': "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name;",
+  'Database Stats': "SELECT 'Bronze' as layer, COUNT(*) as count FROM bronze_requests UNION ALL SELECT 'Silver' as layer, COUNT(*) as count FROM silver_requests UNION ALL SELECT 'Gold' as layer, COUNT(*) as count FROM gold_daily_analytics;"
+};
+
+/**
+ * IMPROVEMENT 3: Insert SQL template into query editor
+ */
+function insertQueryTemplate(templateName) {
+  const template = SQL_TEMPLATES[templateName];
+  if (!template) return;
+
+  const advancedQuery = document.getElementById('advancedQuery');
+  if (advancedQuery) {
+    advancedQuery.value = template;
+    advancedQuery.focus();
+    // Place cursor at first placeholder
+    const placeholderPos = template.indexOf('table_name');
+    if (placeholderPos >= 0) {
+      advancedQuery.setSelectionRange(placeholderPos, placeholderPos + 10);
+    }
+    showNotification(`Template "${templateName}" loaded`, false);
+  }
+}
+
 // Advanced Tab Functionality
 function initializeAdvancedTab() {
   // Execute Query
@@ -2238,22 +2451,54 @@ function initializeAdvancedTab() {
         return;
       }
 
+      // IMPROVEMENT 1: Query Safety Warnings
+      const safetyCheck = checkQuerySafety(query);
+      if (safetyCheck.isDangerous) {
+        const confirmed = await showQueryWarningDialog(safetyCheck);
+        if (!confirmed) {
+          showNotification("Query execution cancelled", false);
+          return;
+        }
+      }
+
+      // IMPROVEMENT 5: Performance Monitoring - Start timer
+      const startTime = performance.now();
+
       try {
-        const response = await chrome.runtime.sendMessage({
-          action: "executeDirectQuery",
-          query: query,
-        });
+        // IMPROVEMENT 4: Better Error Handling - Add timeout
+        const response = await executeQueryWithTimeout(query, 30000); // 30s timeout
+
+        const endTime = performance.now();
+        const executionTime = ((endTime - startTime) / 1000).toFixed(3); // seconds
 
         if (response.success && queryResult) {
-          displayQueryResult(response.data, queryResult);
-          showNotification("Query executed successfully");
-          // Save to query history
-          await saveQueryToHistory(query, true, null);
+          // IMPROVEMENT 4: Row limit check
+          const rowCount = response.data?.length || 0;
+          const rowLimitWarning = rowCount >= 1000 ? 
+            `<p style="color: #ff9800; margin-top: 10px; font-weight: bold;">⚠ Result limited to 1000 rows. Query may have returned more data.</p>` : '';
+
+          displayQueryResult(response.data, queryResult, executionTime);
+          
+          // IMPROVEMENT 5: Slow query warning
+          if (parseFloat(executionTime) > 1.0) {
+            showNotification(
+              `⚠ Query completed in ${executionTime}s (slow query)`,
+              false
+            );
+          } else {
+            showNotification(
+              `✓ Query executed successfully (${executionTime}s)`,
+              false
+            );
+          }
+
+          // Save to query history with execution time
+          await saveQueryToHistory(query, true, null, executionTime);
         } else {
           if (queryResult) {
-            queryResult.innerHTML = `<p style="color: red;">Error: ${
-              response.error || "Query failed"
-            }</p>`;
+            // IMPROVEMENT 4: Enhanced error display
+            const errorHtml = formatQueryError(response.error || "Query failed", query);
+            queryResult.innerHTML = errorHtml;
           }
           showNotification(
             "Query failed: " + (response.error || "Unknown error"),
@@ -2263,17 +2508,27 @@ function initializeAdvancedTab() {
           await saveQueryToHistory(
             query,
             false,
-            response.error || "Unknown error"
+            response.error || "Unknown error",
+            executionTime
           );
         }
       } catch (error) {
+        const endTime = performance.now();
+        const executionTime = ((endTime - startTime) / 1000).toFixed(3);
+        
         console.error("Query execution error:", error);
         if (queryResult) {
-          queryResult.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+          const errorHtml = formatQueryError(error.message, query);
+          queryResult.innerHTML = errorHtml;
         }
-        showNotification("Query execution failed", true);
+        
+        const errorMsg = error.message === "Query execution timeout" 
+          ? "Query timeout (exceeded 30 seconds)" 
+          : error.message;
+        
+        showNotification(`Query execution failed: ${errorMsg}`, true);
         // Save failed query to history
-        await saveQueryToHistory(query, false, error.message);
+        await saveQueryToHistory(query, false, errorMsg, executionTime);
       }
     });
   }
@@ -2283,6 +2538,19 @@ function initializeAdvancedTab() {
       advancedQuery.value = "";
       queryResult.innerHTML =
         '<p class="placeholder">Execute a query to see results...</p>';
+    });
+  }
+
+  // IMPROVEMENT 3: Query Template Selection
+  const queryTemplateSelect = document.getElementById('queryTemplateSelect');
+  if (queryTemplateSelect) {
+    queryTemplateSelect.addEventListener('change', (e) => {
+      const templateName = e.target.value;
+      if (templateName) {
+        insertQueryTemplate(templateName);
+        // Reset dropdown
+        e.target.value = '';
+      }
     });
   }
 
@@ -2313,11 +2581,52 @@ function initializeAdvancedTab() {
   // View Logs
   const viewLogsBtn = document.getElementById("viewLogsBtn");
   if (viewLogsBtn) {
-    viewLogsBtn.addEventListener("click", () => {
-      console.log("=== Universal Request Analyzer Debug Info ===");
-      console.log("Extension version: 1.0.0");
-      console.log("Current time:", new Date().toISOString());
-      showNotification("Check browser console for logs");
+    viewLogsBtn.addEventListener("click", async () => {
+      try {
+        // Query bronze_errors table for persisted error logs
+        const response = await chrome.runtime.sendMessage({
+          action: "executeDirectQuery",
+          query: "SELECT * FROM bronze_errors ORDER BY timestamp DESC LIMIT 100"
+        });
+
+        if (response && response.success && response.data && response.data.length > 0) {
+          // Display logs in console with formatting
+          console.group("=== Universal Request Analyzer Error Logs ===");
+          console.log(`Total error logs: ${response.data.length}`);
+          console.log(`Extension version: 1.0.0`);
+          console.log(`Current time: ${new Date().toISOString()}`);
+          console.log("");
+          
+          response.data.forEach((log, index) => {
+            const timestamp = log.timestamp ? new Date(log.timestamp).toISOString() : 'N/A';
+            console.group(`❌ Error #${index + 1} [${timestamp}]`);
+            console.log(`Message: ${log.message}`);
+            console.log(`Context: ${log.context || 'N/A'}`);
+            if (log.url) console.log(`URL: ${log.url}`);
+            if (log.stack) console.log(`Stack:\n${log.stack}`);
+            if (log.user_agent) console.log(`User Agent: ${log.user_agent}`);
+            console.groupEnd();
+          });
+          
+          console.groupEnd();
+          showNotification(`✓ Retrieved ${response.data.length} error log(s) from database (see console)`);
+        } else {
+          // No errors found or table doesn't exist
+          console.log("=== Universal Request Analyzer Debug Info ===");
+          console.log("Extension version: 1.0.0");
+          console.log("Current time:", new Date().toISOString());
+          console.log("No error logs found in bronze_errors database table");
+          showNotification("✓ No errors logged in database", false);
+        }
+      } catch (error) {
+        console.error("Failed to fetch error logs from database:", error);
+        // Fallback to basic info
+        console.log("=== Universal Request Analyzer Debug Info ===");
+        console.log("Extension version: 1.0.0");
+        console.log("Current time:", new Date().toISOString());
+        console.log("Error fetching logs from database:", error.message);
+        showNotification("⚠ Failed to fetch logs from database", true);
+      }
     });
   }
 
@@ -2531,7 +2840,7 @@ function initializeAdvancedTab() {
 }
 
 // Display query result in table format
-function displayQueryResult(data, container) {
+function displayQueryResult(data, container, executionTime = null) {
   // Handle new data format (array of objects)
   if (Array.isArray(data)) {
     if (data.length === 0) {
@@ -2542,13 +2851,27 @@ function displayQueryResult(data, container) {
     // Get columns from first object
     const columns = Object.keys(data[0]);
 
-    let html = "<table><thead><tr>";
+    // IMPROVEMENT 3: Add export buttons header
+    let html = '<div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">';
+    html += '<button id="exportResultCSV" class="btn btn-secondary btn-sm">📊 Export to CSV</button>';
+    html += '<button id="exportResultJSON" class="btn btn-secondary btn-sm">📄 Export to JSON</button>';
+    
+    // IMPROVEMENT 5: Show execution time
+    if (executionTime !== null) {
+      const timeColor = parseFloat(executionTime) > 1.0 ? '#ff9800' : '#4caf50';
+      html += `<span style="margin-left: auto; color: ${timeColor}; font-size: 12px; font-weight: bold;">⏱️ ${executionTime}s</span>`;
+    }
+    html += '</div>';
+
+    html += "<table><thead><tr>";
     columns.forEach((col) => {
       html += `<th>${col}</th>`;
     });
     html += "</tr></thead><tbody>";
 
-    data.forEach((row) => {
+    // IMPROVEMENT 4: Limit to 1000 rows max
+    const displayRows = data.slice(0, 1000);
+    displayRows.forEach((row) => {
       html += "<tr>";
       columns.forEach((col) => {
         const displayValue =
@@ -2559,8 +2882,37 @@ function displayQueryResult(data, container) {
     });
 
     html += "</tbody></table>";
-    html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.length} row(s)</p>`;
+    
+    // Result summary with row limit warning
+    html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.length} row(s)`;
+    if (data.length > 1000) {
+      html += ` <span style="color: #ff9800; font-weight: bold;">(showing first 1000)</span>`;
+    }
+    if (executionTime !== null) {
+      html += ` in ${executionTime}s`;
+    }
+    html += '</p>';
+    
     container.innerHTML = html;
+
+    // IMPROVEMENT 3: Attach export button handlers
+    const exportCSVBtn = document.getElementById('exportResultCSV');
+    const exportJSONBtn = document.getElementById('exportResultJSON');
+    
+    if (exportCSVBtn) {
+      exportCSVBtn.addEventListener('click', () => {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        exportQueryResultToCSV(data, `query_results_${timestamp}.csv`);
+      });
+    }
+    
+    if (exportJSONBtn) {
+      exportJSONBtn.addEventListener('click', () => {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        exportQueryResultToJSON(data, `query_results_${timestamp}.json`);
+      });
+    }
+    
     return;
   }
 
@@ -2854,16 +3206,17 @@ async function loadTablePreview(tableName) {
 }
 
 // Save query to history
-async function saveQueryToHistory(query, success, error) {
+async function saveQueryToHistory(query, success, error, executionTime = null) {
   try {
     const result = await chrome.storage.local.get("queryHistory");
     const history = result.queryHistory || [];
 
-    // Add new query at the beginning
+    // Add new query at the beginning with execution time
     history.unshift({
       query,
       success,
       error,
+      executionTime,
       timestamp: Date.now(),
     });
 
@@ -2901,13 +3254,19 @@ async function loadQueryHistory() {
       const date = new Date(item.timestamp);
       const timeStr = date.toLocaleString();
       const statusClass = item.success ? "success" : "error";
-      const statusText = item.success ? "Success" : "Error";
+      const statusText = item.success ? "✓ Success" : "✗ Error";
+      
+      // IMPROVEMENT 5: Show execution time in history
+      const execTimeDisplay = item.executionTime 
+        ? `<span style="color: #666; margin-left: 10px;">⏱️ ${item.executionTime}s</span>`
+        : '';
 
       html += `
         <div class="query-history-item" data-index="${index}">
           <div class="query-history-header">
             <span class="query-history-time">${timeStr}</span>
             <span class="query-history-status ${statusClass}">${statusText}</span>
+            ${execTimeDisplay}
           </div>
           <div class="query-history-query">${item.query}</div>
           ${

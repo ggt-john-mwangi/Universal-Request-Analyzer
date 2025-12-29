@@ -301,7 +301,10 @@ class IntegratedExtensionInitializer {
               const columns = rawResult[0].columns;
               const values = rawResult[0].values;
 
-              const data = values.map((row) => {
+              // IMPROVEMENT 4: Limit results to 1000 rows to prevent memory issues
+              const limitedValues = values.slice(0, 1000);
+
+              const data = limitedValues.map((row) => {
                 const obj = {};
                 columns.forEach((col, index) => {
                   obj[col] = row[index];
@@ -309,7 +312,12 @@ class IntegratedExtensionInitializer {
                 return obj;
               });
 
-              sendResponse({ success: true, data });
+              sendResponse({
+                success: true,
+                data,
+                totalRows: values.length,
+                limited: values.length > 1000,
+              });
             }
           } catch (queryError) {
             console.error("Query execution error:", queryError);
