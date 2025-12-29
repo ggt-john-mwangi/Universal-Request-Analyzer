@@ -434,12 +434,59 @@ class IntegratedExtensionInitializer {
 
         case "exportDatabase": {
           try {
-            console.log("[Background] Export raw database requested");
-            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-            const filename = `ura_export_${timestamp}.sqlite`;
+            const format = message.format || "json";
+            console.log(`[Background] Export database requested`);
+            console.log(`[Background] - Message:`, message);
+            console.log(`[Background] - Format: ${format}`);
+            console.log(`[Background] - Filename: ${message.filename}`);
 
-            // Export database as Uint8Array
-            const data = this.medallionDb.exportDatabase();
+            let exportResponse;
+
+            // Route to appropriate export handler based on format
+            console.log(
+              `[Background] Routing to handler for format: ${format}`
+            );
+            switch (format) {
+              case "json":
+                console.log("[Background] Calling exportToJSON");
+                exportResponse = await this.popupMessageHandler({
+                  action: "exportToJSON",
+                  options: { prettify: true },
+                });
+                break;
+
+              case "csv":
+                console.log("[Background] Calling exportAllTablesToCSV");
+                exportResponse = await this.popupMessageHandler({
+                  action: "exportAllTablesToCSV",
+                  options: {},
+                });
+                break;
+
+              case "sqlite":
+              default:
+                console.log("[Background] Calling exportToSQLite (default)");
+                exportResponse = await this.popupMessageHandler({
+                  action: "exportToSQLite",
+                  options: {},
+                });
+                break;
+            }
+
+            console.log("[Background] Export handler response:", {
+              success: exportResponse?.success,
+              filename: exportResponse?.filename,
+              size: exportResponse?.size,
+              mimeType: exportResponse?.mimeType,
+            });
+
+            if (!exportResponse || !exportResponse.success) {
+              throw new Error(exportResponse?.error || "Export failed");
+            }
+
+            // Convert array back to Uint8Array for download
+            const data = new Uint8Array(exportResponse.data);
+            console.log(`[Background] Data size: ${data.length} bytes`);
 
             // Convert to base64 in chunks to avoid stack overflow
             let binary = "";
@@ -449,7 +496,17 @@ class IntegratedExtensionInitializer {
               binary += String.fromCharCode.apply(null, chunk);
             }
             const base64 = btoa(binary);
-            const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
+
+            // Use appropriate MIME type based on format
+            const mimeType =
+              exportResponse.mimeType || "application/octet-stream";
+            const dataUrl = `data:${mimeType};base64,${base64}`;
+
+            // Use filename from handler or fallback to provided filename
+            const filename = exportResponse.filename || message.filename;
+            console.log(
+              `[Background] Downloading file: ${filename} (${mimeType})`
+            );
 
             await downloads.download({
               url: dataUrl,
@@ -457,10 +514,12 @@ class IntegratedExtensionInitializer {
               saveAs: true,
             });
 
+            console.log("[Background] Download initiated successfully");
             sendResponse({
               success: true,
               filename: filename,
               size: data.length,
+              format: format,
             });
           } catch (exportError) {
             console.error("[Background] Export error:", exportError);
@@ -674,9 +733,9 @@ class IntegratedExtensionInitializer {
     try {
       // Load auto-export configuration from DB
       const response = await this.popupMessageHandler({
-        action: 'getSetting',
-        category: 'export',
-        key: 'autoExport'
+        action: "getSetting",
+        category: "export",
+        key: "autoExport",
       });
 
       if (!response || !response.success || !response.value) {
@@ -685,36 +744,39 @@ class IntegratedExtensionInitializer {
       }
 
       const autoExportConfig = response.value;
-      
+
       if (!autoExportConfig.enabled) {
         console.log("[Auto-Export] Auto-export is disabled");
         return;
       }
 
-      console.log("[Auto-Export] Starting auto-export with config:", autoExportConfig);
+      console.log(
+        "[Auto-Export] Starting auto-export with config:",
+        autoExportConfig
+      );
 
       // Determine export format (default to SQLite)
-      const format = autoExportConfig.format || 'sqlite';
+      const format = autoExportConfig.format || "sqlite";
       let exportResponse;
 
       // Execute export based on format
       switch (format) {
-        case 'sqlite':
+        case "sqlite":
           exportResponse = await this.popupMessageHandler({
-            action: 'exportToSQLite',
-            options: autoExportConfig.options || {}
+            action: "exportToSQLite",
+            options: autoExportConfig.options || {},
           });
           break;
-        case 'json':
+        case "json":
           exportResponse = await this.popupMessageHandler({
-            action: 'exportToJSON',
-            options: autoExportConfig.options || {}
+            action: "exportToJSON",
+            options: autoExportConfig.options || {},
           });
           break;
-        case 'csv':
+        case "csv":
           exportResponse = await this.popupMessageHandler({
-            action: 'exportToCSV',
-            options: autoExportConfig.options || {}
+            action: "exportToCSV",
+            options: autoExportConfig.options || {},
           });
           break;
         default:
@@ -723,14 +785,16 @@ class IntegratedExtensionInitializer {
       }
 
       if (exportResponse && exportResponse.success) {
-        console.log(`[Auto-Export] Export completed: ${exportResponse.filename}`);
-        
+        console.log(
+          `[Auto-Export] Export completed: ${exportResponse.filename}`
+        );
+
         // Update last export time
         await this.popupMessageHandler({
-          action: 'saveSetting',
-          category: 'export',
-          key: 'lastAutoExport',
-          value: Date.now()
+          action: "saveSetting",
+          category: "export",
+          key: "lastAutoExport",
+          value: Date.now(),
         });
 
         // TODO: Handle backup rotation if maxBackups is set
@@ -756,9 +820,9 @@ class IntegratedExtensionInitializer {
 
       // Map frequency to minutes
       const frequencyMap = {
-        'daily': 24 * 60,      // 1440 minutes
-        'weekly': 7 * 24 * 60, // 10080 minutes
-        'monthly': 30 * 24 * 60 // 43200 minutes
+        daily: 24 * 60, // 1440 minutes
+        weekly: 7 * 24 * 60, // 10080 minutes
+        monthly: 30 * 24 * 60, // 43200 minutes
       };
 
       const periodInMinutes = frequencyMap[config.frequency] || 24 * 60;
@@ -766,16 +830,20 @@ class IntegratedExtensionInitializer {
       if (alarms) {
         // Clear existing alarm
         await alarms.clear("autoExport");
-        
+
         // Create new alarm
         await alarms.create("autoExport", {
           when: Date.now() + 60000, // Start in 1 minute
-          periodInMinutes: periodInMinutes
+          periodInMinutes: periodInMinutes,
         });
 
-        console.log(`[Auto-Export] Scheduled with frequency: ${config.frequency} (${periodInMinutes} minutes)`);
+        console.log(
+          `[Auto-Export] Scheduled with frequency: ${config.frequency} (${periodInMinutes} minutes)`
+        );
       } else {
-        console.warn("[Auto-Export] chrome.alarms not available, auto-export won't work");
+        console.warn(
+          "[Auto-Export] chrome.alarms not available, auto-export won't work"
+        );
       }
     } catch (error) {
       console.error("[Auto-Export] Failed to setup auto-export:", error);

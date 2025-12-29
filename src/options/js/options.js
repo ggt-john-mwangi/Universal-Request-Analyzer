@@ -1954,10 +1954,7 @@ function setupEventListeners() {
           actualType.value = modalType.value;
           // Save type filter
           if (modalType.value && modalType.value !== "") {
-            localStorage.setItem(
-              "dashboardRequestTypeFilter",
-              modalType.value
-            );
+            localStorage.setItem("dashboardRequestTypeFilter", modalType.value);
           } else {
             localStorage.removeItem("dashboardRequestTypeFilter");
           }
@@ -1966,7 +1963,7 @@ function setupEventListeners() {
         // Trigger domain change to load page options
         if (actualDomain) {
           actualDomain.dispatchEvent(new Event("change"));
-          
+
           // Wait for page filter to be loaded (give it time to populate options)
           // The onDomainFilterChange handler will call loadPageFilter
           await new Promise((resolve) => setTimeout(resolve, 300));
@@ -3510,6 +3507,10 @@ const manualExportFormat = document.getElementById("manualExportFormat");
 if (exportNowBtn) {
   exportNowBtn.addEventListener("click", async () => {
     const format = manualExportFormat?.value || "json";
+    console.log("[Export] Selected format:", format);
+    console.log("[Export] Dropdown element:", manualExportFormat);
+    console.log("[Export] Dropdown value:", manualExportFormat?.value);
+
     const filename = `ura-export-${new Date()
       .toISOString()
       .slice(0, 10)}.${format}`;
@@ -3519,14 +3520,35 @@ if (exportNowBtn) {
       '<i class="fas fa-spinner fa-spin"></i> Exporting...';
 
     try {
+      console.log("[Export] Sending message with format:", format);
       const response = await chrome.runtime.sendMessage({
         action: "exportDatabase",
         format: format,
         filename: filename,
       });
 
+      console.log("[Export] Response received:", response);
+
       if (response && response.success) {
-        showNotification("Export completed successfully!");
+        // Format file size
+        const sizeKB = (response.size / 1024).toFixed(2);
+        const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
+        const sizeDisplay =
+          response.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+
+        // Get format name
+        const formatNames = {
+          json: "JSON",
+          csv: "CSV (ZIP)",
+          sqlite: "SQLite",
+        };
+        const formatName = response.format
+          ? formatNames[response.format] || response.format.toUpperCase()
+          : "Database";
+
+        showNotification(
+          `Export completed! ${formatName} file (${sizeDisplay}) - ${response.filename}`
+        );
 
         // Update last export time
         const lastExportTime = document.getElementById("lastExportTime");
