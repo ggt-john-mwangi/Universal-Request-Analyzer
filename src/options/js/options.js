@@ -37,6 +37,10 @@ import {
   getSchemaDescriptions,
   getSchemaTitles,
 } from "../utils/database-helpers.js";
+import { createLogger } from "../../lib/utils/logger.js";
+
+// Create logger for options page
+const logger = createLogger("Options");
 
 // Configure Chart.js date adapter using date-fns
 import { format, parseISO } from "date-fns";
@@ -211,7 +215,7 @@ let resetThemeBtn;
 // Load when DOM is ready
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    console.log("Options page: DOM loaded, initializing...");
+    logger.info("DOM loaded, initializing...");
 
     // Initialize DOM elements first
     captureEnabled = document.getElementById("captureEnabled");
@@ -243,32 +247,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     saveThemeBtn = document.getElementById("saveThemeBtn");
     resetThemeBtn = document.getElementById("resetThemeBtn");
 
-    console.log("Options page: DOM elements initialized");
+    logger.debug("DOM elements initialized");
 
     // Initialize settings manager
-    console.log("Options page: Initializing settings manager...");
+    logger.info("Initializing settings manager...");
     await settingsManager.initialize();
-    console.log("Options page: Settings manager initialized");
+    logger.success("Settings manager initialized");
 
     // Initialize theme manager
-    console.log("Options page: Initializing theme manager...");
+    logger.info("Initializing theme manager...");
     const currentTheme =
       settingsManager.getAllSettings()?.theme?.current || "light";
     await themeManager.initialize({
       initialTheme: currentTheme,
       onUpdate: handleThemeUpdate,
     });
-    console.log("Options page: Theme manager initialized");
+    logger.success("Theme manager initialized");
 
     // Load initial settings
-    console.log("Options page: Loading options...");
+    logger.info("Loading options...");
     await loadOptions();
-    console.log("Options page: Options loaded");
+    logger.success("Options loaded");
 
     // Load profiles list
-    console.log("Options page: Loading profiles...");
+    logger.info("Loading profiles...");
     await renderProfilesList();
-    console.log("Options page: Profiles loaded");
+    logger.success("Profiles loaded");
 
     // Add settings change listener
     settingsManager.addSettingsListener(handleSettingsChange);
@@ -1918,7 +1922,7 @@ function setupEventListeners() {
       "applyDashboardFiltersBtn"
     );
     if (applyDashboardFiltersBtn) {
-      applyDashboardFiltersBtn.addEventListener("click", () => {
+      applyDashboardFiltersBtn.addEventListener("click", async () => {
         // Copy modal values back to actual filters
         const modalDomain = document.getElementById(
           "dashboardModalDomainFilter"
@@ -1934,12 +1938,52 @@ function setupEventListeners() {
           "dashboardRequestTypeFilter"
         );
 
-        if (modalDomain && actualDomain) actualDomain.value = modalDomain.value;
-        if (modalPage && actualPage) actualPage.value = modalPage.value;
-        if (modalType && actualType) actualType.value = modalType.value;
+        // Apply domain first
+        if (modalDomain && actualDomain) {
+          actualDomain.value = modalDomain.value;
+          // Save domain filter
+          if (modalDomain.value && modalDomain.value !== "all") {
+            localStorage.setItem("dashboardDomainFilter", modalDomain.value);
+          } else {
+            localStorage.removeItem("dashboardDomainFilter");
+          }
+        }
 
-        // Trigger change events to refresh dashboard
-        if (actualDomain) actualDomain.dispatchEvent(new Event("change"));
+        // Apply type filter
+        if (modalType && actualType) {
+          actualType.value = modalType.value;
+          // Save type filter
+          if (modalType.value && modalType.value !== "") {
+            localStorage.setItem(
+              "dashboardRequestTypeFilter",
+              modalType.value
+            );
+          } else {
+            localStorage.removeItem("dashboardRequestTypeFilter");
+          }
+        }
+
+        // Trigger domain change to load page options
+        if (actualDomain) {
+          actualDomain.dispatchEvent(new Event("change"));
+          
+          // Wait for page filter to be loaded (give it time to populate options)
+          // The onDomainFilterChange handler will call loadPageFilter
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+
+        // Now apply page filter after options are loaded
+        if (modalPage && actualPage && modalPage.value) {
+          actualPage.value = modalPage.value;
+          // Save page filter
+          if (modalPage.value && modalPage.value !== "") {
+            localStorage.setItem("dashboardPageFilter", modalPage.value);
+          } else {
+            localStorage.removeItem("dashboardPageFilter");
+          }
+          // Trigger page change to refresh with new page filter
+          actualPage.dispatchEvent(new Event("change"));
+        }
 
         dashboardFilterModal.style.display = "none";
       });

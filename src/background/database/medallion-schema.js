@@ -179,6 +179,25 @@ function createConfigSchema(db) {
     )
   `);
 
+  // Scheduled runs table - schedule collection executions
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config_runner_scheduled_runs (
+      id TEXT PRIMARY KEY,
+      collection_id TEXT NOT NULL,
+      collection_name TEXT NOT NULL,
+      schedule_type TEXT NOT NULL CHECK(schedule_type IN ('once', 'daily', 'weekly', 'interval')),
+      interval_minutes INTEGER,
+      time_of_day TEXT,
+      days_of_week TEXT,
+      next_run_at INTEGER NOT NULL,
+      enabled BOOLEAN DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      last_run_at INTEGER,
+      last_status TEXT,
+      FOREIGN KEY (collection_id) REFERENCES config_runner_collections(id) ON DELETE CASCADE
+    )
+  `);
+
   // Indexes for config schema
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_config_app_settings_category ON config_app_settings(category)`
@@ -194,6 +213,9 @@ function createConfigSchema(db) {
   );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_runner_collections_active ON config_runner_collections(is_active)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_scheduled_runs_next_run ON config_runner_scheduled_runs(enabled, next_run_at)`
   );
 
   console.log("Config schema created");
@@ -278,6 +300,10 @@ function createBronzeSchema(db) {
   `);
 
   // Performance entries table
+  // ❌ COMMENTED OUT - Schema only, never written to
+  // Data stored in bronze_request_timings instead
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_performance_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,8 +317,13 @@ function createBronzeSchema(db) {
       FOREIGN KEY(request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
     )
   `);
+  */
 
   // Events table - captures all extension events
+  // ❌ COMMENTED OUT - Schema only, too generic
+  // Errors use bronze_errors instead
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -307,6 +338,7 @@ function createBronzeSchema(db) {
       FOREIGN KEY(request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
     )
   `);
+  */
 
   // Web Vitals table - Core Web Vitals metrics
   db.exec(`
@@ -437,6 +469,8 @@ function createBronzeSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_timings_request_id ON bronze_request_timings(request_id)`
   );
+  // ❌ COMMENTED OUT - Indexes for bronze_events (table disabled)
+  /*
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_events_type ON bronze_events(event_type)`
   );
@@ -446,6 +480,7 @@ function createBronzeSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_events_request_id ON bronze_events(request_id)`
   );
+  */
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_web_vitals_domain ON bronze_web_vitals(domain)`
   );
@@ -587,6 +622,10 @@ function createSilverSchema(db) {
   `);
 
   // Tags table for categorization
+  // ❌ COMMENTED OUT - Schema only, no UI implementation
+  // Feature not prioritized
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS silver_tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -609,6 +648,7 @@ function createSilverSchema(db) {
       FOREIGN KEY(tag_id) REFERENCES silver_tags(id) ON DELETE CASCADE
     )
   `);
+  */
 
   // Indexes for silver schema
   db.exec(
@@ -662,6 +702,10 @@ function createGoldSchema(db) {
   `);
 
   // Performance insights
+  // ❌ COMMENTED OUT - Schema only, advanced ML feature
+  // Too ambitious for v1
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_performance_insights (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -677,6 +721,7 @@ function createGoldSchema(db) {
       created_at INTEGER NOT NULL
     )
   `);
+  */
 
   // Domain performance report
   db.exec(`
@@ -695,6 +740,10 @@ function createGoldSchema(db) {
   `);
 
   // Resource optimization opportunities
+  // ❌ COMMENTED OUT - Schema only, advanced feature
+  // Not prioritized for v1
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_optimization_opportunities (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -709,8 +758,13 @@ function createGoldSchema(db) {
       created_at INTEGER NOT NULL
     )
   `);
+  */
 
   // Trend analysis
+  // ❌ COMMENTED OUT - Schema only
+  // gold_daily_analytics sufficient for trends
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_trends (
       metric_name TEXT NOT NULL,
@@ -722,8 +776,13 @@ function createGoldSchema(db) {
       PRIMARY KEY (metric_name, date)
     )
   `);
+  */
 
   // Anomalies detection
+  // ❌ COMMENTED OUT - Schema only, advanced ML feature
+  // Too ambitious for v1
+  // TODO: Remove after testing if no issues found
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_anomalies (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -739,23 +798,29 @@ function createGoldSchema(db) {
       resolved_at INTEGER
     )
   `);
+  */
 
   // Indexes for gold schema
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_daily_date ON gold_daily_analytics(date)`
   );
+  // ❌ COMMENTED OUT - Indexes for disabled gold tables
+  /*
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_insights_type ON gold_performance_insights(insight_type)`
   );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_insights_severity ON gold_performance_insights(severity)`
   );
+  */
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_date ON gold_domain_performance(date)`
   );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_domain ON gold_domain_performance(domain)`
   );
+  // ❌ COMMENTED OUT - Indexes for disabled gold tables
+  /*
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_trends_metric ON gold_trends(metric_name)`
   );
@@ -768,6 +833,7 @@ function createGoldSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_anomalies_resolved ON gold_anomalies(resolved)`
   );
+  */
 
   // Runner results tracking
   db.exec(`
@@ -923,6 +989,9 @@ export async function validateAndFixSchema(db) {
       }
     }
 
+    // ❌ COMMENTED OUT - bronze_performance_entries validation (table disabled)
+    // TODO: Remove after testing confirms table not needed
+    /*
     // Check bronze_performance_entries table
     const perfResult = db.exec(`PRAGMA table_info(bronze_performance_entries)`);
 
@@ -962,6 +1031,7 @@ export async function validateAndFixSchema(db) {
         );
       }
     }
+    */
 
     // ✅ Ensure runner tables exist (for existing databases created before runner feature)
     const runnerTablesResult = db.exec(`

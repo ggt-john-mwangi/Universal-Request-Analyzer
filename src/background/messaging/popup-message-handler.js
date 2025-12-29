@@ -149,6 +149,9 @@ async function handleMessage(message, sender) {
       case "deleteAlertRule":
         return await handleDeleteAlertRule(message.ruleId);
 
+      case "logError":
+        return await handleLogError(message.error);
+
       case "getAlertHistory":
         return await handleGetAlertHistory(message.limit);
 
@@ -1186,7 +1189,7 @@ async function handleGetSettings() {
     );
     console.log(
       "[Background] Has variables key:",
-      settings?.hasOwnProperty("variables")
+      Object.prototype.hasOwnProperty.call(settings || {}, "variables")
     );
     console.log("[Background] Variables object:", settings?.variables);
     console.log(
@@ -5037,5 +5040,47 @@ async function handleExportToCSV(options = {}) {
   } catch (error) {
     console.error("[Export] CSV export error:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Log error to bronze_errors table
+ */
+async function handleLogError(error) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const db = dbManager.db;
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const query = `
+      INSERT INTO bronze_errors (
+        id, timestamp, error_type, message, stack, context,
+        url, user_agent, severity, created_at
+      ) VALUES (
+        ${escapeStr(Date.now() + "-" + Math.random().toString(36))},
+        ${error.timestamp || Date.now()},
+        ${escapeStr(error.type || "Error")},
+        ${escapeStr(error.message)},
+        ${escapeStr(error.stack)},
+        ${escapeStr(error.context)},
+        ${escapeStr(error.url)},
+        ${escapeStr(error.user_agent)},
+        ${escapeStr(error.severity || "error")},
+        ${Date.now()}
+      )
+    `;
+
+    db.exec(query);
+
+    return { success: true };
+  } catch (err) {
+    console.error("[LogError] Failed to log error to database:", err);
+    return { success: false, error: err.message };
   }
 }

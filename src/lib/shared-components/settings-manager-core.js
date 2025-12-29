@@ -1,6 +1,6 @@
 /**
  * Settings Manager Core for Universal Request Analyzer
- * 
+ *
  * This is a background-safe module with NO UI dependencies.
  * Can be safely imported in service workers.
  * Handles only core settings, database, and storage operations.
@@ -109,6 +109,14 @@ class SettingsManagerCore {
       theme: {
         current: "light", // 'light' | 'dark' | 'highContrast' | 'blue' | 'system'
       },
+      // Logging configuration
+      logging: {
+        level: "INFO", // DEBUG, INFO, WARN, ERROR
+        persistErrors: false, // OFF by default - enable to save errors to bronze_errors table
+        maxErrorAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+        enableConsoleColors: true,
+        enableTimestamps: true,
+      },
     };
 
     // Add event listeners for settings changes
@@ -140,7 +148,7 @@ class SettingsManagerCore {
   async initialize() {
     try {
       console.log("[SettingsCore] Initializing...");
-      
+
       // Load saved settings from storage first (fast)
       const data = await this.loadFromStorage();
 
@@ -153,13 +161,18 @@ class SettingsManagerCore {
             this.settings = this.mergeSettings(this.settings, dbSettings);
             // Sync to storage for content script access
             await this.saveToStorage();
-            console.log("[SettingsCore] Loaded from database and synced to storage");
+            console.log(
+              "[SettingsCore] Loaded from database and synced to storage"
+            );
           } else if (data && data.settings) {
             // No DB settings yet, use storage
             this.settings = this.mergeSettings(this.settings, data.settings);
           }
         } catch (dbError) {
-          console.warn("[SettingsCore] Failed to load from database, using storage:", dbError);
+          console.warn(
+            "[SettingsCore] Failed to load from database, using storage:",
+            dbError
+          );
           if (data && data.settings) {
             this.settings = this.mergeSettings(this.settings, data.settings);
           }

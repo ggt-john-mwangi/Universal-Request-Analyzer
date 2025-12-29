@@ -3,6 +3,8 @@
  * Replaces chrome.storage with database storage
  */
 
+const browserAPI = globalThis.browser || globalThis.chrome;
+
 class CollectionsManager {
   constructor() {
     this.collections = [];
@@ -92,7 +94,7 @@ class CollectionsManager {
   async loadCollections() {
     try {
       console.log("[Collections] Requesting collections from background...");
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollections",
       });
 
@@ -240,7 +242,7 @@ class CollectionsManager {
 
   async editCollection(collectionId) {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollection",
         collectionId: collectionId,
       });
@@ -279,7 +281,7 @@ class CollectionsManager {
 
   async viewCollection(collectionId) {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollection",
         collectionId: collectionId,
       });
@@ -376,7 +378,7 @@ class CollectionsManager {
       console.log("[Collections] Running collection with ID:", collectionId);
 
       // Get collection details with runners
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollection",
         collectionId: collectionId,
       });
@@ -479,7 +481,7 @@ class CollectionsManager {
           );
 
           // Execute the runner
-          const runResponse = await chrome.runtime.sendMessage({
+          const runResponse = await browserAPI.runtime.sendMessage({
             action: "runRunner",
             runnerId: runner.id,
           });
@@ -517,7 +519,13 @@ class CollectionsManager {
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
-      // Show summary
+      // Show summary (clear any existing summary first)
+      const runProgressDiv = document.getElementById("runProgress");
+      const existingSummary = runProgressDiv.querySelector(".run-summary");
+      if (existingSummary) {
+        existingSummary.remove();
+      }
+
       const summary = document.createElement("div");
       summary.className = "run-summary";
       summary.innerHTML = `
@@ -525,7 +533,7 @@ class CollectionsManager {
         <p><strong>Execution Complete</strong></p>
         <p>✅ Successful: ${successCount} | ❌ Failed: ${errorCount}</p>
       `;
-      document.getElementById("runProgress").appendChild(summary);
+      runProgressDiv.appendChild(summary);
 
       this.showNotification(
         `Collection executed: ${successCount} succeeded, ${errorCount} failed`,
@@ -553,7 +561,7 @@ class CollectionsManager {
     if (!confirm(confirmMsg)) return;
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "deleteCollection",
         collectionId: collectionId,
       });
@@ -596,23 +604,41 @@ class CollectionsManager {
 
       if (collectionId) {
         // Update existing collection
-        response = await chrome.runtime.sendMessage({
+        response = await browserAPI.runtime.sendMessage({
           action: "updateCollection",
           collectionId: collectionId,
           updates: { name, description, color, icon },
         });
 
-        // Update runner assignments
+        // Update runner assignments - first get existing runners to unassign them
         if (response && response.success) {
-          await chrome.runtime.sendMessage({
-            action: "updateCollectionRunners",
-            collectionId: collectionId,
-            runnerIds: selectedRunners,
-          });
+          // Get current runners from selectedCollection (loaded during edit)
+          const currentRunnerIds =
+            this.selectedCollection?.runners?.map((r) => r.id) || [];
+
+          // Remove runners that are no longer selected
+          const runnersToRemove = currentRunnerIds.filter(
+            (id) => !selectedRunners.includes(id)
+          );
+          if (runnersToRemove.length > 0) {
+            await browserAPI.runtime.sendMessage({
+              action: "removeRunnersFromCollection",
+              runnerIds: runnersToRemove,
+            });
+          }
+
+          // Assign newly selected runners
+          if (selectedRunners.length > 0) {
+            await browserAPI.runtime.sendMessage({
+              action: "assignRunnersToCollection",
+              runnerIds: selectedRunners,
+              collectionId: collectionId,
+            });
+          }
         }
       } else {
         // Create new collection
-        response = await chrome.runtime.sendMessage({
+        response = await browserAPI.runtime.sendMessage({
           action: "createCollection",
           name: name,
           description: description,
@@ -621,10 +647,10 @@ class CollectionsManager {
 
         // Assign runners to new collection
         if (response && response.success && response.collection) {
-          await chrome.runtime.sendMessage({
-            action: "updateCollectionRunners",
-            collectionId: response.collection.id,
+          await browserAPI.runtime.sendMessage({
+            action: "assignRunnersToCollection",
             runnerIds: selectedRunners,
+            collectionId: response.collection.id,
           });
         }
       }
@@ -649,7 +675,7 @@ class CollectionsManager {
 
   async loadAvailableRunners() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getAllRunners",
         filters: {},
       });
@@ -717,11 +743,14 @@ class CollectionsManager {
 
   showNotification(message, type = "info") {
     // Reuse the global notification system if available
-    if (typeof showNotification === "function") {
-      showNotification(message, type);
+    if (
+      typeof window.showNotification === "function" &&
+      window.showNotification !== this.showNotification
+    ) {
+      window.showNotification(message, type);
     } else {
-      console.log(`[Collections] ${type.toUpperCase()}: ${message}`);
-      alert(message);
+      // Fallback to simple alert
+      alert(`${type.toUpperCase()}: ${message}`);
     }
   }
 

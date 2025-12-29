@@ -208,21 +208,23 @@ export const TABLE_METADATA = {
       "medallion-manager.updateHourlyStats() buckets by hour, Dashboard time-series charts",
   },
 
-  silver_tags: {
-    schema: "silver",
-    purpose: "Request categorization",
-    feature: "Tagging System",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, no UI or tagging logic",
-  },
+  // ❌ COMMENTED OUT - Table disabled in schema
+  // silver_tags: {
+  //   schema: "silver",
+  //   purpose: "Request categorization",
+  //   feature: "Tagging System",
+  //   status: "⚠️ NOT IMPLEMENTED",
+  //   usage: "Schema only, no UI or tagging logic",
+  // },
 
-  silver_request_tags: {
-    schema: "silver",
-    purpose: "Tag mappings",
-    feature: "Tagging System",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, junction table for many-to-many",
-  },
+  // ❌ COMMENTED OUT - Table disabled in schema
+  // silver_request_tags: {
+  //   schema: "silver",
+  //   purpose: "Tag mappings",
+  //   feature: "Tagging System",
+  //   status: "⚠️ NOT IMPLEMENTED",
+  //   usage: "Schema only, junction table for many-to-many",
+  // },
 
   // ===================================================================
   // GOLD SCHEMA - Aggregated Analytics Layer
@@ -237,13 +239,14 @@ export const TABLE_METADATA = {
       "medallion-manager.processDailyAnalytics() runs nightly, data-sync-manager reads for sync",
   },
 
-  gold_performance_insights: {
-    schema: "gold",
-    purpose: "AI-generated insights",
-    feature: "Insights Engine",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, no LLM integration or insight generation",
-  },
+  // ❌ COMMENTED OUT - Table disabled in schema
+  // gold_performance_insights: {
+  //   schema: "gold",
+  //   purpose: "AI-generated insights",
+  //   feature: "Insights Engine",
+  //   status: "⚠️ NOT IMPLEMENTED",
+  //   usage: "Schema only, no LLM integration or insight generation",
+  // },
 
   gold_domain_performance: {
     schema: "gold",
@@ -254,29 +257,32 @@ export const TABLE_METADATA = {
       "medallion-migration.js writes during migration, no UI displays grades",
   },
 
-  gold_optimization_opportunities: {
-    schema: "gold",
-    purpose: "Performance suggestions",
-    feature: "Optimization Engine",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, no optimization logic",
-  },
+  // ❌ COMMENTED OUT - Table disabled in schema
+  // gold_optimization_opportunities: {
+  //   schema: "gold",
+  //   purpose: "Performance suggestions",
+  //   feature: "Optimization Engine",
+  //   status: "⚠️ NOT IMPLEMENTED",
+  //   usage: "Schema only, no optimization logic",
+  // },
 
-  gold_trends: {
-    schema: "gold",
-    purpose: "Metric trends",
-    feature: "Trend Analysis",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, no trend detection logic",
-  },
+  // ❌ COMMENTED OUT - Table disabled in schema
+  // gold_trends: {
+  //   schema: "gold",
+  //   purpose: "Metric trends",
+  //   feature: "Trend Analysis",
+  //   status: "⚠️ NOT IMPLEMENTED",
+  //   usage: "Schema only, no trend detection logic",
+  // },
 
-  gold_anomalies: {
-    schema: "gold",
-    purpose: "Anomaly detection",
-    feature: "Anomaly Detection",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, no anomaly detection logic",
-  },
+  // ❌ COMMENTED OUT - Table disabled in schema
+  // gold_anomalies: {
+  //   schema: "gold",
+  //   purpose: "Anomaly detection",
+  //   feature: "Anomaly Detection",
+  //   status: "⚠️ NOT IMPLEMENTED",
+  //   usage: "Schema only, no anomaly detection logic",
+  // },
 
   // ===================================================================
   // OTHER SCHEMA - Legacy and Special Purpose
