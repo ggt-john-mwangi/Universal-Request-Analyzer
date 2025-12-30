@@ -15,15 +15,11 @@ browserAPI.storage.local.get(["settings"], function (data) {
   const currentUrl = window.location.href;
   const currentDomain = window.location.hostname;
 
-  console.log("[URA] Content script initializing for:", currentDomain);
-  console.log("[URA] Full config:", JSON.stringify(config, null, 2));
-
   // Check capture configuration
   const captureConfig = config.capture || {};
 
   // Check if capture is disabled
   if (captureConfig.enabled === false) {
-    console.log("[URA] Capture is disabled in settings. Monitoring disabled.");
     return;
   }
 
@@ -41,9 +37,6 @@ browserAPI.storage.local.get(["settings"], function (data) {
   // Check if domain is excluded
   for (const pattern of excludeDomains) {
     if (matchesPattern(currentUrl, currentDomain, pattern)) {
-      console.log(
-        `[URA] Domain ${currentDomain} matches exclude pattern "${pattern}". Monitoring disabled.`
-      );
       return;
     }
   }
@@ -54,10 +47,6 @@ browserAPI.storage.local.get(["settings"], function (data) {
   if (includeDomains.length === 0) {
     // No domains configured, monitor all (except excluded)
     shouldMonitor = true;
-    console.log(
-      "[URA] ✓ No include domains configured. Monitoring ALL non-excluded sites."
-    );
-    console.log("[URA] ✓ shouldMonitor = true, initializing monitoring...");
     initializeMonitoring();
     return;
   }
@@ -66,17 +55,10 @@ browserAPI.storage.local.get(["settings"], function (data) {
   for (const pattern of includeDomains) {
     if (matchesPattern(currentUrl, currentDomain, pattern)) {
       shouldMonitor = true;
-      console.log(
-        `[URA] Domain ${currentDomain} matches include pattern "${pattern}". Monitoring enabled.`
-      );
       initializeMonitoring();
       return;
     }
   }
-
-  console.log(
-    `[URA] Domain ${currentDomain} not in monitored list. Skipping data capture.`
-  );
 });
 
 // Listen for settings updates
@@ -125,11 +107,6 @@ function matchesPattern(url, domain, pattern) {
 function initializeMonitoring() {
   if (!shouldMonitor) return;
 
-  console.log(
-    "[URA] Initializing performance monitoring for",
-    window.location.hostname
-  );
-
   // Initialize Core Web Vitals and other observers
   initializeCoreWebVitals();
   initializePerformanceObserver();
@@ -157,13 +134,6 @@ function initializeCoreWebVitals() {
 
       webVitals.lcp = lastEntry.renderTime || lastEntry.loadTime;
 
-      console.log(
-        "[URA] LCP captured:",
-        webVitals.lcp,
-        "for",
-        window.location.href
-      );
-
       browserAPI.runtime.sendMessage(
         {
           action: "webVital",
@@ -184,8 +154,6 @@ function initializeCoreWebVitals() {
               "[URA] Failed to send LCP:",
               browserAPI.runtime.lastError
             );
-          } else {
-            console.log("[URA] LCP sent successfully:", response);
           }
         }
       );
@@ -202,13 +170,6 @@ function initializeCoreWebVitals() {
       const entries = list.getEntries();
       entries.forEach((entry) => {
         webVitals.fid = entry.processingStart - entry.startTime;
-
-        console.log(
-          "[URA] FID captured:",
-          webVitals.fid,
-          "for",
-          window.location.href
-        );
 
         browserAPI.runtime.sendMessage(
           {
@@ -230,8 +191,6 @@ function initializeCoreWebVitals() {
                 "[URA] Failed to send FID:",
                 browserAPI.runtime.lastError
               );
-            } else {
-              console.log("[URA] FID sent successfully:", response);
             }
           }
         );
@@ -256,13 +215,6 @@ function initializeCoreWebVitals() {
 
       webVitals.cls = clsValue;
 
-      console.log(
-        "[URA] CLS captured:",
-        webVitals.cls,
-        "for",
-        window.location.href
-      );
-
       browserAPI.runtime.sendMessage(
         {
           action: "webVital",
@@ -283,8 +235,6 @@ function initializeCoreWebVitals() {
               "[URA] Failed to send CLS:",
               browserAPI.runtime.lastError
             );
-          } else {
-            console.log("[URA] CLS sent successfully:", response);
           }
         }
       );
@@ -301,13 +251,6 @@ function initializeCoreWebVitals() {
       for (const entry of list.getEntries()) {
         if (entry.name === "first-contentful-paint") {
           webVitals.fcp = entry.startTime;
-
-          console.log(
-            "[URA] FCP captured:",
-            webVitals.fcp,
-            "for",
-            window.location.href
-          );
 
           browserAPI.runtime.sendMessage(
             {
@@ -329,8 +272,6 @@ function initializeCoreWebVitals() {
                   "[URA] Failed to send FCP:",
                   browserAPI.runtime.lastError
                 );
-              } else {
-                console.log("[URA] FCP sent successfully:", response);
               }
             }
           );
@@ -783,8 +724,6 @@ function initializeSecurityDetection() {
               startTime: this._requestStartTime,
               endTime: endTime,
             });
-          } else {
-            console.warn("chrome.runtime is not available.");
           }
         } catch (e) {
           console.error("Error sending message:", e);
@@ -826,8 +765,6 @@ function initializeSecurityDetection() {
                   startTime: startTime,
                   endTime: endTime,
                 });
-              } else {
-                console.warn("chrome.runtime is not available.");
               }
             } catch (e) {
               console.error("Error sending message:", e);
@@ -852,8 +789,6 @@ function initializeSecurityDetection() {
                 startTime: startTime,
                 endTime: endTime,
               });
-            } else {
-              console.warn("chrome.runtime is not available.");
             }
           } catch (e) {
             console.error("Error sending message:", e);
