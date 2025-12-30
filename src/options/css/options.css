@@ -4782,3 +4782,48 @@ input[type="number"] {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+/* ============================================================
+   CLEANUP HISTORY STYLES
+   ============================================================ */
+
+.history-box {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-entry {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+}
+
+.history-entry:last-child {
+  border-bottom: none;
+}
+
+.history-entry:hover {
+  background: var(--hover-color);
+}
+
+.history-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.history-details {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.history-box .placeholder {
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 24px;
+}

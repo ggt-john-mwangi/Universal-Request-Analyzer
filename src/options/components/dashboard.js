@@ -18,8 +18,6 @@ class Dashboard {
   }
 
   async initialize() {
-    console.log("Initializing Dashboard...");
-
     // Load domain filter first and check if domains exist
     const hasData = await this.loadDomainFilter();
 
@@ -38,8 +36,6 @@ class Dashboard {
 
     // Start auto-refresh
     this.startAutoRefresh();
-
-    console.log("✓ Dashboard initialized");
   }
 
   setupEventListeners() {
@@ -626,8 +622,6 @@ class Dashboard {
   }
 
   async refreshDashboard() {
-    console.log("Refreshing dashboard...");
-
     // Check if "All Domains" is selected
     const domainFilter = document.getElementById("dashboardDomainFilter");
     if (domainFilter && domainFilter.value === "all") {
@@ -661,8 +655,6 @@ class Dashboard {
         const tabName = activeTab.dataset.tab;
         await this.reloadActiveTabData(tabName);
       }
-
-      console.log("✓ Dashboard refreshed");
     } catch (error) {
       console.error("Failed to refresh dashboard:", error);
       this.showError("Failed to load dashboard data. Please try refreshing.");
@@ -1141,8 +1133,6 @@ class Dashboard {
     this.refreshInterval = setInterval(() => {
       this.refreshDashboard();
     }, 30000);
-
-    console.log("✓ Dashboard auto-refresh started (30s interval)");
   }
 
   async loadWebVitals() {
@@ -2496,7 +2486,7 @@ class Dashboard {
       const selectedDomain = domainFilter?.value || "all";
 
       const response = await chrome.runtime.sendMessage({
-        action: "exportHAR",
+        action: "exportAsHAR",
         filters: {
           domain: selectedDomain === "all" ? null : selectedDomain,
           timeRange: this.timeRange,
@@ -3173,13 +3163,7 @@ class Dashboard {
     const checkboxes = document.querySelectorAll(".request-checkbox:checked");
     const requestIds = Array.from(checkboxes).map((cb) => cb.dataset.requestId);
 
-    // Debug log
-    console.log("Selected checkbox count:", checkboxes.length);
-    console.log("Request IDs from checkboxes:", requestIds);
-    console.log("Current requests:", this.currentRequests?.length || 0);
-
     if (!this.currentRequests || this.currentRequests.length === 0) {
-      console.warn("No current requests available");
       return [];
     }
 
@@ -3188,7 +3172,6 @@ class Dashboard {
       requestIds.includes(String(req.id))
     );
 
-    console.log("Matched requests:", selected.length);
     return selected;
   }
 
@@ -3201,7 +3184,6 @@ class Dashboard {
 
     // Store selected requests for runner execution
     this.selectedRunnerRequests = selectedRequests;
-    console.log("Stored runner requests:", this.selectedRunnerRequests.length);
 
     document.getElementById("runnerRequestCount").textContent =
       selectedRequests.length;

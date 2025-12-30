@@ -13,8 +13,6 @@ class CollectionsManager {
   }
 
   async initialize() {
-    console.log("[Collections] Initializing collections manager...");
-
     this.setupEventListeners();
     await this.loadCollections();
   }

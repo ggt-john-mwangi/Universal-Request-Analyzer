@@ -20,18 +20,13 @@ class RunnersManager {
   }
 
   async initialize() {
-    console.log("[Runners] Initializing runners manager...");
-
     // Ensure runner tables exist (for databases created before runner feature)
     try {
       const response = await chrome.runtime.sendMessage({
         action: "ensureRunnerTables",
       });
-      if (response && response.success) {
-        console.log("[Runners] " + response.message);
-      }
     } catch (error) {
-      console.warn("[Runners] Could not ensure tables:", error);
+      console.error("[Runners] Could not ensure tables:", error);
     }
 
     // Setup event listeners
