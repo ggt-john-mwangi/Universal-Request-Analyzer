@@ -299,10 +299,8 @@ function createBronzeSchema(db) {
     )
   `);
 
-  // Performance entries table
-  // ❌ COMMENTED OUT - Schema only, never written to
-  // Data stored in bronze_request_timings instead
-  // TODO: Remove after testing if no issues found
+  // Performance entries table (LEGACY, replaced by bronze_request_timings)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_performance_entries (
@@ -319,10 +317,8 @@ function createBronzeSchema(db) {
   `);
   */
 
-  // Events table - captures all extension events
-  // ❌ COMMENTED OUT - Schema only, too generic
-  // Errors use bronze_errors instead
-  // TODO: Remove after testing if no issues found
+  // Events table (LEGACY, replaced by bronze_errors and specific tables)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_events (
@@ -621,10 +617,8 @@ function createSilverSchema(db) {
     )
   `);
 
-  // Tags table for categorization
-  // ❌ COMMENTED OUT - Schema only, no UI implementation
-  // Feature not prioritized
-  // TODO: Remove after testing if no issues found
+  // Tags table for categorization (NOT IMPLEMENTED, feature not prioritized)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS silver_tags (
@@ -701,10 +695,8 @@ function createGoldSchema(db) {
     )
   `);
 
-  // Performance insights
-  // ❌ COMMENTED OUT - Schema only, advanced ML feature
-  // Too ambitious for v1
-  // TODO: Remove after testing if no issues found
+  // Performance insights (NOT IMPLEMENTED, advanced ML feature)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_performance_insights (
@@ -739,10 +731,8 @@ function createGoldSchema(db) {
     )
   `);
 
-  // Resource optimization opportunities
-  // ❌ COMMENTED OUT - Schema only, advanced feature
-  // Not prioritized for v1
-  // TODO: Remove after testing if no issues found
+  // Resource optimization opportunities (NOT IMPLEMENTED, advanced feature)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_optimization_opportunities (
@@ -760,10 +750,8 @@ function createGoldSchema(db) {
   `);
   */
 
-  // Trend analysis
-  // ❌ COMMENTED OUT - Schema only
-  // gold_daily_analytics sufficient for trends
-  // TODO: Remove after testing if no issues found
+  // Trend analysis (NOT IMPLEMENTED, gold_daily_analytics is sufficient)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_trends (
@@ -778,10 +766,8 @@ function createGoldSchema(db) {
   `);
   */
 
-  // Anomalies detection
-  // ❌ COMMENTED OUT - Schema only, advanced ML feature
-  // Too ambitious for v1
-  // TODO: Remove after testing if no issues found
+  // Anomalies detection (NOT IMPLEMENTED, advanced ML feature)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
   /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS gold_anomalies (
@@ -835,7 +821,9 @@ function createGoldSchema(db) {
   );
   */
 
-  // Runner results tracking
+  // Runner results tracking (LEGACY/DEPRECATED, replaced by bronze_runner_executions)
+  // ❌ COMMENTED OUT - Not in use, safe to remove
+  /*
   db.exec(`
     CREATE TABLE IF NOT EXISTS runner_results (
       run_id TEXT PRIMARY KEY,
@@ -862,8 +850,9 @@ function createGoldSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_runner_start_time ON runner_results(start_time DESC)`
   );
+  */
 
-  // Runner alerts
+  // Runner alerts (CONFIG, still in use)
   db.exec(`
     CREATE TABLE IF NOT EXISTS runner_alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

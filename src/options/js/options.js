@@ -2229,14 +2229,6 @@ function handleSitePreset(preset) {
 /**
  * IMPROVEMENT 1: Check if query contains dangerous operations
  * Detects DELETE, DROP, TRUNCATE, ALTER, and UPDATE without WHERE clause
- */
-function checkQuerySafety(query) {
-  const upperQuery = query.toUpperCase().trim();
-  const result = {
-    isDangerous: false,
-    warnings: [],
-    level: "safe", // 'safe', 'warning', 'danger'
-  };
 
   // Check for DROP statements
   if (/\bDROP\s+(TABLE|DATABASE|INDEX|VIEW)/i.test(query)) {

@@ -21,7 +21,6 @@ export const TABLE_METADATA = {
     status: "✅ ACTIVE",
     usage: "settings-manager.js reads/writes, synced to chrome.storage",
   },
-
   config_feature_flags: {
     schema: "config",
     purpose: "Feature toggle flags",
@@ -29,7 +28,6 @@ export const TABLE_METADATA = {
     status: "✅ ACTIVE",
     usage: "feature-flags.js checks, Options UI toggles",
   },
-
   config_user_preferences: {
     schema: "config",
     purpose: "User display preferences",
@@ -37,16 +35,41 @@ export const TABLE_METADATA = {
     status: "✅ ACTIVE",
     usage: "Theme, language, timezone, date/number formats",
   },
-
+  config_extension: {
+    schema: "config",
+    purpose: "Extension metadata and installation info",
+    feature: "Extension Config",
+    status: "✅ ACTIVE",
+    usage: "Installation ID, version, environment tracking",
+  },
+  config_performance: {
+    schema: "config",
+    purpose: "Performance monitoring settings",
+    feature: "Performance Config",
+    status: "⚠️ NOT IMPLEMENTED",
+    usage: "Schema only, performance monitoring not fully implemented",
+  },
+  config_storage: {
+    schema: "config",
+    purpose: "Storage limits and cleanup settings",
+    feature: "Storage Management",
+    status: "✅ ACTIVE",
+    usage: "cleanup-manager.js uses for retention policies",
+  },
+  config_export: {
+    schema: "config",
+    purpose: "Default export settings",
+    feature: "Export Configuration",
+    status: "⚠️ PARTIAL",
+    usage: "Schema exists, export uses hard-coded defaults",
+  },
   config_runner_definitions: {
     schema: "config",
     purpose: "Saved request runners",
     feature: "Request Runners",
     status: "✅ ACTIVE",
-    usage:
-      "db-manager-medallion.js CRUD, runners.js UI, dashboard.js quick run",
+    usage: "db-manager-medallion.js CRUD, runners.js UI, dashboard.js quick run",
   },
-
   config_runner_requests: {
     schema: "config",
     purpose: "Individual runner requests",
@@ -54,7 +77,6 @@ export const TABLE_METADATA = {
     status: "✅ ACTIVE",
     usage: "request-runner.js executes, runners.js displays",
   },
-
   config_runner_collections: {
     schema: "config",
     purpose: "Runner groupings",
@@ -62,36 +84,20 @@ export const TABLE_METADATA = {
     status: "⚠️ PARTIAL - Backend exists, no UI",
     usage: "runner-collections.js backend, needs Options UI",
   },
-
-  config_sync_settings: {
+  config_runner_scheduled_runs: {
     schema: "config",
-    purpose: "Cloud sync configuration",
-    feature: "Cloud Sync",
+    purpose: "Schedule collection executions",
+    feature: "Runner Scheduling",
     status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, sync feature not implemented",
+    usage: "Schema only, scheduled runs not implemented",
   },
-
-  config_filters: {
-    schema: "config",
-    purpose: "Saved filter configurations",
-    feature: "Advanced Filters",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Filters use chrome.storage.local instead",
-  },
-
-  // ===================================================================
-  // BRONZE SCHEMA - Raw Immutable Data Layer
-  // ===================================================================
-
   bronze_requests: {
     schema: "bronze",
     purpose: "Raw HTTP request captures",
     feature: "Request Capture",
     status: "✅ ACTIVE - Core Infrastructure",
-    usage:
-      "request-capture.js writes, medallion-manager.js reads to process to Silver",
+    usage: "request-capture.js writes, medallion-manager.js reads to process to Silver",
   },
-
   bronze_request_headers: {
     schema: "bronze",
     purpose: "Request/response headers",
@@ -99,24 +105,13 @@ export const TABLE_METADATA = {
     status: "✅ ACTIVE",
     usage: "request-capture.js writes, dashboard.js displays in details modal",
   },
-
-  bronze_request_bodies: {
-    schema: "bronze",
-    purpose: "Request/response bodies",
-    feature: "Request Details",
-    status: "✅ ACTIVE",
-    usage: "request-capture.js writes, dashboard.js displays in details modal",
-  },
-
   bronze_request_timings: {
     schema: "bronze",
     purpose: "Detailed timing breakdown",
     feature: "Performance Analysis",
     status: "✅ ACTIVE",
-    usage:
-      "request-capture.js captures from webRequest API, medallion-manager aggregates to silver_request_metrics",
+    usage: "request-capture.js captures from webRequest API, medallion-manager aggregates to silver_request_metrics",
   },
-
   bronze_web_vitals: {
     schema: "bronze",
     purpose: "Core Web Vitals metrics",
@@ -124,7 +119,6 @@ export const TABLE_METADATA = {
     status: "⚠️ EMPTY - Content Script Not Injecting",
     usage: "content.js should capture, not working - needs investigation",
   },
-
   bronze_sessions: {
     schema: "bronze",
     purpose: "User sessions",
@@ -132,193 +126,82 @@ export const TABLE_METADATA = {
     status: "⚠️ NOT IMPLEMENTED",
     usage: "Schema only, Phase 2 feature",
   },
-
   bronze_errors: {
     schema: "bronze",
     purpose: "Error logging",
     feature: "Error Tracking",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Errors logged to console, not database",
+    status: "✅ ACTIVE",
+    usage: "logger.js error() method persists errors, View Logs button queries this table",
   },
-
   bronze_runner_executions: {
     schema: "bronze",
     purpose: "Runner execution history",
     feature: "Request Runners",
     status: "✅ ACTIVE",
-    usage:
-      "request-runner.js creates/updates, runners.js & dashboard.js display history",
+    usage: "request-runner.js creates/updates, runners.js & dashboard.js display history",
   },
-
   bronze_runner_execution_results: {
     schema: "bronze",
     purpose: "Individual run results",
     feature: "Request Runners",
     status: "✅ ACTIVE",
-    usage:
-      "request-runner.js writes per-request results, runners.js displays in results modal",
+    usage: "request-runner.js writes per-request results, runners.js displays in results modal",
   },
-
-  // ===================================================================
-  // SILVER SCHEMA - Validated & Enriched Data Layer
-  // ===================================================================
-
   silver_requests: {
     schema: "silver",
     purpose: "Validated & enriched requests",
     feature: "Medallion Pipeline",
     status: "✅ ACTIVE - Primary Analytics Source",
-    usage:
-      "medallion-manager.processBronzeToSilver() writes, Dashboard queries for all analytics",
+    usage: "medallion-manager.processBronzeToSilver() writes, Dashboard queries for all analytics",
   },
-
   silver_request_metrics: {
     schema: "silver",
     purpose: "Performance timing metrics",
     feature: "Medallion Pipeline",
     status: "✅ ACTIVE",
-    usage:
-      "medallion-manager.processSilverMetrics() aggregates from bronze_request_timings, Dashboard performance charts",
+    usage: "medallion-manager.processSilverMetrics() aggregates from bronze_request_timings, Dashboard performance charts",
   },
-
   silver_domain_stats: {
     schema: "silver",
     purpose: "Domain aggregations",
     feature: "Medallion Pipeline",
     status: "✅ ACTIVE",
-    usage:
-      "medallion-manager.updateDomainStats() updates per request, Dashboard domain cards",
+    usage: "medallion-manager.updateDomainStats() updates per request, Dashboard domain cards",
   },
-
   silver_resource_stats: {
     schema: "silver",
     purpose: "Resource type aggregations",
     feature: "Medallion Pipeline",
     status: "✅ ACTIVE",
-    usage:
-      "medallion-manager.updateResourceStats() updates per request, Dashboard resource breakdown chart",
+    usage: "medallion-manager.updateResourceStats() updates per request, Dashboard resource breakdown chart",
   },
-
   silver_hourly_stats: {
     schema: "silver",
     purpose: "Time-series aggregations",
     feature: "Medallion Pipeline",
     status: "✅ ACTIVE",
-    usage:
-      "medallion-manager.updateHourlyStats() buckets by hour, Dashboard time-series charts",
+    usage: "medallion-manager.updateHourlyStats() buckets by hour, Dashboard time-series charts",
   },
-
-  // ❌ COMMENTED OUT - Table disabled in schema
-  // silver_tags: {
-  //   schema: "silver",
-  //   purpose: "Request categorization",
-  //   feature: "Tagging System",
-  //   status: "⚠️ NOT IMPLEMENTED",
-  //   usage: "Schema only, no UI or tagging logic",
-  // },
-
-  // ❌ COMMENTED OUT - Table disabled in schema
-  // silver_request_tags: {
-  //   schema: "silver",
-  //   purpose: "Tag mappings",
-  //   feature: "Tagging System",
-  //   status: "⚠️ NOT IMPLEMENTED",
-  //   usage: "Schema only, junction table for many-to-many",
-  // },
-
-  // ===================================================================
-  // GOLD SCHEMA - Aggregated Analytics Layer
-  // ===================================================================
-
   gold_daily_analytics: {
     schema: "gold",
     purpose: "Daily performance summaries",
     feature: "Daily Analytics Pipeline",
     status: "✅ ACTIVE",
-    usage:
-      "medallion-manager.processDailyAnalytics() runs nightly, data-sync-manager reads for sync",
+    usage: "medallion-manager.processDailyAnalytics() runs nightly, data-sync-manager reads for sync",
   },
-
-  // ❌ COMMENTED OUT - Table disabled in schema
-  // gold_performance_insights: {
-  //   schema: "gold",
-  //   purpose: "AI-generated insights",
-  //   feature: "Insights Engine",
-  //   status: "⚠️ NOT IMPLEMENTED",
-  //   usage: "Schema only, no LLM integration or insight generation",
-  // },
-
   gold_domain_performance: {
     schema: "gold",
     purpose: "Per-domain grades",
     feature: "Domain Reports",
     status: "⚠️ WRITTEN BY MIGRATION - Not in UI",
-    usage:
-      "medallion-migration.js writes during migration, no UI displays grades",
+    usage: "medallion-migration.js writes during migration, no UI displays grades",
   },
-
-  // ❌ COMMENTED OUT - Table disabled in schema
-  // gold_optimization_opportunities: {
-  //   schema: "gold",
-  //   purpose: "Performance suggestions",
-  //   feature: "Optimization Engine",
-  //   status: "⚠️ NOT IMPLEMENTED",
-  //   usage: "Schema only, no optimization logic",
-  // },
-
-  // ❌ COMMENTED OUT - Table disabled in schema
-  // gold_trends: {
-  //   schema: "gold",
-  //   purpose: "Metric trends",
-  //   feature: "Trend Analysis",
-  //   status: "⚠️ NOT IMPLEMENTED",
-  //   usage: "Schema only, no trend detection logic",
-  // },
-
-  // ❌ COMMENTED OUT - Table disabled in schema
-  // gold_anomalies: {
-  //   schema: "gold",
-  //   purpose: "Anomaly detection",
-  //   feature: "Anomaly Detection",
-  //   status: "⚠️ NOT IMPLEMENTED",
-  //   usage: "Schema only, no anomaly detection logic",
-  // },
-
-  // ===================================================================
-  // OTHER SCHEMA - Legacy and Special Purpose
-  // ===================================================================
-
-  runner_results: {
-    schema: "other",
-    purpose: "Runner summaries (LEGACY)",
-    feature: "Request Runners",
-    status: "⚠️ DEPRECATED",
-    usage:
-      "request-runner.js line 877 still writes (bug), use bronze_runner_execution_results instead",
-  },
-
   runner_alerts: {
-    schema: "other",
-    purpose: "Runner alert configs",
+    schema: "config",
+    purpose: "Runner alert configurations",
     feature: "Runner Alerts",
     status: "⚠️ PARTIAL - Backend partial, no UI",
-    usage: "background/notifications/ has some code, needs Options UI",
-  },
-
-  analytics_queue: {
-    schema: "other",
-    purpose: "Analytics processing queue",
-    feature: "Background Processing",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, analytics runs synchronously",
-  },
-
-  sync_queue: {
-    schema: "other",
-    purpose: "Cloud sync queue",
-    feature: "Cloud Sync",
-    status: "⚠️ NOT IMPLEMENTED",
-    usage: "Schema only, sync not implemented",
+    usage: "Gold schema table for alert conditions, background/notifications/ has some code, needs Options UI",
   },
 };
 
