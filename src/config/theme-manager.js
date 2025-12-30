@@ -260,7 +260,7 @@ class ThemeManager {
 
   applyThemeToDocument(theme) {
     // Only apply to DOM in browser context (not in service worker)
-    if (typeof document === "undefined") {
+    if (typeof document === "undefined" || !document.body) {
       return;
     }
 
