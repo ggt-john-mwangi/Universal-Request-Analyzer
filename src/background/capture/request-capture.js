@@ -97,6 +97,14 @@ export const performanceMetricsCollector = new PerformanceMetricsCollector({
   retentionPeriod: 7 * 24 * 60 * 60 * 1000, // 7 days
 });
 
+/**
+ * Helper function to escape SQL strings for inline values
+ */
+function escapeStr(val) {
+  if (val === undefined || val === null) return "NULL";
+  return `'${String(val).replace(/'/g, "''")}'`;
+}
+
 let dbManager = null;
 let eventBus = null;
 let config = null;
@@ -606,20 +614,20 @@ function handleSecurityIssue(data, tab) {
       };
 
       if (dbManager.executeQuery) {
-        dbManager.executeQuery(
-          `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            event.event_type,
-            event.event_name,
-            event.source,
-            event.data,
-            event.request_id,
-            event.user_id,
-            event.session_id,
-            event.timestamp,
-          ]
-        );
+        try {
+          dbManager.executeQuery(
+            `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
+             VALUES (${escapeStr(event.event_type)}, ${escapeStr(
+              event.event_name
+            )}, ${escapeStr(event.source)}, ${escapeStr(
+              event.data
+            )}, ${escapeStr(event.request_id)}, ${escapeStr(
+              event.user_id
+            )}, ${escapeStr(event.session_id)}, ${event.timestamp})`
+          );
+        } catch (error) {
+          console.error("Failed to insert bronze event:", error.message);
+        }
       }
     });
 
@@ -666,20 +674,20 @@ function handleThirdPartyDomains(data, tab) {
       };
 
       if (dbManager.executeQuery) {
-        dbManager.executeQuery(
-          `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            event.event_type,
-            event.event_name,
-            event.source,
-            event.data,
-            event.request_id,
-            event.user_id,
-            event.session_id,
-            event.timestamp,
-          ]
-        );
+        try {
+          dbManager.executeQuery(
+            `INSERT INTO bronze_events (event_type, event_name, source, data, request_id, user_id, session_id, timestamp)
+             VALUES (${escapeStr(event.event_type)}, ${escapeStr(
+              event.event_name
+            )}, ${escapeStr(event.source)}, ${escapeStr(
+              event.data
+            )}, ${escapeStr(event.request_id)}, ${escapeStr(
+              event.user_id
+            )}, ${escapeStr(event.session_id)}, ${event.timestamp})`
+          );
+        } catch (error) {
+          console.error("Failed to insert bronze event:", error.message);
+        }
       }
     });
 
@@ -930,8 +938,9 @@ function shouldCaptureByUrl(url) {
 
     // Determine tracking mode
     const trackOnlyConfigured = config.trackOnlyConfiguredSites !== false; // Default: true
-    const hasConfiguredSites = config.captureFilters.includeDomains && 
-                                config.captureFilters.includeDomains.length > 0;
+    const hasConfiguredSites =
+      config.captureFilters.includeDomains &&
+      config.captureFilters.includeDomains.length > 0;
 
     if (trackOnlyConfigured) {
       // Mode: Track ONLY configured sites

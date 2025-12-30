@@ -172,7 +172,10 @@ async function saveDatabaseToChromeStorage(data) {
 
     if (sizeInBytes > maxSize) {
       // Only log once per session to avoid console spam
-      if (!this._backupWarningShown) {
+      if (
+        !this._backupWarningShown &&
+        this.hasOwnProperty("_backupWarningShown")
+      ) {
         console.info(
           `[DB] Database too large for Chrome storage backup (${(
             sizeInBytes /

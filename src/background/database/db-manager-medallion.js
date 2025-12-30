@@ -484,7 +484,6 @@ export async function clearDatabase() {
       "silver_hourly_stats",
       "silver_request_tags",
       "gold_daily_analytics",
-      "gold_performance_insights",
       "gold_domain_performance",
       "gold_optimization_opportunities",
       "gold_trends",
@@ -658,9 +657,6 @@ export async function cleanupOldRecords(days) {
     // Note: gold_daily_analytics uses date string, not timestamp
     db.exec(`DELETE FROM gold_daily_analytics WHERE date < '${cutoffDate}'`);
     db.exec(
-      `DELETE FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}`
-    );
-    db.exec(
       `DELETE FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}`
     );
     db.exec(
@@ -720,7 +716,6 @@ export function previewCleanup(days) {
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date < '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_trends WHERE created_at < ${cutoffTimestamp}) +
@@ -729,7 +724,6 @@ export function previewCleanup(days) {
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date >= '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_trends WHERE created_at >= ${cutoffTimestamp}) +

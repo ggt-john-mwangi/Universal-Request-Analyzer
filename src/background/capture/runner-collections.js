@@ -30,6 +30,13 @@ class RunnerCollections {
         return;
       }
 
+      if (!this.dbManager.collection || !this.dbManager.scheduledRun) {
+        console.warn(
+          "[Collections] Database manager missing collection or scheduledRun methods"
+        );
+        return;
+      }
+
       // Load collections from database
       this.collectionsCache = await this.dbManager.collection.getCollections();
 

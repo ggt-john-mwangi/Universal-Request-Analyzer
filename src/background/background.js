@@ -3,7 +3,7 @@
 
 import { initDatabase } from "./database/db-manager.js";
 import { setupLocalAuth } from "./auth/local-auth-manager.js";
-import { initializePopupMessageHandler } from "./messaging/popup-message-handler.js";
+import { initializePopupMessageHandler } from "./messaging/message-router.js";
 import { DatabaseManagerMedallion } from "./database/db-manager-medallion.js";
 import { MedallionManager } from "./database/medallion-manager.js";
 import { AnalyticsProcessor } from "./database/analytics-processor.js";
@@ -238,19 +238,12 @@ class IntegratedExtensionInitializer {
 
   async handleAllMessages(message, sender, sendResponse) {
     try {
-      console.log("[handleAllMessages] Received message:", message.action);
-
       // First try popup/options handlers (register, login, getPageStats, query, etc.)
       if (this.popupMessageHandler) {
         const popupResponse = await this.popupMessageHandler(message, sender);
-        console.log(
-          "[handleAllMessages] Popup handler response:",
-          popupResponse ? "received" : "null"
-        );
 
         // If popup handler returned a response (not null), send it
         if (popupResponse !== null && popupResponse !== undefined) {
-          console.log("[handleAllMessages] Sending popup response");
           sendResponse(popupResponse);
           return;
         }

@@ -317,9 +317,7 @@ function createBronzeSchema(db) {
   `);
   */
 
-  // Events table (LEGACY, replaced by bronze_errors and specific tables)
-  // ❌ COMMENTED OUT - Not in use, safe to remove
-  /*
+  // Events table - Captures extension events and lifecycle events
   db.exec(`
     CREATE TABLE IF NOT EXISTS bronze_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -334,7 +332,6 @@ function createBronzeSchema(db) {
       FOREIGN KEY(request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
     )
   `);
-  */
 
   // Web Vitals table - Core Web Vitals metrics
   db.exec(`
@@ -465,8 +462,7 @@ function createBronzeSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_timings_request_id ON bronze_request_timings(request_id)`
   );
-  // ❌ COMMENTED OUT - Indexes for bronze_events (table disabled)
-  /*
+  // Indexes for bronze_events
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_events_type ON bronze_events(event_type)`
   );
@@ -476,7 +472,6 @@ function createBronzeSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_events_request_id ON bronze_events(request_id)`
   );
-  */
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_web_vitals_domain ON bronze_web_vitals(domain)`
   );

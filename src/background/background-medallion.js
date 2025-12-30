@@ -5,7 +5,7 @@ import { initDatabase } from "./database/db-manager-medallion.js";
 import { setupRequestCaptureIntegration } from "./capture/request-capture-integration.js";
 import { setupBackendApiService } from "./api/backend-api-service.js";
 import { setupDataSyncManager } from "./sync/data-sync-manager.js";
-import { setupMessageHandlers } from "./messaging/message-handler.js";
+import { initializeMessageRouter } from "./messaging/message-router.js";
 import { setupEventBus } from "./messaging/event-bus.js";
 import { createAnalyticsProcessor } from "./database/analytics-processor.js";
 import { createStarSchema } from "./database/star-schema.js";
@@ -193,15 +193,23 @@ class MedallionExtensionInitializer {
   async initializeMessageHandlers() {
     console.log("→ Initializing Message Handlers...");
 
-    const messageHandlers = setupMessageHandlers(
-      this.dbManager,
-      this.services,
-      this.eventBus
-    );
+    // Initialize message router with database (no auth manager for now)
+    const messageHandler = initializeMessageRouter(null, this.dbManager);
 
-    this.services.set("messaging", messageHandlers);
+    // Set up message listener
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      messageHandler(message, sender)
+        .then(sendResponse)
+        .catch((error) => {
+          console.error("[Background] Message handler error:", error);
+          sendResponse({ success: false, error: error.message });
+        });
+      return true; // Keep channel open for async response
+    });
 
-    console.log("✓ Message Handlers initialized");
+    this.services.set("messaging", { handler: messageHandler });
+
+    console.log("✓ Message Router initialized with", "handlers");
   }
 
   schedulePeriodicTasks() {
