@@ -23,8 +23,6 @@ export function setupMessageHandlers(database, auth, encryption, events) {
   // Set up message listeners
   setupMessageListeners();
 
-  console.log("Message handler system initialized");
-
   return {
     registerHandler,
     removeHandler,
@@ -102,14 +100,11 @@ function setupMessageListeners() {
 
   // Listen for connect events
   chrome.runtime.onConnect.addListener((port) => {
-    console.log(`Connection established on port: ${port.name}`);
-
     port.onMessage.addListener((message) => {
       handlePortMessage(message, port);
     });
 
     port.onDisconnect.addListener(() => {
-      console.log(`Port disconnected: ${port.name}`);
       cleanupPort(port);
     });
   });
