@@ -177,6 +177,7 @@ export function setupRequestCapture(captureConfig, database, events) {
   return {
     enableCapture,
     disableCapture,
+    toggleCapture,
     updateCaptureConfig,
   };
 }
@@ -902,10 +903,20 @@ function updateRequestData(requestId, requestData) {
 function shouldCaptureRequest(details) {
   initializeCaptureFilters(config); // Ensure captureFilters is properly initialized
 
-  // Check request type
-  if (!config.captureFilters.includeTypes.includes(details.type)) {
-    return false;
+  // Check request type - if includeTypes is specified and non-empty, enforce it
+  if (
+    config.captureFilters.includeTypes &&
+    config.captureFilters.includeTypes.length > 0
+  ) {
+    if (!config.captureFilters.includeTypes.includes(details.type)) {
+      console.log(
+        `[Request Capture] Filtered out ${details.type} - not in includeTypes:`,
+        config.captureFilters.includeTypes
+      );
+      return false;
+    }
   }
+  // If includeTypes is empty or undefined, capture all types (backward compatibility)
 
   // Check URL
   return shouldCaptureByUrl(details.url);
@@ -989,6 +1000,42 @@ function enableCapture() {
 function disableCapture() {
   config.enabled = false;
   eventBus.publish("capture:disabled", { timestamp: Date.now() });
+}
+
+// Toggle capture on/off with settings persistence
+export async function toggleCapture(enabled) {
+  try {
+    // Update config
+    config.enabled = enabled;
+
+    // Persist to settings
+    const settingsManager = await import(
+      "../../lib/shared-components/settings-manager.js"
+    );
+    await settingsManager.default.updateSettings({
+      capture: {
+        enabled: enabled,
+      },
+    });
+
+    // Publish event
+    const event = enabled ? "capture:enabled" : "capture:disabled";
+    eventBus.publish(event, { timestamp: Date.now() });
+
+    console.log(`Request capture ${enabled ? "enabled" : "disabled"}`);
+
+    return {
+      success: true,
+      enabled: enabled,
+      message: `Capture ${enabled ? "enabled" : "disabled"} successfully`,
+    };
+  } catch (error) {
+    console.error("Error toggling capture:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
 }
 
 // Update capture configuration
