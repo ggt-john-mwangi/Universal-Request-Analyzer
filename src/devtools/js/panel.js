@@ -1,8 +1,9 @@
 import Chart from "../../lib/chart.min.js";
+import logger from "../../lib/utils/logger.js";
 
 // Global initialization function that can be called from devtools.js
 window.initializePanel = function () {
-  console.log("Panel initialization requested");
+  logger.debug("Panel initialization requested");
 };
 
 export class DevToolsPanel {
@@ -25,60 +26,42 @@ export class DevToolsPanel {
     this.initialize();
   }
 
-  initialize() {
+  async initialize() {
+    // Load settings first to know which charts to initialize
+    await this.loadSettings();
     this.setupUI();
     this.setupEventListeners();
-    this.initializeCharts();
+    await this.initializeCharts();
     this.startMetricsCollection();
   }
 
-  setupQuickFilterChips() {
-    const filterChips = document.querySelectorAll(".filter-chip");
-    filterChips.forEach((chip) => {
-      chip.addEventListener("click", () => {
-        const filterType = chip.dataset.filter;
-        this.applyQuickFilter(filterType);
-
-        // Update active state
-        filterChips.forEach((c) => c.classList.remove("active"));
-        chip.classList.add("active");
+  async loadSettings() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings",
       });
-    });
-  }
-
-  applyQuickFilter(filterType) {
-    console.log("Applying quick filter:", filterType);
-
-    const requestTypeFilter = document.getElementById("requestTypeFilter");
-    const statusFilter = document.getElementById("statusFilter");
-
-    // Reset filters first
-    if (requestTypeFilter) requestTypeFilter.value = "";
-    if (statusFilter) statusFilter.value = "";
-
-    // Apply filter based on type
-    if (filterType === "all") {
-      // Clear all filters
-    } else if (filterType === "2xx") {
-      if (statusFilter) statusFilter.value = "200";
-    } else if (filterType === "4xx") {
-      if (statusFilter) statusFilter.value = "4xx";
-    } else if (filterType === "5xx") {
-      if (statusFilter) statusFilter.value = "5xx";
-    } else if (filterType === "xhr") {
-      if (requestTypeFilter) requestTypeFilter.value = "xmlhttprequest";
-    } else if (filterType === "fetch") {
-      if (requestTypeFilter) requestTypeFilter.value = "fetch";
-    } else if (filterType === "js") {
-      if (requestTypeFilter) requestTypeFilter.value = "script";
-    } else if (filterType === "css") {
-      if (requestTypeFilter) requestTypeFilter.value = "stylesheet";
-    } else if (filterType === "img") {
-      if (requestTypeFilter) requestTypeFilter.value = "image";
+      if (response && response.success && response.settings) {
+        this.userSettings = response.settings;
+        logger.debug("DevTools Panel: Loaded settings:", this.userSettings);
+      } else {
+        // Default settings if none found
+        this.userSettings = {
+          display: {
+            showCharts: true,
+            enabledCharts: ["performanceChart", "statusChart", "requestsChart"],
+          },
+        };
+        logger.debug("DevTools Panel: Using default settings");
+      }
+    } catch (error) {
+      logger.error("Failed to load settings:", error);
+      this.userSettings = {
+        display: {
+          showCharts: true,
+          enabledCharts: ["performanceChart", "statusChart", "requestsChart"],
+        },
+      };
     }
-
-    // Refresh metrics with new filters
-    this.refreshMetrics();
   }
 
   setupUI() {
@@ -103,8 +86,8 @@ export class DevToolsPanel {
             <label><i class="fas fa-filter"></i> Request Type:</label>
             <select id="requestTypeFilter" class="filter-select">
               <option value="">All Types</option>
-              <option value="xmlhttprequest">XHR/API</option>
-              <option value="fetch">Fetch</option>
+              <option value="xmlhttprequest">XHR/AJAX</option>
+              <option value="fetch">Fetch API</option>
               <option value="script">Scripts</option>
               <option value="stylesheet">Stylesheets</option>
               <option value="image">Images</option>
@@ -152,39 +135,6 @@ export class DevToolsPanel {
               <i class="fas fa-pause"></i> Pause
             </button>
           </div>
-        </div>
-        
-        <!-- Quick Filter Chips -->
-        <div class="quick-filters">
-          <div class="filter-group-label">Status:</div>
-          <button class="filter-chip active" data-filter="all" data-filter-type="all">
-            <i class="fas fa-globe"></i> All
-          </button>
-          <button class="filter-chip" data-filter="2xx" data-filter-type="status">
-            <i class="fas fa-check-circle"></i> 2xx
-          </button>
-          <button class="filter-chip" data-filter="4xx" data-filter-type="status">
-            <i class="fas fa-exclamation-triangle"></i> 4xx
-          </button>
-          <button class="filter-chip" data-filter="5xx" data-filter-type="status">
-            <i class="fas fa-times-circle"></i> 5xx
-          </button>
-          <div class="filter-group-label">Type:</div>
-          <button class="filter-chip" data-filter="xhr" data-filter-type="type">
-            <i class="fas fa-exchange-alt"></i> XHR
-          </button>
-          <button class="filter-chip" data-filter="fetch" data-filter-type="type">
-            <i class="fas fa-satellite-dish"></i> Fetch
-          </button>
-          <button class="filter-chip" data-filter="js" data-filter-type="type">
-            <i class="fab fa-js-square"></i> JS
-          </button>
-          <button class="filter-chip" data-filter="css" data-filter-type="type">
-            <i class="fab fa-css3-alt"></i> CSS
-          </button>
-          <button class="filter-chip" data-filter="img" data-filter-type="type">
-            <i class="fas fa-image"></i> IMG
-          </button>
         </div>
         
         <!-- Active Filters Display -->
@@ -257,32 +207,29 @@ export class DevToolsPanel {
             <button data-tab="requests" class="tab-btn">
               <i class="fas fa-list"></i> Requests Table
             </button>
-            <button data-tab="waterfall" class="tab-btn">
-              <i class="fas fa-stream"></i> Waterfall
-            </button>
-            <button data-tab="performance" class="tab-btn">
-              <i class="fas fa-stopwatch"></i> Performance
-            </button>
             <button data-tab="endpoints" class="tab-btn">
               <i class="fas fa-network-wired"></i> Endpoints
-            </button>
-            <button data-tab="resources" class="tab-btn">
-              <i class="fas fa-database"></i> Resources
             </button>
             <button data-tab="errors" class="tab-btn">
               <i class="fas fa-bug"></i> Errors
             </button>
-            <button data-tab="websocket" class="tab-btn">
-              <i class="fas fa-plug"></i> WebSocket
+            <button data-tab="performance" class="tab-btn">
+              <i class="fas fa-stopwatch"></i> Performance
             </button>
-            <button data-tab="realtime" class="tab-btn">
-              <i class="fas fa-bolt"></i> Real-time Feed
+            <button data-tab="waterfall" class="tab-btn">
+              <i class="fas fa-stream"></i> Waterfall
+            </button>
+            <button data-tab="resources" class="tab-btn">
+              <i class="fas fa-database"></i> Resources
+            </button>
+            <button data-tab="websocket" class="tab-btn" id="websocketTabBtn" style="display: none;">
+              <i class="fas fa-plug"></i> WebSocket
             </button>
           </div>
           
           <!-- Overview Tab -->
           <div id="overviewTab" class="tab-content active">
-            <div class="charts-grid">
+            <div class="charts-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
               <div class="chart-container">
                 <h4><i class="fas fa-chart-line"></i> Response Time Timeline</h4>
                 <canvas id="performanceChart"></canvas>
@@ -294,10 +241,6 @@ export class DevToolsPanel {
               <div class="chart-container">
                 <h4><i class="fas fa-chart-bar"></i> Request Types</h4>
                 <canvas id="requestsChart"></canvas>
-              </div>
-              <div class="chart-container">
-                <h4><i class="fas fa-clock"></i> Request Volume</h4>
-                <canvas id="volumeChart"></canvas>
               </div>
             </div>
           </div>
@@ -393,23 +336,33 @@ export class DevToolsPanel {
             </div>
             
             <div class="endpoint-performance-history" style="margin-top: 24px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h4 style="margin: 0;"><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
-                <div class="mode-toggle" style="display: flex; gap: 8px;">
-                  <button id="modeRequestTypes" class="toggle-btn active" title="View by Request Types">
-                    <i class="fas fa-layer-group"></i> Request Types
-                  </button>
-                  <button id="modeSpecificEndpoint" class="toggle-btn" title="View Specific Endpoint">
-                    <i class="fas fa-link"></i> Specific Endpoint
-                  </button>
-                </div>
-              </div>
-              <p class="hint" id="performanceHint">Track request types (fetch, xhr, script, etc.) performance over time.</p>
+              <h4 style="margin: 0;"><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
+              <p class="hint" id="performanceHint" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                Track request types (fetch, xhr, script, etc.) or specific API endpoints performance over time.
+              </p>
               
-              <div class="history-controls" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-                <div class="filter-group" id="typeFilterGroup">
-                  <label><i class="fas fa-filter"></i> Type Filter:</label>
-                  <select id="endpointTypeFilter" class="filter-select">
+              <div class="history-controls" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+                <!-- Row 1: Time Controls -->
+                <div class="filter-group">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    <i class="fas fa-clock"></i> Time Range
+                  </label>
+                  <select id="historyTimeRange" class="filter-select" style="width: 100%">
+                    <option value="1800000">Last 30 minutes</option>
+                    <option value="3600000">Last 1 hour</option>
+                    <option value="21600000">Last 6 hours</option>
+                    <option value="86400000" selected>Last 24 hours</option>
+                    <option value="604800000">Last 7 days</option>
+                    <option value="2592000000">Last 30 days</option>
+                    <option value="7776000000">Last 3 months</option>
+                  </select>
+                </div>
+
+                <div class="filter-group">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    <i class="fas fa-filter"></i> Resource Type
+                  </label>
+                  <select id="endpointTypeFilter" class="filter-select" style="width: 100%">
                     <option value="">All Types</option>
                     <option value="fetch">Fetch</option>
                     <option value="xmlhttprequest">XHR/AJAX</option>
@@ -421,59 +374,71 @@ export class DevToolsPanel {
                     <option value="other">Other</option>
                   </select>
                 </div>
-                
+
+                <!-- Row 2: Sorting & Filtering -->
                 <div class="filter-group">
-                  <label><i class="fas fa-calendar"></i> Time Bucket:</label>
-                  <select id="historyTimeBucket" class="filter-select">
-                    <option value="hourly" selected>Hourly</option>
-                    <option value="daily">Daily</option>
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    <i class="fas fa-sort"></i> Sort By
+                  </label>
+                  <select id="endpointSortBy" class="filter-select" style="width: 100%">
+                    <option value="requests" selected>Most Requests</option>
+                    <option value="slowest">Slowest Avg</option>
+                    <option value="errors">Most Errors</option>
+                    <option value="size">Largest Size</option>
                   </select>
                 </div>
-                
+
                 <div class="filter-group">
-                  <label><i class="fas fa-clock"></i> Time Range:</label>
-                  <select id="historyTimeRange" class="filter-select">
-                    <option value="3600000">Last Hour</option>
-                    <option value="21600000">Last 6 Hours</option>
-                    <option value="86400000">Last 24 Hours</option>
-                    <option value="259200000">Last 3 Days</option>
-                    <option value="604800000" selected>Last 7 Days</option>
-                    <option value="2592000000">Last 30 Days</option>
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    <i class="fas fa-list-ol"></i> Show Top
+                  </label>
+                  <select id="endpointTopN" class="filter-select" style="width: 100%">
+                    <option value="5">Top 5</option>
+                    <option value="10" selected>Top 10</option>
+                    <option value="15">Top 15</option>
+                    <option value="20">Top 20</option>
+                    <option value="all">All Endpoints</option>
                   </select>
                 </div>
-                
-                <div class="filter-group" id="endpointPatternGroup" style="display: none;">
-                  <label><i class="fas fa-link"></i> Endpoint Pattern:</label>
-                  <input type="text" id="endpointPattern" placeholder="e.g., /api/login, /users/:id" class="filter-input" style="min-width: 250px;">
-                  <span class="hint-text" style="font-size: 11px; color: var(--text-secondary);">Filter specific API endpoint</span>
+
+                <div class="filter-group">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    <i class="fas fa-sync-alt"></i> Action
+                  </label>
+                  <button id="loadHistoryBtn" class="btn-primary" style="width: 100%; padding: 8px 16px; height: 36px">
+                    <i class="fas fa-sync-alt"></i> Load Data
+                  </button>
                 </div>
-                
-                <button id="loadHistoryBtn" class="btn-primary" style="align-self: flex-end;">
-                  <i class="fas fa-sync-alt"></i> Load History
-                </button>
+
+                <!-- Row 3: Search (spans all columns) -->
+                <div class="filter-group" style="grid-column: span 3">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    <i class="fas fa-search"></i> Search Endpoint
+                  </label>
+                  <input type="text" id="endpointPattern" placeholder="Filter by URL pattern (e.g., /api/users, /login, /products/:id)" class="modern-input" style="width: 100%; padding: 8px 12px;">
+                </div>
               </div>
-              
-              <!-- Request Type Filters (shown only in types mode) -->
-              <div id="typeFiltersContainer" class="type-filters" style="margin-bottom: 16px; display: none;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                  <label style="font-weight: 500; color: var(--text-secondary);"><i class="fas fa-filter"></i> Filter Types:</label>
-                  <button id="selectAllTypes" class="btn-secondary" style="padding: 4px 8px; font-size: 11px;">
-                    <i class="fas fa-check-square"></i> Select All
-                  </button>
-                  <button id="deselectAllTypes" class="btn-secondary" style="padding: 4px 8px; font-size: 11px;">
-                    <i class="fas fa-square"></i> Deselect All
-                  </button>
+
+              <!-- Endpoint Selection Panel (shows after loading) -->
+              <div id="endpointSelector" style="display: none; margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <label style="font-weight: 500; color: var(--text-primary)">
+                    <i class="fas fa-chart-line"></i> Select Endpoints to Plot (click to toggle):
+                  </label>
+                  <div style="display: flex; gap: 8px">
+                    <button id="selectAllEndpoints" class="btn-secondary" style="padding: 4px 12px; font-size: 12px">
+                      Select All
+                    </button>
+                    <button id="deselectAllEndpoints" class="btn-secondary" style="padding: 4px 12px; font-size: 12px">
+                      Deselect All
+                    </button>
+                  </div>
                 </div>
-                <div id="typeCheckboxes" class="type-checkboxes"></div>
+                <div id="endpointList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; max-height: 300px; overflow-y: auto;"></div>
               </div>
               
               <div id="performanceHistoryChart" style="min-height: 300px; position: relative;">
                 <canvas id="historyChartCanvas"></canvas>
-              </div>
-              
-              <div id="performanceInsights" class="performance-insights" style="margin-top: 16px; display: none;">
-                <h5><i class="fas fa-lightbulb"></i> Performance Insights</h5>
-                <div id="insightsContent"></div>
               </div>
             </div>
           </div>
@@ -540,86 +505,12 @@ export class DevToolsPanel {
               <p class="placeholder">No WebSocket activity detected. WebSocket connections will appear here when they occur.</p>
             </div>
           </div>
-          
-          <!-- Real-time Feed Tab -->
-          <div id="realtimeTab" class="tab-content">
-            <div class="realtime-header">
-              <h4><i class="fas fa-bolt"></i> Real-time Request Feed</h4>
-              <div class="realtime-controls">
-                <button id="clearRealtimeBtn" class="btn-secondary btn-sm">
-                  <i class="fas fa-trash"></i> Clear
-                </button>
-                <button id="pauseRealtimeBtn" class="btn-secondary btn-sm">
-                  <i class="fas fa-pause"></i> Pause
-                </button>
-                <label class="autoscroll-label">
-                  <input type="checkbox" id="autoScrollCheckbox" checked>
-                  <span>Auto-scroll</span>
-                </label>
-              </div>
-            </div>
-            <div class="realtime-feed" id="realtimeFeed">
-              <p class="placeholder">Waiting for requests...</p>
-            </div>
-          </div>
         </div>
       </div>
     `;
   }
 
-  setupQuickFilterChips() {
-    const filterChips = document.querySelectorAll(".filter-chip");
-    filterChips.forEach((chip) => {
-      chip.addEventListener("click", () => {
-        const filterType = chip.dataset.filter;
-        this.applyQuickFilter(filterType);
-
-        // Update active state
-        filterChips.forEach((c) => c.classList.remove("active"));
-        chip.classList.add("active");
-      });
-    });
-  }
-
-  applyQuickFilter(filterType) {
-    console.log("Applying quick filter:", filterType);
-
-    const requestTypeFilter = document.getElementById("requestTypeFilter");
-    const statusFilter = document.getElementById("statusFilter");
-
-    // Reset filters first
-    if (requestTypeFilter) requestTypeFilter.value = "";
-    if (statusFilter) statusFilter.value = "";
-
-    // Apply filter based on type
-    if (filterType === "all") {
-      // Clear all filters - already done above
-    } else if (filterType === "2xx") {
-      if (statusFilter) statusFilter.value = "200";
-    } else if (filterType === "4xx") {
-      if (statusFilter) statusFilter.value = "4xx";
-    } else if (filterType === "5xx") {
-      if (statusFilter) statusFilter.value = "5xx";
-    } else if (filterType === "xhr") {
-      if (requestTypeFilter) requestTypeFilter.value = "xmlhttprequest";
-    } else if (filterType === "fetch") {
-      if (requestTypeFilter) requestTypeFilter.value = "fetch";
-    } else if (filterType === "js") {
-      if (requestTypeFilter) requestTypeFilter.value = "script";
-    } else if (filterType === "css") {
-      if (requestTypeFilter) requestTypeFilter.value = "stylesheet";
-    } else if (filterType === "img") {
-      if (requestTypeFilter) requestTypeFilter.value = "image";
-    }
-
-    // Refresh metrics with new filters
-    this.refreshMetrics();
-  }
-
   setupEventListeners() {
-    // Quick filter chips
-    this.setupQuickFilterChips();
-
     // Filter controls
     const pageFilter = document.getElementById("pageFilter");
     const timeRange = document.getElementById("timeRange");
@@ -762,7 +653,7 @@ export class DevToolsPanel {
         "window.location.hostname",
         (result, error) => {
           if (error) {
-            console.error("Error getting current domain:", error);
+            logger.error("Error getting current domain:", error);
             resolve("");
           } else {
             resolve(result || "");
@@ -779,7 +670,7 @@ export class DevToolsPanel {
         "window.location.origin + window.location.pathname",
         (result, error) => {
           if (error) {
-            console.error("Error getting current page URL:", error);
+            logger.error("Error getting current page URL:", error);
             resolve("");
           } else {
             resolve(result || "");
@@ -789,202 +680,193 @@ export class DevToolsPanel {
     });
   }
 
-  initializeCharts() {
+  async initializeCharts() {
+    // Check if charts are enabled globally
+    const showCharts = this.userSettings?.display?.showCharts !== false;
+    const enabledCharts = this.userSettings?.display?.enabledCharts || [
+      "performanceChart",
+      "statusChart",
+      "requestsChart",
+    ];
+
+    logger.debug("Initializing charts with settings:", {
+      showCharts,
+      enabledCharts,
+    });
+
+    if (!showCharts) {
+      logger.debug("Charts disabled by user settings");
+      return;
+    }
+
     const colors = this.getChartColors();
 
     // Performance Chart - Line chart for response times over time
-    const perfCtx = document
-      .getElementById("performanceChart")
-      .getContext("2d");
-    this.charts.performance = new Chart(perfCtx, {
-      type: "line",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: "Response Time (ms)",
-            data: [],
-            borderColor: colors.info,
-            backgroundColor: "transparent",
-            tension: 0.4,
-            fill: false,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: "top",
-          },
-          tooltip: {
-            mode: "index",
-            intersect: false,
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: "Response Time (ms)",
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Time",
-            },
-          },
-        },
-      },
-    });
-
-    // Status Chart - Pie chart for status distribution
-    const statusCtx = document.getElementById("statusChart").getContext("2d");
-    this.charts.status = new Chart(statusCtx, {
-      type: "pie",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            data: [],
-            backgroundColor: [
-              colors.success, // 2xx
-              colors.info, // 3xx
-              colors.warning, // 4xx
-              colors.error, // 5xx
+    if (enabledCharts.includes("performanceChart")) {
+      const perfCtx = document
+        .getElementById("performanceChart")
+        ?.getContext("2d");
+      if (perfCtx) {
+        this.charts.performance = new Chart(perfCtx, {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: "Response Time (ms)",
+                data: [],
+                borderColor: colors.info,
+                backgroundColor: "transparent",
+                tension: 0.4,
+                fill: false,
+              },
             ],
           },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: "right",
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: "top",
+              },
+              tooltip: {
+                mode: "index",
+                intersect: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: "Response Time (ms)",
+                },
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: "Time",
+                },
+              },
+            },
           },
-        },
-      },
-    });
+        });
 
-    // Requests Chart - Bar chart for request types
-    const reqCtx = document.getElementById("requestsChart").getContext("2d");
-    this.charts.requests = new Chart(reqCtx, {
-      type: "bar",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: "Requests by Type",
-            data: [],
-            backgroundColor: colors.primary,
-            borderWidth: 1,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false,
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: "Count",
-            },
-          },
-        },
-      },
-    });
+        // Status Chart - Pie chart for status distribution
+        if (enabledCharts.includes("statusChart")) {
+          const statusCtx = document
+            .getElementById("statusChart")
+            ?.getContext("2d");
+          if (statusCtx) {
+            this.charts.status = new Chart(statusCtx, {
+              type: "pie",
+              data: {
+                labels: [],
+                datasets: [
+                  {
+                    data: [],
+                    backgroundColor: [
+                      colors.success, // 2xx
+                      colors.info, // 3xx
+                      colors.warning, // 4xx
+                      colors.error, // 5xx
+                    ],
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: "right",
+                  },
+                },
+              },
+            });
+          }
+        }
 
-    // Volume Chart - Area chart for request volume over time
-    const volCtx = document.getElementById("volumeChart").getContext("2d");
-    this.charts.volume = new Chart(volCtx, {
-      type: "line",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: "Request Volume",
-            data: [],
-            borderColor: colors.success,
-            backgroundColor: "transparent",
-            tension: 0.4,
-            fill: false,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: "top",
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-            },
-            title: {
-              display: true,
-              text: "Number of Requests",
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Time",
-            },
-          },
-        },
-      },
-    });
+        // Requests Chart - Bar chart for request types
+        if (enabledCharts.includes("requestsChart")) {
+          const reqCtx = document
+            .getElementById("requestsChart")
+            ?.getContext("2d");
+          if (reqCtx) {
+            this.charts.requests = new Chart(reqCtx, {
+              type: "bar",
+              data: {
+                labels: [],
+                datasets: [
+                  {
+                    label: "Requests by Type",
+                    data: [],
+                    backgroundColor: colors.primary,
+                    borderWidth: 1,
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false,
+                  },
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    title: {
+                      display: true,
+                      text: "Count",
+                    },
+                  },
+                },
+              },
+            });
+          }
+        }
 
-    // Errors Chart for errors tab
-    const errCtx = document.getElementById("errorsChart").getContext("2d");
-    this.charts.errors = new Chart(errCtx, {
-      type: "bar",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: "Error Count",
-            data: [],
-            backgroundColor: colors.error,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false,
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
+        // Errors Chart for errors tab (always enabled)
+        const errCtx = document.getElementById("errorsChart")?.getContext("2d");
+        if (errCtx) {
+          this.charts.errors = new Chart(errCtx, {
+            type: "bar",
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: "Error Count",
+                  data: [],
+                  backgroundColor: colors.error,
+                },
+              ],
             },
-          },
-        },
-      },
-    });
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false,
+                },
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    precision: 0,
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      logger.debug("Charts initialized:", Object.keys(this.charts));
+    }
   }
 
   async startMetricsCollection() {
@@ -1004,6 +886,9 @@ export class DevToolsPanel {
       await this.loadPageFilter(currentDomain);
     }
 
+    // Initialize capture button state from settings
+    await this.initializeCaptureState();
+
     // Initial collection
     await this.collectMetrics();
 
@@ -1017,7 +902,7 @@ export class DevToolsPanel {
     try {
       // Check if extension context is still valid
       if (!chrome.runtime?.id) {
-        console.warn(
+        logger.warn(
           "Extension context invalidated, stopping metrics collection"
         );
         this.stopMetricsCollection();
@@ -1025,7 +910,7 @@ export class DevToolsPanel {
       }
 
       const filters = this.getActiveFilters();
-      console.log("DevTools Panel: Collecting metrics with filters:", filters);
+      logger.debug("DevTools Panel: Collecting metrics with filters:", filters);
 
       // Get metrics from background page
       chrome.runtime.sendMessage(
@@ -1036,7 +921,7 @@ export class DevToolsPanel {
         (response) => {
           if (chrome.runtime.lastError) {
             // Context invalidated or extension reloaded
-            console.warn(
+            logger.warn(
               "Runtime error (context may be invalidated):",
               chrome.runtime.lastError.message
             );
@@ -1044,22 +929,22 @@ export class DevToolsPanel {
             return;
           }
 
-          console.log("DevTools Panel: Received response:", response);
+          logger.debug("DevTools Panel: Received response:", response);
 
           if (response && response.success) {
             // Check if there's data
             if (!response.totalRequests || response.totalRequests === 0) {
-              console.log(
+              logger.debug(
                 "DevTools Panel: No data available (totalRequests = 0)"
               );
               this.showNoDataState(true);
             } else {
-              console.log("DevTools Panel: Data available, updating metrics");
+              logger.debug("DevTools Panel: Data available, updating metrics");
               this.showNoDataState(false);
               this.updateMetrics(response);
             }
           } else {
-            console.error(
+            logger.error(
               "DevTools Panel: Failed to get metrics:",
               response?.error
             );
@@ -1068,7 +953,7 @@ export class DevToolsPanel {
         }
       );
     } catch (error) {
-      console.error("DevTools Panel: Error collecting metrics:", error);
+      logger.error("DevTools Panel: Error collecting metrics:", error);
       // Stop collection on error to prevent spam
       this.stopMetricsCollection();
     }
@@ -1078,7 +963,7 @@ export class DevToolsPanel {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
-      console.log("Metrics collection stopped");
+      logger.debug("Metrics collection stopped");
     }
   }
 
@@ -1247,34 +1132,106 @@ export class DevToolsPanel {
   }
 
   async refreshMetrics() {
-    await this.collectMetrics();
+    const btn = document.getElementById("refreshMetrics");
+    if (!btn) return;
+
+    // Show loading state
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+
+    try {
+      await this.collectMetrics();
+      this.showToast("Metrics refreshed successfully", "success");
+    } catch (error) {
+      logger.error("Failed to refresh metrics:", error);
+      this.showToast("Failed to refresh metrics", "error");
+    } finally {
+      // Restore button state
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
   }
 
   exportMetrics() {
+    const btn = document.getElementById("exportMetrics");
     const filters = this.getActiveFilters();
-    chrome.runtime.sendMessage(
-      {
-        action: "exportFilteredData",
-        filters: filters,
-        format: "json",
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.error("Export error:", chrome.runtime.lastError);
-          return;
-        }
 
-        if (response && response.success) {
-          this.showToast("Metrics exported successfully", "success");
-        } else {
-          console.error("Export failed:", response?.error);
-          this.showToast(
-            "Export failed: " + (response?.error || "Unknown error"),
-            "error"
-          );
+    // Show loading state
+    if (btn) {
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+
+      // Restore button after operation
+      const restoreButton = () => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      };
+
+      this.showToast("Starting export...", "info");
+
+      chrome.runtime.sendMessage(
+        {
+          action: "exportFilteredData",
+          filters: filters,
+          format: "json",
+        },
+        (response) => {
+          restoreButton();
+
+          if (chrome.runtime.lastError) {
+            logger.error("Export error:", chrome.runtime.lastError);
+            this.showToast(
+              "Export failed: " + chrome.runtime.lastError.message,
+              "error"
+            );
+            return;
+          }
+
+          if (response && response.success) {
+            this.showToast("Metrics exported successfully", "success");
+          } else {
+            logger.error("Export failed:", response?.error);
+            this.showToast(
+              "Export failed: " + (response?.error || "Unknown error"),
+              "error"
+            );
+          }
         }
-      }
-    );
+      );
+    } else {
+      // Fallback if button not found
+      this.showToast("Starting export...", "info");
+
+      chrome.runtime.sendMessage(
+        {
+          action: "exportFilteredData",
+          filters: filters,
+          format: "json",
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            logger.error("Export error:", chrome.runtime.lastError);
+            this.showToast(
+              "Export failed: " + chrome.runtime.lastError.message,
+              "error"
+            );
+            return;
+          }
+
+          if (response && response.success) {
+            this.showToast("Metrics exported successfully", "success");
+          } else {
+            logger.error("Export failed:", response?.error);
+            this.showToast(
+              "Export failed: " + (response?.error || "Unknown error"),
+              "error"
+            );
+          }
+        }
+      );
+    }
   }
 
   updateTimeRange(range) {
@@ -1307,8 +1264,8 @@ export class DevToolsPanel {
         timeRange: 604800, // Last 7 days
       });
 
-      console.log("Pages for domain response:", response);
-      console.log("Response structure:", {
+      logger.debug("Pages for domain response:", response);
+      logger.debug("Response structure:", {
         success: response?.success,
         pagesLength: response?.pages?.length,
         pages: response?.pages,
@@ -1336,14 +1293,14 @@ export class DevToolsPanel {
             pageSelect.appendChild(option);
           }
         });
-        console.log(
+        logger.debug(
           `Loaded ${response.pages.length} pages for domain ${domain}`
         );
       } else {
-        console.warn(`No pages found for domain ${domain}`);
+        logger.warn(`No pages found for domain ${domain}`);
       }
     } catch (error) {
-      console.error("Failed to load page filter:", error);
+      logger.error("Failed to load page filter:", error);
     }
   }
 
@@ -1360,6 +1317,9 @@ export class DevToolsPanel {
     if (requestTypeFilter) requestTypeFilter.value = "";
     if (statusFilter) statusFilter.value = "";
     if (searchRequests) searchRequests.value = "";
+
+    // Show feedback
+    this.showToast("Filters cleared", "info");
 
     // Reload data with cleared filters
     this.applyFilters();
@@ -1413,9 +1373,6 @@ export class DevToolsPanel {
       case "websocket":
         await this.loadWebSocketData();
         break;
-      case "realtime":
-        this.startRealtimeFeed();
-        break;
     }
   }
 
@@ -1427,7 +1384,7 @@ export class DevToolsPanel {
       const perPage = perPageSelect ? parseInt(perPageSelect.value) : 25;
       const offset = (page - 1) * perPage;
 
-      console.log("loadRequestsTable called:", {
+      logger.debug("loadRequestsTable called:", {
         page,
         perPage,
         offset,
@@ -1441,7 +1398,7 @@ export class DevToolsPanel {
         offset: offset,
       });
 
-      console.log("getDetailedRequests response:", {
+      logger.debug("getDetailedRequests response:", {
         success: response?.success,
         requestsLength: response?.requests?.length,
         totalCount: response?.totalCount,
@@ -1543,8 +1500,8 @@ export class DevToolsPanel {
           const curlBtn = e.target.closest(".btn-copy-curl");
           if (curlBtn) {
             const requestId = curlBtn.dataset.requestId;
-            console.log("Copy cURL clicked for request:", requestId);
-            console.log(
+            logger.debug("Copy cURL clicked for request:", requestId);
+            logger.debug(
               "Current requests available:",
               this.currentRequests?.length
             );
@@ -1552,13 +1509,13 @@ export class DevToolsPanel {
               (r) => r.id === requestId
             );
             if (requestData) {
-              console.log("Found request data:", {
+              logger.debug("Found request data:", {
                 url: requestData.url,
                 method: requestData.method,
               });
               this.copyAsCurl(requestData);
             } else {
-              console.error("Request data not found for id:", requestId);
+              logger.error("Request data not found for id:", requestId);
               this.showToast("Request data not available", "error");
             }
             return;
@@ -1573,7 +1530,7 @@ export class DevToolsPanel {
             if (requestData) {
               this.copyAsFetch(requestData);
             } else {
-              console.error("Request data not found for id:", requestId);
+              logger.error("Request data not found for id:", requestId);
               this.showToast("Request data not available", "error");
             }
             return;
@@ -1581,7 +1538,7 @@ export class DevToolsPanel {
         });
       }
     } catch (error) {
-      console.error("Failed to load requests table:", error);
+      logger.error("Failed to load requests table:", error);
       document.getElementById("requestsTableBody").innerHTML =
         '<tr class="no-data-row"><td colspan="7">Error loading requests</td></tr>';
     }
@@ -1744,7 +1701,7 @@ export class DevToolsPanel {
 
       document.body.appendChild(modal);
     } catch (error) {
-      console.error("Error showing request details:", error);
+      logger.error("Error showing request details:", error);
       this.showToast("Failed to load request details", "error");
     }
   }
@@ -1783,7 +1740,7 @@ export class DevToolsPanel {
       // Copy to clipboard with fallback method
       this.copyToClipboard(curl);
     } catch (error) {
-      console.error("Error generating cURL:", error);
+      logger.error("Error generating cURL:", error);
       this.showToast("Failed to generate cURL command", "error");
     }
   }
@@ -1812,7 +1769,7 @@ export class DevToolsPanel {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching headers:", error);
+      logger.error("Error fetching headers:", error);
       return [];
     }
   }
@@ -1844,7 +1801,7 @@ export class DevToolsPanel {
       }
       return null;
     } catch (error) {
-      console.error("Error fetching request body:", error);
+      logger.error("Error fetching request body:", error);
       return null;
     }
   }
@@ -1864,7 +1821,7 @@ export class DevToolsPanel {
         "Fetch code copied to clipboard!"
       );
     } catch (error) {
-      console.error("Failed to copy as Fetch:", error);
+      logger.error("Failed to copy as Fetch:", error);
       this.showToast("Failed to copy to clipboard", "error");
     }
   }
@@ -1991,7 +1948,7 @@ export class DevToolsPanel {
           this.showToast("cURL command copied to clipboard!", "success");
         })
         .catch((err) => {
-          console.error("Clipboard API failed:", err);
+          logger.error("Clipboard API failed:", err);
           this.copyToClipboardFallback(text);
         });
     } else {
@@ -2024,7 +1981,7 @@ export class DevToolsPanel {
         );
       }
     } catch (err) {
-      console.error("Fallback copy failed:", err);
+      logger.error("Fallback copy failed:", err);
       this.showToast("Failed to copy cURL command", "error");
     }
   }
@@ -2189,7 +2146,7 @@ export class DevToolsPanel {
           '<p class="no-data">No detailed request data available</p>';
       }
     } catch (error) {
-      console.error("Failed to load performance data:", error);
+      logger.error("Failed to load performance data:", error);
       document.getElementById("timingBreakdown").innerHTML =
         '<p class="error-message">Error loading performance data</p>';
       document.getElementById("slowRequestsList").innerHTML =
@@ -2370,104 +2327,9 @@ export class DevToolsPanel {
         loadHistoryBtn.addEventListener("click", () =>
           this.loadEndpointPerformanceHistory()
         );
-
-        // Mode toggle for request types vs specific endpoint
-        const modeRequestTypes = document.getElementById("modeRequestTypes");
-        const modeSpecificEndpoint = document.getElementById(
-          "modeSpecificEndpoint"
-        );
-        const endpointPatternGroup = document.getElementById(
-          "endpointPatternGroup"
-        );
-        const performanceHint = document.getElementById("performanceHint");
-
-        modeRequestTypes.addEventListener("click", () => {
-          modeRequestTypes.classList.add("active");
-          modeSpecificEndpoint.classList.remove("active");
-          endpointPatternGroup.style.display = "none";
-          document.getElementById("typeFiltersContainer").style.display =
-            "block";
-          performanceHint.textContent =
-            "Track request types (fetch, xhr, script, etc.) performance over time.";
-          this.performanceViewMode = "types";
-          // Auto-reload if data exists
-          if (this.performanceHistoryChart) {
-            this.loadEndpointPerformanceHistory();
-          }
-        });
-
-        modeSpecificEndpoint.addEventListener("click", () => {
-          modeSpecificEndpoint.classList.add("active");
-          modeRequestTypes.classList.remove("active");
-          endpointPatternGroup.style.display = "flex";
-          document.getElementById("typeFiltersContainer").style.display =
-            "none";
-          performanceHint.textContent =
-            "Track specific API endpoint (e.g., /api/login) combined with type filter for precise performance analysis.";
-          this.performanceViewMode = "endpoint";
-          // Auto-reload if data exists
-          if (this.performanceHistoryChart) {
-            this.loadEndpointPerformanceHistory();
-          }
-        });
-
-        // Request Type Filter change listener - show endpoint input when a specific type is selected
-        document
-          .getElementById("endpointTypeFilter")
-          ?.addEventListener("change", (e) => {
-            const selectedType = e.target.value;
-            // Show endpoint pattern input when a specific type is selected in types mode
-            if (this.performanceViewMode === "types" && selectedType) {
-              endpointPatternGroup.style.display = "flex";
-            } else if (this.performanceViewMode === "types") {
-              endpointPatternGroup.style.display = "none";
-              // Clear endpoint pattern when hiding
-              document.getElementById("endpointPattern").value = "";
-            }
-
-            // Auto-reload chart
-            this.loadEndpointPerformanceHistory();
-          });
-
-        // Endpoint pattern input listeners - reload on Enter key or blur
-        const endpointPatternInput = document.getElementById("endpointPattern");
-        if (endpointPatternInput) {
-          endpointPatternInput.addEventListener("keypress", (e) => {
-            if (e.key === "Enter") {
-              this.loadEndpointPerformanceHistory();
-            }
-          });
-
-          endpointPatternInput.addEventListener("blur", () => {
-            this.loadEndpointPerformanceHistory();
-          });
-        }
-
-        // Setup type filter controls
-        document
-          .getElementById("selectAllTypes")
-          ?.addEventListener("click", () => {
-            document
-              .querySelectorAll(".type-checkbox")
-              .forEach((cb) => (cb.checked = true));
-            this.updateChartVisibility();
-          });
-
-        document
-          .getElementById("deselectAllTypes")
-          ?.addEventListener("click", () => {
-            document
-              .querySelectorAll(".type-checkbox")
-              .forEach((cb) => (cb.checked = false));
-            this.updateChartVisibility();
-          });
-
-        // Initialize mode
-        this.performanceViewMode = "types";
-        this.selectedRequestTypes = new Set();
       }
     } catch (error) {
-      console.error("Failed to load endpoints data:", error);
+      logger.error("Failed to load endpoints data:", error);
       document.getElementById("endpointsTable").innerHTML =
         '<p class="error-message">Error loading endpoint analysis</p>';
     }
@@ -2477,91 +2339,246 @@ export class DevToolsPanel {
   async loadEndpointPerformanceHistory() {
     try {
       const filters = this.getActiveFilters();
-      const endpointPattern =
-        document.getElementById("endpointPattern")?.value || "";
-      const timeBucket =
-        document.getElementById("historyTimeBucket")?.value || "hourly";
-      const timeRangeMs = parseInt(
-        document.getElementById("historyTimeRange")?.value || "604800000"
-      );
-      const mode = this.performanceViewMode || "types";
-      const typeFilter =
-        document.getElementById("endpointTypeFilter")?.value || "";
+      const timeRangeSelect = document.getElementById("historyTimeRange");
+      const typeFilter = document.getElementById("endpointTypeFilter");
+      const endpointPattern = document.getElementById("endpointPattern");
+      const sortBy = document.getElementById("endpointSortBy");
+      const topN = document.getElementById("endpointTopN");
 
+      const timeRangeMs = parseInt(timeRangeSelect?.value || "86400000");
+      const selectedType = typeFilter?.value || "";
+      const pattern = endpointPattern?.value?.trim() || "";
+      const sort = sortBy?.value || "requests";
+      const limit = topN?.value || "10";
+
+      // Calculate startTime based on selected range
       const startTime = Date.now() - timeRangeMs;
       const endTime = Date.now();
 
-      console.log("Loading endpoint performance history:", {
-        mode,
-        endpoint: endpointPattern,
-        typeFilter,
-        timeBucket,
+      logger.debug("Loading endpoint performance history:", {
+        pattern,
+        selectedType,
+        timeRangeMs,
         startTime,
         endTime,
-        timeRangeMs,
+        sort,
+        limit,
         domain: filters.domain,
       });
 
-      // Choose action based on mode
-      const action =
-        mode === "types"
-          ? "getRequestTypePerformanceHistory"
-          : "getEndpointPerformanceHistory";
+      const requestFilters = {
+        domain: filters.domain || null,
+        pageUrl: filters.pageUrl || null,
+        type: filters.type || selectedType || null,
+        endpoint: pattern || null,
+        timeBucket: "none", // No bucketing - plot actual request times
+        startTime,
+        endTime,
+        sortBy: sort,
+        limit: limit === "all" ? 100 : parseInt(limit),
+        maxPointsPerEndpoint: 100, // Default to 100 points per endpoint
+      };
 
       const response = await chrome.runtime.sendMessage({
-        action,
-        filters: {
-          domain: filters.domain,
-          pageUrl: filters.pageUrl,
-          endpoint: endpointPattern,
-          type: typeFilter,
-          timeBucket,
-          startTime,
-          endTime,
-        },
+        action: "getEndpointPerformanceHistory",
+        filters: requestFilters,
       });
 
-      console.log("Performance history response:", {
+      logger.debug("Performance history response:", {
         success: response?.success,
-        historyLength: response?.history?.length,
-        groupedByType: response?.groupedByType
-          ? Object.keys(response.groupedByType)
-          : null,
-        groupedByEndpoint: response?.groupedByEndpoint
+        groupedByEndpointKeys: response?.groupedByEndpoint
           ? Object.keys(response.groupedByEndpoint)
           : null,
-        timeBucket: response?.timeBucket,
         fullResponse: response,
       });
 
-      // Check for data in either format (request types or endpoints)
-      const hasData =
-        response.success && response.history && response.history.length > 0;
-      const groupedData = response.groupedByType || response.groupedByEndpoint;
-      const hasGroupedData = groupedData && Object.keys(groupedData).length > 0;
+      if (response && response.success) {
+        // Store all endpoints for selection
+        this.availableEndpoints = response.groupedByEndpoint || {};
 
-      if (!hasData && !hasGroupedData) {
+        // Reset selections to show all new endpoints by default
+        this.selectedEndpoints = new Set(Object.keys(this.availableEndpoints));
+
+        logger.debug(
+          `Loaded ${this.selectedEndpoints.size} endpoints, all selected by default`
+        );
+
+        // Show endpoint selector
+        this.renderEndpointSelector();
+
+        // Render chart with selected endpoints
+        this.renderEndpointPerformanceChart(response);
+      } else {
+        // Show error message
         document.getElementById("performanceHistoryChart").innerHTML =
           '<p class="no-data"><i class="fas fa-info-circle"></i> No performance data found. Try adjusting the filters or time range.</p>';
-        document.getElementById("performanceInsights").style.display = "none";
-        return;
+        document.getElementById("endpointSelector").style.display = "none";
       }
-
-      // Render the performance chart
-      this.renderEndpointPerformanceChart(response);
-
-      // Generate performance insights
-      this.generatePerformanceInsights(response);
     } catch (error) {
-      console.error("Failed to load endpoint performance history:", error);
+      logger.error("Failed to load endpoint performance history:", error);
+
+      // Check if extension context was invalidated
+      const isContextError =
+        error.message?.includes("Extension context invalidated") ||
+        error.message?.includes("message port closed");
+
+      const errorMessage = isContextError
+        ? '<p class="error-message"><i class="fas fa-exclamation-triangle"></i> Extension was reloaded. Please <strong>close and reopen DevTools</strong> to continue.</p>'
+        : `<p class="error-message">Error loading performance history: ${error.message}</p>`;
+
       document.getElementById("performanceHistoryChart").innerHTML =
-        '<p class="error-message">Error loading performance history</p>';
+        errorMessage;
+    }
+  }
+
+  renderEndpointSelector() {
+    const selectorPanel = document.getElementById("endpointSelector");
+    const endpointList = document.getElementById("endpointList");
+
+    if (!selectorPanel || !endpointList || !this.availableEndpoints) return;
+
+    const endpoints = Object.keys(this.availableEndpoints);
+
+    if (endpoints.length === 0) {
+      selectorPanel.style.display = "none";
+      return;
+    }
+
+    // Initialize selected endpoints (all by default)
+    if (!this.selectedEndpoints) {
+      this.selectedEndpoints = new Set(endpoints);
+    }
+
+    // Render endpoint checkboxes
+    endpointList.innerHTML = endpoints
+      .map((endpoint, index) => {
+        const data = this.availableEndpoints[endpoint];
+        const totalRequests = data.reduce(
+          (sum, d) => sum + (d.requestCount || 1),
+          0
+        );
+        const avgDuration = Math.round(
+          data.reduce((sum, d) => sum + (d.avgDuration || d.duration || 0), 0) /
+            data.length
+        );
+        const isSelected = this.selectedEndpoints.has(endpoint);
+
+        return `
+        <label 
+          class="endpoint-checkbox-item" 
+          style="
+            display: flex; 
+            align-items: center; 
+            padding: 8px; 
+            background: ${
+              isSelected
+                ? "var(--primary-color-alpha)"
+                : "var(--background-color)"
+            }; 
+            border: 1px solid ${
+              isSelected ? "var(--primary-color)" : "var(--border-color)"
+            };
+            border-radius: 4px; 
+            cursor: pointer;
+            transition: all 0.2s;
+          "
+          data-endpoint="${endpoint}"
+        >
+          <input 
+            type="checkbox" 
+            ${isSelected ? "checked" : ""}
+            style="margin-right: 8px;"
+          />
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${endpoint}">
+              ${endpoint}
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+              ${totalRequests} req · ${avgDuration}ms avg
+            </div>
+          </div>
+        </label>
+      `;
+      })
+      .join("");
+
+    selectorPanel.style.display = "block";
+
+    // Add click handlers with proper context binding
+    endpointList.querySelectorAll(".endpoint-checkbox-item").forEach((item) => {
+      const clickHandler = (e) => {
+        const endpoint = item.dataset.endpoint;
+        const checkbox = item.querySelector('input[type="checkbox"]');
+
+        // Toggle selection
+        if (this.selectedEndpoints.has(endpoint)) {
+          this.selectedEndpoints.delete(endpoint);
+          checkbox.checked = false;
+          item.style.background = "var(--background-color)";
+          item.style.borderColor = "var(--border-color)";
+        } else {
+          this.selectedEndpoints.add(endpoint);
+          checkbox.checked = true;
+          item.style.background = "var(--primary-color-alpha)";
+          item.style.borderColor = "var(--primary-color)";
+        }
+
+        // Re-render chart with new selection
+        try {
+          if (typeof this.updateChartVisibility === "function") {
+            this.updateChartVisibility();
+          } else {
+            logger.error(
+              "updateChartVisibility is not a function:",
+              typeof this.updateChartVisibility
+            );
+          }
+        } catch (err) {
+          logger.error("Error calling updateChartVisibility:", err);
+        }
+      };
+
+      item.addEventListener("click", clickHandler);
+    });
+
+    // Setup select all / deselect all buttons
+    const selectAllBtn = document.getElementById("selectAllEndpoints");
+    const deselectAllBtn = document.getElementById("deselectAllEndpoints");
+
+    if (selectAllBtn && !selectAllBtn.dataset.listenerAdded) {
+      selectAllBtn.dataset.listenerAdded = "true";
+      selectAllBtn.addEventListener("click", () => {
+        this.selectedEndpoints = new Set(endpoints);
+        this.renderEndpointSelector();
+        try {
+          if (typeof this.updateChartVisibility === "function") {
+            this.updateChartVisibility();
+          }
+        } catch (err) {
+          logger.error("Error in selectAll:", err);
+        }
+      });
+    }
+
+    if (deselectAllBtn && !deselectAllBtn.dataset.listenerAdded) {
+      deselectAllBtn.dataset.listenerAdded = "true";
+      deselectAllBtn.addEventListener("click", () => {
+        this.selectedEndpoints = new Set();
+        this.renderEndpointSelector();
+        try {
+          if (typeof this.updateChartVisibility === "function") {
+            this.updateChartVisibility();
+          }
+        } catch (err) {
+          logger.error("Error in deselectAll:", err);
+        }
+      });
     }
   }
 
   // Render endpoint performance history chart
   renderEndpointPerformanceChart(response) {
-    console.log("renderEndpointPerformanceChart called with:", {
+    logger.debug("renderEndpointPerformanceChart called with:", {
       hasGroupedByType: !!response.groupedByType,
       hasGroupedByEndpoint: !!response.groupedByEndpoint,
       groupedByTypeKeys: response.groupedByType
@@ -2572,9 +2589,24 @@ export class DevToolsPanel {
         : null,
     });
 
-    const canvas = document.getElementById("historyChartCanvas");
+    // Get or recreate canvas
+    const chartContainer = document.getElementById("performanceHistoryChart");
+    let canvas = document.getElementById("historyChartCanvas");
+
     if (!canvas) {
-      console.error("Canvas element not found: historyChartCanvas");
+      logger.warn("Canvas not found, recreating...");
+      if (chartContainer) {
+        chartContainer.innerHTML = '<canvas id="historyChartCanvas"></canvas>';
+        canvas = document.getElementById("historyChartCanvas");
+      }
+    }
+
+    if (!canvas) {
+      logger.error("Failed to create canvas element");
+      if (chartContainer) {
+        chartContainer.innerHTML =
+          '<p class="error-message">Chart canvas initialization failed</p>';
+      }
       return;
     }
 
@@ -2582,110 +2614,104 @@ export class DevToolsPanel {
 
     // Destroy existing chart if any
     if (this.performanceHistoryChart) {
-      this.performanceHistoryChart.destroy();
+      try {
+        this.performanceHistoryChart.destroy();
+      } catch (e) {
+        logger.warn("Error destroying old chart:", e);
+      }
+      this.performanceHistoryChart = null;
     }
 
     // Group data by endpoint pattern or request type
     const groupedData = response.groupedByType || response.groupedByEndpoint;
-    if (!groupedData) {
-      console.error("No grouped data found in response");
-      document.getElementById("performanceHistoryChart").innerHTML =
-        '<p class="no-data">No grouped data available</p>';
-      return;
-    }
-
-    // Get current filter selections
-    const selectedType =
-      document.getElementById("endpointTypeFilter")?.value || "";
-    const endpointPattern =
-      document.getElementById("endpointFilterPattern")?.value || "";
-    const mode = this.performanceViewMode || "types";
-
-    // Filter grouped data based on selected type
-    let filteredGroupedData = groupedData;
-    if (selectedType && selectedType !== "" && mode === "types") {
-      // If a specific type is selected, only show that type
-      filteredGroupedData = {};
-      if (groupedData[selectedType]) {
-        filteredGroupedData[selectedType] = groupedData[selectedType];
-      }
-      console.log(
-        `Filtered to type '${selectedType}':`,
-        Object.keys(filteredGroupedData)
-      );
-    }
-
-    const groupKeys = Object.keys(filteredGroupedData);
-    console.log("Group keys found:", groupKeys);
-
-    if (groupKeys.length === 0) {
-      console.warn("No group keys found");
-      document.getElementById("performanceHistoryChart").innerHTML =
-        '<p class="no-data">No data found</p>';
-      return;
-    }
-
-    // Generate colors for each line
-    const colors = [
-      "#4CAF50",
-      "#2196F3",
-      "#FF9800",
-      "#F44336",
-      "#9C27B0",
-      "#00BCD4",
-      "#FFEB3B",
-      "#795548",
-      "#607D8B",
-      "#E91E63",
-    ];
-
-    // Prepare datasets - one per endpoint/type
-    const datasets = groupKeys.slice(0, 10).map((key, index) => {
-      const records = filteredGroupedData[key];
-      console.log(`Processing ${key}:`, {
-        recordCount: records.length,
-        firstRecord: records[0],
-        lastRecord: records[records.length - 1],
+    if (!groupedData || Object.keys(groupedData).length === 0) {
+      logger.error("No grouped data found in response:", {
+        hasGroupedByType: !!response.groupedByType,
+        hasGroupedByEndpoint: !!response.groupedByEndpoint,
+        responseKeys: Object.keys(response),
       });
+      document.getElementById(
+        "performanceHistoryChart"
+      ).innerHTML = `<p class="no-data">No endpoint performance data available.<br><small>Try: 1) Load data with 'Load Data' button, 2) Adjust time range, 3) Check if requests are being captured</small></p>`;
+      return;
+    }
 
-      // Sort by time bucket
-      records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
+    // Filter by selected endpoints
+    const selectedKeys = this.selectedEndpoints
+      ? Array.from(this.selectedEndpoints).filter((key) => groupedData[key])
+      : Object.keys(groupedData);
 
-      const dataPoints = records.map((r) => ({
-        x: r.timeBucket,
-        y: r.avgDuration,
-      }));
-      console.log(`Data points for ${key}:`, dataPoints);
+    if (selectedKeys.length === 0) {
+      document.getElementById("performanceHistoryChart").innerHTML = `
+        <p class="no-data" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+          <i class="fas fa-mouse-pointer" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+          No endpoints selected.<br>
+          <small style="font-size: 12px; margin-top: 8px; display: block;">Please select at least one endpoint from the list above to display the chart.</small>
+        </p>
+      `;
+      return;
+    }
 
-      return {
-        label: key,
-        data: dataPoints,
-        borderColor: colors[index % colors.length],
-        backgroundColor: "transparent",
-        tension: 0.4,
-        fill: false,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-      };
+    // Detect if using individual requests (timestamp field) or bucketed data (timeBucket field)
+    const isIndividualRequests =
+      selectedKeys.length > 0 &&
+      groupedData[selectedKeys[0]].length > 0 &&
+      groupedData[selectedKeys[0]][0].timestamp !== undefined;
+
+    // Generate distinct colors for each endpoint
+    const generateColor = (index, total) => {
+      const hue = (index * 360) / total;
+      return `hsl(${hue}, 70%, 50%)`;
+    };
+
+    const datasets = selectedKeys.map((key, index) => {
+      const records = groupedData[key];
+
+      // Truncate long endpoint names for legend
+      const shortLabel = key.length > 40 ? key.substring(0, 37) + "..." : key;
+
+      if (isIndividualRequests) {
+        // Individual request mode - scatter/line plot at actual timestamps
+        records.sort((a, b) => a.timestamp - b.timestamp);
+
+        return {
+          label: shortLabel,
+          data: records.map((r) => ({
+            x: r.timestamp,
+            y: r.duration,
+          })),
+          borderColor: generateColor(index, selectedKeys.length),
+          backgroundColor: generateColor(index, selectedKeys.length),
+          tension: 0.1,
+          fill: false,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          borderWidth: 2,
+          showLine: true,
+        };
+      } else {
+        // Bucketed mode (legacy) - aggregate averages
+        records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
+
+        return {
+          label: shortLabel,
+          data: records.map((r) => ({ x: r.timeBucket, y: r.avgDuration })),
+          borderColor: generateColor(index, selectedKeys.length),
+          backgroundColor: "transparent",
+          tension: 0.4,
+          fill: false,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        };
+      }
     });
 
-    console.log("Final datasets:", datasets);
-
-    const titleText =
-      mode === "types"
-        ? `Request Type Performance Over Time (${response.timeBucket})`
-        : `Endpoint Performance Over Time (${response.timeBucket})`;
-
-    console.log("Creating chart with:", {
-      mode,
-      titleText,
-      datasetCount: datasets.length,
-      canvasId: canvas.id,
-    });
+    const chartType = isIndividualRequests ? "scatter" : "line";
+    const scaleType = isIndividualRequests ? "linear" : "category";
 
     try {
       this.performanceHistoryChart = new Chart(ctx, {
-        type: "line",
+        type: chartType,
         data: { datasets },
         options: {
           responsive: true,
@@ -2693,259 +2719,110 @@ export class DevToolsPanel {
           plugins: {
             title: {
               display: true,
-              text: titleText,
+              text: isIndividualRequests
+                ? "Endpoint Performance (Individual Requests)"
+                : "Endpoint Performance Over Time",
+              font: { size: 16, weight: "bold" },
             },
             legend: {
               display: true,
               position: "top",
+              labels: {
+                boxWidth: 12,
+                padding: 10,
+                font: { size: 11 },
+              },
             },
             tooltip: {
-              mode: "index",
+              mode: "nearest",
               intersect: false,
               callbacks: {
-                afterLabel: function (context) {
-                  const dataPoint = response.history[context.dataIndex];
-                  if (dataPoint) {
-                    return [
-                      `Requests: ${dataPoint.requestCount}`,
-                      `Min: ${dataPoint.minDuration}ms`,
-                      `Max: ${dataPoint.maxDuration}ms`,
-                      `Errors: ${dataPoint.errorCount} (${dataPoint.errorRate}%)`,
-                    ];
+                label: function (context) {
+                  const dataPoint = context.raw;
+                  if (isIndividualRequests) {
+                    const time = new Date(dataPoint.x).toLocaleString();
+                    return `${context.dataset.label}: ${dataPoint.y}ms at ${time}`;
+                  } else {
+                    return `${context.dataset.label}: ${dataPoint.y}ms`;
                   }
-                  return [];
                 },
               },
             },
           },
           scales: {
             x: {
-              type: "category",
+              type: scaleType,
               title: {
                 display: true,
-                text: "Time",
+                text: isIndividualRequests ? "Request Time" : "Time Bucket",
               },
-              ticks: {
-                maxRotation: 45,
-                minRotation: 45,
-              },
+              ticks: isIndividualRequests
+                ? {
+                    callback: function (value) {
+                      return new Date(value).toLocaleTimeString();
+                    },
+                    maxRotation: 45,
+                    minRotation: 0,
+                    autoSkip: true,
+                    maxTicksLimit: 10,
+                  }
+                : {
+                    maxRotation: 45,
+                    minRotation: 45,
+                  },
             },
             y: {
               beginAtZero: true,
               title: {
                 display: true,
-                text: "Average Duration (ms)",
+                text: "Duration (ms)",
               },
             },
           },
         },
       });
 
-      console.log("Chart created successfully:", this.performanceHistoryChart);
+      logger.debug("Chart created successfully:", this.performanceHistoryChart);
 
       // Show the chart container
       const chartContainer = document.getElementById("performanceHistoryChart");
       if (chartContainer) {
         chartContainer.style.display = "block";
-        console.log("Chart container made visible");
-      }
-
-      // Create type filter checkboxes if in types mode
-      if (mode === "types" && groupKeys.length > 0) {
-        this.createTypeFilterCheckboxes(groupKeys, colors);
+        logger.debug("Chart container made visible");
       }
     } catch (error) {
-      console.error("Error creating chart:", error);
+      logger.error("Error creating chart:", error);
       document.getElementById(
         "performanceHistoryChart"
-      ).innerHTML = `<p class="error-message">Error rendering chart: ${error.message}</p>`;
+      ).innerHTML = `<p class="error-message">Error rendering chart: ${error.message}<br><small>Check console for details</small></p>`;
     }
   }
 
-  // Create checkboxes for filtering request types
-  createTypeFilterCheckboxes(types, colors) {
-    const container = document.getElementById("typeCheckboxes");
-    if (!container) return;
-
-    container.innerHTML = "";
-    this.selectedRequestTypes.clear();
-
-    types.forEach((type, index) => {
-      const color = colors[index % colors.length];
-      const checkbox = document.createElement("label");
-      checkbox.className = "type-checkbox-label";
-      checkbox.innerHTML = `
-        <input type="checkbox" class="type-checkbox" value="${type}" checked data-index="${index}">
-        <span class="type-checkbox-color" style="background: ${color};"></span>
-        <span class="type-checkbox-text">${type}</span>
-      `;
-
-      const input = checkbox.querySelector("input");
-      input.addEventListener("change", () => {
-        this.updateChartVisibility();
-      });
-
-      container.appendChild(checkbox);
-      this.selectedRequestTypes.add(type);
-    });
-
-    // Show the filters container
-    document.getElementById("typeFiltersContainer").style.display = "block";
-  }
-
-  // Update chart visibility based on selected types
+  // Update chart visibility based on selected endpoints
   updateChartVisibility() {
-    if (!this.performanceHistoryChart) return;
-
-    const checkboxes = document.querySelectorAll(".type-checkbox");
-    const selectedTypes = new Set();
-
-    checkboxes.forEach((cb) => {
-      if (cb.checked) {
-        selectedTypes.add(cb.value);
-      }
-    });
-
-    // Update dataset visibility
-    this.performanceHistoryChart.data.datasets.forEach((dataset, index) => {
-      const isVisible = selectedTypes.has(dataset.label);
-      dataset.hidden = !isVisible;
-    });
-
-    this.performanceHistoryChart.update();
-    this.selectedRequestTypes = selectedTypes;
-
-    console.log("Chart visibility updated:", {
-      selectedTypes: Array.from(selectedTypes),
-      totalDatasets: this.performanceHistoryChart.data.datasets.length,
-    });
-  }
-
-  // Generate performance insights for regression analysis
-  generatePerformanceInsights(response) {
-    const insights = [];
-    const groupedData = response.groupedByType || response.groupedByEndpoint;
-    const labelType = response.groupedByType ? "Request Type" : "Endpoint";
-
-    if (!groupedData) {
-      console.warn("No grouped data available for insights");
-      return;
-    }
-
-    Object.keys(groupedData).forEach((key) => {
-      const records = groupedData[key];
-      if (records.length < 2) return; // Need at least 2 data points
-
-      // Sort chronologically
-      records.sort((a, b) => a.timeBucket.localeCompare(b.timeBucket));
-
-      // Calculate performance trends
-      const first = records[0];
-      const last = records[records.length - 1];
-      const avgFirst = first.avgDuration;
-      const avgLast = last.avgDuration;
-
-      const change = avgLast - avgFirst;
-      const changePercent =
-        avgFirst > 0 ? ((change / avgFirst) * 100).toFixed(1) : 0;
-
-      // Detect spikes (more than 50% increase between consecutive points)
-      const spikes = [];
-      for (let i = 1; i < records.length; i++) {
-        const prev = records[i - 1];
-        const curr = records[i];
-        const increase =
-          ((curr.avgDuration - prev.avgDuration) / prev.avgDuration) * 100;
-
-        if (increase > 50) {
-          spikes.push({
-            time: curr.timeBucket,
-            increase: increase.toFixed(1),
-            from: prev.avgDuration,
-            to: curr.avgDuration,
-          });
-        }
-      }
-
-      // Calculate error rate trend
-      const avgErrorRate = (
-        records.reduce((sum, r) => sum + parseFloat(r.errorRate), 0) /
-        records.length
-      ).toFixed(2);
-
-      insights.push({
-        label: key,
-        endpoint: key,
-        trend: change > 0 ? "degradation" : "improvement",
-        change,
-        changePercent,
-        spikes,
-        avgErrorRate,
-        totalRequests: records.reduce((sum, r) => sum + r.requestCount, 0),
+    try {
+      logger.debug("updateChartVisibility called", {
+        hasAvailableEndpoints: !!this.availableEndpoints,
+        hasSelectedEndpoints: !!this.selectedEndpoints,
+        selectedCount: this.selectedEndpoints?.size,
       });
-    });
 
-    // Render insights
-    let html = '<div class="insights-grid">';
-
-    insights.forEach((insight) => {
-      const trendIcon =
-        insight.trend === "degradation" ? "fa-arrow-up" : "fa-arrow-down";
-      const trendClass =
-        insight.trend === "degradation" ? "trend-bad" : "trend-good";
-      const trendColor =
-        insight.trend === "degradation" ? "#F44336" : "#4CAF50";
-
-      html += `
-        <div class="insight-card">
-          <h6><code>${insight.label}</code></h6>
-          <div class="insight-stats">
-            <div class="insight-stat">
-              <i class="fas ${trendIcon}" style="color: ${trendColor}"></i>
-              <span class="${trendClass}">${Math.abs(insight.changePercent)}% ${
-        insight.trend
-      }</span>
-              <small>${Math.abs(insight.change).toFixed(0)}ms ${
-        insight.change > 0 ? "slower" : "faster"
-      }</small>
-            </div>
-            <div class="insight-stat">
-              <i class="fas fa-bug"></i>
-              <span>Error Rate: ${insight.avgErrorRate}%</span>
-            </div>
-            <div class="insight-stat">
-              <i class="fas fa-network-wired"></i>
-              <span>${insight.totalRequests} requests</span>
-            </div>
-          </div>
-          ${
-            insight.spikes.length > 0
-              ? `
-            <div class="insight-spikes">
-              <strong><i class="fas fa-exclamation-triangle"></i> Performance Spikes Detected:</strong>
-              <ul>
-                ${insight.spikes
-                  .slice(0, 3)
-                  .map(
-                    (spike) => `
-                  <li>${spike.time}: +${spike.increase}% (${spike.from}ms → ${spike.to}ms)</li>
-                `
-                  )
-                  .join("")}
-              </ul>
-              <p class="hint">Check deployments or PR merges around these times</p>
-            </div>
-          `
-              : ""
-          }
-        </div>
-      `;
-    });
-
-    html += "</div>";
-
-    document.getElementById("insightsContent").innerHTML = html;
-    document.getElementById("performanceInsights").style.display = "block";
+      // Re-render the chart with the currently selected endpoints
+      if (this.availableEndpoints && this.selectedEndpoints) {
+        const response = {
+          success: true,
+          groupedByEndpoint: this.availableEndpoints,
+        };
+        this.renderEndpointPerformanceChart(response);
+      } else {
+        logger.warn("Cannot update chart: missing data", {
+          hasAvailableEndpoints: !!this.availableEndpoints,
+          hasSelectedEndpoints: !!this.selectedEndpoints,
+        });
+      }
+    } catch (error) {
+      logger.error("Error in updateChartVisibility:", error);
+    }
   }
 
   // Load waterfall chart data
@@ -2953,7 +2830,7 @@ export class DevToolsPanel {
     try {
       const filters = this.getActiveFilters();
 
-      console.log("🌊 Loading waterfall data with filters:", filters);
+      logger.debug("🌊 Loading waterfall data with filters:", filters);
 
       const response = await chrome.runtime.sendMessage({
         action: "getWaterfallData",
@@ -2961,7 +2838,7 @@ export class DevToolsPanel {
         limit: 50,
       });
 
-      console.log("🌊 Waterfall response:", {
+      logger.debug("🌊 Waterfall response:", {
         success: response?.success,
         requestsLength: response?.requests?.length,
         error: response?.error,
@@ -2971,7 +2848,7 @@ export class DevToolsPanel {
 
       if (!response || !response.success) {
         const errorMsg = response?.error || "Unknown error";
-        console.error("Waterfall data fetch failed:", errorMsg);
+        logger.error("Waterfall data fetch failed:", errorMsg);
         container.innerHTML = `<p class="error-message">Error loading waterfall data: ${errorMsg}</p>`;
         return;
       }
@@ -2982,7 +2859,7 @@ export class DevToolsPanel {
         return;
       }
 
-      console.log(
+      logger.debug(
         "🌊 Rendering waterfall chart with",
         response.requests.length,
         "requests"
@@ -2991,7 +2868,7 @@ export class DevToolsPanel {
       // Render waterfall chart
       this.renderWaterfallChart(response.requests);
     } catch (error) {
-      console.error("Failed to load waterfall data:", error);
+      logger.error("Failed to load waterfall data:", error);
       const container = document.getElementById("waterfallChart");
       if (container) {
         container.innerHTML = `<p class="error-message"><i class="fas fa-exclamation-triangle"></i> Error loading waterfall chart: ${error.message}</p>`;
@@ -3172,18 +3049,42 @@ export class DevToolsPanel {
   async loadResourcesData() {
     try {
       const filters = this.getActiveFilters();
+      logger.debug("Loading resources data with filters:", filters);
+
       const response = await chrome.runtime.sendMessage({
         action: "getResourceSizeBreakdown",
         filters,
       });
 
+      logger.debug("getResourceSizeBreakdown response:", response);
+
       if (
+        !response ||
         !response.success ||
         !response.breakdown ||
         response.breakdown.length === 0
       ) {
-        document.getElementById("resourcesTable").innerHTML =
-          '<p class="no-data">No resource data available</p>';
+        const errorMsg = response?.error || "No data available";
+        logger.warn("No resource data:", errorMsg);
+
+        document.getElementById(
+          "resourcesTable"
+        ).innerHTML = `<p class="no-data">No resource data available for selected filters.</p>
+           <p class="hint" style="font-size: 13px; color: var(--text-secondary); margin-top: 12px; line-height: 1.6;">
+             <strong>Possible reasons:</strong><br>
+             • No requests captured yet - browse the site to generate traffic<br>
+             • Time range too restrictive - try "Last 24 hours" or "Last 7 days"<br>
+             • Request capture paused - check the Pause button at top<br>
+             • Filters too specific - try clicking "Clear" button<br>
+             <small style="color: var(--text-tertiary); display: block; margin-top: 8px;">Backend: ${errorMsg}</small>
+           </p>`;
+        document.getElementById("resourceSizeChart").innerHTML =
+          '<p class="no-data">No resource data to chart</p>';
+        const compressionStats = document.getElementById("compressionStats");
+        if (compressionStats) {
+          compressionStats.innerHTML =
+            '<p class="no-data">No compression data available</p>';
+        }
         return;
       }
 
@@ -3226,13 +3127,28 @@ export class DevToolsPanel {
       // Add compression analysis
       this.renderCompressionAnalysis(response.breakdown, response.totalSize);
     } catch (error) {
-      console.error("Failed to load resources data:", error);
+      logger.error("Failed to load resources data:", error);
+      const resourcesTable = document.getElementById("resourcesTable");
+      if (resourcesTable) {
+        resourcesTable.innerHTML =
+          '<p class="error-message">Error loading resource data. Please try refreshing.</p>';
+      }
     }
   }
 
   // Render resource pie chart
   renderResourcePieChart(breakdown) {
-    const ctx = document.getElementById("resourcePieChart").getContext("2d");
+    const canvas = document.getElementById("resourcePieChart");
+    if (!canvas) {
+      logger.warn("Resource pie chart canvas not found");
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      logger.warn("Cannot get canvas context for resource chart");
+      return;
+    }
 
     if (this.resourceChart) {
       this.resourceChart.destroy();
@@ -3277,41 +3193,113 @@ export class DevToolsPanel {
   }
 
   // Render compression analysis
-  renderCompressionAnalysis(breakdown, totalSize) {
-    const compressibleTypes = [
-      "script",
-      "stylesheet",
-      "xmlhttprequest",
-      "fetch",
-      "document",
-    ];
-    const compressibleSize = breakdown
-      .filter((b) => compressibleTypes.includes(b.type))
-      .reduce((sum, b) => sum + b.totalBytes, 0);
+  async renderCompressionAnalysis(breakdown, totalSize) {
+    try {
+      const filters = this.getActiveFilters();
 
-    const potentialSavings = compressibleSize * 0.7; // Assume 70% compression ratio
+      // Try to get real compression stats from backend
+      const statsResponse = await chrome.runtime.sendMessage({
+        action: "getResourceCompressionStats",
+        filters: {
+          domain: filters.domain || null,
+          pageUrl: filters.pageUrl || null,
+        },
+      });
 
-    const html = `
-      <div class="compression-stats-content">
-        <div class="stat-item">
-          <label>Compressible Resources:</label>
-          <span>${this.formatBytes(compressibleSize)}</span>
-        </div>
-        <div class="stat-item">
-          <label>Potential Savings (70% compression):</label>
-          <span class="highlight">${this.formatBytes(potentialSavings)}</span>
-        </div>
-        <div class="stat-item">
-          <label>Compression Ratio:</label>
-          <span>${((potentialSavings / totalSize) * 100).toFixed(
-            1
-          )}% of total</span>
-        </div>
-        <p class="hint"><i class="fas fa-info-circle"></i> Enable gzip/brotli compression on your server to reduce transfer size</p>
-      </div>
-    `;
+      const compressionStats = document.getElementById("compressionStats");
+      if (!compressionStats) return;
 
-    document.getElementById("compressionStats").innerHTML = html;
+      if (statsResponse.success && statsResponse.data.resourceCount > 0) {
+        const stats = statsResponse.data;
+        const compressionRate = parseFloat(stats.compressionRate) || 0;
+
+        const html = `
+          <div class="compression-stats-content">
+            <div class="stat-item">
+              <label>Total Bytes:</label>
+              <span>${this.formatBytes(stats.totalBytes)}</span>
+            </div>
+            <div class="stat-item">
+              <label>Compressed Bytes:</label>
+              <span style="color: ${
+                compressionRate > 50
+                  ? "var(--success-color)"
+                  : "var(--warning-color)"
+              }">${this.formatBytes(stats.compressedBytes)}</span>
+            </div>
+            <div class="stat-item">
+              <label>Potential Savings:</label>
+              <span style="color: ${
+                stats.potentialSavings > 1000000
+                  ? "var(--error-color)"
+                  : "var(--success-color)"
+              }">${this.formatBytes(stats.potentialSavings)}</span>
+            </div>
+            <div class="stat-item">
+              <label>Compression Rate:</label>
+              <span>${compressionRate}%</span>
+            </div>
+            <div class="stat-item" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+              <i class="fas fa-${
+                compressionRate > 50 ? "check-circle" : "exclamation-triangle"
+              }" style="color: ${
+          compressionRate > 50 ? "var(--success-color)" : "var(--warning-color)"
+        }"></i>
+              <small style="color: var(--text-secondary);">${
+                compressionRate > 50
+                  ? "Good compression rate!"
+                  : "Enable compression to improve performance."
+              }</small>
+            </div>
+          </div>
+        `;
+        compressionStats.innerHTML = html;
+      } else {
+        // Fallback to estimated compression analysis
+        const compressibleTypes = [
+          "script",
+          "stylesheet",
+          "xmlhttprequest",
+          "fetch",
+          "document",
+        ];
+        const compressibleSize = breakdown
+          .filter((b) => compressibleTypes.includes(b.type))
+          .reduce((sum, b) => sum + b.totalBytes, 0);
+
+        const potentialSavings = compressibleSize * 0.7; // Assume 70% compression ratio
+
+        const html = `
+          <div class="compression-stats-content">
+            <div class="stat-item">
+              <label>Compressible Resources:</label>
+              <span>${this.formatBytes(compressibleSize)}</span>
+            </div>
+            <div class="stat-item">
+              <label>Estimated Savings (70% compression):</label>
+              <span class="highlight">${this.formatBytes(
+                potentialSavings
+              )}</span>
+            </div>
+            <div class="stat-item">
+              <label>Compression Ratio:</label>
+              <span>${((potentialSavings / totalSize) * 100).toFixed(
+                1
+              )}% of total</span>
+            </div>
+            <p class="hint"><i class="fas fa-info-circle"></i> Enable gzip/brotli compression on your server to reduce transfer size</p>
+          </div>
+        `;
+        compressionStats.innerHTML = html;
+      }
+    } catch (error) {
+      logger.error("Failed to load compression analysis:", error);
+      const compressionStats = document.getElementById("compressionStats");
+      if (compressionStats) {
+        compressionStats.innerHTML =
+          '<p class="no-data">Error loading compression data</p>';
+      }
+    }
   }
 
   // Load errors data with enhanced categorization
@@ -3430,7 +3418,7 @@ export class DevToolsPanel {
       // Render error distribution chart
       this.renderErrorChart(errors4xx, errors5xx);
     } catch (error) {
-      console.error("Failed to load errors data:", error);
+      logger.error("Failed to load errors data:", error);
     }
   }
 
@@ -3555,14 +3543,14 @@ export class DevToolsPanel {
   searchRequests(query) {
     const tbody = document.getElementById("requestsTableBody");
     if (!tbody) {
-      console.warn("requestsTableBody not found");
+      logger.warn("requestsTableBody not found");
       return;
     }
 
     const rows = tbody.querySelectorAll("tr");
     const searchLower = query.toLowerCase().trim();
 
-    console.log(`Searching for: "${query}" in ${rows.length} rows`);
+    logger.debug(`Searching for: "${query}" in ${rows.length} rows`);
 
     let matchCount = 0;
     let totalDataRows = 0;
@@ -3597,7 +3585,7 @@ export class DevToolsPanel {
       if (found) matchCount++;
     });
 
-    console.log(
+    logger.debug(
       `Search: "${query}" - ${matchCount} matches out of ${totalDataRows} total rows`
     );
   }
@@ -3736,7 +3724,7 @@ export class DevToolsPanel {
       // Create historical chart
       this.renderHistoricalChart(response.data);
     } catch (error) {
-      console.error("Failed to load historical data:", error);
+      logger.error("Failed to load historical data:", error);
       const container = document.getElementById("historicalChartContainer");
       container.innerHTML =
         '<p class="error-message"><i class="fas fa-exclamation-circle"></i> Error loading historical data. Please try again.</p>';
@@ -3838,7 +3826,7 @@ export class DevToolsPanel {
 
       this.showToast("HAR data copied to clipboard", "success");
     } catch (error) {
-      console.error("Failed to copy HAR:", error);
+      logger.error("Failed to copy HAR:", error);
       this.showToast("Failed to copy HAR data", "error");
     }
   }
@@ -3858,7 +3846,7 @@ export class DevToolsPanel {
 
       this.showToast("HAR file exported", "success");
     } catch (error) {
-      console.error("Failed to export HAR:", error);
+      logger.error("Failed to export HAR:", error);
       this.showToast("Failed to export HAR file", "error");
     }
   }
@@ -4152,18 +4140,73 @@ export class DevToolsPanel {
     return `<span style="color: ${color}">${sign}${diff} ${unit}</span>`;
   }
 
+  // Initialize capture button state from settings
+  async initializeCaptureState() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getSettings",
+      });
+
+      if (response && response.success && response.settings) {
+        const captureEnabled = response.settings.capture?.enabled !== false;
+        this.capturePaused = !captureEnabled;
+
+        const btn = document.getElementById("pauseCapture");
+        if (btn) {
+          if (this.capturePaused) {
+            btn.innerHTML = '<i class="fas fa-play"></i> Resume';
+          } else {
+            btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+          }
+        }
+
+        logger.debug("Capture state initialized:", {
+          captureEnabled,
+          capturePaused: this.capturePaused,
+        });
+      }
+    } catch (error) {
+      logger.error("Failed to initialize capture state:", error);
+      // Default to not paused on error
+      this.capturePaused = false;
+    }
+  }
+
   // Live Stream features
-  toggleCapture() {
+  async toggleCapture() {
     this.capturePaused = !this.capturePaused;
     const btn = document.getElementById("pauseCapture");
-    if (btn) {
-      if (this.capturePaused) {
-        btn.innerHTML = '<i class="fas fa-play"></i> Resume';
-        this.showToast("Request capture paused", "info");
+
+    try {
+      // Send message to background to toggle capture
+      const response = await chrome.runtime.sendMessage({
+        action: "capture:toggle",
+        enabled: !this.capturePaused,
+      });
+
+      if (response && response.success) {
+        if (btn) {
+          if (this.capturePaused) {
+            btn.innerHTML = '<i class="fas fa-play"></i> Resume';
+            this.showToast("Request capture paused", "info");
+          } else {
+            btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+            this.showToast("Request capture resumed", "success");
+          }
+        }
       } else {
-        btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
-        this.showToast("Request capture resumed", "success");
+        // Revert state on failure
+        this.capturePaused = !this.capturePaused;
+        this.showToast(
+          "Failed to toggle capture: " + (response?.error || "Unknown error"),
+          "error"
+        );
       }
+    } catch (error) {
+      // Revert state on error
+      this.capturePaused = !this.capturePaused;
+      logger.error("Error toggling capture:", error);
+      this.showToast("Failed to toggle capture", "error");
     }
   }
 
@@ -4412,7 +4455,7 @@ export class DevToolsPanel {
         });
       }
     } catch (error) {
-      console.error("Failed to poll realtime requests:", error);
+      logger.error("Failed to poll realtime requests:", error);
     }
   }
 
@@ -4442,61 +4485,11 @@ export class DevToolsPanel {
     this.updateRealtimeDisplay();
   }
 
-  updateRealtimeDisplay() {
-    const container = document.getElementById("realtimeFeed");
-    if (!container) return;
-
-    if (this.realtimeMessages.length === 0) {
-      container.innerHTML =
-        '<p class="placeholder">Waiting for requests...</p>';
-      return;
-    }
-
-    let html = '<div class="realtime-list">';
-
-    this.realtimeMessages
-      .slice(-50)
-      .reverse()
-      .forEach((req) => {
-        const statusClass =
-          req.status >= 400
-            ? "error"
-            : req.status >= 300
-            ? "warning"
-            : "success";
-        const errorClass = req.status >= 400 ? "realtime-error" : "";
-
-        html += `
-        <div class="realtime-item ${errorClass}">
-          <div class="realtime-time">${new Date(
-            req.timestamp
-          ).toLocaleTimeString()}.${new Date(
-          req.timestamp
-        ).getMilliseconds()}</div>
-          <span class="method-badge">${req.method || "GET"}</span>
-          <span class="status-badge status-${statusClass}">${
-          req.status || "N/A"
-        }</span>
-          <span class="realtime-url" title="${req.url}">${this.truncateUrl(
-          req.url,
-          70
-        )}</span>
-          <span class="realtime-duration">${req.duration || 0}ms</span>
-          <div class="realtime-timing-bar" style="width: ${Math.min(
-            (req.duration || 0) / 10,
-            100
-          )}%"></div>
-        </div>
-      `;
-      });
-
-    html += "</div>";
-    container.innerHTML = html;
-
-    // Auto-scroll if enabled
-    const autoScrollCheckbox = document.getElementById("autoScrollCheckbox");
-    if (autoScrollCheckbox && autoScrollCheckbox.checked) {
-      container.scrollTop = 0; // Scroll to top since we reverse the list
+  // WebSocket tab visibility management
+  updateWebSocketTabVisibility(hasWebSockets) {
+    const wsTabBtn = document.getElementById("websocketTabBtn");
+    if (wsTabBtn) {
+      wsTabBtn.style.display = hasWebSockets ? "block" : "none";
     }
   }
 
@@ -4508,7 +4501,7 @@ export class DevToolsPanel {
 
 // Initialize panel when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("Initializing DevTools Panel...");
+  logger.debug("Initializing DevTools Panel...");
 
   const panel = new DevToolsPanel();
 
@@ -4532,5 +4525,5 @@ document.addEventListener("DOMContentLoaded", () => {
     panel.destroy();
   });
 
-  console.log("✓ DevTools Panel initialized");
+  logger.debug("✓ DevTools Panel initialized");
 });
