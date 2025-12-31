@@ -292,6 +292,56 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Setup event listeners for buttons
     setupEventListeners();
 
+    // Add immediate capture toggle handler
+    if (captureEnabled) {
+      captureEnabled.addEventListener("change", async (e) => {
+        const enabled = e.target.checked;
+        const captureStatus = document.getElementById("captureStatus");
+
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "capture:toggle",
+            enabled: enabled,
+          });
+
+          if (response && response.success) {
+            // Update status indicator
+            if (captureStatus) {
+              if (enabled) {
+                captureStatus.className = "status-indicator active";
+                captureStatus.title = "Capture is active";
+              } else {
+                captureStatus.className = "status-indicator inactive";
+                captureStatus.title = "Capture is disabled";
+              }
+            }
+            showNotification(
+              `Request capture ${enabled ? "enabled" : "disabled"}`,
+              false
+            );
+
+            // Also save to settings for persistence
+            await settingsManager.updateSettings({
+              capture: { enabled: enabled },
+            });
+          } else {
+            // Revert toggle on failure
+            e.target.checked = !enabled;
+            showNotification(
+              "Failed to toggle capture: " +
+                (response?.error || "Unknown error"),
+              true
+            );
+          }
+        } catch (error) {
+          // Revert toggle on error
+          e.target.checked = !enabled;
+          logger.error("Error toggling capture:", error);
+          showNotification("Failed to toggle capture", true);
+        }
+      });
+    }
+
     // Initialize advanced tab
     initializeAdvancedTab();
 
@@ -510,7 +560,7 @@ async function saveOptions() {
       showCharts: plotEnabled.checked,
       enabledCharts: Array.from(plotTypeCheckboxes)
         .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value),
+        .map((checkbox) => checkbox.value), // Now uses: performanceChart, statusChart, requestsChart
     },
     theme: {
       current: themeManager.currentTheme,
@@ -519,6 +569,12 @@ async function saveOptions() {
 
   const success = await settingsManager.updateSettings(newSettings);
   if (success) {
+    // Notify background script to reload capture settings
+    try {
+      await chrome.runtime.sendMessage({ action: "reloadCaptureSettings" });
+    } catch (msgError) {
+      console.warn("Failed to reload capture settings:", msgError);
+    }
     showNotification("Options saved successfully!");
   } else {
     showNotification("Error saving options", true);
