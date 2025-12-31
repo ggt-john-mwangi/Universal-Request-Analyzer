@@ -111,13 +111,14 @@ async function handleGetRecentErrors(limit, context) {
 /**
  * Handle get recent requests
  */
-async function handleGetRecentRequests(limit, context) {
+async function handleGetRecentRequests(data, context) {
   try {
     const { database } = context;
     if (!database || !database.isReady || !database.db) {
       return { success: false, error: "Database not initialized" };
     }
 
+    const { limit, domain } = data || {};
     const actualLimit = limit || 10;
 
     const escapeStr = (val) => {
@@ -125,11 +126,20 @@ async function handleGetRecentRequests(limit, context) {
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
-    const query = `
+    // Build query with optional domain filter
+    let query = `
       SELECT 
         id, url, method, status, duration, timestamp,
         type, domain, page_url, size_bytes as size, status_text
       FROM silver_requests
+    `;
+
+    // Add domain filter if provided (for popup to filter by current tab's domain)
+    if (domain) {
+      query += ` WHERE domain = ${escapeStr(domain)}`;
+    }
+
+    query += `
       ORDER BY timestamp DESC
       LIMIT ${parseInt(actualLimit)}
     `;
@@ -175,7 +185,7 @@ export const vitalsHandlers = new Map([
   [
     "getRecentRequests",
     async (message, sender, context) => {
-      return await handleGetRecentRequests(message.limit, context);
+      return await handleGetRecentRequests(message.data, context);
     },
   ],
 ]);

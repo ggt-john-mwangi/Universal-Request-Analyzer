@@ -1428,16 +1428,25 @@ export const analyticsHandlers = new Map([
         }
 
         // Get compression statistics
+        // Check bronze_request_headers table for Content-Encoding header
         const query = `
           SELECT 
-            type as resource_type,
+            br.type as resource_type,
             COUNT(*) as request_count,
-            SUM(size_bytes) as total_size,
-            AVG(size_bytes) as avg_size,
-            SUM(CASE WHEN response_headers LIKE '%Content-Encoding:%' THEN 1 ELSE 0 END) as compressed_count
-          FROM bronze_requests
+            SUM(br.size_bytes) as total_size,
+            AVG(br.size_bytes) as avg_size,
+            COUNT(DISTINCT CASE 
+              WHEN EXISTS (
+                SELECT 1 FROM bronze_request_headers brh 
+                WHERE brh.request_id = br.id 
+                AND brh.header_type = 'response' 
+                AND brh.name = 'Content-Encoding'
+              ) THEN br.id 
+              ELSE NULL 
+            END) as compressed_count
+          FROM bronze_requests br
           ${whereClause}
-          GROUP BY type
+          GROUP BY br.type
           ORDER BY total_size DESC
         `;
 

@@ -150,7 +150,7 @@ async function handleGetFilteredStats(filters, context) {
 
     if (!database || !database.executeQuery) {
       console.error(
-        "Database manager not initialized or missing executeQuery method"
+        "[stats-handlers] Database manager not initialized or missing executeQuery method"
       );
       return {
         success: false,
@@ -220,6 +220,11 @@ async function handleGetFilteredStats(filters, context) {
 
     query += " ORDER BY timestamp DESC LIMIT 1000";
 
+    console.log(
+      "[stats-handlers] Executing query:",
+      query.substring(0, 300) + "..."
+    );
+
     let requests = [];
 
     try {
@@ -227,7 +232,6 @@ async function handleGetFilteredStats(filters, context) {
 
       if (result && result[0]) {
         requests = mapResultToArray(result[0]);
-      } else {
       }
     } catch (queryError) {
       console.error("Filtered stats query error:", queryError);

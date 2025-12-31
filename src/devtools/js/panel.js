@@ -654,8 +654,16 @@ export class DevToolsPanel {
         (result, error) => {
           if (error) {
             logger.error("Error getting current domain:", error);
+            console.error(
+              "[DevTools Panel] Failed to get domain from inspectedWindow:",
+              error
+            );
             resolve("");
           } else {
+            console.log(
+              "[DevTools Panel] Got domain from inspectedWindow:",
+              result
+            );
             resolve(result || "");
           }
         }
@@ -872,6 +880,7 @@ export class DevToolsPanel {
   async startMetricsCollection() {
     // Get and display current domain
     const currentDomain = await this.getCurrentDomain();
+
     const domainDisplay = document.getElementById("currentDomainDisplay");
     if (domainDisplay && currentDomain) {
       domainDisplay.textContent = currentDomain;
@@ -3606,6 +3615,10 @@ export class DevToolsPanel {
     // Use the current domain (already determined from inspected window)
     if (this.currentDomain) {
       filters.domain = this.currentDomain;
+    } else {
+      console.warn(
+        "[DevTools Panel] No currentDomain available - will show all domains"
+      );
     }
 
     // Add page filter (if specific page selected)
