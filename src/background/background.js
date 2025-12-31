@@ -3,7 +3,7 @@
 
 import { initDatabase } from "./database/db-manager.js";
 import { setupLocalAuth } from "./auth/local-auth-manager.js";
-import { initializePopupMessageHandler } from "./messaging/popup-message-handler.js";
+import { initializePopupMessageHandler } from "./messaging/message-router.js";
 import { DatabaseManagerMedallion } from "./database/db-manager-medallion.js";
 import { MedallionManager } from "./database/medallion-manager.js";
 import { AnalyticsProcessor } from "./database/analytics-processor.js";
@@ -11,6 +11,7 @@ import { ConfigSchemaManager } from "./database/config-schema-manager.js";
 import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
 import { migrateLegacyToMedallion } from "./database/medallion-migration.js";
 import { runtime, downloads, alarms } from "./compat/browser-compat.js";
+import settingsManager from "../lib/shared-components/settings-manager.js";
 
 class IntegratedExtensionInitializer {
   constructor() {
@@ -201,11 +202,35 @@ class IntegratedExtensionInitializer {
   async initializeRequestCapture() {
     console.log("→ Initializing Request Capture...");
 
+    // Initialize settings manager with database
+    settingsManager.setDatabaseManager(this.configManager);
+    await settingsManager.initialize();
+
+    // Load capture settings from settings-manager
+    const settings = await settingsManager.getSettings();
     const config = {
+      enabled: settings.capture?.enabled ?? true,
       filters: {
         includePatterns: ["<all_urls>"],
+        excludePatterns:
+          settings.capture?.captureFilters?.excludePatterns || [],
       },
+      captureFilters: {
+        includeTypes: settings.capture?.captureFilters?.includeTypes || [],
+        includeDomains: settings.capture?.captureFilters?.includeDomains || [],
+        excludeDomains: settings.capture?.captureFilters?.excludeDomains || [],
+      },
+      trackOnlyConfiguredSites:
+        settings.capture?.trackOnlyConfiguredSites ?? true,
     };
+
+    console.log("Request capture config loaded:", {
+      enabled: config.enabled,
+      includeTypes: config.captureFilters.includeTypes,
+      includeDomains: config.captureFilters.includeDomains,
+      excludeDomains: config.captureFilters.excludeDomains,
+      trackOnlyConfiguredSites: config.trackOnlyConfiguredSites,
+    });
 
     this.requestCapture = new RequestCaptureIntegration(
       this.medallionDb,
@@ -238,19 +263,12 @@ class IntegratedExtensionInitializer {
 
   async handleAllMessages(message, sender, sendResponse) {
     try {
-      console.log("[handleAllMessages] Received message:", message.action);
-
       // First try popup/options handlers (register, login, getPageStats, query, etc.)
       if (this.popupMessageHandler) {
         const popupResponse = await this.popupMessageHandler(message, sender);
-        console.log(
-          "[handleAllMessages] Popup handler response:",
-          popupResponse ? "received" : "null"
-        );
 
         // If popup handler returned a response (not null), send it
         if (popupResponse !== null && popupResponse !== undefined) {
-          console.log("[handleAllMessages] Sending popup response");
           sendResponse(popupResponse);
           return;
         }
@@ -328,6 +346,13 @@ class IntegratedExtensionInitializer {
         case "ping":
           sendResponse({ success: true, message: "pong" });
           break;
+
+        case "reloadCaptureSettings": {
+          // Reload settings and reinitialize request capture
+          await this.initializeRequestCapture();
+          sendResponse({ success: true, message: "Capture settings reloaded" });
+          break;
+        }
 
         case "clearDatabase":
           try {

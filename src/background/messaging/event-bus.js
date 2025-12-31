@@ -203,7 +203,7 @@ export default eventBus;
 export const middleware = {
   // Log all events
   logger: (event) => {
-    console.log(`[EventBus] ${event.type}:`, event);
+    // Logger disabled for production
     return event;
   },
 

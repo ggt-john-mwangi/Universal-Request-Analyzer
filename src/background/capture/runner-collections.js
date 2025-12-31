@@ -30,6 +30,13 @@ class RunnerCollections {
         return;
       }
 
+      if (!this.dbManager.collection || !this.dbManager.scheduledRun) {
+        console.warn(
+          "[Collections] Database manager missing collection or scheduledRun methods"
+        );
+        return;
+      }
+
       // Load collections from database
       this.collectionsCache = await this.dbManager.collection.getCollections();
 
@@ -153,10 +160,10 @@ class RunnerCollections {
         );
 
         // Also remove any scheduled runs for this collection
+        // Scheduled runs are stored in database and cascade deleted via foreign key
         this.scheduledRuns = this.scheduledRuns.filter(
           (s) => s.collectionId !== collectionId
         );
-        await this.saveScheduledRuns();
 
         console.log(`[Collections] Deleted collection: ${collectionId}`);
         return true;

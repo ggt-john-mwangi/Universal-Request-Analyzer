@@ -2,65 +2,67 @@
 // Migrates data from legacy schema to medallion architecture
 
 import { DatabaseError } from "../errors/error-types.js";
-import { createMedallionSchema, initializeDefaultConfig } from "./medallion-schema.js";
+import {
+  createMedallionSchema,
+  initializeDefaultConfig,
+} from "./medallion-schema.js";
 
 /**
  * Migrate database to medallion architecture
  */
 export async function migrateToMedallionArchitecture(db, eventBus) {
   console.log("Starting migration to medallion architecture...");
-  
+
   try {
     // Step 1: Create medallion schema
     await createMedallionSchema(db);
     console.log("✓ Medallion schema created");
-    
+
     // Step 2: Initialize default configuration
     await initializeDefaultConfig(db);
     console.log("✓ Default configuration initialized");
-    
+
     // Step 3: Check if legacy tables exist
     const hasLegacyData = await checkLegacyTables(db);
-    
+
     if (hasLegacyData) {
       console.log("Legacy data detected, starting migration...");
-      
+
       // Step 4: Migrate legacy data
       await migrateLegacyRequests(db);
       console.log("✓ Requests migrated to Bronze layer");
-      
+
       await migrateLegacyHeaders(db);
       console.log("✓ Headers migrated to Bronze layer");
-      
+
       await migrateLegacyTimings(db);
       console.log("✓ Timings migrated to Bronze layer");
-      
-      await migrateLegacyPerformanceMetrics(db);
-      console.log("✓ Performance metrics migrated to Bronze layer");
-      
+
       // Step 5: Process Bronze to Silver
       await processBronzeToSilver(db);
       console.log("✓ Data processed to Silver layer");
-      
+
       // Step 6: Generate Gold analytics
       await generateGoldAnalytics(db);
       console.log("✓ Analytics generated in Gold layer");
-      
+
       // Step 7: Mark migration as complete
       await markMigrationComplete(db);
       console.log("✓ Migration marked as complete");
     } else {
       console.log("No legacy data found, migration skipped");
     }
-    
-    eventBus?.publish('medallion:migration:complete', { timestamp: Date.now() });
+
+    eventBus?.publish("medallion:migration:complete", {
+      timestamp: Date.now(),
+    });
     console.log("Migration to medallion architecture completed successfully!");
-    
+
     return true;
   } catch (error) {
     console.error("Migration failed:", error);
-    eventBus?.publish('medallion:migration:failed', { error: error.message });
-    throw new DatabaseError('Medallion migration failed', error);
+    eventBus?.publish("medallion:migration:failed", { error: error.message });
+    throw new DatabaseError("Medallion migration failed", error);
   }
 }
 
@@ -71,10 +73,15 @@ async function checkLegacyTables(db) {
   try {
     const result = db.exec(`
       SELECT name FROM sqlite_master 
-      WHERE type='table' AND name IN ('requests', 'request_headers', 'request_timings', 'performance_metrics')
+      WHERE type='table' AND name IN ('requests', 'request_headers', 'request_timings')
     `);
-    
-    return result && result.length > 0 && result[0].values && result[0].values.length > 0;
+
+    return (
+      result &&
+      result.length > 0 &&
+      result[0].values &&
+      result[0].values.length > 0
+    );
   } catch (error) {
     console.error("Error checking legacy tables:", error);
     return false;
@@ -89,23 +96,47 @@ async function migrateLegacyRequests(db) {
     // Check what columns exist in legacy requests table
     const columnsResult = db.exec(`PRAGMA table_info(requests)`);
     if (!columnsResult || !columnsResult[0]?.values) {
-      console.log('  No legacy requests table found, skipping migration');
+      console.log("  No legacy requests table found, skipping migration");
       return;
     }
-    
-    const columns = columnsResult[0].values.map(col => col[1]); // Get column names
-    console.log('  Legacy columns:', columns.join(', '));
-    
+
+    const columns = columnsResult[0].values.map((col) => col[1]); // Get column names
+    console.log("  Legacy columns:", columns.join(", "));
+
     // Map legacy column names to bronze column names with fallbacks
     const columnMap = {
-      statusText: columns.includes('statusText') ? 'statusText' : (columns.includes('status_text') ? 'status_text' : 'NULL'),
-      startTime: columns.includes('startTime') ? 'startTime' : (columns.includes('start_time') ? 'start_time' : 'timestamp'),
-      endTime: columns.includes('endTime') ? 'endTime' : (columns.includes('end_time') ? 'end_time' : 'timestamp'),
-      size: columns.includes('size') ? 'size' : (columns.includes('size_bytes') ? 'size_bytes' : '0'),
-      tabId: columns.includes('tabId') ? 'tabId' : (columns.includes('tab_id') ? 'tab_id' : 'NULL'),
-      pageUrl: columns.includes('pageUrl') ? 'pageUrl' : (columns.includes('page_url') ? 'page_url' : 'NULL')
+      statusText: columns.includes("statusText")
+        ? "statusText"
+        : columns.includes("status_text")
+        ? "status_text"
+        : "NULL",
+      startTime: columns.includes("startTime")
+        ? "startTime"
+        : columns.includes("start_time")
+        ? "start_time"
+        : "timestamp",
+      endTime: columns.includes("endTime")
+        ? "endTime"
+        : columns.includes("end_time")
+        ? "end_time"
+        : "timestamp",
+      size: columns.includes("size")
+        ? "size"
+        : columns.includes("size_bytes")
+        ? "size_bytes"
+        : "0",
+      tabId: columns.includes("tabId")
+        ? "tabId"
+        : columns.includes("tab_id")
+        ? "tab_id"
+        : "NULL",
+      pageUrl: columns.includes("pageUrl")
+        ? "pageUrl"
+        : columns.includes("page_url")
+        ? "page_url"
+        : "NULL",
     };
-    
+
     db.exec(`
       INSERT OR IGNORE INTO bronze_requests (
         id, url, method, type, status, status_text, domain, path,
@@ -119,7 +150,7 @@ async function migrateLegacyRequests(db) {
       FROM requests
       WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='requests')
     `);
-    
+
     const result = db.exec(`SELECT COUNT(*) as count FROM bronze_requests`);
     const count = result[0]?.values[0]?.[0] || 0;
     console.log(`  Migrated ${count} requests`);
@@ -144,8 +175,10 @@ async function migrateLegacyHeaders(db) {
       FROM request_headers
       WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='request_headers')
     `);
-    
-    const result = db.exec(`SELECT COUNT(*) as count FROM bronze_request_headers`);
+
+    const result = db.exec(
+      `SELECT COUNT(*) as count FROM bronze_request_headers`
+    );
     const count = result[0]?.values[0]?.[0] || 0;
     console.log(`  Migrated ${count} headers`);
   } catch (error) {
@@ -170,37 +203,14 @@ async function migrateLegacyTimings(db) {
       FROM request_timings
       WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='request_timings')
     `);
-    
-    const result = db.exec(`SELECT COUNT(*) as count FROM bronze_request_timings`);
+
+    const result = db.exec(
+      `SELECT COUNT(*) as count FROM bronze_request_timings`
+    );
     const count = result[0]?.values[0]?.[0] || 0;
     console.log(`  Migrated ${count} timing records`);
   } catch (error) {
     console.error("Error migrating timings:", error);
-    // Non-critical, continue
-  }
-}
-
-/**
- * Migrate legacy performance metrics
- */
-async function migrateLegacyPerformanceMetrics(db) {
-  try {
-    db.exec(`
-      INSERT OR IGNORE INTO bronze_performance_entries (
-        request_id, entry_type, name, start_time, duration, created_at
-      )
-      SELECT 
-        request_id, 'performance', 'legacy_metric', 
-        0, total_time, created_at
-      FROM performance_metrics
-      WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='performance_metrics')
-    `);
-    
-    const result = db.exec(`SELECT COUNT(*) as count FROM bronze_performance_entries`);
-    const count = result[0]?.values[0]?.[0] || 0;
-    console.log(`  Migrated ${count} performance entries`);
-  } catch (error) {
-    console.error("Error migrating performance metrics:", error);
     // Non-critical, continue
   }
 }
@@ -211,7 +221,7 @@ async function migrateLegacyPerformanceMetrics(db) {
 async function processBronzeToSilver(db) {
   try {
     const now = Date.now();
-    
+
     // Migrate to silver_requests with enrichment
     db.exec(`
       INSERT OR IGNORE INTO silver_requests (
@@ -248,7 +258,7 @@ async function processBronzeToSilver(db) {
         ${now}, ${now}
       FROM bronze_requests
     `);
-    
+
     // Process metrics
     db.exec(`
       INSERT OR IGNORE INTO silver_request_metrics (
@@ -266,7 +276,7 @@ async function processBronzeToSilver(db) {
         ${now}
       FROM bronze_request_timings
     `);
-    
+
     // Calculate domain stats
     db.exec(`
       INSERT OR REPLACE INTO silver_domain_stats (
@@ -290,7 +300,7 @@ async function processBronzeToSilver(db) {
       WHERE domain IS NOT NULL
       GROUP BY domain
     `);
-    
+
     // Calculate resource stats
     db.exec(`
       INSERT OR REPLACE INTO silver_resource_stats (
@@ -307,7 +317,7 @@ async function processBronzeToSilver(db) {
       WHERE type IS NOT NULL
       GROUP BY type
     `);
-    
+
     const result = db.exec(`SELECT COUNT(*) as count FROM silver_requests`);
     const count = result[0]?.values[0]?.[0] || 0;
     console.log(`  Processed ${count} requests to Silver layer`);
@@ -323,8 +333,8 @@ async function processBronzeToSilver(db) {
 async function generateGoldAnalytics(db) {
   try {
     const now = Date.now();
-    const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
-    
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
     // Generate daily analytics for the last 30 days
     db.exec(`
       INSERT OR REPLACE INTO gold_daily_analytics (
@@ -343,9 +353,10 @@ async function generateGoldAnalytics(db) {
       WHERE timestamp > ${thirtyDaysAgo}
       GROUP BY DATE(timestamp / 1000, 'unixepoch')
     `);
-    
+
     // Generate domain performance reports
-    db.exec(`
+    db.exec(
+      `
       INSERT OR REPLACE INTO gold_domain_performance (
         domain, date, request_count, total_bytes, avg_response_time,
         error_rate, performance_grade, created_at
@@ -368,9 +379,13 @@ async function generateGoldAnalytics(db) {
       FROM bronze_requests
       WHERE timestamp > ? AND domain IS NOT NULL
       GROUP BY domain, DATE(timestamp / 1000, 'unixepoch')
-    `, [now, now - (30 * 24 * 60 * 60 * 1000)]);
-    
-    const result = db.exec(`SELECT COUNT(*) as count FROM gold_daily_analytics`);
+    `,
+      [now, now - 30 * 24 * 60 * 60 * 1000]
+    );
+
+    const result = db.exec(
+      `SELECT COUNT(*) as count FROM gold_daily_analytics`
+    );
     const count = result[0]?.values[0]?.[0] || 0;
     console.log(`  Generated ${count} days of analytics in Gold layer`);
   } catch (error) {
@@ -385,7 +400,7 @@ async function generateGoldAnalytics(db) {
 async function markMigrationComplete(db) {
   try {
     const now = Date.now();
-    
+
     // Create migration tracking table if it doesn't exist
     db.exec(`
       CREATE TABLE IF NOT EXISTS medallion_migrations (
@@ -395,13 +410,13 @@ async function markMigrationComplete(db) {
         details TEXT
       )
     `);
-    
+
     // Record migration
     db.exec(`
       INSERT INTO medallion_migrations (migration_name, completed_at, details)
       VALUES ('initial_medallion_migration', ${now}, 'Migrated legacy schema to medallion architecture')
     `);
-    
+
     console.log("  Migration recorded in tracking table");
   } catch (error) {
     console.error("Error marking migration complete:", error);
@@ -418,16 +433,21 @@ export async function isMedallionMigrationComplete(db) {
       SELECT COUNT(*) as count FROM sqlite_master 
       WHERE type='table' AND name='medallion_migrations'
     `);
-    
-    if (!result || result.length === 0 || !result[0].values[0] || result[0].values[0][0] === 0) {
+
+    if (
+      !result ||
+      result.length === 0 ||
+      !result[0].values[0] ||
+      result[0].values[0][0] === 0
+    ) {
       return false;
     }
-    
+
     const migrationResult = db.exec(`
       SELECT COUNT(*) as count FROM medallion_migrations 
       WHERE migration_name = 'initial_medallion_migration'
     `);
-    
+
     return migrationResult && migrationResult[0]?.values[0]?.[0] > 0;
   } catch (error) {
     console.error("Error checking migration status:", error);
@@ -439,42 +459,46 @@ export async function isMedallionMigrationComplete(db) {
  * Migrate legacy data to medallion architecture
  * Wrapper function for compatibility with background.js
  */
-export async function migrateLegacyToMedallion(legacyDbManager, medallionDbManager) {
-  console.log('Starting legacy to medallion migration...');
-  
+export async function migrateLegacyToMedallion(
+  legacyDbManager,
+  medallionDbManager
+) {
+  console.log("Starting legacy to medallion migration...");
+
   try {
     // Ensure medallion database is fully initialized and ready
     if (!medallionDbManager.isReady) {
-      console.log('Medallion database not yet ready, skipping migration for now');
+      console.log(
+        "Medallion database not yet ready, skipping migration for now"
+      );
       return true;
     }
-    
+
     // Check if legacy data exists
     const hasLegacyData = await checkLegacyDataInManager(legacyDbManager);
-    
+
     if (!hasLegacyData) {
-      console.log('No legacy data found, migration skipped');
+      console.log("No legacy data found, migration skipped");
       return true;
     }
-    
+
     // Get medallion manager from the API
     const medallionManager = medallionDbManager.medallion;
     if (!medallionManager) {
-      console.warn('Medallion manager not available, skipping migration');
+      console.warn("Medallion manager not available, skipping migration");
       return true;
     }
-    
+
     // Migrate legacy requests to bronze layer
     await migrateLegacyRequestsFromManager(legacyDbManager, medallionManager);
-    console.log('✓ Legacy requests migrated to Bronze layer');
-    
-    console.log('✓ Legacy to medallion migration completed successfully');
+    console.log("✓ Legacy requests migrated to Bronze layer");
+
+    console.log("✓ Legacy to medallion migration completed successfully");
     return true;
-    
   } catch (error) {
-    console.error('Legacy migration failed:', error);
+    console.error("Legacy migration failed:", error);
     // Don't throw - just log and continue
-    console.warn('Continuing without legacy migration');
+    console.warn("Continuing without legacy migration");
     return false;
   }
 }
@@ -488,25 +512,25 @@ async function checkLegacyDataInManager(legacyDbManager) {
       SELECT COUNT(*) as count FROM sqlite_master 
       WHERE type='table' AND name='requests'
     `);
-    
+
     if (!result || !result[0] || !result[0].values || !result[0].values[0]) {
       return false;
     }
-    
+
     const tableExists = result[0].values[0][0] > 0;
-    
+
     if (!tableExists) {
       return false;
     }
-    
+
     // Check if there are any requests
     const countResult = await legacyDbManager.executeQuery(`
       SELECT COUNT(*) as count FROM requests
     `);
-    
+
     return countResult && countResult[0]?.values[0]?.[0] > 0;
   } catch (error) {
-    console.error('Error checking legacy data:', error);
+    console.error("Error checking legacy data:", error);
     return false;
   }
 }
@@ -514,39 +538,42 @@ async function checkLegacyDataInManager(legacyDbManager) {
 /**
  * Migrate legacy requests from manager to medallion bronze layer
  */
-async function migrateLegacyRequestsFromManager(legacyDbManager, medallionManager) {
+async function migrateLegacyRequestsFromManager(
+  legacyDbManager,
+  medallionManager
+) {
   try {
     // Get all requests from legacy database
     const requestsResult = await legacyDbManager.executeQuery(`
       SELECT * FROM requests ORDER BY timestamp DESC LIMIT 10000
     `);
-    
+
     if (!requestsResult || !requestsResult[0] || !requestsResult[0].values) {
-      console.log('No requests to migrate');
+      console.log("No requests to migrate");
       return;
     }
-    
+
     const columns = requestsResult[0].columns;
-    const requests = requestsResult[0].values.map(row => {
+    const requests = requestsResult[0].values.map((row) => {
       const req = {};
       columns.forEach((col, idx) => {
         req[col] = row[idx];
       });
       return req;
     });
-    
+
     console.log(`Migrating ${requests.length} requests...`);
-    
+
     // Insert into bronze layer using medallion manager
     for (const request of requests) {
       try {
         await medallionManager.insertBronzeRequest({
           id: request.id,
           url: request.url,
-          method: request.method || 'GET',
-          type: request.type || 'other',
+          method: request.method || "GET",
+          type: request.type || "other",
           status: request.status,
-          statusText: request.statusText || '',
+          statusText: request.statusText || "",
           domain: request.domain || new URL(request.url).hostname,
           path: request.path || new URL(request.url).pathname,
           startTime: request.startTime || request.timestamp,
@@ -556,16 +583,16 @@ async function migrateLegacyRequestsFromManager(legacyDbManager, medallionManage
           timestamp: request.timestamp,
           tabId: request.tabId,
           pageUrl: request.pageUrl,
-          error: request.error
+          error: request.error,
         });
       } catch (error) {
         console.warn(`Failed to migrate request ${request.id}:`, error.message);
       }
     }
-    
+
     console.log(`✓ Migrated ${requests.length} requests to Bronze layer`);
   } catch (error) {
-    console.error('Error migrating legacy requests:', error);
+    console.error("Error migrating legacy requests:", error);
     throw error;
   }
 }
@@ -576,42 +603,47 @@ async function migrateLegacyRequestsFromManager(legacyDbManager, medallionManage
  */
 export async function fixMissingDomains(db) {
   console.log("Fixing missing domains in bronze_requests...");
-  
+
   try {
     // Get all requests with NULL or empty domain
     const result = db.exec(`
       SELECT id, url FROM bronze_requests 
       WHERE domain IS NULL OR domain = ''
     `);
-    
-    if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
+
+    if (
+      !result ||
+      result.length === 0 ||
+      !result[0].values ||
+      result[0].values.length === 0
+    ) {
       console.log("No rows with missing domains found");
       return 0;
     }
-    
+
     const rows = result[0].values;
     let updated = 0;
     let failed = 0;
-    
+
     console.log(`Found ${rows.length} rows with missing domains`);
-    
+
     for (const row of rows) {
       const [id, url] = row;
-      
+
       try {
         // Extract domain from URL
         const urlObj = new URL(url);
         const domain = urlObj.hostname;
         const path = urlObj.pathname;
-        const protocol = urlObj.protocol.replace(':', '');
+        const protocol = urlObj.protocol.replace(":", "");
         const queryString = urlObj.search;
-        
+
         // Escape SQL strings
         const escapeStr = (val) => {
-          if (val === undefined || val === null || val === '') return 'NULL';
+          if (val === undefined || val === null || val === "") return "NULL";
           return `'${String(val).replace(/'/g, "''")}'`;
         };
-        
+
         // Update the row
         db.exec(`
           UPDATE bronze_requests 
@@ -621,22 +653,27 @@ export async function fixMissingDomains(db) {
               query_string = ${escapeStr(queryString)}
           WHERE id = ${escapeStr(id)}
         `);
-        
+
         updated++;
-        
+
         if (updated % 100 === 0) {
           console.log(`Updated ${updated}/${rows.length} rows...`);
         }
       } catch (error) {
         failed++;
-        console.warn(`Failed to extract domain from URL for request ${id}:`, error.message);
+        console.warn(
+          `Failed to extract domain from URL for request ${id}:`,
+          error.message
+        );
       }
     }
-    
-    console.log(`✓ Updated ${updated} rows with extracted domains (${failed} failed)`);
+
+    console.log(
+      `✓ Updated ${updated} rows with extracted domains (${failed} failed)`
+    );
     return updated;
   } catch (error) {
-    console.error('Error fixing missing domains:', error);
+    console.error("Error fixing missing domains:", error);
     throw error;
   }
 }

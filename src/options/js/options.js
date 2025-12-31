@@ -281,35 +281,75 @@ document.addEventListener("DOMContentLoaded", async () => {
     // The Data Retention section is already in options.html
 
     // Set up tab navigation
-    console.log("Options page: Setting up tab navigation...");
     setupTabNavigation();
 
     // Render theme options
-    console.log("Options page: Rendering theme options...");
     renderThemeOptions();
 
     // Initialize variables manager
-    console.log("Options page: Initializing variables manager...");
     await variablesManager.initialize();
-    console.log("Options page: Variables manager initialized");
 
     // Setup event listeners for buttons
-    console.log("Options page: Setting up event listeners...");
     setupEventListeners();
 
+    // Add immediate capture toggle handler
+    if (captureEnabled) {
+      captureEnabled.addEventListener("change", async (e) => {
+        const enabled = e.target.checked;
+        const captureStatus = document.getElementById("captureStatus");
+
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "capture:toggle",
+            enabled: enabled,
+          });
+
+          if (response && response.success) {
+            // Update status indicator
+            if (captureStatus) {
+              if (enabled) {
+                captureStatus.className = "status-indicator active";
+                captureStatus.title = "Capture is active";
+              } else {
+                captureStatus.className = "status-indicator inactive";
+                captureStatus.title = "Capture is disabled";
+              }
+            }
+            showNotification(
+              `Request capture ${enabled ? "enabled" : "disabled"}`,
+              false
+            );
+
+            // Also save to settings for persistence
+            await settingsManager.updateSettings({
+              capture: { enabled: enabled },
+            });
+          } else {
+            // Revert toggle on failure
+            e.target.checked = !enabled;
+            showNotification(
+              "Failed to toggle capture: " +
+                (response?.error || "Unknown error"),
+              true
+            );
+          }
+        } catch (error) {
+          // Revert toggle on error
+          e.target.checked = !enabled;
+          logger.error("Error toggling capture:", error);
+          showNotification("Failed to toggle capture", true);
+        }
+      });
+    }
+
     // Initialize advanced tab
-    console.log("Options page: Initializing advanced tab...");
     initializeAdvancedTab();
 
     // Initialize Analytics features (accessible from Dashboard)
-    console.log("Options page: Initializing analytics features...");
     await initializeAnalytics();
 
     // Initialize Alerts component
-    console.log("Options page: Initializing alerts...");
     await initializeAlerts();
-
-    console.log("Options page: Initialization complete!");
   } catch (error) {
     console.error("Error initializing options:", error);
     console.error("Error stack:", error.stack);
@@ -417,7 +457,6 @@ async function loadDatabaseInfo() {
   try {
     // Skip if elements don't exist
     if (!dbTotalRequests && !dbSize && !lastExport) {
-      console.log("Database info elements not found, skipping...");
       return;
     }
 
@@ -466,7 +505,6 @@ async function loadDatabaseInfo() {
 
 // Placeholder for SQLite export toggle (if needed by other components)
 function loadSqliteExportToggle() {
-  console.log("loadSqliteExportToggle called");
   // Implementation can be added here if needed
 }
 
@@ -522,7 +560,7 @@ async function saveOptions() {
       showCharts: plotEnabled.checked,
       enabledCharts: Array.from(plotTypeCheckboxes)
         .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value),
+        .map((checkbox) => checkbox.value), // Now uses: performanceChart, statusChart, requestsChart
     },
     theme: {
       current: themeManager.currentTheme,
@@ -531,6 +569,12 @@ async function saveOptions() {
 
   const success = await settingsManager.updateSettings(newSettings);
   if (success) {
+    // Notify background script to reload capture settings
+    try {
+      await chrome.runtime.sendMessage({ action: "reloadCaptureSettings" });
+    } catch (msgError) {
+      console.warn("Failed to reload capture settings:", msgError);
+    }
     showNotification("Options saved successfully!");
   } else {
     showNotification("Error saving options", true);
@@ -637,29 +681,34 @@ async function showExportPreview() {
 
 // Export settings to file
 async function exportSettings() {
-  // Show preview first
-  const proceed = await showExportPreview();
+  try {
+    // Show preview first
+    const proceed = await showExportPreview();
 
-  if (!proceed) {
-    showNotification("Export cancelled");
-    return;
+    if (!proceed) {
+      showNotification("Export cancelled");
+      return;
+    }
+
+    const exportData = settingsManager.exportSettings();
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `request-analyzer-settings-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification("Settings exported successfully!");
+  } catch (error) {
+    console.error("Export Settings failed:", error);
+    showNotification("Failed to export settings: " + error.message, "error");
   }
-
-  const exportData = settingsManager.exportSettings();
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `request-analyzer-settings-${new Date()
-    .toISOString()
-    .slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showNotification("Settings exported successfully!");
 }
 
 // Validate import data
@@ -1518,10 +1567,6 @@ function setupTabNavigation() {
   const tabContents = document.querySelectorAll(".tab-content");
   const pageTitle = document.getElementById("pageTitle");
 
-  console.log(
-    `Found ${navItems.length} nav items and ${tabContents.length} tab contents`
-  );
-
   // Tab titles mapping
   const tabTitles = {
     dashboard: "Dashboard",
@@ -1538,11 +1583,9 @@ function setupTabNavigation() {
 
   navItems.forEach((item, index) => {
     const tabName = item.dataset.tab;
-    console.log(`Nav item ${index}: ${tabName}`);
 
     item.addEventListener("click", () => {
       const tab = item.dataset.tab;
-      console.log(`Tab clicked: ${tab}`);
 
       // Remove active class from all items and contents
       navItems.forEach((i) => i.classList.remove("active"));
@@ -1553,7 +1596,6 @@ function setupTabNavigation() {
       const content = document.getElementById(tab);
       if (content) {
         content.classList.add("active");
-        console.log(`Activated content for: ${tab}`);
       } else {
         console.error(`No content found for tab: ${tab}`);
       }
@@ -1606,11 +1648,9 @@ function setupSubTabNavigation() {
       const targetContent = document.getElementById(targetSubTab);
       if (targetContent) {
         targetContent.classList.add("active");
-        console.log(`Activated sub-tab: ${targetSubTab}`);
 
         // Reload runners when Runners sub-tab is activated
         if (targetSubTab === "runners-list" && window.runnersManager) {
-          console.log("[Options] Reloading runners on tab activation");
           window.runnersManager.loadRunners();
         }
       } else {
@@ -2227,8 +2267,15 @@ function handleSitePreset(preset) {
 // ============================================================================
 
 /**
- * IMPROVEMENT 1: Check if query contains dangerous operations
+ * Check if query contains dangerous operations
  * Detects DELETE, DROP, TRUNCATE, ALTER, and UPDATE without WHERE clause
+ */
+function checkQuerySafety(query) {
+  const result = {
+    isDangerous: false,
+    level: "safe",
+    warnings: [],
+  };
 
   // Check for DROP statements
   if (/\bDROP\s+(TABLE|DATABASE|INDEX|VIEW)/i.test(query)) {
@@ -2626,10 +2673,6 @@ function initializeAdvancedTab() {
         ) {
           // Display logs in console with formatting
           console.group("=== Universal Request Analyzer Error Logs ===");
-          console.log(`Total error logs: ${response.data.length}`);
-          console.log(`Extension version: 1.0.0`);
-          console.log(`Current time: ${new Date().toISOString()}`);
-          console.log("");
 
           response.data.forEach((log, index) => {
             const timestamp = log.timestamp
@@ -2649,20 +2692,10 @@ function initializeAdvancedTab() {
             `✓ Retrieved ${response.data.length} error log(s) from database (see console)`
           );
         } else {
-          // No errors found or table doesn't exist
-          console.log("=== Universal Request Analyzer Debug Info ===");
-          console.log("Extension version: 1.0.0");
-          console.log("Current time:", new Date().toISOString());
-          console.log("No error logs found in bronze_errors database table");
           showNotification("✓ No errors logged in database", false);
         }
       } catch (error) {
         console.error("Failed to fetch error logs from database:", error);
-        // Fallback to basic info
-        console.log("=== Universal Request Analyzer Debug Info ===");
-        console.log("Extension version: 1.0.0");
-        console.log("Current time:", new Date().toISOString());
-        console.log("Error fetching logs from database:", error.message);
         showNotification("⚠ Failed to fetch logs from database", true);
       }
     });
@@ -2780,15 +2813,41 @@ function initializeAdvancedTab() {
 
         showNotification("Reading database file...");
 
+        // For import, we cannot send large data through messages or storage due to quota limits
+        // Instead, we need to handle this through the background script's importDatabase handler
+        // which should be called directly via background.js handleMedallionMessages
+
         // Read file as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
 
-        // Send to background
+        // Check size - Chrome message limit is ~64MB
+        const sizeMB = uint8Array.length / (1024 * 1024);
+        if (sizeMB > 50) {
+          showNotification(
+            `Database file is ${sizeMB.toFixed(
+              1
+            )}MB. Chrome extensions have a 64MB message limit. Please use a smaller database or contact support for large database imports.`,
+            true
+          );
+          return;
+        }
+
+        // Send to background - convert to regular array for message passing
         const response = await chrome.runtime.sendMessage({
           action: "importDatabase",
           data: Array.from(uint8Array),
         });
+
+        if (response && response.success) {
+          showNotification("Database imported successfully! Reloading...");
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          showNotification(
+            "Import failed: " + (response?.error || "Unknown error"),
+            true
+          );
+        }
 
         if (response && response.success) {
           showNotification("Database imported successfully! Reloading...");
@@ -2851,6 +2910,85 @@ function initializeAdvancedTab() {
         } catch (error) {
           showNotification("Failed to clear cache", true);
         }
+      }
+    });
+  }
+
+  // Create Backup
+  const createBackupBtn = document.getElementById("createBackupBtn");
+  if (createBackupBtn) {
+    createBackupBtn.addEventListener("click", async () => {
+      try {
+        showNotification("Creating backup...");
+        const response = await chrome.runtime.sendMessage({
+          action: "createBackup",
+        });
+
+        if (response && response.success) {
+          showNotification(`Backup created: ${response.filename}`);
+          // Refresh last backup info
+          await loadLastBackupInfo();
+        } else {
+          showNotification(
+            "Backup failed: " + (response?.error || "Unknown error"),
+            true
+          );
+        }
+      } catch (error) {
+        console.error("Backup error:", error);
+        showNotification("Failed to create backup: " + error.message, true);
+      }
+    });
+  }
+
+  // Execute Cleanup
+  const executeCleanupBtn = document.getElementById("executeCleanupBtn");
+  if (executeCleanupBtn) {
+    executeCleanupBtn.addEventListener("click", async () => {
+      const days = prompt(
+        "Delete records older than how many days? (e.g., 30, 60, 90)",
+        "30"
+      );
+      if (!days) return;
+
+      const numDays = parseInt(days);
+      if (isNaN(numDays) || numDays < 1) {
+        showNotification("Invalid number of days", true);
+        return;
+      }
+
+      if (
+        !confirm(
+          `This will permanently delete all records older than ${numDays} days. This cannot be undone! Continue?`
+        )
+      ) {
+        return;
+      }
+
+      try {
+        showNotification("Cleaning up old records...");
+        const response = await chrome.runtime.sendMessage({
+          action: "cleanupOldRecords",
+          days: numDays,
+        });
+
+        if (response && response.success) {
+          showNotification(
+            `Cleanup complete: Deleted ${response.recordsDeleted} records`
+          );
+          // Refresh cleanup history
+          await loadCleanupHistory();
+          // Refresh stats
+          await loadAdvancedStats();
+        } else {
+          showNotification(
+            "Cleanup failed: " + (response?.error || "Unknown error"),
+            true
+          );
+        }
+      } catch (error) {
+        console.error("Cleanup error:", error);
+        showNotification("Failed to cleanup: " + error.message, true);
       }
     });
   }
@@ -3033,8 +3171,83 @@ async function loadAdvancedStats() {
             : `${(estimatedSize / 1024).toFixed(2)} MB`;
       }
     }
+
+    // Load cleanup history
+    await loadCleanupHistory();
+
+    // Load last backup info
+    await loadLastBackupInfo();
   } catch (error) {
     console.error("Failed to load advanced stats:", error);
+  }
+}
+
+// Load and display cleanup history
+async function loadCleanupHistory() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "getCleanupHistory",
+    });
+
+    const container = document.getElementById("cleanupHistory");
+    if (!container) return;
+
+    if (
+      response &&
+      response.success &&
+      response.history &&
+      response.history.length > 0
+    ) {
+      const historyHTML = response.history
+        .map((entry) => {
+          const date = new Date(entry.timestamp).toLocaleString();
+          return `
+            <div class="history-entry">
+              <div class="history-date">${date}</div>
+              <div class="history-details">
+                Deleted ${entry.recordsDeleted} records older than ${
+            entry.days
+          } days
+                (cutoff: ${new Date(entry.cutoffDate).toLocaleDateString()})
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+      container.innerHTML = historyHTML;
+    } else {
+      container.innerHTML =
+        '<p class="placeholder">No cleanup history available</p>';
+    }
+  } catch (error) {
+    console.error("Failed to load cleanup history:", error);
+  }
+}
+
+// Load and display last backup info
+async function loadLastBackupInfo() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "getLastBackupInfo",
+    });
+
+    const element = document.getElementById("lastBackupTime");
+    if (!element) return;
+
+    if (response && response.success && response.lastBackup) {
+      const date = new Date(response.lastBackup.timestamp).toLocaleString();
+      const size =
+        response.lastBackup.size < 1024 * 1024
+          ? `${(response.lastBackup.size / 1024).toFixed(1)} KB`
+          : `${(response.lastBackup.size / (1024 * 1024)).toFixed(2)} MB`;
+      element.textContent = `Last backup: ${date} (${size})`;
+    } else {
+      element.textContent = "Last backup: Never";
+    }
+  } catch (error) {
+    console.error("Failed to load last backup info:", error);
+    const element = document.getElementById("lastBackupTime");
+    if (element) element.textContent = "Last backup: Never";
   }
 }
 
@@ -3913,9 +4126,6 @@ const manualExportFormat = document.getElementById("manualExportFormat");
 if (exportNowBtn) {
   exportNowBtn.addEventListener("click", async () => {
     const format = manualExportFormat?.value || "json";
-    console.log("[Export] Selected format:", format);
-    console.log("[Export] Dropdown element:", manualExportFormat);
-    console.log("[Export] Dropdown value:", manualExportFormat?.value);
 
     const filename = `ura-export-${new Date()
       .toISOString()
@@ -3926,14 +4136,11 @@ if (exportNowBtn) {
       '<i class="fas fa-spinner fa-spin"></i> Exporting...';
 
     try {
-      console.log("[Export] Sending message with format:", format);
       const response = await chrome.runtime.sendMessage({
         action: "exportDatabase",
         format: format,
         filename: filename,
       });
-
-      console.log("[Export] Response received:", response);
 
       if (response && response.success) {
         // Format file size
@@ -4343,8 +4550,6 @@ async function populateSiteFilterDropdown() {
       `,
     });
 
-    console.log("Dashboard site filter response:", response);
-
     // Clear existing options except "All Sites"
     dropdown.innerHTML = '<option value="all">All Sites</option>';
 
@@ -4367,10 +4572,6 @@ async function populateSiteFilterDropdown() {
           dropdown.appendChild(option);
         }
       });
-
-      console.log(`Populated site filter with ${domains.length} domains`);
-    } else {
-      console.warn("No domains found in database");
     }
 
     // Add change listener to filter dashboard
@@ -4420,7 +4621,6 @@ async function initializeAnalytics() {
     const { default: Analytics } = await import("../components/analytics.js");
     analyticsInstance = new Analytics();
     await analyticsInstance.initialize();
-    console.log("✓ Analytics component initialized");
   } catch (error) {
     console.error("Failed to initialize Analytics:", error);
   }
@@ -4434,7 +4634,6 @@ async function initializeAlerts() {
     const { default: Alerts } = await import("../components/alerts.js");
     alertsInstance = new Alerts();
     await alertsInstance.initialize();
-    console.log("✓ Alerts component initialized");
   } catch (error) {
     console.error("Failed to initialize Alerts:", error);
   }

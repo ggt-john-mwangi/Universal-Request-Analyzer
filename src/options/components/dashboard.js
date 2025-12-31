@@ -18,8 +18,6 @@ class Dashboard {
   }
 
   async initialize() {
-    console.log("Initializing Dashboard...");
-
     // Load domain filter first and check if domains exist
     const hasData = await this.loadDomainFilter();
 
@@ -38,8 +36,6 @@ class Dashboard {
 
     // Start auto-refresh
     this.startAutoRefresh();
-
-    console.log("✓ Dashboard initialized");
   }
 
   setupEventListeners() {
@@ -385,23 +381,28 @@ class Dashboard {
 
   async initializeCharts() {
     // Check if plots/visualizations are enabled in settings
+    let enabledCharts = ["requestsChart", "statusChart", "performanceChart"]; // Default: all enabled
     try {
       const response = await chrome.runtime.sendMessage({
         action: "getSettings",
       });
 
       if (response && response.success && response.settings) {
-        const visualizationSettings =
-          response.settings.visualizations ||
-          response.settings.settings?.visualizations;
-        const enablePlots = visualizationSettings?.enablePlots;
+        const displaySettings =
+          response.settings.display || response.settings.settings?.display;
+        const showCharts = displaySettings?.showCharts;
 
-        if (enablePlots === false) {
-          console.log(
-            "[Dashboard] Plots disabled in settings, showing message"
-          );
+        if (showCharts === false) {
           this.showPlotsDisabledMessage();
           return; // Don't initialize charts
+        }
+
+        // Get user-selected chart types
+        if (
+          displaySettings?.enabledCharts &&
+          Array.isArray(displaySettings.enabledCharts)
+        ) {
+          enabledCharts = displaySettings.enabledCharts;
         }
       }
     } catch (error) {
@@ -410,6 +411,56 @@ class Dashboard {
         error
       );
       // Continue with chart initialization if settings check fails
+    }
+
+    // Map settings chart names to dashboard chart sections
+    const chartMap = {
+      requestsChart: "dashboardVolumeChart", // Request Volume
+      statusChart: "dashboardStatusChart", // Status Distribution
+      performanceChart: "dashboardPerformanceChart", // Performance Trends
+    };
+
+    // Hide chart sections that are not enabled
+    Object.entries(chartMap).forEach(([settingName, canvasId]) => {
+      const canvas = document.getElementById(canvasId);
+      if (canvas) {
+        // For charts in chart-row (status, domains), find the .half parent
+        let chartSection = canvas.closest(".chart-section.half");
+        if (!chartSection) {
+          // For standalone charts (volume, performance), find the regular .chart-section
+          chartSection = canvas.closest(".chart-section");
+        }
+
+        if (chartSection) {
+          if (enabledCharts.includes(settingName)) {
+            chartSection.style.display = "";
+          } else {
+            chartSection.style.display = "none";
+          }
+        }
+      }
+    });
+
+    // Always show domains chart (not configurable) - but check if both charts in the row are visible
+    const domainsCanvas = document.getElementById("dashboardDomainsChart");
+    if (domainsCanvas) {
+      const chartSection = domainsCanvas.closest(".chart-section.half");
+      if (chartSection) {
+        chartSection.style.display = "";
+
+        // If status chart is hidden, make domains chart full width
+        const statusCanvas = document.getElementById("dashboardStatusChart");
+        const statusSection = statusCanvas?.closest(".chart-section.half");
+        const chartRow = domainsCanvas.closest(".chart-row");
+
+        if (statusSection && statusSection.style.display === "none") {
+          // Status hidden, make domains full width
+          if (chartSection) chartSection.classList.remove("half");
+        } else if (chartRow) {
+          // Both visible, ensure half class
+          if (chartSection) chartSection.classList.add("half");
+        }
+      }
     }
 
     const colors = this.getChartColors();
@@ -493,7 +544,7 @@ class Dashboard {
     }
 
     // Domains Chart - Horizontal bar chart for top domains
-    const domainsCanvas = document.getElementById("dashboardDomainsChart");
+    // domainsCanvas already declared above in visibility control section
     if (domainsCanvas) {
       const ctx = domainsCanvas.getContext("2d");
       this.charts.domains = new Chart(ctx, {
@@ -626,8 +677,6 @@ class Dashboard {
   }
 
   async refreshDashboard() {
-    console.log("Refreshing dashboard...");
-
     // Check if "All Domains" is selected
     const domainFilter = document.getElementById("dashboardDomainFilter");
     if (domainFilter && domainFilter.value === "all") {
@@ -661,8 +710,6 @@ class Dashboard {
         const tabName = activeTab.dataset.tab;
         await this.reloadActiveTabData(tabName);
       }
-
-      console.log("✓ Dashboard refreshed");
     } catch (error) {
       console.error("Failed to refresh dashboard:", error);
       this.showError("Failed to load dashboard data. Please try refreshing.");
@@ -1141,8 +1188,6 @@ class Dashboard {
     this.refreshInterval = setInterval(() => {
       this.refreshDashboard();
     }, 30000);
-
-    console.log("✓ Dashboard auto-refresh started (30s interval)");
   }
 
   async loadWebVitals() {
@@ -2496,7 +2541,7 @@ class Dashboard {
       const selectedDomain = domainFilter?.value || "all";
 
       const response = await chrome.runtime.sendMessage({
-        action: "exportHAR",
+        action: "exportAsHAR",
         filters: {
           domain: selectedDomain === "all" ? null : selectedDomain,
           timeRange: this.timeRange,
@@ -3173,13 +3218,7 @@ class Dashboard {
     const checkboxes = document.querySelectorAll(".request-checkbox:checked");
     const requestIds = Array.from(checkboxes).map((cb) => cb.dataset.requestId);
 
-    // Debug log
-    console.log("Selected checkbox count:", checkboxes.length);
-    console.log("Request IDs from checkboxes:", requestIds);
-    console.log("Current requests:", this.currentRequests?.length || 0);
-
     if (!this.currentRequests || this.currentRequests.length === 0) {
-      console.warn("No current requests available");
       return [];
     }
 
@@ -3188,7 +3227,6 @@ class Dashboard {
       requestIds.includes(String(req.id))
     );
 
-    console.log("Matched requests:", selected.length);
     return selected;
   }
 
@@ -3201,7 +3239,6 @@ class Dashboard {
 
     // Store selected requests for runner execution
     this.selectedRunnerRequests = selectedRequests;
-    console.log("Stored runner requests:", this.selectedRunnerRequests.length);
 
     document.getElementById("runnerRequestCount").textContent =
       selectedRequests.length;

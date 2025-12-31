@@ -1,3 +1,3 @@
 export default function exportDatabase() {
-  console.log("Exporting database...");
+  // This function is no longer used - export is handled in options.js
 }

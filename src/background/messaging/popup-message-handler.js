@@ -3669,15 +3669,16 @@ async function handleGetRecentRequests(data) {
       return { success: false, error: "Database not available" };
     }
 
-    const limit = data?.limit || 10;
+    const { limit, domain } = data || {};
+    const actualLimit = limit || 10;
 
     const escapeStr = (val) => {
       if (val === undefined || val === null) return "NULL";
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
-    // Get recent requests from silver_requests
-    const query = `
+    // Build query with optional domain filter
+    let query = `
       SELECT 
         id,
         url,
@@ -3691,8 +3692,16 @@ async function handleGetRecentRequests(data) {
         size_bytes as size,
         status_text
       FROM silver_requests
+    `;
+
+    // Add domain filter if provided (for popup to filter by current tab's domain)
+    if (domain) {
+      query += ` WHERE domain = ${escapeStr(domain)}`;
+    }
+
+    query += `
       ORDER BY timestamp DESC
-      LIMIT ${parseInt(limit)}
+      LIMIT ${parseInt(actualLimit)}
     `;
 
     const queryResult = dbManager.db.exec(query);
