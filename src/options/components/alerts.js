@@ -8,62 +8,66 @@ class Alerts {
   }
 
   async initialize() {
-    console.log('Initializing Alerts...');
-    
     this.setupEventListeners();
     await this.loadAlertRules();
     await this.loadAlertHistory();
     await this.loadDomainsForAlerts();
-    
-    console.log('✓ Alerts initialized');
   }
 
   setupEventListeners() {
     // Remove any existing listeners by cloning and replacing elements
     // This prevents duplicate event listeners if setupEventListeners is called multiple times
-    
+
     // Add alert rule button
-    const addAlertRuleBtn = document.getElementById('addAlertRuleBtn');
+    const addAlertRuleBtn = document.getElementById("addAlertRuleBtn");
     if (addAlertRuleBtn) {
       const newAddBtn = addAlertRuleBtn.cloneNode(true);
       addAlertRuleBtn.parentNode.replaceChild(newAddBtn, addAlertRuleBtn);
-      newAddBtn.addEventListener('click', () => this.showAlertRuleModal());
+      newAddBtn.addEventListener("click", () => this.showAlertRuleModal());
     }
 
     // Refresh alert history
-    const refreshAlertHistoryBtn = document.getElementById('refreshAlertHistoryBtn');
+    const refreshAlertHistoryBtn = document.getElementById(
+      "refreshAlertHistoryBtn"
+    );
     if (refreshAlertHistoryBtn) {
       const newRefreshBtn = refreshAlertHistoryBtn.cloneNode(true);
-      refreshAlertHistoryBtn.parentNode.replaceChild(newRefreshBtn, refreshAlertHistoryBtn);
-      newRefreshBtn.addEventListener('click', () => this.loadAlertHistory());
+      refreshAlertHistoryBtn.parentNode.replaceChild(
+        newRefreshBtn,
+        refreshAlertHistoryBtn
+      );
+      newRefreshBtn.addEventListener("click", () => this.loadAlertHistory());
     }
 
     // Modal controls
-    const modalClose = document.querySelector('#alertRuleModal .modal-close');
+    const modalClose = document.querySelector("#alertRuleModal .modal-close");
     if (modalClose) {
       const newModalClose = modalClose.cloneNode(true);
       modalClose.parentNode.replaceChild(newModalClose, modalClose);
-      newModalClose.addEventListener('click', () => this.hideAlertRuleModal());
+      newModalClose.addEventListener("click", () => this.hideAlertRuleModal());
     }
 
-    const saveAlertRuleBtn = document.getElementById('saveAlertRuleBtn');
+    const saveAlertRuleBtn = document.getElementById("saveAlertRuleBtn");
     if (saveAlertRuleBtn) {
       const newSaveBtn = saveAlertRuleBtn.cloneNode(true);
       saveAlertRuleBtn.parentNode.replaceChild(newSaveBtn, saveAlertRuleBtn);
-      newSaveBtn.addEventListener('click', () => this.saveAlertRule());
+      newSaveBtn.addEventListener("click", () => this.saveAlertRule());
     }
 
-    const cancelAlertRuleBtn = document.getElementById('cancelAlertRuleBtn');
+    const cancelAlertRuleBtn = document.getElementById("cancelAlertRuleBtn");
     if (cancelAlertRuleBtn) {
       const newCancelBtn = cancelAlertRuleBtn.cloneNode(true);
-      cancelAlertRuleBtn.parentNode.replaceChild(newCancelBtn, cancelAlertRuleBtn);
-      newCancelBtn.addEventListener('click', () => this.hideAlertRuleModal());
+      cancelAlertRuleBtn.parentNode.replaceChild(
+        newCancelBtn,
+        cancelAlertRuleBtn
+      );
+      newCancelBtn.addEventListener("click", () => this.hideAlertRuleModal());
     }
 
     // Close modal on background click
-    const modal = document.getElementById('alertRuleModal');
+    const modal = document.getElementById("alertRuleModal");
     if (modal && !this._modalClickHandlerAdded) {
-      modal.addEventListener('click', (e) => {
+      modal.addEventListener("click", (e) => {
         if (e.target === modal) {
           this.hideAlertRuleModal();
         }
@@ -73,12 +77,12 @@ class Alerts {
   }
 
   async loadAlertRules() {
-    const loadingEl = document.getElementById('alertRulesLoading');
-    if (loadingEl) loadingEl.style.display = 'block';
+    const loadingEl = document.getElementById("alertRulesLoading");
+    if (loadingEl) loadingEl.style.display = "block";
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getAlertRules'
+        action: "getAlertRules",
       });
 
       if (response?.success) {
@@ -86,30 +90,33 @@ class Alerts {
         this.displayAlertRules();
       }
     } catch (error) {
-      console.error('Failed to load alert rules:', error);
+      console.error("Failed to load alert rules:", error);
     } finally {
-      if (loadingEl) loadingEl.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = "none";
     }
   }
 
   displayAlertRules() {
-    const listEl = document.getElementById('alertRulesList');
+    const listEl = document.getElementById("alertRulesList");
     if (!listEl) return;
 
     if (this.rules.length === 0) {
-      listEl.innerHTML = '<p class="placeholder">No alert rules configured. Click "Add Rule" to create your first alert.</p>';
+      listEl.innerHTML =
+        '<p class="placeholder">No alert rules configured. Click "Add Rule" to create your first alert.</p>';
       return;
     }
 
-    const html = this.rules.map(rule => `
-      <div class="alert-rule-card ${rule.enabled ? 'enabled' : 'disabled'}">
+    const html = this.rules
+      .map(
+        (rule) => `
+      <div class="alert-rule-card ${rule.enabled ? "enabled" : "disabled"}">
         <div class="rule-header">
           <div class="rule-name">
             <i class="fas fa-bell"></i> ${rule.name}
           </div>
           <div class="rule-actions">
             <button class="toggle-rule-btn" data-id="${rule.id}">
-              <i class="fas fa-${rule.enabled ? 'pause' : 'play'}"></i>
+              <i class="fas fa-${rule.enabled ? "pause" : "play"}"></i>
             </button>
             <button class="delete-rule-btn" data-id="${rule.id}">
               <i class="fas fa-trash"></i>
@@ -120,51 +127,63 @@ class Alerts {
           <div class="rule-condition">
             ${this.formatRuleCondition(rule)}
           </div>
-          ${rule.domain ? `<div class="rule-domain">Domain: ${rule.domain}</div>` : ''}
+          ${
+            rule.domain
+              ? `<div class="rule-domain">Domain: ${rule.domain}</div>`
+              : ""
+          }
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join("");
 
     listEl.innerHTML = html;
 
     // Attach event listeners to buttons
-    listEl.querySelectorAll('.delete-rule-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.deleteAlertRule(btn.dataset.id));
+    listEl.querySelectorAll(".delete-rule-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this.deleteAlertRule(btn.dataset.id));
     });
 
-    listEl.querySelectorAll('.toggle-rule-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.toggleAlertRule(btn.dataset.id));
+    listEl.querySelectorAll(".toggle-rule-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this.toggleAlertRule(btn.dataset.id));
     });
   }
 
   formatRuleCondition(rule) {
     const metrics = {
-      avgDuration: 'Average Response Time',
-      errorRate: 'Error Rate',
-      requestCount: 'Request Count',
-      maxDuration: 'Max Response Time'
+      avgDuration: "Average Response Time",
+      errorRate: "Error Rate",
+      requestCount: "Request Count",
+      maxDuration: "Max Response Time",
     };
 
     const conditions = {
-      gt: '>',
-      lt: '<',
-      eq: '='
+      gt: ">",
+      lt: "<",
+      eq: "=",
     };
 
     const metric = metrics[rule.metric] || rule.metric;
     const condition = conditions[rule.condition] || rule.condition;
 
-    return `${metric} ${condition} ${rule.threshold}${rule.metric.includes('Duration') ? 'ms' : rule.metric === 'errorRate' ? '%' : ''}`;
+    return `${metric} ${condition} ${rule.threshold}${
+      rule.metric.includes("Duration")
+        ? "ms"
+        : rule.metric === "errorRate"
+        ? "%"
+        : ""
+    }`;
   }
 
   async loadAlertHistory() {
-    const loadingEl = document.getElementById('alertHistoryLoading');
-    if (loadingEl) loadingEl.style.display = 'block';
+    const loadingEl = document.getElementById("alertHistoryLoading");
+    if (loadingEl) loadingEl.style.display = "block";
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getAlertHistory',
-        limit: 50
+        action: "getAlertHistory",
+        limit: 50,
       });
 
       if (response?.success) {
@@ -172,22 +191,25 @@ class Alerts {
         this.displayAlertHistory();
       }
     } catch (error) {
-      console.error('Failed to load alert history:', error);
+      console.error("Failed to load alert history:", error);
     } finally {
-      if (loadingEl) loadingEl.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = "none";
     }
   }
 
   displayAlertHistory() {
-    const listEl = document.getElementById('alertHistoryList');
+    const listEl = document.getElementById("alertHistoryList");
     if (!listEl) return;
 
     if (this.history.length === 0) {
-      listEl.innerHTML = '<p class="placeholder">No alerts have been triggered</p>';
+      listEl.innerHTML =
+        '<p class="placeholder">No alerts have been triggered</p>';
       return;
     }
 
-    const html = this.history.map(alert => `
+    const html = this.history
+      .map(
+        (alert) => `
       <div class="alert-history-card">
         <div class="alert-time">
           ${new Date(alert.triggered_at).toLocaleString()}
@@ -202,43 +224,47 @@ class Alerts {
           Value: ${alert.value} | Threshold: ${alert.threshold}
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join("");
 
     listEl.innerHTML = html;
   }
 
   showAlertRuleModal() {
-    const modal = document.getElementById('alertRuleModal');
+    const modal = document.getElementById("alertRuleModal");
     if (modal) {
       // Reset form
-      document.getElementById('alertName').value = '';
-      document.getElementById('alertMetric').value = 'avgDuration';
-      document.getElementById('alertCondition').value = 'gt';
-      document.getElementById('alertThreshold').value = '';
-      document.getElementById('alertDomain').value = '';
-      document.getElementById('alertEnabled').checked = true;
+      document.getElementById("alertName").value = "";
+      document.getElementById("alertMetric").value = "avgDuration";
+      document.getElementById("alertCondition").value = "gt";
+      document.getElementById("alertThreshold").value = "";
+      document.getElementById("alertDomain").value = "";
+      document.getElementById("alertEnabled").checked = true;
 
-      modal.style.display = 'flex';
+      modal.style.display = "flex";
     }
   }
 
   hideAlertRuleModal() {
-    const modal = document.getElementById('alertRuleModal');
+    const modal = document.getElementById("alertRuleModal");
     if (modal) {
-      modal.style.display = 'none';
+      modal.style.display = "none";
     }
   }
 
   async saveAlertRule() {
-    const name = document.getElementById('alertName')?.value;
-    const metric = document.getElementById('alertMetric')?.value;
-    const condition = document.getElementById('alertCondition')?.value;
-    const threshold = parseFloat(document.getElementById('alertThreshold')?.value);
-    const domain = document.getElementById('alertDomain')?.value;
-    const enabled = document.getElementById('alertEnabled')?.checked;
+    const name = document.getElementById("alertName")?.value;
+    const metric = document.getElementById("alertMetric")?.value;
+    const condition = document.getElementById("alertCondition")?.value;
+    const threshold = parseFloat(
+      document.getElementById("alertThreshold")?.value
+    );
+    const domain = document.getElementById("alertDomain")?.value;
+    const enabled = document.getElementById("alertEnabled")?.checked;
 
     if (!name || !metric || !condition || isNaN(threshold)) {
-      this.showToast('Please fill in all required fields', 'error');
+      this.showToast("Please fill in all required fields", "error");
       return;
     }
 
@@ -248,82 +274,88 @@ class Alerts {
       condition,
       threshold,
       domain: domain || null,
-      enabled
+      enabled,
     };
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'saveAlertRule',
-        rule
+        action: "saveAlertRule",
+        rule,
       });
 
       if (response?.success) {
-        this.showToast('Alert rule saved successfully', 'success');
+        this.showToast("Alert rule saved successfully", "success");
         this.hideAlertRuleModal();
         await this.loadAlertRules();
       } else {
-        this.showToast('Failed to save alert rule: ' + (response?.error || 'Unknown error'), 'error');
+        this.showToast(
+          "Failed to save alert rule: " + (response?.error || "Unknown error"),
+          "error"
+        );
       }
     } catch (error) {
-      console.error('Failed to save alert rule:', error);
-      this.showToast('Failed to save alert rule', 'error');
+      console.error("Failed to save alert rule:", error);
+      this.showToast("Failed to save alert rule", "error");
     }
   }
 
   async deleteAlertRule(ruleId) {
-    if (!confirm('Are you sure you want to delete this alert rule?')) {
+    if (!confirm("Are you sure you want to delete this alert rule?")) {
       return;
     }
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'deleteAlertRule',
-        ruleId: parseInt(ruleId)
+        action: "deleteAlertRule",
+        ruleId: parseInt(ruleId),
       });
 
       if (response?.success) {
-        this.showToast('Alert rule deleted successfully', 'success');
+        this.showToast("Alert rule deleted successfully", "success");
         await this.loadAlertRules();
       } else {
-        this.showToast('Failed to delete alert rule', 'error');
+        this.showToast("Failed to delete alert rule", "error");
       }
     } catch (error) {
-      console.error('Failed to delete alert rule:', error);
-      this.showToast('Failed to delete alert rule', 'error');
+      console.error("Failed to delete alert rule:", error);
+      this.showToast("Failed to delete alert rule", "error");
     }
   }
 
   async toggleAlertRule(ruleId) {
     // TODO: Implement toggle functionality
-    this.showToast('Toggle functionality coming soon', 'info');
+    this.showToast("Toggle functionality coming soon", "info");
   }
 
   async loadDomainsForAlerts() {
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getDomains',
-        timeRange: 604800
+        action: "getDomains",
+        timeRange: 604800,
       });
 
       if (response?.success && response.domains) {
-        const select = document.getElementById('alertDomain');
+        const select = document.getElementById("alertDomain");
         if (select) {
-          select.innerHTML = '<option value="">All Domains</option>' +
-            response.domains.map(d => `<option value="${d.domain}">${d.domain}</option>`).join('');
+          select.innerHTML =
+            '<option value="">All Domains</option>' +
+            response.domains
+              .map((d) => `<option value="${d.domain}">${d.domain}</option>`)
+              .join("");
         }
       }
     } catch (error) {
-      console.error('Failed to load domains:', error);
+      console.error("Failed to load domains:", error);
     }
   }
 
-  showToast(message, type = 'info') {
-    const notification = document.getElementById('notification');
+  showToast(message, type = "info") {
+    const notification = document.getElementById("notification");
     if (notification) {
       notification.textContent = message;
       notification.className = `notification ${type} show`;
       setTimeout(() => {
-        notification.classList.remove('show');
+        notification.classList.remove("show");
       }, 3000);
     }
   }

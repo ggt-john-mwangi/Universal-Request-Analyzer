@@ -75,8 +75,6 @@ export async function previewCleanup(showNotification) {
       days: days,
     });
 
-    console.log("Preview cleanup response:", response);
-
     if (response && response.success) {
       if (recordsCount)
         recordsCount.textContent = response.recordsToDelete.toLocaleString();
@@ -139,8 +137,6 @@ export async function createBackupBeforeCleanup(showNotification) {
       action: "createBackup",
       includeMetadata: true,
     });
-
-    console.log("Backup response:", response);
 
     if (response && response.success) {
       if (lastBackup) {
@@ -226,8 +222,6 @@ export async function performCleanupWithConfirmation(showNotification) {
       days: days,
     });
 
-    console.log("Cleanup response:", response);
-
     if (response && response.success) {
       showNotification(
         `Cleanup complete: ${response.recordsDeleted.toLocaleString()} records deleted`
@@ -289,8 +283,6 @@ export async function resetDatabase(showNotification) {
       action: "resetDatabase",
     });
 
-    console.log("Reset response:", response);
-
     if (response && response.success) {
       showNotification("Database reset successfully");
       await updateDatabaseSizeDisplay();
@@ -329,8 +321,6 @@ export async function vacuumDatabase(showNotification) {
     const response = await chrome.runtime.sendMessage({
       action: "vacuumDatabase",
     });
-
-    console.log("Vacuum response:", response);
 
     if (response && response.success) {
       showNotification(response.message || "Database vacuumed successfully");
@@ -374,15 +364,12 @@ export async function clearExtensionCache(showNotification) {
  * Sets up all button click handlers for data management features
  */
 export function initializeDataManagement(showNotification) {
-  console.log("Initializing Data Management...");
-
   // Preview Cleanup button
   const previewCleanupBtn = document.getElementById("previewCleanupBtn");
   if (previewCleanupBtn) {
     previewCleanupBtn.addEventListener("click", () =>
       previewCleanup(showNotification)
     );
-    console.log("Preview Cleanup button initialized");
   }
 
   // Create Backup button
@@ -391,7 +378,6 @@ export function initializeDataManagement(showNotification) {
     createBackupBtn.addEventListener("click", () =>
       createBackupBeforeCleanup(showNotification)
     );
-    console.log("Create Backup button initialized");
   }
 
   // Execute Cleanup button
@@ -400,7 +386,6 @@ export function initializeDataManagement(showNotification) {
     executeCleanupBtn.addEventListener("click", () =>
       performCleanupWithConfirmation(showNotification)
     );
-    console.log("Execute Cleanup button initialized");
   }
 
   // Reset Database button
@@ -409,7 +394,6 @@ export function initializeDataManagement(showNotification) {
     resetDatabaseBtn.addEventListener("click", () =>
       resetDatabase(showNotification)
     );
-    console.log("Reset Database button initialized");
   }
 
   // Clear Cache button
@@ -418,7 +402,6 @@ export function initializeDataManagement(showNotification) {
     clearCacheBtn.addEventListener("click", () =>
       clearExtensionCache(showNotification)
     );
-    console.log("Clear Cache button initialized");
   }
 
   // Vacuum Database button
@@ -427,11 +410,8 @@ export function initializeDataManagement(showNotification) {
     vacuumDatabaseBtn.addEventListener("click", () =>
       vacuumDatabase(showNotification)
     );
-    console.log("Vacuum Database button initialized");
   }
 
   // Initialize database size display
   updateDatabaseSizeDisplay();
-
-  console.log("Data Management initialized successfully");
 }

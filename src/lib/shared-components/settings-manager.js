@@ -338,6 +338,14 @@ class SettingsManager {
   }
 
   /**
+   * Sync settings to storage (alias for backward compatibility)
+   * @returns {Promise<void>}
+   */
+  async syncToStorage() {
+    return this.saveToStorage();
+  }
+
+  /**
    * Save settings to database config tables
    * @returns {Promise<void>}
    */

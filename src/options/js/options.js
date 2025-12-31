@@ -37,6 +37,10 @@ import {
   getSchemaDescriptions,
   getSchemaTitles,
 } from "../utils/database-helpers.js";
+import { createLogger } from "../../lib/utils/logger.js";
+
+// Create logger for options page
+const logger = createLogger("Options");
 
 // Configure Chart.js date adapter using date-fns
 import { format, parseISO } from "date-fns";
@@ -211,7 +215,7 @@ let resetThemeBtn;
 // Load when DOM is ready
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    console.log("Options page: DOM loaded, initializing...");
+    logger.info("DOM loaded, initializing...");
 
     // Initialize DOM elements first
     captureEnabled = document.getElementById("captureEnabled");
@@ -243,32 +247,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     saveThemeBtn = document.getElementById("saveThemeBtn");
     resetThemeBtn = document.getElementById("resetThemeBtn");
 
-    console.log("Options page: DOM elements initialized");
+    logger.debug("DOM elements initialized");
 
     // Initialize settings manager
-    console.log("Options page: Initializing settings manager...");
+    logger.info("Initializing settings manager...");
     await settingsManager.initialize();
-    console.log("Options page: Settings manager initialized");
+    logger.success("Settings manager initialized");
 
     // Initialize theme manager
-    console.log("Options page: Initializing theme manager...");
+    logger.info("Initializing theme manager...");
     const currentTheme =
       settingsManager.getAllSettings()?.theme?.current || "light";
     await themeManager.initialize({
       initialTheme: currentTheme,
       onUpdate: handleThemeUpdate,
     });
-    console.log("Options page: Theme manager initialized");
+    logger.success("Theme manager initialized");
 
     // Load initial settings
-    console.log("Options page: Loading options...");
+    logger.info("Loading options...");
     await loadOptions();
-    console.log("Options page: Options loaded");
+    logger.success("Options loaded");
 
     // Load profiles list
-    console.log("Options page: Loading profiles...");
+    logger.info("Loading profiles...");
     await renderProfilesList();
-    console.log("Options page: Profiles loaded");
+    logger.success("Profiles loaded");
 
     // Add settings change listener
     settingsManager.addSettingsListener(handleSettingsChange);
@@ -277,35 +281,75 @@ document.addEventListener("DOMContentLoaded", async () => {
     // The Data Retention section is already in options.html
 
     // Set up tab navigation
-    console.log("Options page: Setting up tab navigation...");
     setupTabNavigation();
 
     // Render theme options
-    console.log("Options page: Rendering theme options...");
     renderThemeOptions();
 
     // Initialize variables manager
-    console.log("Options page: Initializing variables manager...");
     await variablesManager.initialize();
-    console.log("Options page: Variables manager initialized");
 
     // Setup event listeners for buttons
-    console.log("Options page: Setting up event listeners...");
     setupEventListeners();
 
+    // Add immediate capture toggle handler
+    if (captureEnabled) {
+      captureEnabled.addEventListener("change", async (e) => {
+        const enabled = e.target.checked;
+        const captureStatus = document.getElementById("captureStatus");
+
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "capture:toggle",
+            enabled: enabled,
+          });
+
+          if (response && response.success) {
+            // Update status indicator
+            if (captureStatus) {
+              if (enabled) {
+                captureStatus.className = "status-indicator active";
+                captureStatus.title = "Capture is active";
+              } else {
+                captureStatus.className = "status-indicator inactive";
+                captureStatus.title = "Capture is disabled";
+              }
+            }
+            showNotification(
+              `Request capture ${enabled ? "enabled" : "disabled"}`,
+              false
+            );
+
+            // Also save to settings for persistence
+            await settingsManager.updateSettings({
+              capture: { enabled: enabled },
+            });
+          } else {
+            // Revert toggle on failure
+            e.target.checked = !enabled;
+            showNotification(
+              "Failed to toggle capture: " +
+                (response?.error || "Unknown error"),
+              true
+            );
+          }
+        } catch (error) {
+          // Revert toggle on error
+          e.target.checked = !enabled;
+          logger.error("Error toggling capture:", error);
+          showNotification("Failed to toggle capture", true);
+        }
+      });
+    }
+
     // Initialize advanced tab
-    console.log("Options page: Initializing advanced tab...");
     initializeAdvancedTab();
 
     // Initialize Analytics features (accessible from Dashboard)
-    console.log("Options page: Initializing analytics features...");
     await initializeAnalytics();
 
     // Initialize Alerts component
-    console.log("Options page: Initializing alerts...");
     await initializeAlerts();
-
-    console.log("Options page: Initialization complete!");
   } catch (error) {
     console.error("Error initializing options:", error);
     console.error("Error stack:", error.stack);
@@ -413,7 +457,6 @@ async function loadDatabaseInfo() {
   try {
     // Skip if elements don't exist
     if (!dbTotalRequests && !dbSize && !lastExport) {
-      console.log("Database info elements not found, skipping...");
       return;
     }
 
@@ -462,7 +505,6 @@ async function loadDatabaseInfo() {
 
 // Placeholder for SQLite export toggle (if needed by other components)
 function loadSqliteExportToggle() {
-  console.log("loadSqliteExportToggle called");
   // Implementation can be added here if needed
 }
 
@@ -518,7 +560,7 @@ async function saveOptions() {
       showCharts: plotEnabled.checked,
       enabledCharts: Array.from(plotTypeCheckboxes)
         .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value),
+        .map((checkbox) => checkbox.value), // Now uses: performanceChart, statusChart, requestsChart
     },
     theme: {
       current: themeManager.currentTheme,
@@ -527,6 +569,12 @@ async function saveOptions() {
 
   const success = await settingsManager.updateSettings(newSettings);
   if (success) {
+    // Notify background script to reload capture settings
+    try {
+      await chrome.runtime.sendMessage({ action: "reloadCaptureSettings" });
+    } catch (msgError) {
+      console.warn("Failed to reload capture settings:", msgError);
+    }
     showNotification("Options saved successfully!");
   } else {
     showNotification("Error saving options", true);
@@ -633,29 +681,34 @@ async function showExportPreview() {
 
 // Export settings to file
 async function exportSettings() {
-  // Show preview first
-  const proceed = await showExportPreview();
+  try {
+    // Show preview first
+    const proceed = await showExportPreview();
 
-  if (!proceed) {
-    showNotification("Export cancelled");
-    return;
+    if (!proceed) {
+      showNotification("Export cancelled");
+      return;
+    }
+
+    const exportData = settingsManager.exportSettings();
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `request-analyzer-settings-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification("Settings exported successfully!");
+  } catch (error) {
+    console.error("Export Settings failed:", error);
+    showNotification("Failed to export settings: " + error.message, "error");
   }
-
-  const exportData = settingsManager.exportSettings();
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `request-analyzer-settings-${new Date()
-    .toISOString()
-    .slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showNotification("Settings exported successfully!");
 }
 
 // Validate import data
@@ -1514,10 +1567,6 @@ function setupTabNavigation() {
   const tabContents = document.querySelectorAll(".tab-content");
   const pageTitle = document.getElementById("pageTitle");
 
-  console.log(
-    `Found ${navItems.length} nav items and ${tabContents.length} tab contents`
-  );
-
   // Tab titles mapping
   const tabTitles = {
     dashboard: "Dashboard",
@@ -1534,11 +1583,9 @@ function setupTabNavigation() {
 
   navItems.forEach((item, index) => {
     const tabName = item.dataset.tab;
-    console.log(`Nav item ${index}: ${tabName}`);
 
     item.addEventListener("click", () => {
       const tab = item.dataset.tab;
-      console.log(`Tab clicked: ${tab}`);
 
       // Remove active class from all items and contents
       navItems.forEach((i) => i.classList.remove("active"));
@@ -1549,7 +1596,6 @@ function setupTabNavigation() {
       const content = document.getElementById(tab);
       if (content) {
         content.classList.add("active");
-        console.log(`Activated content for: ${tab}`);
       } else {
         console.error(`No content found for tab: ${tab}`);
       }
@@ -1602,11 +1648,9 @@ function setupSubTabNavigation() {
       const targetContent = document.getElementById(targetSubTab);
       if (targetContent) {
         targetContent.classList.add("active");
-        console.log(`Activated sub-tab: ${targetSubTab}`);
 
         // Reload runners when Runners sub-tab is activated
         if (targetSubTab === "runners-list" && window.runnersManager) {
-          console.log("[Options] Reloading runners on tab activation");
           window.runnersManager.loadRunners();
         }
       } else {
@@ -1918,7 +1962,7 @@ function setupEventListeners() {
       "applyDashboardFiltersBtn"
     );
     if (applyDashboardFiltersBtn) {
-      applyDashboardFiltersBtn.addEventListener("click", () => {
+      applyDashboardFiltersBtn.addEventListener("click", async () => {
         // Copy modal values back to actual filters
         const modalDomain = document.getElementById(
           "dashboardModalDomainFilter"
@@ -1934,12 +1978,49 @@ function setupEventListeners() {
           "dashboardRequestTypeFilter"
         );
 
-        if (modalDomain && actualDomain) actualDomain.value = modalDomain.value;
-        if (modalPage && actualPage) actualPage.value = modalPage.value;
-        if (modalType && actualType) actualType.value = modalType.value;
+        // Apply domain first
+        if (modalDomain && actualDomain) {
+          actualDomain.value = modalDomain.value;
+          // Save domain filter
+          if (modalDomain.value && modalDomain.value !== "all") {
+            localStorage.setItem("dashboardDomainFilter", modalDomain.value);
+          } else {
+            localStorage.removeItem("dashboardDomainFilter");
+          }
+        }
 
-        // Trigger change events to refresh dashboard
-        if (actualDomain) actualDomain.dispatchEvent(new Event("change"));
+        // Apply type filter
+        if (modalType && actualType) {
+          actualType.value = modalType.value;
+          // Save type filter
+          if (modalType.value && modalType.value !== "") {
+            localStorage.setItem("dashboardRequestTypeFilter", modalType.value);
+          } else {
+            localStorage.removeItem("dashboardRequestTypeFilter");
+          }
+        }
+
+        // Trigger domain change to load page options
+        if (actualDomain) {
+          actualDomain.dispatchEvent(new Event("change"));
+
+          // Wait for page filter to be loaded (give it time to populate options)
+          // The onDomainFilterChange handler will call loadPageFilter
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+
+        // Now apply page filter after options are loaded
+        if (modalPage && actualPage && modalPage.value) {
+          actualPage.value = modalPage.value;
+          // Save page filter
+          if (modalPage.value && modalPage.value !== "") {
+            localStorage.setItem("dashboardPageFilter", modalPage.value);
+          } else {
+            localStorage.removeItem("dashboardPageFilter");
+          }
+          // Trigger page change to refresh with new page filter
+          actualPage.dispatchEvent(new Event("change"));
+        }
 
         dashboardFilterModal.style.display = "none";
       });
@@ -2181,6 +2262,248 @@ function handleSitePreset(preset) {
   }
 }
 
+// ============================================================================
+// Advanced Query Safety and Enhancement Utilities
+// ============================================================================
+
+/**
+ * Check if query contains dangerous operations
+ * Detects DELETE, DROP, TRUNCATE, ALTER, and UPDATE without WHERE clause
+ */
+function checkQuerySafety(query) {
+  const result = {
+    isDangerous: false,
+    level: "safe",
+    warnings: [],
+  };
+
+  // Check for DROP statements
+  if (/\bDROP\s+(TABLE|DATABASE|INDEX|VIEW)/i.test(query)) {
+    result.isDangerous = true;
+    result.level = "danger";
+    result.warnings.push(
+      "⚠️ DROP operation - Will permanently delete database objects"
+    );
+  }
+
+  // Check for TRUNCATE statements
+  if (/\bTRUNCATE\s+TABLE/i.test(query)) {
+    result.isDangerous = true;
+    result.level = "danger";
+    result.warnings.push(
+      "⚠️ TRUNCATE operation - Will delete all rows from table"
+    );
+  }
+
+  // Check for DELETE without WHERE
+  if (/\bDELETE\s+FROM/i.test(query) && !/\bWHERE\b/i.test(query)) {
+    result.isDangerous = true;
+    result.level = "danger";
+    result.warnings.push(
+      "⚠️ DELETE without WHERE clause - Will delete all rows"
+    );
+  }
+
+  // Check for UPDATE without WHERE
+  if (/\bUPDATE\s+\w+\s+SET/i.test(query) && !/\bWHERE\b/i.test(query)) {
+    result.isDangerous = true;
+    result.level = "danger";
+    result.warnings.push(
+      "⚠️ UPDATE without WHERE clause - Will modify all rows"
+    );
+  }
+
+  // Check for ALTER statements
+  if (/\bALTER\s+TABLE/i.test(query)) {
+    result.isDangerous = true;
+    result.level = "warning";
+    result.warnings.push(
+      "⚠️ ALTER TABLE operation - Will modify table structure"
+    );
+  }
+
+  // Check for CREATE INDEX (less dangerous but still structural)
+  if (/\bCREATE\s+(UNIQUE\s+)?INDEX/i.test(query)) {
+    result.level = "warning";
+    result.warnings.push(
+      "ℹ️ CREATE INDEX operation - Will modify table structure"
+    );
+  }
+
+  return result;
+}
+
+/**
+ * IMPROVEMENT 1: Show confirmation dialog for dangerous queries
+ */
+async function showQueryWarningDialog(safetyCheck) {
+  const warnings = safetyCheck.warnings.join("\n");
+  const message = `DANGER: This query contains potentially destructive operations!\n\n${warnings}\n\nAre you sure you want to execute this query?`;
+
+  return confirm(message);
+}
+
+/**
+ * IMPROVEMENT 4: Execute query with timeout protection
+ */
+async function executeQueryWithTimeout(query, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error("Query execution timeout"));
+    }, timeoutMs);
+
+    chrome.runtime
+      .sendMessage({
+        action: "executeDirectQuery",
+        query: query,
+      })
+      .then((response) => {
+        clearTimeout(timeoutId);
+        resolve(response);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
+/**
+ * IMPROVEMENT 4: Format query errors with enhanced details
+ */
+function formatQueryError(errorMessage, query) {
+  let html =
+    '<div style="color: #d32f2f; padding: 15px; background: #ffebee; border-radius: 4px; border-left: 4px solid #d32f2f;">';
+  html +=
+    '<h4 style="margin: 0 0 10px 0; font-size: 14px;">❌ Query Execution Error</h4>';
+  html += `<p style="margin: 5px 0; font-family: monospace; font-size: 13px;">${escapeHtml(
+    errorMessage
+  )}</p>`;
+
+  // Try to extract line number from error message
+  const lineMatch = errorMessage.match(/line (\d+)/i);
+  if (lineMatch) {
+    html += `<p style="margin: 5px 0; color: #c62828;"><strong>Error at line ${lineMatch[1]}</strong></p>`;
+  }
+
+  // Show query excerpt if available
+  if (query && query.length < 500) {
+    html += '<details style="margin-top: 10px;">';
+    html +=
+      '<summary style="cursor: pointer; color: #666;">View Query</summary>';
+    html += `<pre style="margin: 10px 0; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 4px; overflow-x: auto; font-size: 12px;">${escapeHtml(
+      query
+    )}</pre>`;
+    html += "</details>";
+  }
+
+  html += "</div>";
+  return html;
+}
+
+/**
+ * IMPROVEMENT 3: Export query results to CSV
+ */
+function exportQueryResultToCSV(data, filename = "query_results.csv") {
+  if (!data || data.length === 0) {
+    showNotification("No data to export", true);
+    return;
+  }
+
+  const columns = Object.keys(data[0]);
+
+  // Create CSV content
+  let csv = columns.map((col) => `"${col}"`).join(",") + "\n";
+
+  data.forEach((row) => {
+    const values = columns.map((col) => {
+      const val = row[col];
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    });
+    csv += values.join(",") + "\n";
+  });
+
+  // Download
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  showNotification(`Exported ${data.length} rows to CSV`, false);
+}
+
+/**
+ * IMPROVEMENT 3: Export query results to JSON
+ */
+function exportQueryResultToJSON(data, filename = "query_results.json") {
+  if (!data || data.length === 0) {
+    showNotification("No data to export", true);
+    return;
+  }
+
+  const json = JSON.stringify(data, null, 2);
+
+  // Download
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  showNotification(`Exported ${data.length} rows to JSON`, false);
+}
+
+/**
+ * IMPROVEMENT 3: SQL Query Templates
+ */
+const SQL_TEMPLATES = {
+  "Select All from Table": "SELECT * FROM table_name LIMIT 100;",
+  "Count Records": "SELECT COUNT(*) as total FROM table_name;",
+  "Recent Records (24h)":
+    "SELECT * FROM table_name WHERE timestamp > (strftime('%s', 'now') - 86400) * 1000 LIMIT 100;",
+  "Group By Domain":
+    "SELECT domain, COUNT(*) as count FROM silver_requests GROUP BY domain ORDER BY count DESC;",
+  "Top Status Codes":
+    "SELECT status, COUNT(*) as count FROM bronze_requests GROUP BY status ORDER BY count DESC LIMIT 10;",
+  "Slow Requests (>1s)":
+    "SELECT url, duration, timestamp FROM bronze_requests WHERE duration > 1000 ORDER BY duration DESC LIMIT 50;",
+  "Failed Requests (4xx/5xx)":
+    "SELECT url, status, timestamp FROM bronze_requests WHERE status >= 400 ORDER BY timestamp DESC LIMIT 100;",
+  "Request Methods Distribution":
+    "SELECT method, COUNT(*) as count FROM silver_requests GROUP BY method ORDER BY count DESC;",
+  "Schema Inspection":
+    "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name;",
+  "Database Stats":
+    "SELECT 'Bronze' as layer, COUNT(*) as count FROM bronze_requests UNION ALL SELECT 'Silver' as layer, COUNT(*) as count FROM silver_requests UNION ALL SELECT 'Gold' as layer, COUNT(*) as count FROM gold_daily_analytics;",
+};
+
+/**
+ * IMPROVEMENT 3: Insert SQL template into query editor
+ */
+function insertQueryTemplate(templateName) {
+  const template = SQL_TEMPLATES[templateName];
+  if (!template) return;
+
+  const advancedQuery = document.getElementById("advancedQuery");
+  if (advancedQuery) {
+    advancedQuery.value = template;
+    advancedQuery.focus();
+    // Place cursor at first placeholder
+    const placeholderPos = template.indexOf("table_name");
+    if (placeholderPos >= 0) {
+      advancedQuery.setSelectionRange(placeholderPos, placeholderPos + 10);
+    }
+    showNotification(`Template "${templateName}" loaded`, false);
+  }
+}
+
 // Advanced Tab Functionality
 function initializeAdvancedTab() {
   // Execute Query
@@ -2197,22 +2520,59 @@ function initializeAdvancedTab() {
         return;
       }
 
+      // IMPROVEMENT 1: Query Safety Warnings
+      const safetyCheck = checkQuerySafety(query);
+      if (safetyCheck.isDangerous) {
+        const confirmed = await showQueryWarningDialog(safetyCheck);
+        if (!confirmed) {
+          showNotification("Query execution cancelled", false);
+          return;
+        }
+      }
+
+      // IMPROVEMENT 5: Performance Monitoring - Start timer
+      const startTime = performance.now();
+
       try {
-        const response = await chrome.runtime.sendMessage({
-          action: "executeDirectQuery",
-          query: query,
-        });
+        // IMPROVEMENT 4: Better Error Handling - Add timeout
+        const response = await executeQueryWithTimeout(query, 30000); // 30s timeout
+
+        const endTime = performance.now();
+        const executionTime = ((endTime - startTime) / 1000).toFixed(3); // seconds
 
         if (response.success && queryResult) {
-          displayQueryResult(response.data, queryResult);
-          showNotification("Query executed successfully");
-          // Save to query history
-          await saveQueryToHistory(query, true, null);
+          // IMPROVEMENT 4: Row limit check
+          const rowCount = response.data?.length || 0;
+          const rowLimitWarning =
+            rowCount >= 1000
+              ? `<p style="color: #ff9800; margin-top: 10px; font-weight: bold;">⚠ Result limited to 1000 rows. Query may have returned more data.</p>`
+              : "";
+
+          displayQueryResult(response.data, queryResult, executionTime);
+
+          // IMPROVEMENT 5: Slow query warning
+          if (parseFloat(executionTime) > 1.0) {
+            showNotification(
+              `⚠ Query completed in ${executionTime}s (slow query)`,
+              false
+            );
+          } else {
+            showNotification(
+              `✓ Query executed successfully (${executionTime}s)`,
+              false
+            );
+          }
+
+          // Save to query history with execution time
+          await saveQueryToHistory(query, true, null, executionTime);
         } else {
           if (queryResult) {
-            queryResult.innerHTML = `<p style="color: red;">Error: ${
-              response.error || "Query failed"
-            }</p>`;
+            // IMPROVEMENT 4: Enhanced error display
+            const errorHtml = formatQueryError(
+              response.error || "Query failed",
+              query
+            );
+            queryResult.innerHTML = errorHtml;
           }
           showNotification(
             "Query failed: " + (response.error || "Unknown error"),
@@ -2222,17 +2582,28 @@ function initializeAdvancedTab() {
           await saveQueryToHistory(
             query,
             false,
-            response.error || "Unknown error"
+            response.error || "Unknown error",
+            executionTime
           );
         }
       } catch (error) {
+        const endTime = performance.now();
+        const executionTime = ((endTime - startTime) / 1000).toFixed(3);
+
         console.error("Query execution error:", error);
         if (queryResult) {
-          queryResult.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+          const errorHtml = formatQueryError(error.message, query);
+          queryResult.innerHTML = errorHtml;
         }
-        showNotification("Query execution failed", true);
+
+        const errorMsg =
+          error.message === "Query execution timeout"
+            ? "Query timeout (exceeded 30 seconds)"
+            : error.message;
+
+        showNotification(`Query execution failed: ${errorMsg}`, true);
         // Save failed query to history
-        await saveQueryToHistory(query, false, error.message);
+        await saveQueryToHistory(query, false, errorMsg, executionTime);
       }
     });
   }
@@ -2242,6 +2613,19 @@ function initializeAdvancedTab() {
       advancedQuery.value = "";
       queryResult.innerHTML =
         '<p class="placeholder">Execute a query to see results...</p>';
+    });
+  }
+
+  // IMPROVEMENT 3: Query Template Selection
+  const queryTemplateSelect = document.getElementById("queryTemplateSelect");
+  if (queryTemplateSelect) {
+    queryTemplateSelect.addEventListener("change", (e) => {
+      const templateName = e.target.value;
+      if (templateName) {
+        insertQueryTemplate(templateName);
+        // Reset dropdown
+        e.target.value = "";
+      }
     });
   }
 
@@ -2272,11 +2656,48 @@ function initializeAdvancedTab() {
   // View Logs
   const viewLogsBtn = document.getElementById("viewLogsBtn");
   if (viewLogsBtn) {
-    viewLogsBtn.addEventListener("click", () => {
-      console.log("=== Universal Request Analyzer Debug Info ===");
-      console.log("Extension version: 1.0.0");
-      console.log("Current time:", new Date().toISOString());
-      showNotification("Check browser console for logs");
+    viewLogsBtn.addEventListener("click", async () => {
+      try {
+        // Query bronze_errors table for persisted error logs
+        const response = await chrome.runtime.sendMessage({
+          action: "executeDirectQuery",
+          query:
+            "SELECT * FROM bronze_errors ORDER BY timestamp DESC LIMIT 100",
+        });
+
+        if (
+          response &&
+          response.success &&
+          response.data &&
+          response.data.length > 0
+        ) {
+          // Display logs in console with formatting
+          console.group("=== Universal Request Analyzer Error Logs ===");
+
+          response.data.forEach((log, index) => {
+            const timestamp = log.timestamp
+              ? new Date(log.timestamp).toISOString()
+              : "N/A";
+            console.group(`❌ Error #${index + 1} [${timestamp}]`);
+            console.log(`Message: ${log.message}`);
+            console.log(`Context: ${log.context || "N/A"}`);
+            if (log.url) console.log(`URL: ${log.url}`);
+            if (log.stack) console.log(`Stack:\n${log.stack}`);
+            if (log.user_agent) console.log(`User Agent: ${log.user_agent}`);
+            console.groupEnd();
+          });
+
+          console.groupEnd();
+          showNotification(
+            `✓ Retrieved ${response.data.length} error log(s) from database (see console)`
+          );
+        } else {
+          showNotification("✓ No errors logged in database", false);
+        }
+      } catch (error) {
+        console.error("Failed to fetch error logs from database:", error);
+        showNotification("⚠ Failed to fetch logs from database", true);
+      }
     });
   }
 
@@ -2392,15 +2813,41 @@ function initializeAdvancedTab() {
 
         showNotification("Reading database file...");
 
+        // For import, we cannot send large data through messages or storage due to quota limits
+        // Instead, we need to handle this through the background script's importDatabase handler
+        // which should be called directly via background.js handleMedallionMessages
+
         // Read file as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
 
-        // Send to background
+        // Check size - Chrome message limit is ~64MB
+        const sizeMB = uint8Array.length / (1024 * 1024);
+        if (sizeMB > 50) {
+          showNotification(
+            `Database file is ${sizeMB.toFixed(
+              1
+            )}MB. Chrome extensions have a 64MB message limit. Please use a smaller database or contact support for large database imports.`,
+            true
+          );
+          return;
+        }
+
+        // Send to background - convert to regular array for message passing
         const response = await chrome.runtime.sendMessage({
           action: "importDatabase",
           data: Array.from(uint8Array),
         });
+
+        if (response && response.success) {
+          showNotification("Database imported successfully! Reloading...");
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          showNotification(
+            "Import failed: " + (response?.error || "Unknown error"),
+            true
+          );
+        }
 
         if (response && response.success) {
           showNotification("Database imported successfully! Reloading...");
@@ -2467,6 +2914,85 @@ function initializeAdvancedTab() {
     });
   }
 
+  // Create Backup
+  const createBackupBtn = document.getElementById("createBackupBtn");
+  if (createBackupBtn) {
+    createBackupBtn.addEventListener("click", async () => {
+      try {
+        showNotification("Creating backup...");
+        const response = await chrome.runtime.sendMessage({
+          action: "createBackup",
+        });
+
+        if (response && response.success) {
+          showNotification(`Backup created: ${response.filename}`);
+          // Refresh last backup info
+          await loadLastBackupInfo();
+        } else {
+          showNotification(
+            "Backup failed: " + (response?.error || "Unknown error"),
+            true
+          );
+        }
+      } catch (error) {
+        console.error("Backup error:", error);
+        showNotification("Failed to create backup: " + error.message, true);
+      }
+    });
+  }
+
+  // Execute Cleanup
+  const executeCleanupBtn = document.getElementById("executeCleanupBtn");
+  if (executeCleanupBtn) {
+    executeCleanupBtn.addEventListener("click", async () => {
+      const days = prompt(
+        "Delete records older than how many days? (e.g., 30, 60, 90)",
+        "30"
+      );
+      if (!days) return;
+
+      const numDays = parseInt(days);
+      if (isNaN(numDays) || numDays < 1) {
+        showNotification("Invalid number of days", true);
+        return;
+      }
+
+      if (
+        !confirm(
+          `This will permanently delete all records older than ${numDays} days. This cannot be undone! Continue?`
+        )
+      ) {
+        return;
+      }
+
+      try {
+        showNotification("Cleaning up old records...");
+        const response = await chrome.runtime.sendMessage({
+          action: "cleanupOldRecords",
+          days: numDays,
+        });
+
+        if (response && response.success) {
+          showNotification(
+            `Cleanup complete: Deleted ${response.recordsDeleted} records`
+          );
+          // Refresh cleanup history
+          await loadCleanupHistory();
+          // Refresh stats
+          await loadAdvancedStats();
+        } else {
+          showNotification(
+            "Cleanup failed: " + (response?.error || "Unknown error"),
+            true
+          );
+        }
+      } catch (error) {
+        console.error("Cleanup error:", error);
+        showNotification("Failed to cleanup: " + error.message, true);
+      }
+    });
+  }
+
   // Load advanced stats
   loadAdvancedStats();
 
@@ -2490,7 +3016,7 @@ function initializeAdvancedTab() {
 }
 
 // Display query result in table format
-function displayQueryResult(data, container) {
+function displayQueryResult(data, container, executionTime = null) {
   // Handle new data format (array of objects)
   if (Array.isArray(data)) {
     if (data.length === 0) {
@@ -2501,13 +3027,30 @@ function displayQueryResult(data, container) {
     // Get columns from first object
     const columns = Object.keys(data[0]);
 
-    let html = "<table><thead><tr>";
+    // IMPROVEMENT 3: Add export buttons header
+    let html =
+      '<div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">';
+    html +=
+      '<button id="exportResultCSV" class="btn btn-secondary btn-sm">📊 Export to CSV</button>';
+    html +=
+      '<button id="exportResultJSON" class="btn btn-secondary btn-sm">📄 Export to JSON</button>';
+
+    // IMPROVEMENT 5: Show execution time
+    if (executionTime !== null) {
+      const timeColor = parseFloat(executionTime) > 1.0 ? "#ff9800" : "#4caf50";
+      html += `<span style="margin-left: auto; color: ${timeColor}; font-size: 12px; font-weight: bold;">⏱️ ${executionTime}s</span>`;
+    }
+    html += "</div>";
+
+    html += "<table><thead><tr>";
     columns.forEach((col) => {
       html += `<th>${col}</th>`;
     });
     html += "</tr></thead><tbody>";
 
-    data.forEach((row) => {
+    // IMPROVEMENT 4: Limit to 1000 rows max
+    const displayRows = data.slice(0, 1000);
+    displayRows.forEach((row) => {
       html += "<tr>";
       columns.forEach((col) => {
         const displayValue =
@@ -2518,8 +3061,43 @@ function displayQueryResult(data, container) {
     });
 
     html += "</tbody></table>";
-    html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.length} row(s)</p>`;
+
+    // Result summary with row limit warning
+    html += `<p style="margin-top: 10px; color: #666; font-size: 12px;">Returned ${data.length} row(s)`;
+    if (data.length > 1000) {
+      html += ` <span style="color: #ff9800; font-weight: bold;">(showing first 1000)</span>`;
+    }
+    if (executionTime !== null) {
+      html += ` in ${executionTime}s`;
+    }
+    html += "</p>";
+
     container.innerHTML = html;
+
+    // IMPROVEMENT 3: Attach export button handlers
+    const exportCSVBtn = document.getElementById("exportResultCSV");
+    const exportJSONBtn = document.getElementById("exportResultJSON");
+
+    if (exportCSVBtn) {
+      exportCSVBtn.addEventListener("click", () => {
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, "-")
+          .slice(0, -5);
+        exportQueryResultToCSV(data, `query_results_${timestamp}.csv`);
+      });
+    }
+
+    if (exportJSONBtn) {
+      exportJSONBtn.addEventListener("click", () => {
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, "-")
+          .slice(0, -5);
+        exportQueryResultToJSON(data, `query_results_${timestamp}.json`);
+      });
+    }
+
     return;
   }
 
@@ -2593,8 +3171,83 @@ async function loadAdvancedStats() {
             : `${(estimatedSize / 1024).toFixed(2)} MB`;
       }
     }
+
+    // Load cleanup history
+    await loadCleanupHistory();
+
+    // Load last backup info
+    await loadLastBackupInfo();
   } catch (error) {
     console.error("Failed to load advanced stats:", error);
+  }
+}
+
+// Load and display cleanup history
+async function loadCleanupHistory() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "getCleanupHistory",
+    });
+
+    const container = document.getElementById("cleanupHistory");
+    if (!container) return;
+
+    if (
+      response &&
+      response.success &&
+      response.history &&
+      response.history.length > 0
+    ) {
+      const historyHTML = response.history
+        .map((entry) => {
+          const date = new Date(entry.timestamp).toLocaleString();
+          return `
+            <div class="history-entry">
+              <div class="history-date">${date}</div>
+              <div class="history-details">
+                Deleted ${entry.recordsDeleted} records older than ${
+            entry.days
+          } days
+                (cutoff: ${new Date(entry.cutoffDate).toLocaleDateString()})
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+      container.innerHTML = historyHTML;
+    } else {
+      container.innerHTML =
+        '<p class="placeholder">No cleanup history available</p>';
+    }
+  } catch (error) {
+    console.error("Failed to load cleanup history:", error);
+  }
+}
+
+// Load and display last backup info
+async function loadLastBackupInfo() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "getLastBackupInfo",
+    });
+
+    const element = document.getElementById("lastBackupTime");
+    if (!element) return;
+
+    if (response && response.success && response.lastBackup) {
+      const date = new Date(response.lastBackup.timestamp).toLocaleString();
+      const size =
+        response.lastBackup.size < 1024 * 1024
+          ? `${(response.lastBackup.size / 1024).toFixed(1)} KB`
+          : `${(response.lastBackup.size / (1024 * 1024)).toFixed(2)} MB`;
+      element.textContent = `Last backup: ${date} (${size})`;
+    } else {
+      element.textContent = "Last backup: Never";
+    }
+  } catch (error) {
+    console.error("Failed to load last backup info:", error);
+    const element = document.getElementById("lastBackupTime");
+    if (element) element.textContent = "Last backup: Never";
   }
 }
 
@@ -2813,16 +3466,17 @@ async function loadTablePreview(tableName) {
 }
 
 // Save query to history
-async function saveQueryToHistory(query, success, error) {
+async function saveQueryToHistory(query, success, error, executionTime = null) {
   try {
     const result = await chrome.storage.local.get("queryHistory");
     const history = result.queryHistory || [];
 
-    // Add new query at the beginning
+    // Add new query at the beginning with execution time
     history.unshift({
       query,
       success,
       error,
+      executionTime,
       timestamp: Date.now(),
     });
 
@@ -2860,13 +3514,19 @@ async function loadQueryHistory() {
       const date = new Date(item.timestamp);
       const timeStr = date.toLocaleString();
       const statusClass = item.success ? "success" : "error";
-      const statusText = item.success ? "Success" : "Error";
+      const statusText = item.success ? "✓ Success" : "✗ Error";
+
+      // IMPROVEMENT 5: Show execution time in history
+      const execTimeDisplay = item.executionTime
+        ? `<span style="color: #666; margin-left: 10px;">⏱️ ${item.executionTime}s</span>`
+        : "";
 
       html += `
         <div class="query-history-item" data-index="${index}">
           <div class="query-history-header">
             <span class="query-history-time">${timeStr}</span>
             <span class="query-history-status ${statusClass}">${statusText}</span>
+            ${execTimeDisplay}
           </div>
           <div class="query-history-query">${item.query}</div>
           ${
@@ -3466,6 +4126,7 @@ const manualExportFormat = document.getElementById("manualExportFormat");
 if (exportNowBtn) {
   exportNowBtn.addEventListener("click", async () => {
     const format = manualExportFormat?.value || "json";
+
     const filename = `ura-export-${new Date()
       .toISOString()
       .slice(0, 10)}.${format}`;
@@ -3482,7 +4143,25 @@ if (exportNowBtn) {
       });
 
       if (response && response.success) {
-        showNotification("Export completed successfully!");
+        // Format file size
+        const sizeKB = (response.size / 1024).toFixed(2);
+        const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
+        const sizeDisplay =
+          response.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+
+        // Get format name
+        const formatNames = {
+          json: "JSON",
+          csv: "CSV (ZIP)",
+          sqlite: "SQLite",
+        };
+        const formatName = response.format
+          ? formatNames[response.format] || response.format.toUpperCase()
+          : "Database";
+
+        showNotification(
+          `Export completed! ${formatName} file (${sizeDisplay}) - ${response.filename}`
+        );
 
         // Update last export time
         const lastExportTime = document.getElementById("lastExportTime");
@@ -3871,8 +4550,6 @@ async function populateSiteFilterDropdown() {
       `,
     });
 
-    console.log("Dashboard site filter response:", response);
-
     // Clear existing options except "All Sites"
     dropdown.innerHTML = '<option value="all">All Sites</option>';
 
@@ -3895,10 +4572,6 @@ async function populateSiteFilterDropdown() {
           dropdown.appendChild(option);
         }
       });
-
-      console.log(`Populated site filter with ${domains.length} domains`);
-    } else {
-      console.warn("No domains found in database");
     }
 
     // Add change listener to filter dashboard
@@ -3948,7 +4621,6 @@ async function initializeAnalytics() {
     const { default: Analytics } = await import("../components/analytics.js");
     analyticsInstance = new Analytics();
     await analyticsInstance.initialize();
-    console.log("✓ Analytics component initialized");
   } catch (error) {
     console.error("Failed to initialize Analytics:", error);
   }
@@ -3962,7 +4634,6 @@ async function initializeAlerts() {
     const { default: Alerts } = await import("../components/alerts.js");
     alertsInstance = new Alerts();
     await alertsInstance.initialize();
-    console.log("✓ Alerts component initialized");
   } catch (error) {
     console.error("Failed to initialize Alerts:", error);
   }

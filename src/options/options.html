@@ -1317,12 +1317,17 @@
             </div>
           </section>
 
-          <!-- General Settings Tab -->
+          <!-- General Settings Tab - COMPLETELY REORGANIZED FOR BETTER UX -->
           <section id="general" class="tab-content">
             <div class="options-container">
-              <!-- Capture Settings -->
+              <!-- SECTION 1: MASTER CONTROL -->
               <div class="option-section">
-                <h2><i class="fas fa-power-off"></i> Capture Settings</h2>
+                <h2><i class="fas fa-power-off"></i> Master Control</h2>
+                <p class="description">
+                  <i class="fas fa-info-circle"></i> Enable or disable request
+                  capturing globally. When disabled, no requests are captured or
+                  stored.
+                </p>
                 <div class="option-row">
                   <div class="toggle-switch-row">
                     <label class="toggle-label">
@@ -1336,11 +1341,299 @@
                     </label>
                     <span id="captureStatus" class="status-indicator"></span>
                   </div>
+                  <p class="help-text">
+                    <i class="fas fa-lightbulb"></i> <strong>Tip:</strong> You
+                    can also pause/resume capture from the DevTools panel
+                    without losing settings.
+                  </p>
                 </div>
+              </div>
+
+              <!-- SECTION 2: DASHBOARD VISUALIZATION -->
+              <div class="option-section">
+                <h2>
+                  <i class="fas fa-chart-line"></i> Dashboard Visualization
+                </h2>
+                <p class="description">
+                  <i class="fas fa-info-circle"></i> Control which charts appear
+                  in the DevTools panel's Overview tab. Changes take effect when
+                  you reopen DevTools.
+                </p>
+
+                <div class="option-row">
+                  <div class="toggle-switch-row">
+                    <label class="toggle-label">
+                      <span class="toggle-text">Enable All Charts</span>
+                      <input
+                        type="checkbox"
+                        id="plotEnabled"
+                        class="toggle-input"
+                      />
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <p class="help-text">
+                    <i class="fas fa-info-circle"></i> Master toggle for all
+                    visualizations in DevTools Overview tab
+                  </p>
+                </div>
+
+                <h3><i class="fas fa-chart-bar"></i> Overview Tab Charts</h3>
+                <p class="help-text" style="margin-bottom: 12px">
+                  <i class="fas fa-eye"></i> Select which charts to display in
+                  the <strong>Overview</strong> tab
+                </p>
+                <div class="option-row">
+                  <div class="checkbox-grid">
+                    <label
+                      class="checkbox-card"
+                      title="Line chart showing response times over time"
+                    >
+                      <input
+                        type="checkbox"
+                        name="plotType"
+                        value="performanceChart"
+                      />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-chart-line"></i>
+                        <span class="checkbox-card-title">Response Time</span>
+                        <small class="checkbox-card-desc">Timeline chart</small>
+                      </div>
+                    </label>
+                    <label
+                      class="checkbox-card"
+                      title="Pie chart showing 2xx, 3xx, 4xx, 5xx status distribution"
+                    >
+                      <input
+                        type="checkbox"
+                        name="plotType"
+                        value="statusChart"
+                      />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-chart-pie"></i>
+                        <span class="checkbox-card-title">Status Codes</span>
+                        <small class="checkbox-card-desc">Pie chart</small>
+                      </div>
+                    </label>
+                    <label
+                      class="checkbox-card"
+                      title="Bar chart showing requests by type (XHR, Fetch, Script, etc.)"
+                    >
+                      <input
+                        type="checkbox"
+                        name="plotType"
+                        value="requestsChart"
+                      />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-chart-bar"></i>
+                        <span class="checkbox-card-title">Request Types</span>
+                        <small class="checkbox-card-desc">Bar chart</small>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                <p class="help-text">
+                  <i class="fas fa-lightbulb"></i> <strong>Note:</strong> Other
+                  tabs (Performance, Endpoints, Resources, Errors) are always
+                  available and not controlled by these settings.
+                </p>
+              </div>
+
+              <!-- SECTION 3: CAPTURE FILTERS -->
+              <div class="option-section">
+                <h2><i class="fas fa-filter"></i> Capture Filters</h2>
+                <p class="description">
+                  <i class="fas fa-info-circle"></i> Control which requests are
+                  captured and stored. Only checked request types will be
+                  monitored.
+                </p>
+
+                <h3>
+                  <i class="fas fa-network-wired"></i> Request Types to Capture
+                </h3>
+                <p class="help-text" style="margin-bottom: 12px">
+                  <i class="fas fa-info-circle"></i>
+                  <strong>If none selected, ALL types are captured</strong>
+                  (backward compatibility). Select specific types to filter.
+                </p>
+                <div class="option-row">
+                  <div class="checkbox-grid">
+                    <label
+                      class="checkbox-card"
+                      title="XMLHttpRequest API calls (AJAX)"
+                    >
+                      <input
+                        type="checkbox"
+                        name="captureType"
+                        value="xmlhttprequest"
+                      />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-code"></i>
+                        <span class="checkbox-card-title">XHR/AJAX</span>
+                        <small class="checkbox-card-desc">XMLHttpRequest</small>
+                      </div>
+                    </label>
+
+                    <label class="checkbox-card" title="Fetch API calls">
+                      <input type="checkbox" name="captureType" value="fetch" />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-download"></i>
+                        <span class="checkbox-card-title">Fetch API</span>
+                        <small class="checkbox-card-desc">fetch()</small>
+                      </div>
+                    </label>
+
+                    <label class="checkbox-card" title="JavaScript files (.js)">
+                      <input
+                        type="checkbox"
+                        name="captureType"
+                        value="script"
+                      />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-file-code"></i>
+                        <span class="checkbox-card-title">Scripts</span>
+                        <small class="checkbox-card-desc">.js files</small>
+                      </div>
+                    </label>
+
+                    <label class="checkbox-card" title="CSS stylesheets">
+                      <input
+                        type="checkbox"
+                        name="captureType"
+                        value="stylesheet"
+                      />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-palette"></i>
+                        <span class="checkbox-card-title">Stylesheets</span>
+                        <small class="checkbox-card-desc">.css files</small>
+                      </div>
+                    </label>
+
+                    <label
+                      class="checkbox-card"
+                      title="Images (png, jpg, svg, etc.)"
+                    >
+                      <input type="checkbox" name="captureType" value="image" />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-image"></i>
+                        <span class="checkbox-card-title">Images</span>
+                        <small class="checkbox-card-desc">png, jpg, svg</small>
+                      </div>
+                    </label>
+
+                    <label
+                      class="checkbox-card"
+                      title="Web fonts (woff, ttf, etc.)"
+                    >
+                      <input type="checkbox" name="captureType" value="font" />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-font"></i>
+                        <span class="checkbox-card-title">Fonts</span>
+                        <small class="checkbox-card-desc">woff, ttf</small>
+                      </div>
+                    </label>
+
+                    <label
+                      class="checkbox-card"
+                      title="Media, documents, and other types"
+                    >
+                      <input type="checkbox" name="captureType" value="other" />
+                      <div class="checkbox-card-content">
+                        <i class="fas fa-ellipsis-h"></i>
+                        <span class="checkbox-card-title">Other</span>
+                        <small class="checkbox-card-desc">media, docs</small>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <h3><i class="fas fa-globe"></i> Domain Filters</h3>
+                <div class="option-row">
+                  <label for="includeDomains" class="input-label">
+                    <i class="fas fa-check-circle"></i> Include Domains
+                    <span
+                      class="tooltip-icon"
+                      title="Only capture requests from these domains. Leave empty to track all."
+                      >ⓘ</span
+                    >
+                  </label>
+                  <input
+                    type="text"
+                    id="includeDomains"
+                    class="modern-input"
+                    placeholder="github.com, api.example.com (comma separated)"
+                  />
+                  <span id="includeDomainsError" class="error-message"></span>
+                  <p class="help-text">
+                    <i class="fas fa-lightbulb"></i>
+                    <strong>Wildcard support:</strong> *.example.com matches all
+                    subdomains. Leave empty to capture all domains.
+                  </p>
+                </div>
+
+                <div class="option-row">
+                  <label for="excludeDomains" class="input-label">
+                    <i class="fas fa-times-circle"></i> Exclude Domains
+                    <span
+                      class="tooltip-icon"
+                      title="Block requests from these domains from being captured"
+                      >ⓘ</span
+                    >
+                  </label>
+                  <input
+                    type="text"
+                    id="excludeDomains"
+                    class="modern-input"
+                    placeholder="ads.example.com, tracking.example.com"
+                  />
+                  <span id="excludeDomainsError" class="error-message"></span>
+                  <p class="help-text">
+                    <i class="fas fa-info-circle"></i> Browser internal pages
+                    (chrome://, edge://, about:) are automatically excluded.
+                  </p>
+                </div>
+
+                <h3><i class="fas fa-cogs"></i> Advanced URL Pattern</h3>
+                <div class="option-row">
+                  <label for="urlPattern" class="input-label">
+                    <i class="fas fa-search"></i> URL Pattern (Regex)
+                    <span
+                      class="tooltip-icon"
+                      title="JavaScript regex to filter URLs"
+                      >ⓘ</span
+                    >
+                  </label>
+                  <input
+                    type="text"
+                    id="urlPattern"
+                    class="modern-input"
+                    placeholder="/api/.*|/graphql.*"
+                  />
+                  <span id="urlPatternError" class="error-message"></span>
+                  <p class="help-text">
+                    <i class="fas fa-code"></i> <strong>Examples:</strong>
+                    <code>/api/.*</code> (all API endpoints),
+                    <code>.*\.json$</code> (JSON files)
+                  </p>
+                </div>
+              </div>
+
+              <!-- SECTION 4: STORAGE SETTINGS -->
+              <div class="option-section">
+                <h2><i class="fas fa-database"></i> Storage & Performance</h2>
+                <p class="description">
+                  <i class="fas fa-info-circle"></i> Manage database size and
+                  performance. Higher limits require more memory.
+                </p>
 
                 <div class="option-row">
                   <label for="maxStoredRequests" class="input-label">
                     <i class="fas fa-database"></i> Maximum Stored Requests
+                    <span
+                      class="tooltip-icon"
+                      title="Oldest requests are automatically deleted when this limit is reached"
+                      >ⓘ</span
+                    >
                   </label>
                   <div class="input-with-unit">
                     <input
@@ -1369,339 +1662,148 @@
                 <div class="option-row">
                   <label class="input-label">Quick Presets</label>
                   <div class="preset-buttons">
-                    <button class="preset-btn" data-value="1000">
+                    <button
+                      class="preset-btn"
+                      data-value="1000"
+                      title="Suitable for quick testing"
+                    >
                       <i class="fas fa-feather"></i> Light (1K)
                     </button>
-                    <button class="preset-btn" data-value="10000">
+                    <button
+                      class="preset-btn"
+                      data-value="10000"
+                      title="Recommended for most users"
+                    >
                       <i class="fas fa-balance-scale"></i> Medium (10K)
                     </button>
-                    <button class="preset-btn" data-value="50000">
+                    <button
+                      class="preset-btn"
+                      data-value="50000"
+                      title="For extended analysis sessions"
+                    >
                       <i class="fas fa-weight-hanging"></i> Heavy (50K)
                     </button>
-                    <button class="preset-btn" data-value="100000">
+                    <button
+                      class="preset-btn"
+                      data-value="100000"
+                      title="Maximum capacity (high memory usage)"
+                    >
                       <i class="fas fa-rocket"></i> Max (100K)
                     </button>
                   </div>
                 </div>
               </div>
 
-              <!-- Capture Filters -->
-              <div class="option-section">
-                <h2><i class="fas fa-filter"></i> Capture Filters</h2>
-                <p class="description">
-                  Configure what requests to capture. Changes are automatically
-                  applied to all visualizations.
-                </p>
+              <!-- SECTION 5: ADVANCED (Collapsible) -->
+              <details class="option-section collapsible-section">
+                <summary
+                  style="
+                    cursor: pointer;
+                    font-size: 18px;
+                    font-weight: 600;
+                    padding: 12px 0;
+                    user-select: none;
+                  "
+                >
+                  <i class="fas fa-cog"></i> Advanced Settings
+                  <small
+                    style="font-weight: normal; color: var(--text-secondary)"
+                    >(click to expand)</small
+                  >
+                </summary>
 
-                <div class="option-row">
-                  <div class="toggle-switch-row">
-                    <label class="toggle-label">
-                      <span class="toggle-text"
-                        >Auto-apply filters to all visualizations</span
-                      >
-                      <input
-                        type="checkbox"
-                        id="autoApplyFilters"
-                        checked
-                        class="toggle-input"
-                      />
-                      <span class="toggle-slider"></span>
-                    </label>
-                    <span
-                      class="status-indicator active"
-                      id="filterApplyStatus"
-                    ></span>
-                  </div>
-                </div>
-
-                <h3><i class="fas fa-network-wired"></i> Request Types</h3>
-                <div class="option-row">
-                  <div class="checkbox-grid">
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="captureType"
-                        value="xmlhttprequest"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-code"></i>
-                        <span>XHR</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input type="checkbox" name="captureType" value="fetch" />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-download"></i>
-                        <span>Fetch</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="captureType"
-                        value="script"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-file-code"></i>
-                        <span>Script</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="captureType"
-                        value="stylesheet"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-palette"></i>
-                        <span>Stylesheet</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input type="checkbox" name="captureType" value="image" />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-image"></i>
-                        <span>Image</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input type="checkbox" name="captureType" value="font" />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-font"></i>
-                        <span>Font</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input type="checkbox" name="captureType" value="other" />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-ellipsis-h"></i>
-                        <span>Other</span>
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                <h3><i class="fas fa-globe"></i> Domain Filters</h3>
-                <div class="option-row">
-                  <label for="includeDomains" class="input-label">
-                    <i class="fas fa-check-circle"></i> Include Domains
-                  </label>
-                  <input
-                    type="text"
-                    id="includeDomains"
-                    class="modern-input"
-                    placeholder="github.com, api.github.com (comma separated)"
-                  />
-                  <span id="includeDomainsError" class="error-message"></span>
-                  <p class="help-text">
-                    <i class="fas fa-info-circle"></i> Wildcard support:
-                    *.example.com matches all subdomains. Leave empty to capture
-                    all domains.
+                <div style="margin-top: 16px">
+                  <h3>
+                    <i class="fas fa-globe-americas"></i> Site Tracking
+                    Configuration
+                  </h3>
+                  <p class="description">
+                    <i class="fas fa-info-circle"></i> Configure specific sites
+                    to track for analysis. Content scripts will filter data
+                    based on these patterns.
                   </p>
-                </div>
 
-                <div class="option-row">
-                  <label for="excludeDomains" class="input-label">
-                    <i class="fas fa-times-circle"></i> Exclude Domains
-                  </label>
-                  <input
-                    type="text"
-                    id="excludeDomains"
-                    class="modern-input"
-                    placeholder="Browser pages excluded by default"
-                  />
-                  <span id="excludeDomainsError" class="error-message"></span>
-                  <p class="help-text">
-                    <i class="fas fa-info-circle"></i> Browser internal pages
-                    (chrome://, edge://, about:) are automatically excluded.
-                  </p>
-                </div>
-
-                <h3><i class="fas fa-cogs"></i> Advanced Filters</h3>
-                <div class="option-row">
-                  <label for="urlPattern" class="input-label">
-                    <i class="fas fa-search"></i> URL Pattern (Regex)
-                  </label>
-                  <input
-                    type="text"
-                    id="urlPattern"
-                    class="modern-input"
-                    placeholder="/api/.*|/graphql.*"
-                  />
-                  <span id="urlPatternError" class="error-message"></span>
-                  <p class="help-text">
-                    <i class="fas fa-info-circle"></i> JavaScript regex pattern
-                    to match request URLs
-                  </p>
-                </div>
-              </div>
-
-              <!-- Visualization Settings -->
-              <div class="option-section">
-                <h2><i class="fas fa-chart-bar"></i> Visualization</h2>
-                <div class="option-row">
-                  <div class="toggle-switch-row">
-                    <label class="toggle-label">
-                      <span class="toggle-text">Enable Plots</span>
-                      <input
-                        type="checkbox"
-                        id="plotEnabled"
-                        class="toggle-input"
-                      />
-                      <span class="toggle-slider"></span>
+                  <div class="option-row">
+                    <label for="trackingSites" class="input-label">
+                      <i class="fas fa-list"></i> Sites to Track
                     </label>
-                  </div>
-                </div>
-
-                <div class="option-row">
-                  <label class="input-label">Plot Types</label>
-                  <div class="checkbox-grid">
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="plotType"
-                        value="responseTime"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-clock"></i>
-                        <span>Response Time</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="plotType"
-                        value="statusCodes"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-info-circle"></i>
-                        <span>Status Codes</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input type="checkbox" name="plotType" value="domains" />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-server"></i>
-                        <span>Domains</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="plotType"
-                        value="requestTypes"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-list"></i>
-                        <span>Request Types</span>
-                      </span>
-                    </label>
-                    <label class="checkbox-card">
-                      <input
-                        type="checkbox"
-                        name="plotType"
-                        value="timeDistribution"
-                      />
-                      <span class="checkbox-card-content">
-                        <i class="fas fa-chart-area"></i>
-                        <span>Time Distribution</span>
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Site Tracking Configuration -->
-              <div class="option-section">
-                <h2>
-                  <i class="fas fa-globe-americas"></i> Site Tracking
-                  Configuration
-                </h2>
-                <p class="description">
-                  Configure specific sites to track for analysis. Content
-                  scripts will filter data based on these sites.
-                </p>
-
-                <div class="option-row">
-                  <label for="trackingSites" class="input-label">
-                    <i class="fas fa-list"></i> Sites to Track
-                  </label>
-                  <textarea
-                    id="trackingSites"
-                    rows="6"
-                    class="modern-textarea"
-                    placeholder="Enter one site pattern per line, e.g.:
+                    <textarea
+                      id="trackingSites"
+                      rows="6"
+                      class="modern-textarea"
+                      placeholder="Enter one site pattern per line, e.g.:
 https://example.com
 https://*.github.com
 /api\.example\.com/ (regex)
 *.mysite.com
 example.org/api/*"
-                  ></textarea>
-                  <p class="help-text">
-                    <i class="fas fa-info-circle"></i>
-                    <strong>Supported formats:</strong><br />
-                    • Full URLs: https://example.com<br />
-                    • Wildcards: *.example.com or example.com/*<br />
-                    • Regex patterns: /pattern/ (between slashes)<br />
-                    • Mixed: https://*.api.example.com/v1/*
-                  </p>
-                </div>
-
-                <div class="option-row">
-                  <button id="validateSitesBtn" class="secondary-btn">
-                    <i class="fas fa-check-circle"></i> Validate Patterns
-                  </button>
-                  <button id="addCurrentSiteBtn" class="secondary-btn">
-                    <i class="fas fa-plus"></i> Add Current Site
-                  </button>
-                  <span id="sitesValidationResult" class="help-text"></span>
-                </div>
-
-                <div class="option-row">
-                  <div class="toggle-switch-row">
-                    <label class="toggle-label">
-                      <span class="toggle-text"
-                        >Track ONLY configured sites (if unchecked, tracks all
-                        sites)</span
-                      >
-                      <input
-                        type="checkbox"
-                        id="trackOnlyConfiguredSites"
-                        checked
-                        class="toggle-input"
-                      />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="tracked-sites-box">
-                  <h4>
-                    <i class="fas fa-info-circle"></i> Currently Tracked Sites
-                  </h4>
-                  <div id="trackedSitesList">
-                    <p class="placeholder">
-                      No sites configured. Add sites above to start tracking
-                      specific URLs.
+                    ></textarea>
+                    <p class="help-text">
+                      <i class="fas fa-info-circle"></i>
+                      <strong>Supported formats:</strong><br />
+                      • Full URLs: https://example.com<br />
+                      • Wildcards: *.example.com or example.com/*<br />
+                      • Regex patterns: /pattern/ (between slashes)<br />
+                      • Mixed: https://*.api.example.com/v1/*
                     </p>
                   </div>
-                </div>
 
-                <div class="option-row">
-                  <label class="input-label">Quick Site Presets</label>
-                  <div class="preset-buttons">
-                    <button class="site-preset-btn" data-preset="current">
-                      <i class="fas fa-window-maximize"></i> Add Current Tab
+                  <div class="option-row">
+                    <button id="validateSitesBtn" class="secondary-btn">
+                      <i class="fas fa-check-circle"></i> Validate Patterns
                     </button>
-                    <button class="site-preset-btn" data-preset="popular">
-                      <i class="fas fa-fire"></i> Popular APIs
+                    <button id="addCurrentSiteBtn" class="secondary-btn">
+                      <i class="fas fa-plus"></i> Add Current Site
                     </button>
-                    <button class="site-preset-btn" data-preset="clear">
-                      <i class="fas fa-trash"></i> Clear All
-                    </button>
+                    <span id="sitesValidationResult" class="help-text"></span>
+                  </div>
+
+                  <div class="option-row">
+                    <div class="toggle-switch-row">
+                      <label class="toggle-label">
+                        <span class="toggle-text"
+                          >Track ONLY configured sites (if unchecked, tracks all
+                          sites)</span
+                        >
+                        <input
+                          type="checkbox"
+                          id="trackOnlyConfiguredSites"
+                          checked
+                          class="toggle-input"
+                        />
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="tracked-sites-box">
+                    <h4>
+                      <i class="fas fa-info-circle"></i> Currently Tracked Sites
+                    </h4>
+                    <div id="trackedSitesList">
+                      <p class="placeholder">
+                        No sites configured. Add sites above to start tracking
+                        specific URLs.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="option-row">
+                    <label class="input-label">Quick Site Presets</label>
+                    <div class="preset-buttons">
+                      <button class="site-preset-btn" data-preset="current">
+                        <i class="fas fa-window-maximize"></i> Add Current Tab
+                      </button>
+                      <button class="site-preset-btn" data-preset="popular">
+                        <i class="fas fa-fire"></i> Popular APIs
+                      </button>
+                      <button class="site-preset-btn" data-preset="clear">
+                        <i class="fas fa-trash"></i> Clear All
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </details>
             </div>
           </section>
 
@@ -2301,6 +2403,39 @@ fetch('https://api.example.com/data', {
                       rows="5"
                       placeholder="SELECT * FROM bronze_requests LIMIT 10"
                     ></textarea>
+                  </div>
+                  <!-- IMPROVEMENT 3: Query Templates -->
+                  <div class="option-row">
+                    <label for="queryTemplateSelect">Quick Templates:</label>
+                    <select id="queryTemplateSelect" class="form-control">
+                      <option value="">-- Select a template --</option>
+                      <option value="Select All from Table">
+                        📋 Select All from Table
+                      </option>
+                      <option value="Count Records">🔢 Count Records</option>
+                      <option value="Recent Records (24h)">
+                        🕐 Recent Records (24h)
+                      </option>
+                      <option value="Group By Domain">
+                        🌐 Group By Domain
+                      </option>
+                      <option value="Top Status Codes">
+                        📊 Top Status Codes
+                      </option>
+                      <option value="Slow Requests (>1s)">
+                        🐌 Slow Requests (>1s)
+                      </option>
+                      <option value="Failed Requests (4xx/5xx)">
+                        ❌ Failed Requests (4xx/5xx)
+                      </option>
+                      <option value="Request Methods Distribution">
+                        📈 Request Methods Distribution
+                      </option>
+                      <option value="Schema Inspection">
+                        🔍 Schema Inspection
+                      </option>
+                      <option value="Database Stats">📊 Database Stats</option>
+                    </select>
                   </div>
                   <div class="option-row">
                     <button id="executeQueryBtn" class="primary-btn">

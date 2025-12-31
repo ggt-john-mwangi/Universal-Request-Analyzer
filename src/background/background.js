@@ -3,7 +3,7 @@
 
 import { initDatabase } from "./database/db-manager.js";
 import { setupLocalAuth } from "./auth/local-auth-manager.js";
-import { initializePopupMessageHandler } from "./messaging/popup-message-handler.js";
+import { initializePopupMessageHandler } from "./messaging/message-router.js";
 import { DatabaseManagerMedallion } from "./database/db-manager-medallion.js";
 import { MedallionManager } from "./database/medallion-manager.js";
 import { AnalyticsProcessor } from "./database/analytics-processor.js";
@@ -11,6 +11,7 @@ import { ConfigSchemaManager } from "./database/config-schema-manager.js";
 import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
 import { migrateLegacyToMedallion } from "./database/medallion-migration.js";
 import { runtime, downloads, alarms } from "./compat/browser-compat.js";
+import settingsManager from "../lib/shared-components/settings-manager.js";
 
 class IntegratedExtensionInitializer {
   constructor() {
@@ -201,11 +202,35 @@ class IntegratedExtensionInitializer {
   async initializeRequestCapture() {
     console.log("→ Initializing Request Capture...");
 
+    // Initialize settings manager with database
+    settingsManager.setDatabaseManager(this.configManager);
+    await settingsManager.initialize();
+
+    // Load capture settings from settings-manager
+    const settings = await settingsManager.getSettings();
     const config = {
+      enabled: settings.capture?.enabled ?? true,
       filters: {
         includePatterns: ["<all_urls>"],
+        excludePatterns:
+          settings.capture?.captureFilters?.excludePatterns || [],
       },
+      captureFilters: {
+        includeTypes: settings.capture?.captureFilters?.includeTypes || [],
+        includeDomains: settings.capture?.captureFilters?.includeDomains || [],
+        excludeDomains: settings.capture?.captureFilters?.excludeDomains || [],
+      },
+      trackOnlyConfiguredSites:
+        settings.capture?.trackOnlyConfiguredSites ?? true,
     };
+
+    console.log("Request capture config loaded:", {
+      enabled: config.enabled,
+      includeTypes: config.captureFilters.includeTypes,
+      includeDomains: config.captureFilters.includeDomains,
+      excludeDomains: config.captureFilters.excludeDomains,
+      trackOnlyConfiguredSites: config.trackOnlyConfiguredSites,
+    });
 
     this.requestCapture = new RequestCaptureIntegration(
       this.medallionDb,
@@ -238,19 +263,12 @@ class IntegratedExtensionInitializer {
 
   async handleAllMessages(message, sender, sendResponse) {
     try {
-      console.log("[handleAllMessages] Received message:", message.action);
-
       // First try popup/options handlers (register, login, getPageStats, query, etc.)
       if (this.popupMessageHandler) {
         const popupResponse = await this.popupMessageHandler(message, sender);
-        console.log(
-          "[handleAllMessages] Popup handler response:",
-          popupResponse ? "received" : "null"
-        );
 
         // If popup handler returned a response (not null), send it
         if (popupResponse !== null && popupResponse !== undefined) {
-          console.log("[handleAllMessages] Sending popup response");
           sendResponse(popupResponse);
           return;
         }
@@ -301,7 +319,10 @@ class IntegratedExtensionInitializer {
               const columns = rawResult[0].columns;
               const values = rawResult[0].values;
 
-              const data = values.map((row) => {
+              // IMPROVEMENT 4: Limit results to 1000 rows to prevent memory issues
+              const limitedValues = values.slice(0, 1000);
+
+              const data = limitedValues.map((row) => {
                 const obj = {};
                 columns.forEach((col, index) => {
                   obj[col] = row[index];
@@ -309,7 +330,12 @@ class IntegratedExtensionInitializer {
                 return obj;
               });
 
-              sendResponse({ success: true, data });
+              sendResponse({
+                success: true,
+                data,
+                totalRows: values.length,
+                limited: values.length > 1000,
+              });
             }
           } catch (queryError) {
             console.error("Query execution error:", queryError);
@@ -320,6 +346,13 @@ class IntegratedExtensionInitializer {
         case "ping":
           sendResponse({ success: true, message: "pong" });
           break;
+
+        case "reloadCaptureSettings": {
+          // Reload settings and reinitialize request capture
+          await this.initializeRequestCapture();
+          sendResponse({ success: true, message: "Capture settings reloaded" });
+          break;
+        }
 
         case "clearDatabase":
           try {
@@ -434,12 +467,59 @@ class IntegratedExtensionInitializer {
 
         case "exportDatabase": {
           try {
-            console.log("[Background] Export raw database requested");
-            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-            const filename = `ura_export_${timestamp}.sqlite`;
+            const format = message.format || "json";
+            console.log(`[Background] Export database requested`);
+            console.log(`[Background] - Message:`, message);
+            console.log(`[Background] - Format: ${format}`);
+            console.log(`[Background] - Filename: ${message.filename}`);
 
-            // Export database as Uint8Array
-            const data = this.medallionDb.exportDatabase();
+            let exportResponse;
+
+            // Route to appropriate export handler based on format
+            console.log(
+              `[Background] Routing to handler for format: ${format}`
+            );
+            switch (format) {
+              case "json":
+                console.log("[Background] Calling exportToJSON");
+                exportResponse = await this.popupMessageHandler({
+                  action: "exportToJSON",
+                  options: { prettify: true },
+                });
+                break;
+
+              case "csv":
+                console.log("[Background] Calling exportAllTablesToCSV");
+                exportResponse = await this.popupMessageHandler({
+                  action: "exportAllTablesToCSV",
+                  options: {},
+                });
+                break;
+
+              case "sqlite":
+              default:
+                console.log("[Background] Calling exportToSQLite (default)");
+                exportResponse = await this.popupMessageHandler({
+                  action: "exportToSQLite",
+                  options: {},
+                });
+                break;
+            }
+
+            console.log("[Background] Export handler response:", {
+              success: exportResponse?.success,
+              filename: exportResponse?.filename,
+              size: exportResponse?.size,
+              mimeType: exportResponse?.mimeType,
+            });
+
+            if (!exportResponse || !exportResponse.success) {
+              throw new Error(exportResponse?.error || "Export failed");
+            }
+
+            // Convert array back to Uint8Array for download
+            const data = new Uint8Array(exportResponse.data);
+            console.log(`[Background] Data size: ${data.length} bytes`);
 
             // Convert to base64 in chunks to avoid stack overflow
             let binary = "";
@@ -449,7 +529,17 @@ class IntegratedExtensionInitializer {
               binary += String.fromCharCode.apply(null, chunk);
             }
             const base64 = btoa(binary);
-            const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
+
+            // Use appropriate MIME type based on format
+            const mimeType =
+              exportResponse.mimeType || "application/octet-stream";
+            const dataUrl = `data:${mimeType};base64,${base64}`;
+
+            // Use filename from handler or fallback to provided filename
+            const filename = exportResponse.filename || message.filename;
+            console.log(
+              `[Background] Downloading file: ${filename} (${mimeType})`
+            );
 
             await downloads.download({
               url: dataUrl,
@@ -457,10 +547,12 @@ class IntegratedExtensionInitializer {
               saveAs: true,
             });
 
+            console.log("[Background] Download initiated successfully");
             sendResponse({
               success: true,
               filename: filename,
               size: data.length,
+              format: format,
             });
           } catch (exportError) {
             console.error("[Background] Export error:", exportError);
@@ -674,9 +766,9 @@ class IntegratedExtensionInitializer {
     try {
       // Load auto-export configuration from DB
       const response = await this.popupMessageHandler({
-        action: 'getSetting',
-        category: 'export',
-        key: 'autoExport'
+        action: "getSetting",
+        category: "export",
+        key: "autoExport",
       });
 
       if (!response || !response.success || !response.value) {
@@ -685,36 +777,39 @@ class IntegratedExtensionInitializer {
       }
 
       const autoExportConfig = response.value;
-      
+
       if (!autoExportConfig.enabled) {
         console.log("[Auto-Export] Auto-export is disabled");
         return;
       }
 
-      console.log("[Auto-Export] Starting auto-export with config:", autoExportConfig);
+      console.log(
+        "[Auto-Export] Starting auto-export with config:",
+        autoExportConfig
+      );
 
       // Determine export format (default to SQLite)
-      const format = autoExportConfig.format || 'sqlite';
+      const format = autoExportConfig.format || "sqlite";
       let exportResponse;
 
       // Execute export based on format
       switch (format) {
-        case 'sqlite':
+        case "sqlite":
           exportResponse = await this.popupMessageHandler({
-            action: 'exportToSQLite',
-            options: autoExportConfig.options || {}
+            action: "exportToSQLite",
+            options: autoExportConfig.options || {},
           });
           break;
-        case 'json':
+        case "json":
           exportResponse = await this.popupMessageHandler({
-            action: 'exportToJSON',
-            options: autoExportConfig.options || {}
+            action: "exportToJSON",
+            options: autoExportConfig.options || {},
           });
           break;
-        case 'csv':
+        case "csv":
           exportResponse = await this.popupMessageHandler({
-            action: 'exportToCSV',
-            options: autoExportConfig.options || {}
+            action: "exportToCSV",
+            options: autoExportConfig.options || {},
           });
           break;
         default:
@@ -723,14 +818,16 @@ class IntegratedExtensionInitializer {
       }
 
       if (exportResponse && exportResponse.success) {
-        console.log(`[Auto-Export] Export completed: ${exportResponse.filename}`);
-        
+        console.log(
+          `[Auto-Export] Export completed: ${exportResponse.filename}`
+        );
+
         // Update last export time
         await this.popupMessageHandler({
-          action: 'saveSetting',
-          category: 'export',
-          key: 'lastAutoExport',
-          value: Date.now()
+          action: "saveSetting",
+          category: "export",
+          key: "lastAutoExport",
+          value: Date.now(),
         });
 
         // TODO: Handle backup rotation if maxBackups is set
@@ -756,9 +853,9 @@ class IntegratedExtensionInitializer {
 
       // Map frequency to minutes
       const frequencyMap = {
-        'daily': 24 * 60,      // 1440 minutes
-        'weekly': 7 * 24 * 60, // 10080 minutes
-        'monthly': 30 * 24 * 60 // 43200 minutes
+        daily: 24 * 60, // 1440 minutes
+        weekly: 7 * 24 * 60, // 10080 minutes
+        monthly: 30 * 24 * 60, // 43200 minutes
       };
 
       const periodInMinutes = frequencyMap[config.frequency] || 24 * 60;
@@ -766,16 +863,20 @@ class IntegratedExtensionInitializer {
       if (alarms) {
         // Clear existing alarm
         await alarms.clear("autoExport");
-        
+
         // Create new alarm
         await alarms.create("autoExport", {
           when: Date.now() + 60000, // Start in 1 minute
-          periodInMinutes: periodInMinutes
+          periodInMinutes: periodInMinutes,
         });
 
-        console.log(`[Auto-Export] Scheduled with frequency: ${config.frequency} (${periodInMinutes} minutes)`);
+        console.log(
+          `[Auto-Export] Scheduled with frequency: ${config.frequency} (${periodInMinutes} minutes)`
+        );
       } else {
-        console.warn("[Auto-Export] chrome.alarms not available, auto-export won't work");
+        console.warn(
+          "[Auto-Export] chrome.alarms not available, auto-export won't work"
+        );
       }
     } catch (error) {
       console.error("[Auto-Export] Failed to setup auto-export:", error);

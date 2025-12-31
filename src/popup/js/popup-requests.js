@@ -9,9 +9,25 @@ import { truncateUrl, showNotification } from "./popup-utils.js";
  */
 export async function loadRecentRequests() {
   try {
+    // Get current tab to filter by domain
+    const tabs = await (globalThis.browser || globalThis.chrome).tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    const currentTab = tabs[0];
+
+    let domain = null;
+    if (currentTab?.url) {
+      try {
+        domain = new URL(currentTab.url).hostname;
+      } catch (e) {
+        console.error("Invalid URL:", currentTab.url);
+      }
+    }
+
     const response = await runtime.sendMessage({
       action: "getRecentRequests",
-      data: { limit: 10 },
+      data: { limit: 10, domain },
     });
 
     if (response && response.success && response.requests) {

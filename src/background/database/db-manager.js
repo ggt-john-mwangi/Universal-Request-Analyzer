@@ -150,6 +150,9 @@ async function loadDatabaseFromChromeStorage() {
   }
 }
 
+// Track if backup warning has been shown (module-level to persist across calls)
+let _backupWarningShown = false;
+
 async function saveDatabaseToChromeStorage(data) {
   try {
     if (typeof chrome === "undefined" || !chrome.storage) {
@@ -172,7 +175,7 @@ async function saveDatabaseToChromeStorage(data) {
 
     if (sizeInBytes > maxSize) {
       // Only log once per session to avoid console spam
-      if (!this._backupWarningShown) {
+      if (!_backupWarningShown) {
         console.info(
           `[DB] Database too large for Chrome storage backup (${(
             sizeInBytes /
@@ -180,7 +183,7 @@ async function saveDatabaseToChromeStorage(data) {
             1024
           ).toFixed(2)}MB). Using OPFS only.`
         );
-        this._backupWarningShown = true;
+        _backupWarningShown = true;
       }
       return;
     }

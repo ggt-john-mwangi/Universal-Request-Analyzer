@@ -18,8 +18,6 @@ class Dashboard {
   }
 
   async initialize() {
-    console.log("Initializing Dashboard...");
-
     // Load domain filter first and check if domains exist
     const hasData = await this.loadDomainFilter();
 
@@ -38,8 +36,6 @@ class Dashboard {
 
     // Start auto-refresh
     this.startAutoRefresh();
-
-    console.log("✓ Dashboard initialized");
   }
 
   setupEventListeners() {
@@ -54,15 +50,23 @@ class Dashboard {
 
     const domainFilter = document.getElementById("dashboardDomainFilter");
     if (domainFilter) {
-      domainFilter.addEventListener("change", () =>
-        this.onDomainFilterChange()
-      );
+      domainFilter.addEventListener("change", () => {
+        // Save domain filter to localStorage
+        localStorage.setItem("dashboardDomainFilter", domainFilter.value);
+        this.onDomainFilterChange();
+      });
     }
 
     const pageFilter = document.getElementById("dashboardPageFilter");
     if (pageFilter) {
-      pageFilter.addEventListener("change", () => {
-        console.log("[Dashboard] Page filter changed to:", pageFilter.value);
+      pageFilter.addEventListener("change", (e) => {
+        const value = pageFilter.value;
+        // Save page filter to localStorage (only if not empty - don't save "All Pages")
+        if (value && value !== "") {
+          localStorage.setItem("dashboardPageFilter", value);
+        } else {
+          localStorage.removeItem("dashboardPageFilter");
+        }
         this.refreshDashboard();
       });
     }
@@ -71,9 +75,14 @@ class Dashboard {
       "dashboardRequestTypeFilter"
     );
     if (requestTypeFilter) {
-      requestTypeFilter.addEventListener("change", () =>
-        this.refreshDashboard()
-      );
+      requestTypeFilter.addEventListener("change", () => {
+        // Save type filter to localStorage
+        localStorage.setItem(
+          "dashboardRequestTypeFilter",
+          requestTypeFilter.value
+        );
+        this.refreshDashboard();
+      });
     }
 
     const timeRangeSelect = document.getElementById("dashboardTimeRange");
@@ -372,24 +381,86 @@ class Dashboard {
 
   async initializeCharts() {
     // Check if plots/visualizations are enabled in settings
+    let enabledCharts = ["requestsChart", "statusChart", "performanceChart"]; // Default: all enabled
     try {
       const response = await chrome.runtime.sendMessage({
-        action: "getSettings"
+        action: "getSettings",
       });
 
       if (response && response.success && response.settings) {
-        const visualizationSettings = response.settings.visualizations || response.settings.settings?.visualizations;
-        const enablePlots = visualizationSettings?.enablePlots;
+        const displaySettings =
+          response.settings.display || response.settings.settings?.display;
+        const showCharts = displaySettings?.showCharts;
 
-        if (enablePlots === false) {
-          console.log("[Dashboard] Plots disabled in settings, showing message");
+        if (showCharts === false) {
           this.showPlotsDisabledMessage();
           return; // Don't initialize charts
         }
+
+        // Get user-selected chart types
+        if (
+          displaySettings?.enabledCharts &&
+          Array.isArray(displaySettings.enabledCharts)
+        ) {
+          enabledCharts = displaySettings.enabledCharts;
+        }
       }
     } catch (error) {
-      console.warn("[Dashboard] Could not check visualization settings:", error);
+      console.warn(
+        "[Dashboard] Could not check visualization settings:",
+        error
+      );
       // Continue with chart initialization if settings check fails
+    }
+
+    // Map settings chart names to dashboard chart sections
+    const chartMap = {
+      requestsChart: "dashboardVolumeChart", // Request Volume
+      statusChart: "dashboardStatusChart", // Status Distribution
+      performanceChart: "dashboardPerformanceChart", // Performance Trends
+    };
+
+    // Hide chart sections that are not enabled
+    Object.entries(chartMap).forEach(([settingName, canvasId]) => {
+      const canvas = document.getElementById(canvasId);
+      if (canvas) {
+        // For charts in chart-row (status, domains), find the .half parent
+        let chartSection = canvas.closest(".chart-section.half");
+        if (!chartSection) {
+          // For standalone charts (volume, performance), find the regular .chart-section
+          chartSection = canvas.closest(".chart-section");
+        }
+
+        if (chartSection) {
+          if (enabledCharts.includes(settingName)) {
+            chartSection.style.display = "";
+          } else {
+            chartSection.style.display = "none";
+          }
+        }
+      }
+    });
+
+    // Always show domains chart (not configurable) - but check if both charts in the row are visible
+    const domainsCanvas = document.getElementById("dashboardDomainsChart");
+    if (domainsCanvas) {
+      const chartSection = domainsCanvas.closest(".chart-section.half");
+      if (chartSection) {
+        chartSection.style.display = "";
+
+        // If status chart is hidden, make domains chart full width
+        const statusCanvas = document.getElementById("dashboardStatusChart");
+        const statusSection = statusCanvas?.closest(".chart-section.half");
+        const chartRow = domainsCanvas.closest(".chart-row");
+
+        if (statusSection && statusSection.style.display === "none") {
+          // Status hidden, make domains full width
+          if (chartSection) chartSection.classList.remove("half");
+        } else if (chartRow) {
+          // Both visible, ensure half class
+          if (chartSection) chartSection.classList.add("half");
+        }
+      }
     }
 
     const colors = this.getChartColors();
@@ -473,7 +544,7 @@ class Dashboard {
     }
 
     // Domains Chart - Horizontal bar chart for top domains
-    const domainsCanvas = document.getElementById("dashboardDomainsChart");
+    // domainsCanvas already declared above in visibility control section
     if (domainsCanvas) {
       const ctx = domainsCanvas.getContext("2d");
       this.charts.domains = new Chart(ctx, {
@@ -606,8 +677,6 @@ class Dashboard {
   }
 
   async refreshDashboard() {
-    console.log("Refreshing dashboard...");
-
     // Check if "All Domains" is selected
     const domainFilter = document.getElementById("dashboardDomainFilter");
     if (domainFilter && domainFilter.value === "all") {
@@ -641,8 +710,6 @@ class Dashboard {
         const tabName = activeTab.dataset.tab;
         await this.reloadActiveTabData(tabName);
       }
-
-      console.log("✓ Dashboard refreshed");
     } catch (error) {
       console.error("Failed to refresh dashboard:", error);
       this.showError("Failed to load dashboard data. Please try refreshing.");
@@ -1121,8 +1188,6 @@ class Dashboard {
     this.refreshInterval = setInterval(() => {
       this.refreshDashboard();
     }, 30000);
-
-    console.log("✓ Dashboard auto-refresh started (30s interval)");
   }
 
   async loadWebVitals() {
@@ -2476,7 +2541,7 @@ class Dashboard {
       const selectedDomain = domainFilter?.value || "all";
 
       const response = await chrome.runtime.sendMessage({
-        action: "exportHAR",
+        action: "exportAsHAR",
         filters: {
           domain: selectedDomain === "all" ? null : selectedDomain,
           timeRange: this.timeRange,
@@ -3153,13 +3218,7 @@ class Dashboard {
     const checkboxes = document.querySelectorAll(".request-checkbox:checked");
     const requestIds = Array.from(checkboxes).map((cb) => cb.dataset.requestId);
 
-    // Debug log
-    console.log("Selected checkbox count:", checkboxes.length);
-    console.log("Request IDs from checkboxes:", requestIds);
-    console.log("Current requests:", this.currentRequests?.length || 0);
-
     if (!this.currentRequests || this.currentRequests.length === 0) {
-      console.warn("No current requests available");
       return [];
     }
 
@@ -3168,7 +3227,6 @@ class Dashboard {
       requestIds.includes(String(req.id))
     );
 
-    console.log("Matched requests:", selected.length);
     return selected;
   }
 
@@ -3181,7 +3239,6 @@ class Dashboard {
 
     // Store selected requests for runner execution
     this.selectedRunnerRequests = selectedRequests;
-    console.log("Stored runner requests:", this.selectedRunnerRequests.length);
 
     document.getElementById("runnerRequestCount").textContent =
       selectedRequests.length;
@@ -3782,16 +3839,45 @@ class Dashboard {
         });
         console.log(`Loaded ${response.domains.length} domains for dashboard`);
 
-        // Auto-select the first domain by default (instead of "All Domains")
-        const firstDomain = response.domains[0].domain;
-        domainSelect.value = firstDomain;
-        if (modalDomainSelect) {
-          modalDomainSelect.value = firstDomain;
-        }
-        console.log(`Auto-selected domain: ${firstDomain}`);
+        // Check for saved domain filter
+        const savedDomainFilter = localStorage.getItem("dashboardDomainFilter");
+        let selectedDomain;
 
-        // Load pages for the auto-selected domain
-        await this.loadPageFilter(firstDomain);
+        if (
+          savedDomainFilter &&
+          domainSelect.querySelector(`option[value="${savedDomainFilter}"]`)
+        ) {
+          // Restore saved domain
+          selectedDomain = savedDomainFilter;
+        } else {
+          // Auto-select the first domain by default (instead of "All Domains")
+          selectedDomain = response.domains[0].domain;
+        }
+
+        domainSelect.value = selectedDomain;
+        if (modalDomainSelect) {
+          modalDomainSelect.value = selectedDomain;
+        }
+
+        // Save selected domain to localStorage BEFORE loading pages
+        // This ensures page restoration can check if saved page belongs to current domain
+        localStorage.setItem("dashboardDomainFilter", selectedDomain);
+
+        console.log(`Selected domain: ${selectedDomain}`);
+
+        // Load pages for the selected domain
+        await this.loadPageFilter(selectedDomain);
+
+        // Restore saved request type filter
+        const savedTypeFilter = localStorage.getItem(
+          "dashboardRequestTypeFilter"
+        );
+        const typeSelect = document.getElementById(
+          "dashboardRequestTypeFilter"
+        );
+        if (savedTypeFilter && typeSelect) {
+          typeSelect.value = savedTypeFilter;
+        }
 
         return true; // Indicate that domains exist
       } else {
@@ -3872,9 +3958,19 @@ class Dashboard {
         return;
       }
 
-      // Reset page filter
-      pageSelect.innerHTML = '<option value="">All Pages (Aggregated)</option>';
+      // Reset page filter - clear options but keep the element
       pageSelect.disabled = false;
+
+      // Clear existing options
+      while (pageSelect.options.length > 0) {
+        pageSelect.remove(0);
+      }
+
+      // Add default "All Pages" option
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = "All Pages (Aggregated)";
+      pageSelect.appendChild(defaultOption);
 
       if (!domain || domain === "all") {
         pageSelect.disabled = true;
@@ -3910,6 +4006,26 @@ class Dashboard {
             pageSelect.appendChild(option);
           }
         });
+
+        // Restore saved page filter only if it exists in current domain's pages
+        const savedPageFilter = localStorage.getItem("dashboardPageFilter");
+        const savedDomain = localStorage.getItem("dashboardDomainFilter");
+
+        // Only restore if the saved page belongs to the current domain
+        if (savedPageFilter && savedDomain === domain) {
+          const pageExists = Array.from(pageSelect.options).some(
+            (opt) => opt.value === savedPageFilter
+          );
+          if (pageExists) {
+            pageSelect.value = savedPageFilter;
+            // Manually trigger refresh since programmatic value change doesn't fire event
+            await this.refreshDashboard();
+          } else {
+            // Clear saved filter if page doesn't exist in this domain
+            localStorage.removeItem("dashboardPageFilter");
+          }
+        }
+
         console.log(
           `Loaded ${response.pages.length} pages for domain ${domain}`
         );
@@ -3930,8 +4046,6 @@ class Dashboard {
       "dashboardRequestTypeFilter"
     )?.value;
 
-    console.log("[Dashboard] Reading filters - domain:", domainFilter, "page:", pageFilter, "type:", requestTypeFilter);
-
     const filters = {};
 
     // Add domain filter (if "all" is selected, no domain filter is added, showing all domains)
@@ -3942,7 +4056,6 @@ class Dashboard {
     // Add page filter (if specific page selected)
     if (pageFilter && pageFilter !== "") {
       filters.pageUrl = pageFilter;
-      console.log("[Dashboard] Page filter applied:", pageFilter);
     }
 
     // Add request type filter
@@ -3998,8 +4111,12 @@ class Dashboard {
 
       // Web Vitals are page-specific metrics - require page selection
       if (!filters.pageUrl) {
-        console.log("[Dashboard] Skipping Web Vitals - no page selected (page-level metrics only)");
-        this.hideWebVitals("Please select a specific page to view Core Web Vitals");
+        console.log(
+          "[Dashboard] Skipping Web Vitals - no page selected (page-level metrics only)"
+        );
+        this.hideWebVitals(
+          "Please select a specific page to view Core Web Vitals"
+        );
         return;
       }
 
@@ -4066,7 +4183,9 @@ class Dashboard {
     webVitalsSection.style.pointerEvents = "none";
 
     // Add overlay message if not exists
-    let overlay = webVitalsSection.parentElement.querySelector(".page-level-overlay");
+    let overlay = webVitalsSection.parentElement.querySelector(
+      ".page-level-overlay"
+    );
     if (!overlay) {
       console.log("[Dashboard] hideWebVitals: Creating new overlay");
       overlay = document.createElement("div");
@@ -4108,18 +4227,22 @@ class Dashboard {
     const parent = webVitalsSection.parentElement;
     if (parent) {
       const overlays = parent.querySelectorAll(".page-level-overlay");
-      overlays.forEach(overlay => overlay.remove());
+      overlays.forEach((overlay) => overlay.remove());
     }
-    
+
     // Also check if overlay is a sibling
-    const siblingOverlays = document.querySelectorAll(".web-vitals-section .page-level-overlay");
-    siblingOverlays.forEach(overlay => overlay.remove());
+    const siblingOverlays = document.querySelectorAll(
+      ".web-vitals-section .page-level-overlay"
+    );
+    siblingOverlays.forEach((overlay) => overlay.remove());
 
     // Show the vitals cards
     webVitalsSection.style.opacity = "1";
     webVitalsSection.style.pointerEvents = "auto";
-    
-    console.log("[Dashboard] showWebVitals: Overlay removed, vitals section visible");
+
+    console.log(
+      "[Dashboard] showWebVitals: Overlay removed, vitals section visible"
+    );
   }
 
   updateVitalCard(metric, data) {

@@ -1,14 +1,12 @@
 // Runner Collections - Group and manage request runner sessions
 // Supports saving, scheduling, and organizing runner configurations
-// NOW USING DATABASE INSTEAD OF CHROME.STORAGE
-
-import { storage } from "../compat/browser-compat.js";
+// NOW FULLY USING DATABASE (collections + scheduled runs)
 
 class RunnerCollections {
   constructor() {
     this.collectionsCache = []; // In-memory cache for performance
     this.dbManager = null; // Will be set by message handler
-    this.scheduledRuns = []; // TODO: Migrate to database table
+    this.scheduledRuns = []; // Cached from database
     this.initialized = false;
   }
 
@@ -32,12 +30,18 @@ class RunnerCollections {
         return;
       }
 
+      if (!this.dbManager.collection || !this.dbManager.scheduledRun) {
+        console.warn(
+          "[Collections] Database manager missing collection or scheduledRun methods"
+        );
+        return;
+      }
+
       // Load collections from database
       this.collectionsCache = await this.dbManager.collection.getCollections();
 
-      // Load scheduled runs from storage (TODO: migrate to database)
-      const data = await storage.get(["scheduledRuns"]);
-      this.scheduledRuns = data.scheduledRuns || [];
+      // Load scheduled runs from database
+      this.scheduledRuns = await this.dbManager.scheduledRun.getScheduledRuns();
 
       this.initialized = true;
       console.log(
@@ -156,10 +160,10 @@ class RunnerCollections {
         );
 
         // Also remove any scheduled runs for this collection
+        // Scheduled runs are stored in database and cascade deleted via foreign key
         this.scheduledRuns = this.scheduledRuns.filter(
           (s) => s.collectionId !== collectionId
         );
-        await this.saveScheduledRuns();
 
         console.log(`[Collections] Deleted collection: ${collectionId}`);
         return true;
@@ -270,15 +274,21 @@ class RunnerCollections {
   async scheduleRun(collectionId, scheduleConfig) {
     if (!this.initialized) await this.initialize();
 
-    const collection = this.collections.find((c) => c.id === collectionId);
-    if (!collection) {
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
+    }
+
+    const collectionData = this.collectionsCache.find(
+      (c) => c.id === collectionId
+    );
+    if (!collectionData) {
       throw new Error("Collection not found");
     }
 
     const schedule = {
       id: `schedule_${Date.now()}`,
       collectionId,
-      collectionName: collection.name,
+      collectionName: collectionData.name,
       type: scheduleConfig.type, // 'once', 'daily', 'weekly', 'interval'
       interval: scheduleConfig.interval, // minutes for 'interval' type
       time: scheduleConfig.time, // HH:MM for daily/weekly
@@ -290,8 +300,15 @@ class RunnerCollections {
       lastStatus: null,
     };
 
-    this.scheduledRuns.push(schedule);
-    await this.saveScheduledRuns();
+    const result = await this.dbManager.scheduledRun.createScheduledRun(
+      schedule
+    );
+
+    if (result.success) {
+      // Add to cache
+      this.scheduledRuns.push(schedule);
+      console.log(`[Collections] Created scheduled run: ${schedule.id}`);
+    }
 
     return schedule;
   }
@@ -302,15 +319,14 @@ class RunnerCollections {
   async updateScheduledRun(scheduleId, updates) {
     if (!this.initialized) await this.initialize();
 
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
+    }
+
     const index = this.scheduledRuns.findIndex((s) => s.id === scheduleId);
     if (index === -1) {
       throw new Error("Scheduled run not found");
     }
-
-    this.scheduledRuns[index] = {
-      ...this.scheduledRuns[index],
-      ...updates,
-    };
 
     // Recalculate next run if schedule config changed
     if (
@@ -319,12 +335,24 @@ class RunnerCollections {
       updates.time ||
       updates.daysOfWeek
     ) {
-      this.scheduledRuns[index].nextRunAt = this.calculateNextRun(
-        this.scheduledRuns[index]
-      );
+      const updatedSchedule = { ...this.scheduledRuns[index], ...updates };
+      updates.nextRunAt = this.calculateNextRun(updatedSchedule);
     }
 
-    await this.saveScheduledRuns();
+    const result = await this.dbManager.scheduledRun.updateScheduledRun(
+      scheduleId,
+      updates
+    );
+
+    if (result.success) {
+      // Update cache
+      this.scheduledRuns[index] = {
+        ...this.scheduledRuns[index],
+        ...updates,
+      };
+      console.log(`[Collections] Updated scheduled run: ${scheduleId}`);
+    }
+
     return this.scheduledRuns[index];
   }
 
@@ -334,15 +362,26 @@ class RunnerCollections {
   async deleteScheduledRun(scheduleId) {
     if (!this.initialized) await this.initialize();
 
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
+    }
+
     const index = this.scheduledRuns.findIndex((s) => s.id === scheduleId);
     if (index === -1) {
       return false;
     }
 
-    this.scheduledRuns.splice(index, 1);
-    await this.saveScheduledRuns();
+    const result = await this.dbManager.scheduledRun.deleteScheduledRun(
+      scheduleId
+    );
 
-    return true;
+    if (result.success) {
+      // Remove from cache
+      this.scheduledRuns.splice(index, 1);
+      console.log(`[Collections] Deleted scheduled run: ${scheduleId}`);
+    }
+
+    return result.success;
   }
 
   /**
@@ -381,26 +420,45 @@ class RunnerCollections {
   async markScheduledRunExecuted(scheduleId, status) {
     if (!this.initialized) await this.initialize();
 
+    if (!this.dbManager) {
+      throw new Error("Database manager not initialized");
+    }
+
     const index = this.scheduledRuns.findIndex((s) => s.id === scheduleId);
     if (index === -1) {
       return false;
     }
 
-    this.scheduledRuns[index].lastRunAt = Date.now();
-    this.scheduledRuns[index].lastStatus = status;
+    const updates = {
+      lastRunAt: Date.now(),
+      lastStatus: status,
+    };
 
     // Calculate next run time
     if (this.scheduledRuns[index].type !== "once") {
-      this.scheduledRuns[index].nextRunAt = this.calculateNextRun(
-        this.scheduledRuns[index]
-      );
+      updates.nextRunAt = this.calculateNextRun(this.scheduledRuns[index]);
     } else {
       // Disable one-time schedules after execution
-      this.scheduledRuns[index].enabled = false;
+      updates.enabled = false;
     }
 
-    await this.saveScheduledRuns();
-    return true;
+    const result = await this.dbManager.scheduledRun.updateScheduledRun(
+      scheduleId,
+      updates
+    );
+
+    if (result.success) {
+      // Update cache
+      this.scheduledRuns[index] = {
+        ...this.scheduledRuns[index],
+        ...updates,
+      };
+      console.log(
+        `[Collections] Marked scheduled run as executed: ${scheduleId}`
+      );
+    }
+
+    return result.success;
   }
 
   /**
@@ -458,17 +516,6 @@ class RunnerCollections {
 
       default:
         return Date.now();
-    }
-  }
-
-  /**
-   * Save scheduled runs to storage (TODO: migrate to database)
-   */
-  async saveScheduledRuns() {
-    try {
-      await storage.set({ scheduledRuns: this.scheduledRuns });
-    } catch (error) {
-      console.error("[Collections] Failed to save scheduled runs:", error);
     }
   }
 }

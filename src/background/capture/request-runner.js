@@ -862,6 +862,7 @@ class RequestRunner {
   /**
    * Store run results in database
    */
+  // TODO: REMOVE - runner_results table is deprecated and not in use anywhere. Safe to delete this method and related schema.
   async storeRunResults(run) {
     if (!this.dbManager || !this.dbManager.db) {
       return;

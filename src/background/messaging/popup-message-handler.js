@@ -149,6 +149,9 @@ async function handleMessage(message, sender) {
       case "deleteAlertRule":
         return await handleDeleteAlertRule(message.ruleId);
 
+      case "logError":
+        return await handleLogError(message.error);
+
       case "getAlertHistory":
         return await handleGetAlertHistory(message.limit);
 
@@ -175,6 +178,9 @@ async function handleMessage(message, sender) {
 
       case "exportToCSV":
         return await handleExportToCSV(message.options);
+
+      case "exportAllTablesToCSV":
+        return await handleExportAllTablesToCSV(message.options);
 
       case "getRecentErrors":
         return await handleGetRecentErrors(data);
@@ -1186,7 +1192,7 @@ async function handleGetSettings() {
     );
     console.log(
       "[Background] Has variables key:",
-      settings?.hasOwnProperty("variables")
+      Object.prototype.hasOwnProperty.call(settings || {}, "variables")
     );
     console.log("[Background] Variables object:", settings?.variables);
     console.log(
@@ -3663,15 +3669,16 @@ async function handleGetRecentRequests(data) {
       return { success: false, error: "Database not available" };
     }
 
-    const limit = data?.limit || 10;
+    const { limit, domain } = data || {};
+    const actualLimit = limit || 10;
 
     const escapeStr = (val) => {
       if (val === undefined || val === null) return "NULL";
       return `'${String(val).replace(/'/g, "''")}'`;
     };
 
-    // Get recent requests from silver_requests
-    const query = `
+    // Build query with optional domain filter
+    let query = `
       SELECT 
         id,
         url,
@@ -3685,8 +3692,16 @@ async function handleGetRecentRequests(data) {
         size_bytes as size,
         status_text
       FROM silver_requests
+    `;
+
+    // Add domain filter if provided (for popup to filter by current tab's domain)
+    if (domain) {
+      query += ` WHERE domain = ${escapeStr(domain)}`;
+    }
+
+    query += `
       ORDER BY timestamp DESC
-      LIMIT ${parseInt(limit)}
+      LIMIT ${parseInt(actualLimit)}
     `;
 
     const queryResult = dbManager.db.exec(query);
@@ -5037,5 +5052,272 @@ async function handleExportToCSV(options = {}) {
   } catch (error) {
     console.error("[Export] CSV export error:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Export all database tables to CSV format (multiple CSV files in ZIP)
+ * Creates a simple ZIP archive with one CSV per table
+ */
+async function handleExportAllTablesToCSV(options = {}) {
+  try {
+    if (!dbManager?.db) {
+      return { success: false, error: "Database not available" };
+    }
+
+    console.log("[Export] Starting multi-table CSV export");
+
+    // Get all table names
+    const tableNamesResult = dbManager.db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `);
+
+    const allTables = tableNamesResult[0]?.values.map((row) => row[0]) || [];
+
+    if (allTables.length === 0) {
+      return { success: false, error: "No tables found in database" };
+    }
+
+    console.log(`[Export] Exporting ${allTables.length} tables as CSV files`);
+
+    // Generate CSV for each table
+    const csvFiles = [];
+    for (const tableName of allTables) {
+      try {
+        const result = dbManager.db.exec(`SELECT * FROM ${tableName}`);
+
+        if (result.length === 0 || result[0].values.length === 0) {
+          console.log(`[Export] Skipping empty table: ${tableName}`);
+          continue;
+        }
+
+        const columns = result[0].columns;
+        const rows = result[0].values;
+
+        // Build CSV
+        let csv = columns.join(",") + "\n";
+        for (const row of rows) {
+          const escapedRow = row.map((val) => {
+            if (val === null) return "";
+            const str = String(val);
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          });
+          csv += escapedRow.join(",") + "\n";
+        }
+
+        csvFiles.push({
+          name: `${tableName}.csv`,
+          content: csv,
+          recordCount: rows.length,
+        });
+      } catch (tableError) {
+        console.warn(
+          `[Export] Failed to export table ${tableName}:`,
+          tableError
+        );
+      }
+    }
+
+    if (csvFiles.length === 0) {
+      return { success: false, error: "No data to export" };
+    }
+
+    // Create a simple ZIP file using minimal ZIP format
+    const zipData = createZipArchive(csvFiles);
+
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, -5);
+    const filename = `URA_Export_${timestamp}.zip`;
+
+    console.log(
+      `[Export] Multi-table CSV export complete: ${csvFiles.length} files, ${zipData.length} bytes`
+    );
+
+    return {
+      success: true,
+      data: Array.from(zipData),
+      filename,
+      size: zipData.length,
+      mimeType: "application/zip",
+      fileCount: csvFiles.length,
+      tables: csvFiles.map((f) => ({ name: f.name, records: f.recordCount })),
+    };
+  } catch (error) {
+    console.error("[Export] Multi-table CSV export error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Create a simple ZIP archive from an array of files
+ * Uses minimal ZIP format (no compression for simplicity)
+ * @param {Array} files - Array of {name, content} objects
+ * @returns {Uint8Array} ZIP file data
+ */
+function createZipArchive(files) {
+  const textEncoder = new TextEncoder();
+  const centralDirectory = [];
+  let offset = 0;
+  const fileData = [];
+
+  for (const file of files) {
+    const nameBytes = textEncoder.encode(file.name);
+    const contentBytes = textEncoder.encode(file.content);
+    const crc32 = calculateCRC32(contentBytes);
+
+    // Local file header
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localHeaderView = new DataView(localHeader.buffer);
+
+    localHeaderView.setUint32(0, 0x04034b50, true); // Local file header signature
+    localHeaderView.setUint16(4, 10, true); // Version needed to extract (1.0)
+    localHeaderView.setUint16(6, 0, true); // General purpose bit flag
+    localHeaderView.setUint16(8, 0, true); // Compression method (0 = no compression)
+    localHeaderView.setUint16(10, 0, true); // File modification time
+    localHeaderView.setUint16(12, 0, true); // File modification date
+    localHeaderView.setUint32(14, crc32, true); // CRC-32
+    localHeaderView.setUint32(18, contentBytes.length, true); // Compressed size
+    localHeaderView.setUint32(22, contentBytes.length, true); // Uncompressed size
+    localHeaderView.setUint16(26, nameBytes.length, true); // File name length
+    localHeaderView.setUint16(28, 0, true); // Extra field length
+
+    localHeader.set(nameBytes, 30);
+
+    fileData.push(localHeader, contentBytes);
+
+    // Central directory header
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralHeaderView = new DataView(centralHeader.buffer);
+
+    centralHeaderView.setUint32(0, 0x02014b50, true); // Central directory signature
+    centralHeaderView.setUint16(4, 10, true); // Version made by
+    centralHeaderView.setUint16(6, 10, true); // Version needed to extract
+    centralHeaderView.setUint16(8, 0, true); // General purpose bit flag
+    centralHeaderView.setUint16(10, 0, true); // Compression method
+    centralHeaderView.setUint16(12, 0, true); // File modification time
+    centralHeaderView.setUint16(14, 0, true); // File modification date
+    centralHeaderView.setUint32(16, crc32, true); // CRC-32
+    centralHeaderView.setUint32(20, contentBytes.length, true); // Compressed size
+    centralHeaderView.setUint32(24, contentBytes.length, true); // Uncompressed size
+    centralHeaderView.setUint16(28, nameBytes.length, true); // File name length
+    centralHeaderView.setUint16(30, 0, true); // Extra field length
+    centralHeaderView.setUint16(32, 0, true); // File comment length
+    centralHeaderView.setUint16(34, 0, true); // Disk number start
+    centralHeaderView.setUint16(36, 0, true); // Internal file attributes
+    centralHeaderView.setUint32(38, 0, true); // External file attributes
+    centralHeaderView.setUint32(42, offset, true); // Relative offset of local header
+
+    centralHeader.set(nameBytes, 46);
+
+    centralDirectory.push(centralHeader);
+    offset += localHeader.length + contentBytes.length;
+  }
+
+  // End of central directory record
+  const centralDirSize = centralDirectory.reduce(
+    (sum, hdr) => sum + hdr.length,
+    0
+  );
+  const endOfCentralDir = new Uint8Array(22);
+  const endOfCentralDirView = new DataView(endOfCentralDir.buffer);
+
+  endOfCentralDirView.setUint32(0, 0x06054b50, true); // End of central directory signature
+  endOfCentralDirView.setUint16(4, 0, true); // Number of this disk
+  endOfCentralDirView.setUint16(6, 0, true); // Disk where central directory starts
+  endOfCentralDirView.setUint16(8, files.length, true); // Number of central directory records on this disk
+  endOfCentralDirView.setUint16(10, files.length, true); // Total number of central directory records
+  endOfCentralDirView.setUint32(12, centralDirSize, true); // Size of central directory
+  endOfCentralDirView.setUint32(16, offset, true); // Offset of start of central directory
+  endOfCentralDirView.setUint16(20, 0, true); // ZIP file comment length
+
+  // Combine all parts
+  const totalSize = offset + centralDirSize + endOfCentralDir.length;
+  const zipBytes = new Uint8Array(totalSize);
+  let position = 0;
+
+  for (const part of fileData) {
+    zipBytes.set(part, position);
+    position += part.length;
+  }
+
+  for (const header of centralDirectory) {
+    zipBytes.set(header, position);
+    position += header.length;
+  }
+
+  zipBytes.set(endOfCentralDir, position);
+
+  return zipBytes;
+}
+
+/**
+ * Calculate CRC-32 checksum
+ * @param {Uint8Array} data
+ * @returns {number} CRC-32 checksum
+ */
+function calculateCRC32(data) {
+  const crcTable = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let crc = i;
+    for (let j = 0; j < 8; j++) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+    crcTable[i] = crc;
+  }
+
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++) {
+    crc = (crc >>> 8) ^ crcTable[(crc ^ data[i]) & 0xff];
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Log error to bronze_errors table
+ */
+async function handleLogError(error) {
+  try {
+    if (!dbManager || !dbManager.db) {
+      return { success: false, error: "Database not initialized" };
+    }
+
+    const db = dbManager.db;
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const query = `
+      INSERT INTO bronze_errors (
+        id, timestamp, error_type, message, stack, context,
+        url, user_agent, severity, created_at
+      ) VALUES (
+        ${escapeStr(Date.now() + "-" + Math.random().toString(36))},
+        ${error.timestamp || Date.now()},
+        ${escapeStr(error.type || "Error")},
+        ${escapeStr(error.message)},
+        ${escapeStr(error.stack)},
+        ${escapeStr(error.context)},
+        ${escapeStr(error.url)},
+        ${escapeStr(error.user_agent)},
+        ${escapeStr(error.severity || "error")},
+        ${Date.now()}
+      )
+    `;
+
+    db.exec(query);
+
+    return { success: true };
+  } catch (err) {
+    console.error("[LogError] Failed to log error to database:", err);
+    return { success: false, error: err.message };
   }
 }

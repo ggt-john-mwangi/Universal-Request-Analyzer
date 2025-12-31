@@ -3,6 +3,8 @@
  * Replaces chrome.storage with database storage
  */
 
+const browserAPI = globalThis.browser || globalThis.chrome;
+
 class CollectionsManager {
   constructor() {
     this.collections = [];
@@ -11,15 +13,25 @@ class CollectionsManager {
   }
 
   async initialize() {
-    console.log("[Collections] Initializing collections manager...");
-
     this.setupEventListeners();
     await this.loadCollections();
   }
 
   setupEventListeners() {
+    // Use cloneNode to prevent duplicate event listeners (same pattern as alerts.js)
+    console.log("[Collections] Setting up event listeners (cloneNode method)");
+
+    // Helper function to safely clone and replace element
+    const cloneAndReplace = (id) => {
+      const element = document.getElementById(id);
+      if (!element) return null;
+      const clone = element.cloneNode(true);
+      element.parentNode.replaceChild(clone, element);
+      return clone;
+    };
+
     // Create collection button
-    const btnCreateCollection = document.getElementById("btnCreateCollection");
+    const btnCreateCollection = cloneAndReplace("btnCreateCollection");
     if (btnCreateCollection) {
       btnCreateCollection.addEventListener("click", () =>
         this.showCreateCollectionModal()
@@ -27,9 +39,7 @@ class CollectionsManager {
     }
 
     // Refresh button
-    const btnRefreshCollections = document.getElementById(
-      "btnRefreshCollections"
-    );
+    const btnRefreshCollections = cloneAndReplace("btnRefreshCollections");
     if (btnRefreshCollections) {
       btnRefreshCollections.addEventListener("click", () =>
         this.loadCollections()
@@ -37,16 +47,14 @@ class CollectionsManager {
     }
 
     // Modal close buttons
-    const collectionModalClose = document.getElementById(
-      "collectionModalClose"
-    );
+    const collectionModalClose = cloneAndReplace("collectionModalClose");
     if (collectionModalClose) {
       collectionModalClose.addEventListener("click", () =>
         this.hideCollectionModal()
       );
     }
 
-    const btnCancelCollection = document.getElementById("btnCancelCollection");
+    const btnCancelCollection = cloneAndReplace("btnCancelCollection");
     if (btnCancelCollection) {
       btnCancelCollection.addEventListener("click", () =>
         this.hideCollectionModal()
@@ -54,14 +62,17 @@ class CollectionsManager {
     }
 
     // Save collection button
-    const btnSaveCollection = document.getElementById("btnSaveCollection");
+    const btnSaveCollection = cloneAndReplace("btnSaveCollection");
     if (btnSaveCollection) {
-      btnSaveCollection.addEventListener("click", () => this.saveCollection());
+      btnSaveCollection.addEventListener("click", () => {
+        console.log("[Collections] Save button clicked");
+        this.saveCollection();
+      });
     }
 
-    // Event delegation for collection actions
+    // Event delegation for collection actions (only set up once)
     const collectionsGrid = document.getElementById("collectionsGrid");
-    if (collectionsGrid) {
+    if (collectionsGrid && !this._gridListenerAdded) {
       collectionsGrid.addEventListener("click", (e) => {
         const btn = e.target.closest("[data-action]");
         if (!btn) return;
@@ -86,13 +97,16 @@ class CollectionsManager {
             break;
         }
       });
+      this._gridListenerAdded = true;
     }
+
+    console.log("[Collections] Event listeners setup complete");
   }
 
   async loadCollections() {
     try {
       console.log("[Collections] Requesting collections from background...");
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollections",
       });
 
@@ -240,7 +254,7 @@ class CollectionsManager {
 
   async editCollection(collectionId) {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollection",
         collectionId: collectionId,
       });
@@ -279,7 +293,7 @@ class CollectionsManager {
 
   async viewCollection(collectionId) {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollection",
         collectionId: collectionId,
       });
@@ -376,7 +390,7 @@ class CollectionsManager {
       console.log("[Collections] Running collection with ID:", collectionId);
 
       // Get collection details with runners
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getCollection",
         collectionId: collectionId,
       });
@@ -479,7 +493,7 @@ class CollectionsManager {
           );
 
           // Execute the runner
-          const runResponse = await chrome.runtime.sendMessage({
+          const runResponse = await browserAPI.runtime.sendMessage({
             action: "runRunner",
             runnerId: runner.id,
           });
@@ -517,7 +531,13 @@ class CollectionsManager {
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
-      // Show summary
+      // Show summary (clear any existing summary first)
+      const runProgressDiv = document.getElementById("runProgress");
+      const existingSummary = runProgressDiv.querySelector(".run-summary");
+      if (existingSummary) {
+        existingSummary.remove();
+      }
+
       const summary = document.createElement("div");
       summary.className = "run-summary";
       summary.innerHTML = `
@@ -525,7 +545,7 @@ class CollectionsManager {
         <p><strong>Execution Complete</strong></p>
         <p>✅ Successful: ${successCount} | ❌ Failed: ${errorCount}</p>
       `;
-      document.getElementById("runProgress").appendChild(summary);
+      runProgressDiv.appendChild(summary);
 
       this.showNotification(
         `Collection executed: ${successCount} succeeded, ${errorCount} failed`,
@@ -553,7 +573,7 @@ class CollectionsManager {
     if (!confirm(confirmMsg)) return;
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "deleteCollection",
         collectionId: collectionId,
       });
@@ -596,23 +616,41 @@ class CollectionsManager {
 
       if (collectionId) {
         // Update existing collection
-        response = await chrome.runtime.sendMessage({
+        response = await browserAPI.runtime.sendMessage({
           action: "updateCollection",
           collectionId: collectionId,
           updates: { name, description, color, icon },
         });
 
-        // Update runner assignments
+        // Update runner assignments - first get existing runners to unassign them
         if (response && response.success) {
-          await chrome.runtime.sendMessage({
-            action: "updateCollectionRunners",
-            collectionId: collectionId,
-            runnerIds: selectedRunners,
-          });
+          // Get current runners from selectedCollection (loaded during edit)
+          const currentRunnerIds =
+            this.selectedCollection?.runners?.map((r) => r.id) || [];
+
+          // Remove runners that are no longer selected
+          const runnersToRemove = currentRunnerIds.filter(
+            (id) => !selectedRunners.includes(id)
+          );
+          if (runnersToRemove.length > 0) {
+            await browserAPI.runtime.sendMessage({
+              action: "removeRunnersFromCollection",
+              runnerIds: runnersToRemove,
+            });
+          }
+
+          // Assign newly selected runners
+          if (selectedRunners.length > 0) {
+            await browserAPI.runtime.sendMessage({
+              action: "assignRunnersToCollection",
+              runnerIds: selectedRunners,
+              collectionId: collectionId,
+            });
+          }
         }
       } else {
         // Create new collection
-        response = await chrome.runtime.sendMessage({
+        response = await browserAPI.runtime.sendMessage({
           action: "createCollection",
           name: name,
           description: description,
@@ -621,10 +659,10 @@ class CollectionsManager {
 
         // Assign runners to new collection
         if (response && response.success && response.collection) {
-          await chrome.runtime.sendMessage({
-            action: "updateCollectionRunners",
-            collectionId: response.collection.id,
+          await browserAPI.runtime.sendMessage({
+            action: "assignRunnersToCollection",
             runnerIds: selectedRunners,
+            collectionId: response.collection.id,
           });
         }
       }
@@ -649,7 +687,7 @@ class CollectionsManager {
 
   async loadAvailableRunners() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browserAPI.runtime.sendMessage({
         action: "getAllRunners",
         filters: {},
       });
@@ -717,11 +755,14 @@ class CollectionsManager {
 
   showNotification(message, type = "info") {
     // Reuse the global notification system if available
-    if (typeof showNotification === "function") {
-      showNotification(message, type);
+    if (
+      typeof window.showNotification === "function" &&
+      window.showNotification !== this.showNotification
+    ) {
+      window.showNotification(message, type);
     } else {
-      console.log(`[Collections] ${type.toUpperCase()}: ${message}`);
-      alert(message);
+      // Fallback to simple alert
+      alert(`${type.toUpperCase()}: ${message}`);
     }
   }
 

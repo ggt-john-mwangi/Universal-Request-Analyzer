@@ -3,18 +3,21 @@
  *
  * ⚠️ UI-ONLY MODULE - DO NOT import in service workers!
  * This module requires DOM (document, window) and should only be used in UI contexts.
- * 
+ *
  * Theme persistence flow:
  * 1. User sets theme → Save to DATABASE first
  * 2. Database → Sync to chrome.storage.local (for fast UI access)
  * 3. UI reads from storage (fast lookup)
  * 4. If storage cleared → Read from database → Sync back to storage
- * 
+ *
  * This ensures theme persists even if chrome.storage is cleared.
  */
 
 import { assertDOM, hasMatchMedia } from "../utils/context-detector.js";
-import { syncToStorageFromDB, loadFromStorageOrDB } from "../utils/db-storage-sync.js";
+import {
+  syncToStorageFromDB,
+  loadFromStorageOrDB,
+} from "../utils/db-storage-sync.js";
 
 const DEFAULT_THEMES = {
   light: {
@@ -241,7 +244,9 @@ class ThemeManager {
           resolve
         );
       } else {
-        console.warn("[ThemeManager] chrome.storage not available, theme not persisted");
+        console.warn(
+          "[ThemeManager] chrome.storage not available, theme not persisted"
+        );
         resolve();
       }
     });
@@ -275,7 +280,7 @@ class ThemeManager {
 
   applyThemeToDocument(theme) {
     // Only apply to DOM in browser context (not in service worker)
-    if (typeof document === "undefined") {
+    if (typeof document === "undefined" || !document.body) {
       return;
     }
 
@@ -323,17 +328,17 @@ class ThemeManager {
 
     this.currentTheme = themeId;
     this.applyTheme();
-    
+
     // Save to DB first, then sync to storage (proper flow)
-    await syncToStorageFromDB('theme', 'currentTheme', themeId, {
-      storageKey: 'currentTheme'
+    await syncToStorageFromDB("theme", "currentTheme", themeId, {
+      storageKey: "currentTheme",
     });
 
     // Also save custom themes if any
     const customThemesArray = Object.values(this.customThemes);
     if (customThemesArray.length > 0) {
-      await syncToStorageFromDB('theme', 'customThemes', customThemesArray, {
-        storageKey: 'customThemes'
+      await syncToStorageFromDB("theme", "customThemes", customThemesArray, {
+        storageKey: "customThemes",
       });
     }
 
@@ -344,7 +349,9 @@ class ThemeManager {
       });
     }
 
-    console.log(`[ThemeManager] Theme set to: ${themeId} (saved to DB → storage)`);
+    console.log(
+      `[ThemeManager] Theme set to: ${themeId} (saved to DB → storage)`
+    );
     return true;
   }
 

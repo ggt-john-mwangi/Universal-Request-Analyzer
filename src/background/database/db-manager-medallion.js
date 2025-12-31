@@ -222,6 +222,15 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
         assignRunnersToCollection,
         removeRunnersFromCollection,
       },
+
+      // Scheduled run operations
+      scheduledRun: {
+        createScheduledRun,
+        getScheduledRuns,
+        getScheduledRun,
+        updateScheduledRun,
+        deleteScheduledRun,
+      },
     };
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -475,7 +484,6 @@ export async function clearDatabase() {
       "silver_hourly_stats",
       "silver_request_tags",
       "gold_daily_analytics",
-      "gold_performance_insights",
       "gold_domain_performance",
       "gold_optimization_opportunities",
       "gold_trends",
@@ -649,9 +657,6 @@ export async function cleanupOldRecords(days) {
     // Note: gold_daily_analytics uses date string, not timestamp
     db.exec(`DELETE FROM gold_daily_analytics WHERE date < '${cutoffDate}'`);
     db.exec(
-      `DELETE FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}`
-    );
-    db.exec(
       `DELETE FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}`
     );
     db.exec(
@@ -711,7 +716,6 @@ export function previewCleanup(days) {
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date < '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_trends WHERE created_at < ${cutoffTimestamp}) +
@@ -720,7 +724,6 @@ export function previewCleanup(days) {
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date >= '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_trends WHERE created_at >= ${cutoffTimestamp}) +
@@ -811,6 +814,12 @@ const escapeStr = (val) => {
 async function createRunner(definition, requests) {
   if (!db) throw new DatabaseError("Database not initialized");
 
+  console.log("[db-manager-medallion] createRunner called", {
+    runnerId: definition.id,
+    name: definition.name,
+    requestCount: requests.length,
+  });
+
   try {
     // Check if runner ID already exists
     const checkQuery = `SELECT id FROM config_runner_definitions WHERE id = ${escapeStr(
@@ -818,10 +827,15 @@ async function createRunner(definition, requests) {
     )}`;
     const existing = db.exec(checkQuery);
     if (existing && existing[0]?.values && existing[0].values.length > 0) {
+      console.error(
+        `[db-manager-medallion] Runner ID ${definition.id} already exists!`
+      );
       throw new DatabaseError(
         `Runner with ID ${definition.id} already exists. Please try again.`
       );
     }
+
+    console.log("[db-manager-medallion] Runner ID check passed, inserting...");
 
     // Insert runner definition
     const defQuery = `
@@ -851,6 +865,7 @@ async function createRunner(definition, requests) {
     `;
 
     db.exec(defQuery);
+    console.log("[db-manager-medallion] Runner definition inserted");
 
     // Insert runner requests
     for (const req of requests) {
@@ -879,6 +894,10 @@ async function createRunner(definition, requests) {
 
       db.exec(reqQuery);
     }
+
+    console.log(
+      `[db-manager-medallion] Inserted ${requests.length} requests for runner`
+    );
 
     try {
       await saveDatabaseToOPFS(db.export());
@@ -1687,6 +1706,217 @@ async function removeRunnersFromCollection(runnerIds) {
   } catch (error) {
     console.error("[Collection] Failed to remove runners:", error);
     throw new DatabaseError(`Failed to remove runners: ${error.message}`);
+  }
+}
+
+// ========================
+// SCHEDULED RUNS FUNCTIONS
+// ========================
+
+/**
+ * Create a scheduled run for a collection
+ */
+async function createScheduledRun(scheduleData) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      INSERT INTO config_runner_scheduled_runs (
+        id, collection_id, collection_name, schedule_type, interval_minutes,
+        time_of_day, days_of_week, next_run_at, enabled, created_at
+      ) VALUES (
+        ${escapeStr(scheduleData.id)},
+        ${escapeStr(scheduleData.collectionId)},
+        ${escapeStr(scheduleData.collectionName)},
+        ${escapeStr(scheduleData.type)},
+        ${scheduleData.interval || "NULL"},
+        ${escapeStr(scheduleData.time)},
+        ${escapeStr(
+          scheduleData.daysOfWeek
+            ? JSON.stringify(scheduleData.daysOfWeek)
+            : null
+        )},
+        ${scheduleData.nextRunAt},
+        ${scheduleData.enabled ? 1 : 0},
+        ${Date.now()}
+      )
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[ScheduledRun] Created scheduled run: ${scheduleData.id}`);
+    return { success: true, schedule: scheduleData };
+  } catch (error) {
+    console.error("[ScheduledRun] Failed to create scheduled run:", error);
+    throw new DatabaseError(`Failed to create scheduled run: ${error.message}`);
+  }
+}
+
+/**
+ * Get all scheduled runs
+ */
+async function getScheduledRuns() {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const result = db.exec(`
+      SELECT * FROM config_runner_scheduled_runs
+      ORDER BY next_run_at ASC
+    `);
+
+    if (!result || result.length === 0 || !result[0].values) {
+      return [];
+    }
+
+    const columns = result[0].columns;
+    return result[0].values.map((row) => {
+      const schedule = {};
+      columns.forEach((col, idx) => {
+        schedule[col] = row[idx];
+      });
+
+      // Parse JSON fields
+      if (schedule.days_of_week) {
+        try {
+          schedule.daysOfWeek = JSON.parse(schedule.days_of_week);
+        } catch (e) {
+          schedule.daysOfWeek = null;
+        }
+      }
+
+      return schedule;
+    });
+  } catch (error) {
+    console.error("[ScheduledRun] Failed to get scheduled runs:", error);
+    throw new DatabaseError(`Failed to get scheduled runs: ${error.message}`);
+  }
+}
+
+/**
+ * Get scheduled run by ID
+ */
+async function getScheduledRun(scheduleId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const result = db.exec(`
+      SELECT * FROM config_runner_scheduled_runs
+      WHERE id = ${escapeStr(scheduleId)}
+    `);
+
+    if (
+      !result ||
+      result.length === 0 ||
+      !result[0].values ||
+      result[0].values.length === 0
+    ) {
+      return null;
+    }
+
+    const columns = result[0].columns;
+    const row = result[0].values[0];
+    const schedule = {};
+    columns.forEach((col, idx) => {
+      schedule[col] = row[idx];
+    });
+
+    // Parse JSON fields
+    if (schedule.days_of_week) {
+      try {
+        schedule.daysOfWeek = JSON.parse(schedule.days_of_week);
+      } catch (e) {
+        schedule.daysOfWeek = null;
+      }
+    }
+
+    return schedule;
+  } catch (error) {
+    console.error("[ScheduledRun] Failed to get scheduled run:", error);
+    throw new DatabaseError(`Failed to get scheduled run: ${error.message}`);
+  }
+}
+
+/**
+ * Update a scheduled run
+ */
+async function updateScheduledRun(scheduleId, updates) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const setClauses = [];
+
+    if (updates.collectionName !== undefined) {
+      setClauses.push(`collection_name = ${escapeStr(updates.collectionName)}`);
+    }
+    if (updates.type !== undefined) {
+      setClauses.push(`schedule_type = ${escapeStr(updates.type)}`);
+    }
+    if (updates.interval !== undefined) {
+      setClauses.push(`interval_minutes = ${updates.interval || "NULL"}`);
+    }
+    if (updates.time !== undefined) {
+      setClauses.push(`time_of_day = ${escapeStr(updates.time)}`);
+    }
+    if (updates.daysOfWeek !== undefined) {
+      setClauses.push(
+        `days_of_week = ${escapeStr(JSON.stringify(updates.daysOfWeek))}`
+      );
+    }
+    if (updates.nextRunAt !== undefined) {
+      setClauses.push(`next_run_at = ${updates.nextRunAt}`);
+    }
+    if (updates.enabled !== undefined) {
+      setClauses.push(`enabled = ${updates.enabled ? 1 : 0}`);
+    }
+    if (updates.lastRunAt !== undefined) {
+      setClauses.push(`last_run_at = ${updates.lastRunAt}`);
+    }
+    if (updates.lastStatus !== undefined) {
+      setClauses.push(`last_status = ${escapeStr(updates.lastStatus)}`);
+    }
+
+    if (setClauses.length === 0) {
+      return { success: false, message: "No updates provided" };
+    }
+
+    const query = `
+      UPDATE config_runner_scheduled_runs
+      SET ${setClauses.join(", ")}
+      WHERE id = ${escapeStr(scheduleId)}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[ScheduledRun] Updated scheduled run: ${scheduleId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("[ScheduledRun] Failed to update scheduled run:", error);
+    throw new DatabaseError(`Failed to update scheduled run: ${error.message}`);
+  }
+}
+
+/**
+ * Delete a scheduled run
+ */
+async function deleteScheduledRun(scheduleId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+
+  try {
+    const query = `
+      DELETE FROM config_runner_scheduled_runs
+      WHERE id = ${escapeStr(scheduleId)}
+    `;
+
+    db.exec(query);
+    await saveDatabaseToOPFS(db.export());
+
+    console.log(`[ScheduledRun] Deleted scheduled run: ${scheduleId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("[ScheduledRun] Failed to delete scheduled run:", error);
+    throw new DatabaseError(`Failed to delete scheduled run: ${error.message}`);
   }
 }
 
