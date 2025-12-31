@@ -27,7 +27,7 @@ async function handleGetWebVitals(filters, context) {
 
     let query = `
       SELECT 
-        metric_name, metric_value, rating, timestamp, domain, page_url
+        metric_name, value, rating, timestamp, domain, page_url
       FROM bronze_web_vitals
       WHERE timestamp > ${startTime}
     `;
