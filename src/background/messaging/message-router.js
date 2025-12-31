@@ -109,6 +109,7 @@ export function initializeMessageRouter(auth, database) {
 
     try {
       const result = await handler(message, sender, context);
+      return result; // ✅ CRITICAL: Return the result!
     } catch (error) {
       console.error(`[MessageRouter] Handler error for ${action}:`, error);
       return {
