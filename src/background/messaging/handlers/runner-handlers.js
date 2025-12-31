@@ -112,20 +112,28 @@ async function handleGetRunResults(message, sender, context) {
  */
 async function handleCreateRunner(message, sender, context) {
   try {
+    console.log("[runner-handlers] handleCreateRunner called", {
+      runnerId: message.definition?.id,
+      name: message.definition?.name,
+      requestCount: message.requests?.length,
+    });
+
     const { database } = context;
     if (!database || !database.isReady || !database.runner) {
       return { success: false, error: "Database not initialized" };
     }
 
     const { definition, requests } = message;
-    const runnerId = await database.runner.createRunner(definition, requests);
+    const result = await database.runner.createRunner(definition, requests);
+
+    console.log("[runner-handlers] handleCreateRunner completed", result);
 
     return {
       success: true,
-      runnerId,
+      runnerId: result.runnerId || definition.id,
     };
   } catch (error) {
-    console.error("Create runner error:", error);
+    console.error("[runner-handlers] Create runner error:", error);
     return { success: false, error: error.message };
   }
 }

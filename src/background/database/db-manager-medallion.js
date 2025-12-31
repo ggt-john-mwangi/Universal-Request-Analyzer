@@ -814,6 +814,12 @@ const escapeStr = (val) => {
 async function createRunner(definition, requests) {
   if (!db) throw new DatabaseError("Database not initialized");
 
+  console.log("[db-manager-medallion] createRunner called", {
+    runnerId: definition.id,
+    name: definition.name,
+    requestCount: requests.length,
+  });
+
   try {
     // Check if runner ID already exists
     const checkQuery = `SELECT id FROM config_runner_definitions WHERE id = ${escapeStr(
@@ -821,10 +827,15 @@ async function createRunner(definition, requests) {
     )}`;
     const existing = db.exec(checkQuery);
     if (existing && existing[0]?.values && existing[0].values.length > 0) {
+      console.error(
+        `[db-manager-medallion] Runner ID ${definition.id} already exists!`
+      );
       throw new DatabaseError(
         `Runner with ID ${definition.id} already exists. Please try again.`
       );
     }
+
+    console.log("[db-manager-medallion] Runner ID check passed, inserting...");
 
     // Insert runner definition
     const defQuery = `
@@ -854,6 +865,7 @@ async function createRunner(definition, requests) {
     `;
 
     db.exec(defQuery);
+    console.log("[db-manager-medallion] Runner definition inserted");
 
     // Insert runner requests
     for (const req of requests) {
@@ -882,6 +894,10 @@ async function createRunner(definition, requests) {
 
       db.exec(reqQuery);
     }
+
+    console.log(
+      `[db-manager-medallion] Inserted ${requests.length} requests for runner`
+    );
 
     try {
       await saveDatabaseToOPFS(db.export());

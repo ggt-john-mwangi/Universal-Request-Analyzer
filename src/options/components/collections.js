@@ -18,8 +18,20 @@ class CollectionsManager {
   }
 
   setupEventListeners() {
+    // Use cloneNode to prevent duplicate event listeners (same pattern as alerts.js)
+    console.log("[Collections] Setting up event listeners (cloneNode method)");
+
+    // Helper function to safely clone and replace element
+    const cloneAndReplace = (id) => {
+      const element = document.getElementById(id);
+      if (!element) return null;
+      const clone = element.cloneNode(true);
+      element.parentNode.replaceChild(clone, element);
+      return clone;
+    };
+
     // Create collection button
-    const btnCreateCollection = document.getElementById("btnCreateCollection");
+    const btnCreateCollection = cloneAndReplace("btnCreateCollection");
     if (btnCreateCollection) {
       btnCreateCollection.addEventListener("click", () =>
         this.showCreateCollectionModal()
@@ -27,9 +39,7 @@ class CollectionsManager {
     }
 
     // Refresh button
-    const btnRefreshCollections = document.getElementById(
-      "btnRefreshCollections"
-    );
+    const btnRefreshCollections = cloneAndReplace("btnRefreshCollections");
     if (btnRefreshCollections) {
       btnRefreshCollections.addEventListener("click", () =>
         this.loadCollections()
@@ -37,16 +47,14 @@ class CollectionsManager {
     }
 
     // Modal close buttons
-    const collectionModalClose = document.getElementById(
-      "collectionModalClose"
-    );
+    const collectionModalClose = cloneAndReplace("collectionModalClose");
     if (collectionModalClose) {
       collectionModalClose.addEventListener("click", () =>
         this.hideCollectionModal()
       );
     }
 
-    const btnCancelCollection = document.getElementById("btnCancelCollection");
+    const btnCancelCollection = cloneAndReplace("btnCancelCollection");
     if (btnCancelCollection) {
       btnCancelCollection.addEventListener("click", () =>
         this.hideCollectionModal()
@@ -54,14 +62,17 @@ class CollectionsManager {
     }
 
     // Save collection button
-    const btnSaveCollection = document.getElementById("btnSaveCollection");
+    const btnSaveCollection = cloneAndReplace("btnSaveCollection");
     if (btnSaveCollection) {
-      btnSaveCollection.addEventListener("click", () => this.saveCollection());
+      btnSaveCollection.addEventListener("click", () => {
+        console.log("[Collections] Save button clicked");
+        this.saveCollection();
+      });
     }
 
-    // Event delegation for collection actions
+    // Event delegation for collection actions (only set up once)
     const collectionsGrid = document.getElementById("collectionsGrid");
-    if (collectionsGrid) {
+    if (collectionsGrid && !this._gridListenerAdded) {
       collectionsGrid.addEventListener("click", (e) => {
         const btn = e.target.closest("[data-action]");
         if (!btn) return;
@@ -86,7 +97,10 @@ class CollectionsManager {
             break;
         }
       });
+      this._gridListenerAdded = true;
     }
+
+    console.log("[Collections] Event listeners setup complete");
   }
 
   async loadCollections() {

@@ -32,6 +32,9 @@ class RunnersManager {
     // Setup event listeners
     this.setupEventListeners();
 
+    // Setup wizard listeners (one-time setup)
+    this.setupWizardListeners();
+
     // Load runners
     await this.loadRunners();
 
@@ -1232,19 +1235,38 @@ class RunnersManager {
     modal.style.display = "block";
     this.updateWizardStep(1);
     await this.loadWizardDomains();
-
-    // Setup event listeners (only once)
-    if (!this.wizardListenersSetup) {
-      this.setupWizardListeners();
-      this.wizardListenersSetup = true;
-    }
   }
 
   setupWizardListeners() {
+    // Set up wizard listeners ONCE using cloneNode to remove any existing listeners
+    // This prevents duplicate event listeners (same pattern as alerts.js)
+    console.log("[Runners] Setting up wizard listeners (cloneNode method)");
+
+    // Helper function to safely clone and replace element
+    const cloneAndReplace = (id) => {
+      const element = document.getElementById(id);
+      if (!element) return null;
+      const clone = element.cloneNode(true);
+      element.parentNode.replaceChild(clone, element);
+      return clone;
+    };
+
+    // Clone and replace all wizard buttons to remove old listeners
+    const domainSelect = cloneAndReplace("wizardDomainSelect");
+    const pageSelect = cloneAndReplace("wizardPageSelect");
+    const typeSelect = cloneAndReplace("wizardTypeSelect");
+    const modeSelect = cloneAndReplace("wizardMode");
+    const prevBtn = cloneAndReplace("wizardPrevBtn");
+    const nextBtn = cloneAndReplace("wizardNextBtn");
+    const createBtn = cloneAndReplace("wizardCreateBtn");
+    const addVarBtn = cloneAndReplace("btnAddVariable");
+    const cancelBtn = cloneAndReplace("wizardCancelBtn");
+    const closeBtn = cloneAndReplace("closeRunnerWizard");
+
     // Domain change
-    document
-      .getElementById("wizardDomainSelect")
-      .addEventListener("change", async (e) => {
+    if (domainSelect) {
+      domainSelect.addEventListener("change", async (e) => {
+        if (!this.wizardState) return;
         this.wizardState.selectedDomain = e.target.value;
         this.wizardState.selectedPage = null;
         this.wizardState.selectedType = null;
@@ -1252,59 +1274,88 @@ class RunnersManager {
         await this.loadWizardPages(e.target.value);
         await this.loadWizardRequests();
       });
+    }
 
     // Page change
-    document
-      .getElementById("wizardPageSelect")
-      .addEventListener("change", async (e) => {
+    if (pageSelect) {
+      pageSelect.addEventListener("change", async (e) => {
+        if (!this.wizardState) return;
         this.wizardState.selectedPage = e.target.value;
         await this.loadWizardRequests();
       });
+    }
 
     // Type change
-    document
-      .getElementById("wizardTypeSelect")
-      .addEventListener("change", async (e) => {
+    if (typeSelect) {
+      typeSelect.addEventListener("change", async (e) => {
+        if (!this.wizardState) return;
         this.wizardState.selectedType = e.target.value;
         await this.loadWizardRequests();
       });
+    }
 
     // Mode change (show/hide delay)
-    document.getElementById("wizardMode").addEventListener("change", (e) => {
-      const delayGroup = document.getElementById("wizardDelayGroup");
-      delayGroup.style.display =
-        e.target.value === "sequential" ? "block" : "none";
-    });
+    if (modeSelect) {
+      modeSelect.addEventListener("change", (e) => {
+        const delayGroup = document.getElementById("wizardDelayGroup");
+        if (delayGroup) {
+          delayGroup.style.display =
+            e.target.value === "sequential" ? "block" : "none";
+        }
+      });
+    }
 
     // Navigation buttons
-    document.getElementById("wizardPrevBtn").addEventListener("click", () => {
-      this.wizardPreviousStep();
-    });
+    if (prevBtn) {
+      prevBtn.addEventListener("click", () => {
+        this.wizardPreviousStep();
+      });
+    }
 
-    document.getElementById("wizardNextBtn").addEventListener("click", () => {
-      this.wizardNextStep();
-    });
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        this.wizardNextStep();
+      });
+    }
 
-    document.getElementById("wizardCreateBtn").addEventListener("click", () => {
-      this.createRunnerFromWizard();
-    });
+    if (createBtn) {
+      createBtn.addEventListener("click", () => {
+        console.log(
+          "[Runners] Create button clicked, isCreatingRunner:",
+          this.isCreatingRunner
+        );
+        this.createRunnerFromWizard();
+      });
+    }
 
     // Add variable button
-    document.getElementById("btnAddVariable").addEventListener("click", () => {
-      this.addVariable();
-    });
+    if (addVarBtn) {
+      addVarBtn.addEventListener("click", () => {
+        this.addVariable();
+      });
+    }
 
     // Cancel/Close
     const closeWizard = () => {
-      document.getElementById("runnerWizardModal").style.display = "none";
+      const modal = document.getElementById("runnerWizardModal");
+      if (modal) {
+        modal.style.display = "none";
+      }
       this.wizardState = null;
+      this.isCreatingRunner = false; // Reset flag on close
     };
-    document
-      .getElementById("wizardCancelBtn")
-      .addEventListener("click", closeWizard);
-    document
-      .getElementById("closeRunnerWizard")
-      .addEventListener("click", closeWizard);
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", closeWizard);
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", closeWizard);
+    }
+
+    console.log(
+      "[Runners] Wizard listeners setup complete (all buttons cloned)"
+    );
   }
 
   async loadWizardDomains() {
@@ -2139,11 +2190,19 @@ class RunnersManager {
     createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
 
     try {
+      console.log("[Wizard] Sending createRunner message", {
+        runnerId,
+        name,
+        requestCount: requests.length,
+      });
+
       const response = await chrome.runtime.sendMessage({
         action: "createRunner",
         definition: definition,
         requests: requests,
       });
+
+      console.log("[Wizard] Received response from createRunner", response);
 
       if (response && response.success) {
         // Close modal
@@ -2168,6 +2227,7 @@ class RunnersManager {
     } finally {
       // Always reset the flag
       this.isCreatingRunner = false;
+      console.log("[Wizard] Reset isCreatingRunner flag");
     }
   }
 
