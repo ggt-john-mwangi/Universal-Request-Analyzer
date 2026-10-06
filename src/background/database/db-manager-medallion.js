@@ -107,18 +107,46 @@ async function initializeDatabase() {
   }
 }
 
+// Debounce timer for post-write saves (saves 5s after last bronze insert)
+let saveDebouncerTimer = null;
+
 /**
- * Setup auto-save mechanism
+ * Schedule a debounced save — called after every bronze insert.
+ * Coalesces bursts of inserts into one OPFS write instead of N.
+ */
+export function scheduleSave() {
+  if (saveDebouncerTimer) return; // already pending
+  saveDebouncerTimer = setTimeout(async () => {
+    saveDebouncerTimer = null;
+    await saveDatabase();
+  }, 5000);
+}
+
+/**
+ * Setup auto-save mechanism (periodic fallback, not primary)
  */
 function setupAutoSave() {
   if (autoSaveInterval) {
     clearInterval(autoSaveInterval);
   }
 
-  // Auto-save every 30 seconds
+  // 5-minute periodic fallback — the debounced save handles the hot path
   autoSaveInterval = setInterval(async () => {
     await saveDatabase();
-  }, 30000);
+  }, 5 * 60 * 1000);
+
+  // Save immediately when the service worker is about to be suspended
+  const browserAPI = globalThis.browser || globalThis.chrome;
+  if (browserAPI?.runtime?.onSuspend) {
+    browserAPI.runtime.onSuspend.addListener(() => {
+      // Clear debounce and save synchronously-as-possible
+      if (saveDebouncerTimer) {
+        clearTimeout(saveDebouncerTimer);
+        saveDebouncerTimer = null;
+      }
+      saveDatabase();
+    });
+  }
 }
 
 /**

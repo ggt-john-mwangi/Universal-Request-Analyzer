@@ -65,28 +65,29 @@ async function handleGetWebVitals(filters, context) {
 /**
  * Handle get recent errors (status >= 400)
  */
-async function handleGetRecentErrors(limit, context) {
+async function handleGetRecentErrors(data, context) {
   try {
     const { database } = context;
     if (!database || !database.isReady || !database.db) {
       return { success: false, error: "Database not initialized" };
     }
 
-    const actualLimit = limit || 10;
+    const actualLimit = data?.limit || 10;
+    const timeRange = data?.timeRange || 300000; // default 5 min
+    const since = Date.now() - timeRange;
+    const domain = data?.url ? (() => { try { return new URL(data.url).hostname; } catch { return null; } })() : null;
 
-    const escapeStr = (val) => {
-      if (val === undefined || val === null) return "NULL";
-      return `'${String(val).replace(/'/g, "''")}'`;
-    };
-
-    const query = `
-      SELECT 
+    let query = `
+      SELECT
         id, url, method, status, type, timestamp, error, domain, page_url
       FROM bronze_requests
-      WHERE status >= 400
-      ORDER BY timestamp DESC
-      LIMIT ${parseInt(actualLimit)}
-    `;
+      WHERE status >= 400 AND timestamp > ${since}`;
+
+    if (domain) {
+      query += ` AND domain = '${domain.replace(/'/g, "''")}'`;
+    }
+
+    query += ` ORDER BY timestamp DESC LIMIT ${parseInt(actualLimit)}`;
 
     const queryResult = database.db.exec(query);
 
@@ -178,7 +179,7 @@ export const vitalsHandlers = new Map([
   [
     "getRecentErrors",
     async (message, sender, context) => {
-      return await handleGetRecentErrors(message.limit, context);
+      return await handleGetRecentErrors(message.data, context);
     },
   ],
 

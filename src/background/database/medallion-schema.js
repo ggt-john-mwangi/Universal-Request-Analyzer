@@ -441,6 +441,10 @@ function createBronzeSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_requests_domain ON bronze_requests(domain)`
   );
+  // Composite index covers the common WHERE domain = X AND timestamp > Y pattern
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_bronze_requests_domain_ts ON bronze_requests(domain, timestamp)`
+  );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_bronze_requests_status ON bronze_requests(status)`
   );
@@ -1214,6 +1218,11 @@ export async function validateAndFixSchema(db) {
         console.warn("Migration warning:", migrationError);
       }
     }
+
+    // Backfill composite index on existing databases
+    try {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_bronze_requests_domain_ts ON bronze_requests(domain, timestamp)`);
+    } catch (e) { /* already exists */ }
 
     console.log("✓ Schema validation complete");
     return true;

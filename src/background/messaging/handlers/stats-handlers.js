@@ -32,12 +32,11 @@ async function handleGetPageStats(data, context) {
       return { success: false, error: "URL required" };
     }
 
-    // Extract domain from URL
-    const domain = new URL(url).hostname;
+    // Use explicit domain param if provided (QA Quick View override), else derive from URL
+    const domain = data.domain || new URL(url).hostname;
 
-    // Query requests for this domain in the last 5 minutes
-    // This aggregates across ALL pages for the domain (as per popup requirements)
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    // Query requests for this domain — default 30-minute window (QA runs take time)
+    const fiveMinutesAgo = Date.now() - 30 * 60 * 1000;
 
     const stats = {
       totalRequests: 0,
@@ -55,7 +54,7 @@ async function handleGetPageStats(data, context) {
         // Build query with optional request type filter
         let whereClause = `WHERE domain = ${escapeStr(
           domain
-        )} AND created_at > ${fiveMinutesAgo}`;
+        )} AND timestamp > ${fiveMinutesAgo}`;
 
         if (requestType && requestType !== "") {
           whereClause += ` AND type = ${escapeStr(requestType)}`;
@@ -92,15 +91,16 @@ async function handleGetPageStats(data, context) {
           stats.totalRequests = total || 0;
           stats.avgResponse = Math.round(avg || 0);
           stats.errorCount = errors || 0;
+          stats.errorRate = total > 0 ? Math.round((errors / total) * 100) : 0;
           stats.dataTransferred = bytes || 0;
         }
 
         // Query detailed request data for charts (aggregated across all pages)
         const detailQuery = `
-          SELECT type, status, duration, created_at
+          SELECT type, status, duration, timestamp
           FROM bronze_requests
           ${whereClause}
-          ORDER BY created_at DESC
+          ORDER BY timestamp DESC
           LIMIT 100
         `;
 
@@ -219,11 +219,6 @@ async function handleGetFilteredStats(filters, context) {
     }
 
     query += " ORDER BY timestamp DESC LIMIT 1000";
-
-    console.log(
-      "[stats-handlers] Executing query:",
-      query.substring(0, 300) + "..."
-    );
 
     let requests = [];
 

@@ -32,11 +32,8 @@ export async function loadPageSummary() {
     const currentTab = currentTabs[0];
 
     if (!currentTab || !currentTab.url) {
-      console.log("No current tab or URL");
       return;
     }
-
-    console.log("Loading page summary for:", currentTab.url);
 
     // Get selected filters
     const requestTypeFilter = document.getElementById("requestTypeFilter");
@@ -77,8 +74,6 @@ export async function loadPageSummary() {
         statusFilter: statusFilter,
       },
     });
-
-    console.log("Page stats response:", response);
 
     if (response && response.success && response.stats) {
       // Check if we should show empty state
@@ -141,14 +136,15 @@ export async function loadPagesForDomain() {
 
     pageSelect.innerHTML = '<option value="">All Pages in Domain</option>';
 
+    const safeDomain = currentDomain.replace(/'/g, "''");
     const response = await runtime.sendMessage({
       action: "executeDirectQuery",
       query: `
         SELECT DISTINCT page_url, COUNT(*) as request_count
         FROM bronze_requests
-        WHERE domain = '${currentDomain}'
+        WHERE domain = '${safeDomain}'
         AND page_url IS NOT NULL
-        AND created_at > ${Date.now() - 7 * 24 * 60 * 60 * 1000}
+        AND timestamp > ${Date.now() - 7 * 24 * 60 * 60 * 1000}
         GROUP BY page_url
         ORDER BY request_count DESC
         LIMIT 20
@@ -198,14 +194,6 @@ export async function loadTrackedSites() {
 
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-    // First check if there's any data at all
-    const checkResponse = await runtime.sendMessage({
-      action: "executeDirectQuery",
-      query: `SELECT COUNT(*) as total FROM bronze_requests`,
-    });
-
-    console.log("Total requests in database:", checkResponse);
-
     // Fetch unique domains from database
     const response = await runtime.sendMessage({
       action: "executeDirectQuery",
@@ -214,21 +202,16 @@ export async function loadTrackedSites() {
         FROM bronze_requests 
         WHERE domain IS NOT NULL 
           AND domain != '' 
-          AND created_at > ${sevenDaysAgo}
+          AND timestamp > ${sevenDaysAgo}
         GROUP BY domain
         ORDER BY request_count DESC
         LIMIT 20
       `,
     });
 
-    console.log("Site filter response:", response);
-
     if (response && response.success) {
       if (response.data && response.data.length > 0) {
-        const domains = response.data;
-        console.log(`Loaded ${domains.length} domains for site selector`);
-
-        domains.forEach((row) => {
+        response.data.forEach((row) => {
           const domain = row.domain;
           const count = row.request_count;
           if (domain) {
@@ -333,6 +316,7 @@ export function startAutoRefresh() {
           stopAutoRefresh();
         }
       });
+      updateRecentErrors().catch(() => {});
     } else {
       stopAutoRefresh();
     }
@@ -348,3 +332,4 @@ export function stopAutoRefresh() {
     refreshInterval = null;
   }
 }
+

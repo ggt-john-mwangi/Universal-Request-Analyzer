@@ -24,13 +24,11 @@ export const medallionHandlers = new Map([
           return { success: false, error: "Medallion manager not available" };
         }
 
-        // Process bronze records to silver
-        // This validates, deduplicates, and transforms raw data
-        const stats = await medallion.processBronzeToSilver();
+        const count = await medallion.processAllPendingToSilver();
 
         return {
           success: true,
-          stats,
+          processed: count,
           message: "Bronze records processed to Silver layer",
         };
       } catch (error) {
@@ -56,13 +54,11 @@ export const medallionHandlers = new Map([
           return { success: false, error: "Medallion manager not available" };
         }
 
-        // Process silver records to gold (analytics)
-        const stats = await medallion.processSilverToGold();
+        await medallion.processDailyAnalytics();
 
         return {
           success: true,
-          stats,
-          message: "Silver records processed to Gold layer",
+          message: "Daily analytics processed to Gold layer",
         };
       } catch (error) {
         console.error("processToGold error:", error);
@@ -120,23 +116,20 @@ export const medallionHandlers = new Map([
           return { success: false, error: "Database not initialized" };
         }
 
-        // Check for unprocessed records in bronze and silver layers
+        // Count bronze records not yet promoted to silver (left join)
         const unprocessedBronze =
           database.executeQuery(
-            "SELECT COUNT(*) as count FROM bronze_requests WHERE processed = 0"
-          )[0]?.values?.[0]?.[0] || 0;
-
-        const unprocessedSilver =
-          database.executeQuery(
-            "SELECT COUNT(*) as count FROM silver_requests WHERE processed = 0"
-          )[0]?.values?.[0]?.[0] || 0;
+            `SELECT COUNT(*) FROM bronze_requests b
+             LEFT JOIN silver_requests s ON s.id = b.id
+             WHERE s.id IS NULL`
+          )?.[0]?.values?.[0]?.[0] || 0;
 
         return {
           success: true,
           status: {
             bronzeUnprocessed: unprocessedBronze,
-            silverUnprocessed: unprocessedSilver,
-            needsProcessing: unprocessedBronze > 0 || unprocessedSilver > 0,
+            silverUnprocessed: 0,
+            needsProcessing: unprocessedBronze > 0,
           },
         };
       } catch (error) {

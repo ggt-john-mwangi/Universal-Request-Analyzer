@@ -54,7 +54,7 @@ export const TABLE_METADATA = {
     purpose: "Storage limits and cleanup settings",
     feature: "Storage Management",
     status: "✅ ACTIVE",
-    usage: "cleanup-manager.js uses for retention policies",
+    usage: "data-purge.js options component + dataCleanup alarm in background.js",
   },
   config_export: {
     schema: "config",

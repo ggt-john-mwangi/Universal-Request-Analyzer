@@ -55,21 +55,7 @@ export class MedallionManager {
     try {
       const now = Date.now();
 
-      // Validate critical hierarchy fields
-      if (!requestData.url) {
-        console.error("❌ Request URL is required but missing");
-        throw new Error("Request URL is required");
-      }
-
-      // Log data model for verification
-      console.log("📝 Storing request with hierarchy:", {
-        domain: requestData.domain || "NULL",
-        pageUrl: requestData.pageUrl || "NULL",
-        requestUrl: requestData.url,
-        hierarchy: `${requestData.domain || "unknown"} > ${
-          requestData.pageUrl || "unknown"
-        } > ${requestData.url}`,
-      });
+      if (!requestData.url) throw new Error("Request URL is required");
 
       // Helper function to escape SQL strings
       const escapeStr = (val) => {
@@ -655,6 +641,26 @@ export class MedallionManager {
   queueForGoldProcessing(requestId) {
     // Gold processing typically happens on schedule, not per request
     this.eventBus?.publish("medallion:silver:ready-for-gold", { requestId });
+  }
+
+  /**
+   * Bulk-promote all unprocessed bronze records to silver (for alarm-driven catch-up).
+   * Returns count of records processed.
+   */
+  async processAllPendingToSilver(limit = 100) {
+    const pending = this.db.exec(`
+      SELECT b.id FROM bronze_requests b
+      LEFT JOIN silver_requests s ON s.id = b.id
+      WHERE s.id IS NULL
+      ORDER BY b.timestamp ASC
+      LIMIT ${limit}
+    `);
+    if (!pending?.[0]?.values?.length) return 0;
+    const ids = pending[0].values.map((r) => r[0]);
+    for (const id of ids) {
+      await this.processBronzeToSilver(id);
+    }
+    return ids.length;
   }
 
   /**

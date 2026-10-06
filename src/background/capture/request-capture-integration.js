@@ -3,6 +3,7 @@
 
 import { generateId } from "../utils/id-generator.js";
 import { parseUrl } from "../utils/url-utils.js";
+import { scheduleSave } from "../database/db-manager-medallion.js";
 
 /**
  * RequestCaptureIntegration - Bridges request capture and medallion storage
@@ -20,26 +21,12 @@ export class RequestCaptureIntegration {
    * Initialize request capture listeners
    */
   initialize() {
-    console.log("🔧 Initializing RequestCaptureIntegration...");
-    console.log("  - dbManager available:", !!this.dbManager);
-    console.log(
-      "  - dbManager.medallion available:",
-      !!this.dbManager?.medallion
-    );
-    console.log("  - eventBus available:", !!this.eventBus);
-
-    // Listen for webRequest events
     if (typeof chrome !== "undefined" && chrome.webRequest) {
-      console.log("  - chrome.webRequest API available");
       this.setupWebRequestListeners();
     } else {
-      console.error("  ❌ chrome.webRequest API NOT available!");
+      console.error("[RequestCapture] chrome.webRequest API not available");
     }
-
-    // Listen for performance entries
     this.setupPerformanceListener();
-
-    console.log("✅ Request capture integration initialized");
   }
 
   /**
@@ -50,46 +37,30 @@ export class RequestCaptureIntegration {
       urls: this.config?.filters?.includePatterns || ["<all_urls>"],
     };
 
-    console.log("Setting up webRequest listeners with filters:", filters);
-
-    // Capture request start
     chrome.webRequest.onBeforeRequest.addListener(
       (details) => this.handleRequestStart(details),
       filters,
       ["requestBody"]
     );
-    console.log("✓ onBeforeRequest listener registered");
-
-    // Capture request headers
     chrome.webRequest.onBeforeSendHeaders.addListener(
       (details) => this.handleRequestHeaders(details),
       filters,
       ["requestHeaders"]
     );
-    console.log("✓ onBeforeSendHeaders listener registered");
-
-    // Capture response headers
     chrome.webRequest.onHeadersReceived.addListener(
       (details) => this.handleResponseHeaders(details),
       filters,
       ["responseHeaders"]
     );
-    console.log("✓ onHeadersReceived listener registered");
-
-    // Capture request completion
     chrome.webRequest.onCompleted.addListener(
       (details) => this.handleRequestComplete(details),
       filters,
       ["responseHeaders"]
     );
-    console.log("✓ onCompleted listener registered");
-
-    // Capture request errors
     chrome.webRequest.onErrorOccurred.addListener(
       (details) => this.handleRequestError(details),
       filters
     );
-    console.log("✓ onErrorOccurred listener registered");
   }
 
   /**
@@ -101,51 +72,23 @@ export class RequestCaptureIntegration {
     });
   }
 
-  /**
-   * Check if request should be captured based on filters
-   */
   shouldCaptureRequest(details, domain) {
-    // Check if capture is enabled
-    if (this.config.enabled === false) {
-      console.log("❌ Capture disabled globally");
-      return false;
-    }
+    if (this.config.enabled === false) return false;
 
-    // Check request type filters
     const includeTypes = this.config.captureFilters?.includeTypes || [];
-    if (includeTypes.length > 0 && !includeTypes.includes(details.type)) {
-      console.log(`❌ Filtered by type: ${details.type} not in`, includeTypes);
-      return false;
-    }
+    if (includeTypes.length > 0 && !includeTypes.includes(details.type)) return false;
 
-    // Check domain filters
     const includeDomains = this.config.captureFilters?.includeDomains || [];
     const excludeDomains = this.config.captureFilters?.excludeDomains || [];
     const trackOnlyConfigured = this.config.trackOnlyConfiguredSites ?? true;
 
-    // Check exclusions first (always honored)
-    if (excludeDomains.includes(domain)) {
-      console.log(`❌ Domain excluded: ${domain}`);
-      return false;
-    }
+    if (excludeDomains.includes(domain)) return false;
 
-    // Check inclusions based on tracking mode
     if (trackOnlyConfigured) {
-      // Mode: Track ONLY configured sites
-      if (includeDomains.length === 0) {
-        console.log("❌ No domains configured, trackOnlyConfigured=true");
-        return false;
-      }
-      if (!includeDomains.includes(domain)) {
-        console.log(`❌ Domain not in include list: ${domain}`);
-        return false;
-      }
+      if (includeDomains.length === 0) return false;
+      if (!includeDomains.includes(domain)) return false;
     } else {
-      // Mode: Track all EXCEPT excluded
-      if (includeDomains.length > 0 && !includeDomains.includes(domain)) {
-        console.log(`❌ Domain not in include list: ${domain}`);
-        return false;
-      }
+      if (includeDomains.length > 0 && !includeDomains.includes(domain)) return false;
     }
 
     return true;
@@ -196,48 +139,16 @@ export class RequestCaptureIntegration {
               try {
                 const pageUrlObj = new URL(tab.url);
                 requestData.domain = pageUrlObj.hostname;
-
-                // Check filters now that we have the domain
                 if (!this.shouldCaptureRequest(details, requestData.domain)) {
-                  console.log(
-                    "❌ Request filtered:",
-                    details.method,
-                    details.url,
-                    "(domain:",
-                    requestData.domain,
-                    ")"
-                  );
                   this.pendingRequests.delete(requestId);
-                  return;
                 }
-
-                console.log(
-                  "✅ Request captured:",
-                  details.method,
-                  details.url,
-                  "(domain:",
-                  requestData.domain,
-                  ")"
-                );
-              } catch (e) {
-                // Fallback to request URL hostname if page URL parsing fails
+              } catch {
                 requestData.domain = urlParts?.hostname || "";
-                console.warn(
-                  "  → Failed to parse page URL, using request hostname:",
-                  requestData.domain
-                );
               }
             }
           })
-          .catch((tabError) => {
-            // Fallback to request URL hostname if tab fetch fails
+          .catch(() => {
             requestData.domain = urlParts?.hostname || "";
-            console.warn(
-              "Failed to get tab info for tabId",
-              details.tabId,
-              "- using request hostname:",
-              tabError.message
-            );
           });
       } else {
         // No tab ID (background request) - use request URL hostname
@@ -399,81 +310,34 @@ export class RequestCaptureIntegration {
    */
   async saveToBronze(requestData, perfMetrics = null) {
     try {
-      console.log(
-        "💾 Saving request to Bronze:",
-        requestData.method,
-        requestData.url
-      );
-      console.log("  📊 Request data being saved:", {
-        id: requestData.id,
-        domain: requestData.domain,
-        pageUrl: requestData.pageUrl,
-        tabId: requestData.tabId,
-        status: requestData.status,
-        duration: requestData.duration,
-        type: requestData.type,
-      });
-
       if (!this.dbManager?.medallion) {
-        console.error(
-          "❌ Medallion manager not available! dbManager:",
-          !!this.dbManager,
-          "medallion:",
-          !!this.dbManager?.medallion
-        );
+        console.error("Medallion manager not available");
         return;
       }
 
       // Insert request into Bronze
       await this.dbManager.medallion.insertBronzeRequest(requestData);
-      console.log("✅ Request saved to Bronze layer:", requestData.id);
 
       // Insert headers if available
       if (requestData.requestHeaders?.length > 0) {
-        const headers = {};
-        requestData.requestHeaders.forEach((h) => {
-          headers[h.name] = h.value;
-        });
-        await this.dbManager.medallion.insertBronzeHeaders(
-          requestData.id,
-          headers,
-          "request"
-        );
+        const reqHeaders = {};
+        requestData.requestHeaders.forEach((h) => { reqHeaders[h.name] = h.value; });
+        await this.dbManager.medallion.insertBronzeHeaders(requestData.id, reqHeaders, "request");
       }
 
       if (requestData.responseHeaders?.length > 0) {
-        const headers = {};
-        requestData.responseHeaders.forEach((h) => {
-          headers[h.name] = h.value;
-        });
-        await this.dbManager.medallion.insertBronzeHeaders(
-          requestData.id,
-          headers,
-          "response"
-        );
+        const resHeaders = {};
+        requestData.responseHeaders.forEach((h) => { resHeaders[h.name] = h.value; });
+        await this.dbManager.medallion.insertBronzeHeaders(requestData.id, resHeaders, "response");
       }
 
       // Insert timings if available
       if (perfMetrics) {
-        await this.dbManager.medallion.insertBronzeTimings(
-          requestData.id,
-          perfMetrics
-        );
+        await this.dbManager.medallion.insertBronzeTimings(requestData.id, perfMetrics);
       }
 
-      // Insert event
-      await this.dbManager.medallion.insertBronzeEvent({
-        eventType: "request",
-        eventName: requestData.error ? "request_failed" : "request_completed",
-        source: "webRequest",
-        data: {
-          method: requestData.method,
-          status: requestData.status,
-          duration: requestData.duration,
-        },
-        requestId: requestData.id,
-        timestamp: Date.now(),
-      });
+      // Schedule a debounced OPFS save (coalesces bursts into one write)
+      scheduleSave();
     } catch (error) {
       console.error("Failed to save to Bronze layer:", error);
       throw error;

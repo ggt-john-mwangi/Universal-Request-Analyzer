@@ -35,11 +35,13 @@ const ACTION_ALIASES = {
   purgeByCustomFilter: "deleteRequests", // Delete by filter
 
   // Settings aliases (legacy compatibility)
+  "capture:toggle": "updateCaptureSettings", // Panel/options pause button
   updateTrackingSites: "updateCaptureSettings", // Capture settings
   updateTrackingMode: "updateCaptureSettings", // Capture mode
   getRetentionSettings: "getSettings", // Get all settings (filter client-side)
   updateRetentionSettings: "updateSettings", // Update settings
   updateAutoCleanupSettings: "updateSettings", // Update settings
+  reloadCaptureSettings: "getCaptureSettings", // Options: re-read after save
 
   // Query aliases
   getAvailableTable: "getTableList", // Database table list

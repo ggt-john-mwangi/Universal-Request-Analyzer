@@ -334,14 +334,8 @@ function generateFetchCode(request) {
  * Open DevTools panel focused on specific request
  * @param {Object} request - Request object
  */
-function openDevToolsForRequest(request) {
-  // Send message to open DevTools panel
-  // Note: chrome.devtools API is only available in DevTools context, not popup
-  runtime.sendMessage({
-    action: "openDevTools",
-    data: { requestId: request.id },
-  });
-
+function openDevToolsForRequest(_request) {
+  runtime.openOptionsPage();
   showNotification("Opening in DevTools panel...", false);
 }
 

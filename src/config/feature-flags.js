@@ -32,6 +32,9 @@ const DEFAULT_FEATURE_FLAGS = {
   aiAnalysis: false,
   predictiveAnalytics: false,
   securityScanning: false,
+
+  // Content script event tracking (clicks, scrolls, form submits) — off by default
+  eventTracking: false,
 };
 
 // Feature dependencies - features that require other features to be enabled
@@ -68,6 +71,8 @@ const FEATURE_PERMISSIONS = {
   aiAnalysis: 'premium',
   predictiveAnalytics: 'premium',
   securityScanning: 'premium',
+
+  eventTracking: 'basic',
 };
 
 // Permission levels in order of increasing access
@@ -103,6 +108,8 @@ const FEATURE_DESCRIPTIONS = {
   aiAnalysis: 'AI-powered analysis of request patterns',
   predictiveAnalytics: 'Predict future request patterns',
   securityScanning: 'Scan requests for security vulnerabilities',
+
+  eventTracking: 'Track user interactions (clicks, scrolls, form submits) on monitored pages',
 };
 
 // Feature categories for UI organization
@@ -129,6 +136,7 @@ const FEATURE_CATEGORIES = {
     'customRules',
   ],
   experimental: ['aiAnalysis', 'predictiveAnalytics', 'securityScanning'],
+  content: ['eventTracking'],
 };
 
 // Cross-browser API support (no localStorage fallback)

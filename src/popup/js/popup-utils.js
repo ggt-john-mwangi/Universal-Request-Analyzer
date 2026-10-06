@@ -53,8 +53,26 @@ export function truncateUrl(url, maxLength) {
  * @param {boolean} isError - Whether this is an error notification
  */
 export function showNotification(message, isError = false) {
-  console.log(isError ? 'Error:' : 'Success:', message);
-  // Could add a toast notification here in the future
+  let toast = document.getElementById('_ura_toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = '_ura_toast';
+    Object.assign(toast.style, {
+      position: 'fixed', bottom: '12px', left: '50%', transform: 'translateX(-50%)',
+      padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '500',
+      zIndex: '9999', pointerEvents: 'none', opacity: '0',
+      transition: 'opacity 0.2s', maxWidth: '340px', textAlign: 'center',
+    });
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = isError ? '#e53e3e' : '#38a169';
+  toast.style.color = '#fff';
+  toast.style.opacity = '1';
+
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
 
 /**

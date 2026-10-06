@@ -679,6 +679,16 @@ export const exportHandlers = new Map([
   ],
 
   [
+    "exportDatabase",
+    async (message, sender, context) => {
+      const fmt = (message.format || "json").toLowerCase();
+      if (fmt === "sqlite") return await handleExportToSQLite(message.options, context);
+      if (fmt === "csv") return await handleExportToCSV(message.options, context);
+      return await handleExportToJSON(message.options, context);
+    },
+  ],
+
+  [
     "exportAllTablesToCSV",
     async (message, sender, context) => {
       return await handleExportAllTablesToCSV(message.options, context);

@@ -154,7 +154,7 @@
       </div>
 
       <!-- Resource Usage Display -->
-      <div id="resourceUsage" class="resource-usage">
+      <div id="resourceUsage" class="resource-usage advanced-only">
         <div class="resource-item">
           <span class="resource-label"
             ><i class="fas fa-database"></i> Requests:</span
@@ -286,8 +286,8 @@
             <div class="stat-value" id="avgResponse">0ms</div>
           </div>
           <div class="stat-item">
-            <div class="stat-label">Errors</div>
-            <div class="stat-value" id="errorCount">0</div>
+            <div class="stat-label">Error Rate</div>
+            <div class="stat-value" id="errorCount">0%</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">Data Transferred</div>
@@ -297,7 +297,7 @@
 
         <!-- Request Timeline Chart -->
         <div class="timeline-chart advanced-only">
-          <div class="chart-title">Request Timeline (Last 5 min)</div>
+          <div class="chart-title">Request Timeline (Last 30 min)</div>
           <canvas id="requestTimelineChart" width="400" height="200"></canvas>
         </div>
 
@@ -343,30 +343,6 @@
           </div>
           <div class="errors-list" id="recentErrorsList">
             <p class="placeholder">No errors in the last 5 minutes</p>
-          </div>
-        </div>
-
-        <!-- Data Pipeline -->
-        <div class="data-pipeline">
-          <div class="pipeline-title"><i class="fas fa-project-diagram"></i> Data Flow</div>
-          <div class="pipeline-stages">
-            <div class="pipeline-stage">
-              <span class="pipeline-count" id="bronzeCount">—</span>
-              <span class="pipeline-label">Bronze</span>
-              <span class="pipeline-sub">captured</span>
-            </div>
-            <div class="pipeline-arrow"><i class="fas fa-arrow-right"></i></div>
-            <div class="pipeline-stage">
-              <span class="pipeline-count" id="silverCount">—</span>
-              <span class="pipeline-label">Silver</span>
-              <span class="pipeline-sub">enriched</span>
-            </div>
-            <div class="pipeline-arrow"><i class="fas fa-arrow-right"></i></div>
-            <div class="pipeline-stage">
-              <span class="pipeline-count" id="goldCount">—</span>
-              <span class="pipeline-label">Gold</span>
-              <span class="pipeline-sub">aggregated</span>
-            </div>
           </div>
         </div>
 

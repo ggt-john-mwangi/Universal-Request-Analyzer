@@ -61,6 +61,10 @@
             <i class="fas fa-dollar-sign"></i>
             <span>Variables</span>
           </button>
+          <button class="nav-item" data-tab="pipeline">
+            <i class="fas fa-project-diagram"></i>
+            <span>Pipeline</span>
+          </button>
           <button class="nav-item" data-tab="advanced">
             <i class="fas fa-code"></i>
             <span>Advanced</span>
@@ -2521,6 +2525,20 @@ fetch('https://api.example.com/data', {
                     and safety.
                   </p>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Pipeline Flow Tab -->
+          <section id="pipeline" class="tab-content">
+            <div class="options-container">
+              <div class="option-section">
+                <h2><i class="fas fa-project-diagram"></i> Data Pipeline</h2>
+                <p class="section-description">
+                  Live view of how captured network requests move through the
+                  Bronze → Silver → Gold processing stages.
+                </p>
+                <div id="pipelineFlowMount"></div>
               </div>
             </div>
           </section>

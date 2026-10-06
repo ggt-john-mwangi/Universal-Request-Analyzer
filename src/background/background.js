@@ -1,7 +1,6 @@
 // Integrated Background Script with Medallion Architecture
 // Full implementation connecting all components
 
-import { initDatabase } from "./database/db-manager.js";
 import { setupLocalAuth } from "./auth/local-auth-manager.js";
 import { initializePopupMessageHandler } from "./messaging/message-router.js";
 import { DatabaseManagerMedallion } from "./database/db-manager-medallion.js";
@@ -9,13 +8,12 @@ import { MedallionManager } from "./database/medallion-manager.js";
 import { AnalyticsProcessor } from "./database/analytics-processor.js";
 import { ConfigSchemaManager } from "./database/config-schema-manager.js";
 import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
-import { migrateLegacyToMedallion } from "./database/medallion-migration.js";
 import { runtime, downloads, alarms } from "./compat/browser-compat.js";
 import settingsManager from "../lib/shared-components/settings-manager.js";
+import featureFlags from "../config/feature-flags.js";
 
 class IntegratedExtensionInitializer {
   constructor() {
-    this.dbManager = null;
     this.medallionDb = null;
     this.localAuth = null;
     this.configManager = null;
@@ -80,10 +78,13 @@ class IntegratedExtensionInitializer {
       // Step 7: Initialize request capture
       await this.initializeRequestCapture();
 
-      // Step 8: Initialize message handlers
+      // Step 8: Initialize feature flags
+      await this.initializeFeatureFlags();
+
+      // Step 9: Initialize message handlers
       this.initializeMessageHandlers();
 
-      // Step 9: Schedule periodic tasks
+      // Step 10: Schedule periodic tasks
       this.schedulePeriodicTasks();
 
       this.initialized = true; // Mark as initialized
@@ -99,52 +100,13 @@ class IntegratedExtensionInitializer {
   }
 
   async initializeDatabase() {
-    console.log("→ Initializing Medallion Database...");
-
-    try {
-      // Step 1: Initialize medallion database FIRST
-      this.medallionDb = new DatabaseManagerMedallion();
-      await this.medallionDb.initialize(null, null, this.eventBus);
-      console.log("✓ Medallion Database core initialized");
-
-      // Step 2: Initialize legacy database
-      this.dbManager = await initDatabase();
-      console.log("✓ Legacy Database initialized");
-
-      // Step 3: Check if migration is needed
-      const needsMigration = await this.checkLegacyData();
-      if (needsMigration) {
-        console.log("→ Migrating legacy data to medallion architecture...");
-        await migrateLegacyToMedallion(this.dbManager, this.medallionDb);
-        console.log("✓ Legacy data migration complete");
-      }
-
-      console.log("✓ Database initialization complete");
-    } catch (error) {
-      console.error("Database initialization failed:", error);
-      throw error;
-    }
-  }
-
-  async checkLegacyData() {
-    try {
-      const result = await this.dbManager.executeQuery(`
-        SELECT COUNT(*) as count FROM sqlite_master 
-        WHERE type='table' AND name='requests'
-      `);
-      return result[0]?.values?.[0]?.[0] > 0;
-    } catch (error) {
-      return false;
-    }
+    this.medallionDb = new DatabaseManagerMedallion();
+    await this.medallionDb.initialize(null, null, this.eventBus);
   }
 
   async initializeLocalAuth() {
-    console.log("→ Initializing Local Authentication...");
-
-    this.localAuth = setupLocalAuth(this.dbManager);
+    this.localAuth = setupLocalAuth(this.medallionDb);
     await this.localAuth.initialize();
-
-    console.log("✓ Local Authentication initialized");
   }
 
   async initializeConfigManager() {
@@ -199,6 +161,27 @@ class IntegratedExtensionInitializer {
     console.log("✓ Analytics Processor initialized");
   }
 
+  async initializeFeatureFlags() {
+    await featureFlags.initialize({
+      permissionLevel: "basic",
+      onUpdate: (flags) => {
+        // Broadcast eventTracking state to content scripts via storage
+        chrome.storage.local.get(["settings"], (data) => {
+          const current = data.settings || {};
+          chrome.storage.local.set({
+            settings: {
+              ...current,
+              settings: {
+                ...(current.settings || {}),
+                eventTracking: { enabled: flags.eventTracking },
+              },
+            },
+          });
+        });
+      },
+    });
+  }
+
   async initializeRequestCapture() {
     console.log("→ Initializing Request Capture...");
 
@@ -223,14 +206,6 @@ class IntegratedExtensionInitializer {
       trackOnlyConfiguredSites:
         settings.capture?.trackOnlyConfiguredSites ?? true,
     };
-
-    console.log("Request capture config loaded:", {
-      enabled: config.enabled,
-      includeTypes: config.captureFilters.includeTypes,
-      includeDomains: config.captureFilters.includeDomains,
-      excludeDomains: config.captureFilters.excludeDomains,
-      trackOnlyConfiguredSites: config.trackOnlyConfiguredSites,
-    });
 
     this.requestCapture = new RequestCaptureIntegration(
       this.medallionDb,
@@ -274,8 +249,6 @@ class IntegratedExtensionInitializer {
         }
       }
 
-      // Then try medallion-specific handlers
-      console.log("[handleAllMessages] Trying medallion handlers");
       await this.handleMedallionMessages(message, sender, sendResponse);
     } catch (error) {
       console.error("Message handling error:", error);
@@ -287,7 +260,7 @@ class IntegratedExtensionInitializer {
     try {
       switch (message.action) {
         case "processToSilver": {
-          const count = await this.medallionManager.processBronzeToSilver();
+          const count = await this.medallionManager.processAllPendingToSilver();
           sendResponse({ success: true, processed: count });
           break;
         }
@@ -468,92 +441,33 @@ class IntegratedExtensionInitializer {
         case "exportDatabase": {
           try {
             const format = message.format || "json";
-            console.log(`[Background] Export database requested`);
-            console.log(`[Background] - Message:`, message);
-            console.log(`[Background] - Format: ${format}`);
-            console.log(`[Background] - Filename: ${message.filename}`);
-
             let exportResponse;
 
-            // Route to appropriate export handler based on format
-            console.log(
-              `[Background] Routing to handler for format: ${format}`
-            );
             switch (format) {
               case "json":
-                console.log("[Background] Calling exportToJSON");
-                exportResponse = await this.popupMessageHandler({
-                  action: "exportToJSON",
-                  options: { prettify: true },
-                });
+                exportResponse = await this.popupMessageHandler({ action: "exportToJSON", options: { prettify: true } });
                 break;
-
               case "csv":
-                console.log("[Background] Calling exportAllTablesToCSV");
-                exportResponse = await this.popupMessageHandler({
-                  action: "exportAllTablesToCSV",
-                  options: {},
-                });
+                exportResponse = await this.popupMessageHandler({ action: "exportAllTablesToCSV", options: {} });
                 break;
-
               case "sqlite":
               default:
-                console.log("[Background] Calling exportToSQLite (default)");
-                exportResponse = await this.popupMessageHandler({
-                  action: "exportToSQLite",
-                  options: {},
-                });
+                exportResponse = await this.popupMessageHandler({ action: "exportToSQLite", options: {} });
                 break;
             }
 
-            console.log("[Background] Export handler response:", {
-              success: exportResponse?.success,
-              filename: exportResponse?.filename,
-              size: exportResponse?.size,
-              mimeType: exportResponse?.mimeType,
-            });
+            if (!exportResponse?.success) throw new Error(exportResponse?.error || "Export failed");
 
-            if (!exportResponse || !exportResponse.success) {
-              throw new Error(exportResponse?.error || "Export failed");
-            }
-
-            // Convert array back to Uint8Array for download
             const data = new Uint8Array(exportResponse.data);
-            console.log(`[Background] Data size: ${data.length} bytes`);
-
-            // Convert to base64 in chunks to avoid stack overflow
             let binary = "";
             const chunkSize = 8192;
             for (let i = 0; i < data.length; i += chunkSize) {
-              const chunk = data.subarray(i, i + chunkSize);
-              binary += String.fromCharCode.apply(null, chunk);
+              binary += String.fromCharCode.apply(null, data.subarray(i, i + chunkSize));
             }
-            const base64 = btoa(binary);
-
-            // Use appropriate MIME type based on format
-            const mimeType =
-              exportResponse.mimeType || "application/octet-stream";
-            const dataUrl = `data:${mimeType};base64,${base64}`;
-
-            // Use filename from handler or fallback to provided filename
+            const mimeType = exportResponse.mimeType || "application/octet-stream";
             const filename = exportResponse.filename || message.filename;
-            console.log(
-              `[Background] Downloading file: ${filename} (${mimeType})`
-            );
-
-            await downloads.download({
-              url: dataUrl,
-              filename: filename,
-              saveAs: true,
-            });
-
-            console.log("[Background] Download initiated successfully");
-            sendResponse({
-              success: true,
-              filename: filename,
-              size: data.length,
-              format: format,
-            });
+            await downloads.download({ url: `data:${mimeType};base64,${btoa(binary)}`, filename, saveAs: true });
+            sendResponse({ success: true, filename, size: data.length, format });
           } catch (exportError) {
             console.error("[Background] Export error:", exportError);
             sendResponse({ success: false, error: exportError.message });
@@ -611,22 +525,7 @@ class IntegratedExtensionInitializer {
               viewport_height: message.viewportHeight,
             };
 
-            console.log(
-              "[Background] Storing web vital:",
-              metricName,
-              vitalData
-            );
-
-            const result = await this.medallionManager.insertWebVital(
-              vitalData
-            );
-
-            console.log(
-              "[Background] Web vital stored successfully:",
-              metricName,
-              "result:",
-              result
-            );
+            const result = await this.medallionManager.insertWebVital(vitalData);
             sendResponse({ success: true, id: result });
           } catch (vitalError) {
             console.error("Web vital capture error:", vitalError);
@@ -699,67 +598,69 @@ class IntegratedExtensionInitializer {
   schedulePeriodicTasks() {
     console.log("→ Scheduling Periodic Tasks...");
 
-    // Process Bronze→Silver every 30 seconds (batch processing)
-    const bronzeToSilver = setInterval(async () => {
-      try {
-        const count = await this.medallionManager.processBronzeToSilver();
-        if (count > 0) {
-          console.log(`Processed ${count} Bronze→Silver records`);
-        }
-      } catch (error) {
-        console.error("Bronze→Silver processing failed:", error);
-      }
-    }, 30000); // 30 seconds for better performance
-    this.scheduledTasks.push(bronzeToSilver);
-
-    // Process Silver→Gold daily using alarms for reliability
-    // Create alarm for daily processing at midnight
     if (alarms) {
+      // Bronze→Silver every 2 minutes — survives SW restarts unlike setInterval
+      alarms.create("bronzeToSilver", { periodInMinutes: 2 });
+
+      // Silver→Gold daily at midnight
       alarms.create("dailyGoldProcessing", {
         when: this.getNextMidnight(),
-        periodInMinutes: 24 * 60, // Daily
+        periodInMinutes: 24 * 60,
+      });
+
+      // Data retention cleanup — purges records older than configured retention period
+      alarms.create("dataCleanup", {
+        when: this.getNextMidnight(),
+        periodInMinutes: 24 * 60,
       });
 
       alarms.onAlarm.addListener(async (alarm) => {
-        if (alarm.name === "dailyGoldProcessing") {
+        if (alarm.name === "bronzeToSilver") {
           try {
-            await this.medallionManager.processSilverToGold();
-            console.log("Processed Silver→Gold for daily aggregation");
+            const count = await this.medallionManager.processAllPendingToSilver();
+            if (count > 0) console.log(`[Medallion] Bronze→Silver: ${count} records`);
           } catch (error) {
-            console.error("Silver→Gold processing failed:", error);
+            console.error("Bronze→Silver failed:", error);
+          }
+        } else if (alarm.name === "dailyGoldProcessing") {
+          try {
+            await this.medallionManager.processDailyAnalytics();
+          } catch (error) {
+            console.error("Silver→Gold failed:", error);
+          }
+        } else if (alarm.name === "dataCleanup") {
+          try {
+            if (this.medallionDb?.isReady) {
+              const settings = await this.medallionDb.executeQuery(
+                "SELECT value FROM config_settings WHERE key = 'retentionPeriodDays' LIMIT 1"
+              );
+              const days = settings?.[0]?.value ? parseInt(settings[0].value) : 30;
+              await this.medallionDb.cleanupOldRecords(days);
+            }
+          } catch (error) {
+            console.error("Data cleanup failed:", error);
           }
         } else if (alarm.name === "autoExport") {
           try {
             await this.handleAutoExport();
-            console.log("Auto-export completed successfully");
           } catch (error) {
             console.error("Auto-export failed:", error);
           }
         }
       });
     } else {
-      // Fallback to interval-based check
-      const dailyGold = setInterval(async () => {
+      // Fallback for browsers without alarms API
+      const bronzeToSilver = setInterval(async () => {
         try {
-          const now = new Date();
-          const hour = now.getHours();
-          const minute = now.getMinutes();
-          // Process between midnight and 1am
-          if (hour === 0 && minute < 30) {
-            await this.medallionManager.processSilverToGold();
-            console.log("Processed Silver→Gold for daily aggregation");
-          }
+          await this.medallionManager.processAllPendingToSilver();
         } catch (error) {
-          console.error("Silver→Gold processing failed:", error);
+          console.error("Bronze→Silver failed:", error);
         }
-      }, 30 * 60 * 1000); // Check every 30 minutes
-      this.scheduledTasks.push(dailyGold);
+      }, 2 * 60 * 1000);
+      this.scheduledTasks.push(bronzeToSilver);
     }
 
-    console.log("✓ Periodic Tasks scheduled");
-    console.log("  - Bronze→Silver: every 30 seconds");
-    console.log("  - Silver→Gold: daily at midnight (chrome.alarms)");
-    console.log("  - Auto-Export: configured via settings");
+    console.log("✓ Periodic Tasks scheduled (Bronze→Silver: alarms every 2min, Silver→Gold: daily)");
   }
 
   async handleAutoExport() {
@@ -898,18 +799,16 @@ class IntegratedExtensionInitializer {
 
     // Clear alarms
     if (alarms) {
+      alarms.clear("bronzeToSilver");
       alarms.clear("dailyGoldProcessing");
+      alarms.clear("dataCleanup");
       alarms.clear("autoExport");
     }
 
-    // Save database before cleanup
-    try {
-      console.log("Saving database before cleanup...");
-      const { saveDatabase } = await import("./database/db-manager.js");
-      await saveDatabase();
-      console.log("Database saved successfully.");
-    } catch (error) {
-      console.error("Failed to save database during cleanup:", error);
+    if (this.medallionDb?.isReady) {
+      await this.medallionDb.saveDatabase().catch((e) =>
+        console.error("Failed to save database during cleanup:", e)
+      );
     }
   }
 }

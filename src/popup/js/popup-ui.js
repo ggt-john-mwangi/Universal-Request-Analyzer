@@ -8,29 +8,23 @@ import { formatBytes, formatTimeAgo, truncateUrl } from './popup-utils.js';
  */
 export function updatePageSummary(data) {
   const totalRequests = data.totalRequests || 0;
-  const responseTimes = data.responseTimes || [];
-  const avgResponse =
-    responseTimes.length > 0
-      ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
-      : 0;
+  const avgResponse = data.avgResponse || 0;
+  const errorCount = data.errorCount ?? 0;
+  const errorRate = totalRequests > 0 ? `${Math.round(errorCount / totalRequests * 100)}%` : '0%';
 
-  // Count errors (all 4xx and 5xx status codes)
-  const statusCodes = data.statusCodes || {};
-  const errorCount = Object.entries(statusCodes).reduce(
-    (sum, [code, count]) => {
-      const statusCode = parseInt(code);
-      return statusCode >= 400 && statusCode < 600 ? sum + count : sum;
-    },
-    0
-  );
+  const rateNum = totalRequests > 0 ? Math.round(errorCount / totalRequests * 100) : 0;
 
   document.getElementById('totalRequests').textContent = totalRequests;
-  document.getElementById('avgResponse').textContent = `${Math.round(
-    avgResponse
-  )}ms`;
-  document.getElementById('errorCount').textContent = errorCount;
+  document.getElementById('avgResponse').textContent = `${Math.round(avgResponse)}ms`;
+
+  const errorEl = document.getElementById('errorCount');
+  if (errorEl) {
+    errorEl.textContent = errorRate;
+    errorEl.style.color = rateNum === 0 ? '' : rateNum < 5 ? 'var(--success-color,#48bb78)' : rateNum < 20 ? '#ed8936' : 'var(--error-color,#e53e3e)';
+  }
+
   document.getElementById('dataTransferred').textContent = formatBytes(
-    data.totalBytes || 0
+    data.dataTransferred || data.totalBytes || 0
   );
 }
 
@@ -73,6 +67,8 @@ export function updateStatusBreakdown(statusCodes) {
   document.getElementById('status3xx').textContent = status3xx;
   document.getElementById('status4xx').textContent = status4xx;
   document.getElementById('status5xx').textContent = status5xx;
+  document.getElementById('status5xx')?.closest('.status-badge')
+    ?.classList.toggle('status-alert', status5xx > 0);
 }
 
 /**
@@ -310,27 +306,16 @@ export function updateRecentErrorsDisplay(errors) {
 export function setViewMode(mode) {
   const simpleModeBtn = document.getElementById('simpleModeBtn');
   const advancedModeBtn = document.getElementById('advancedModeBtn');
-  const advancedElements = document.querySelectorAll(
-    '.timeline-chart, .request-types, .qa-quick-view, .filters-section'
-  );
-  const resourceUsage = document.getElementById('resourceUsage');
+  const isAdvanced = mode === 'advanced';
 
-  if (mode === 'simple') {
-    simpleModeBtn?.classList.add('active');
-    advancedModeBtn?.classList.remove('active');
-    // Hide advanced features
-    advancedElements.forEach((el) => (el.style.display = 'none'));
-    // Show resource usage in simple mode
-    if (resourceUsage) resourceUsage.style.display = 'flex';
-  } else {
-    simpleModeBtn?.classList.remove('active');
-    advancedModeBtn?.classList.add('active');
-    // Show advanced features
-    advancedElements.forEach((el) => (el.style.display = ''));
-    // Hide resource usage in advanced mode
-    if (resourceUsage) resourceUsage.style.display = 'none';
-  }
+  simpleModeBtn?.classList.toggle('active', !isAdvanced);
+  advancedModeBtn?.classList.toggle('active', isAdvanced);
+
+  document.querySelectorAll('.advanced-only').forEach((el) => {
+    el.style.display = isAdvanced ? '' : 'none';
+  });
 }
+
 
 /**
  * Show main app container

@@ -3,7 +3,7 @@
 // Shows page summary immediately on load
 
 import { showApp } from "./popup-ui.js";
-import { loadPageSummary, stopAutoRefresh } from "./popup-data.js";
+import { loadPageSummary, stopAutoRefresh, updateRecentErrors } from "./popup-data.js";
 import { setupEventListeners } from "./popup-events.js";
 import { checkAndShowWelcome, showTipsBanner, cleanupTips } from "./popup-welcome.js";
 import { loadRecentRequests, clearRequestsList } from "./popup-requests.js";
@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Load data
   await loadPageSummary();
   await loadRecentRequests();
+  updateRecentErrors().catch(() => {});
   
   // Setup event listeners
   setupEventListeners();

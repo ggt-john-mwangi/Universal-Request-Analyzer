@@ -18,12 +18,29 @@ import {
   chartInstances,
 } from "./chart-components.js";
 
+const CHART_RENDERERS = {
+  responseTime: (ctx, data) => renderResponseTimeChart(ctx, data),
+  statusCode: (ctx, data) => renderStatusCodeChart(ctx, data),
+  requestType: (ctx, data) => renderRequestTypeChart(ctx, data),
+  timeDistribution: (ctx, data) => renderTimeDistributionChart(ctx, data),
+  sizeDistribution: (ctx, data) => renderSizeDistributionChart(ctx, data),
+};
+
+const CHART_REFS = {
+  responseTime: responseTimeChartRef,
+  statusCode: statusCodeChartRef,
+  requestType: requestTypeChartRef,
+  timeDistribution: timeDistributionChartRef,
+  sizeDistribution: sizeDistributionChartRef,
+};
+
 // Main entry point for data visualization
 function DataVisualization() {
   const filters = {};
   let loading = false;
   let error = null;
   let activeChart = "responseTime";
+  let lastData = null; // cached so tab switches don't re-fetch
 
   function setLoading(value) {
     loading = value;
@@ -36,83 +53,48 @@ function DataVisualization() {
     errorMessage.style.display = value ? "block" : "none";
   }
 
-  function renderCharts(data) {
-    // Destroy existing charts
-    Object.values(chartInstances).forEach((chart) => {
-      if (chart) {
-        chart.destroy();
-      }
-    });
+  function renderActiveChart() {
+    if (!lastData) return;
+    const ref = CHART_REFS[activeChart];
+    if (!ref) return;
 
-    // Reset chart instances
+    // Destroy stale instance for this chart only
+    if (chartInstances[activeChart]) {
+      chartInstances[activeChart].destroy();
+      delete chartInstances[activeChart];
+    }
+
+    chartInstances[activeChart] = CHART_RENDERERS[activeChart](ref.getContext("2d"), lastData);
+  }
+
+  function renderCharts(data) {
+    lastData = data;
+
+    // Destroy all existing instances (data changed — all stale)
     Object.keys(chartInstances).forEach((key) => {
+      chartInstances[key]?.destroy();
       delete chartInstances[key];
     });
 
-    // Render all charts
-    if (responseTimeChartRef) {
-      const ctx = responseTimeChartRef.getContext("2d");
-      chartInstances.responseTime = renderResponseTimeChart(ctx, data);
-    }
-
-    if (statusCodeChartRef) {
-      const ctx = statusCodeChartRef.getContext("2d");
-      chartInstances.statusCode = renderStatusCodeChart(ctx, data);
-    }
-
-    if (requestTypeChartRef) {
-      const ctx = requestTypeChartRef.getContext("2d");
-      chartInstances.requestType = renderRequestTypeChart(ctx, data);
-    }
-
-    if (timeDistributionChartRef) {
-      const ctx = timeDistributionChartRef.getContext("2d");
-      chartInstances.timeDistribution = renderTimeDistributionChart(ctx, data);
-    }
-
-    if (sizeDistributionChartRef) {
-      const ctx = sizeDistributionChartRef.getContext("2d");
-      chartInstances.sizeDistribution = renderSizeDistributionChart(ctx, data);
-    }
-
-    // Show active chart
+    // Render only the active chart; others are lazy on tab switch
+    renderActiveChart();
     showActiveChart();
   }
 
   function showActiveChart() {
-    // Hide all charts
-    [
-      responseTimeChartRef,
-      statusCodeChartRef,
-      requestTypeChartRef,
-      timeDistributionChartRef,
-      sizeDistributionChartRef,
-    ].forEach((chart) => {
-      if (chart) {
-        chart.style.display = "none";
-      }
+    Object.values(CHART_REFS).forEach((ref) => {
+      if (ref) ref.style.display = "none";
     });
 
-    // Show active chart
-    const chartRef = {
-      responseTime: responseTimeChartRef,
-      statusCode: statusCodeChartRef,
-      requestType: requestTypeChartRef,
-      timeDistribution: timeDistributionChartRef,
-      sizeDistribution: sizeDistributionChartRef,
-    }[activeChart];
+    const ref = CHART_REFS[activeChart];
+    if (ref) ref.style.display = "block";
 
-    if (chartRef) {
-      chartRef.style.display = "block";
-    }
+    // Render if not yet created (lazy tab switch)
+    if (!chartInstances[activeChart]) renderActiveChart();
 
-    // Update tab states
     const tabs = chartTabs.querySelectorAll(".chart-tab");
     tabs.forEach((tab) => {
-      tab.classList.toggle(
-        "active",
-        tab.textContent.toLowerCase() === activeChart
-      );
+      tab.classList.toggle("active", tab.dataset.chart === activeChart);
     });
   }
 
@@ -136,15 +118,10 @@ function DataVisualization() {
   chartTabs.className = "chart-tabs";
   chartsContainer.appendChild(chartTabs);
 
-  [
-    "responseTime",
-    "statusCode",
-    "requestType",
-    "timeDistribution",
-    "sizeDistribution",
-  ].forEach((chartType) => {
+  Object.keys(CHART_RENDERERS).forEach((chartType) => {
     const button = document.createElement("button");
     button.className = `chart-tab ${activeChart === chartType ? "active" : ""}`;
+    button.dataset.chart = chartType;
     button.textContent = getChartDisplayName(chartType);
     button.addEventListener("click", () => {
       activeChart = chartType;

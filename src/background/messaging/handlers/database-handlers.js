@@ -52,7 +52,7 @@ export const databaseHandlers = new Map([
         const tables = [
           "bronze_requests",
           "silver_requests",
-          "gold_domain_stats",
+          "gold_daily_analytics",
           "bronze_web_vitals",
         ];
         const stats = {};

@@ -26,6 +26,7 @@ import settingsManager from "../../lib/shared-components/settings-ui-coordinator
 import "../../lib/shared-components/settings-ui.js";
 import "../../lib/shared-components/tab-manager.js";
 import "../components/visualization.js";
+import { renderPipelineFlow } from "../components/pipeline-flow.js";
 import "../../auth/acl-manager.js";
 import "../../config/feature-flags.js";
 import themeManager from "../../lib/ui/theme-manager.js";
@@ -1578,6 +1579,7 @@ function setupTabNavigation() {
     retention: "Data Retention",
     security: "Security Settings",
     themes: "Themes",
+    pipeline: "Data Pipeline",
     advanced: "Advanced Tools",
   };
 
@@ -4241,6 +4243,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Update storage usage periodically
   setInterval(updateStorageUsage, 10000); // Every 10 seconds
+
+  // Mount pipeline flow diagram on first visit to that tab
+  let pipelineInterval = null;
+  const pipelineBtn = document.querySelector('[data-tab="pipeline"]');
+  if (pipelineBtn) {
+    pipelineBtn.addEventListener("click", () => {
+      if (pipelineInterval) return; // already mounted
+      const mount = document.getElementById("pipelineFlowMount");
+      if (mount) pipelineInterval = renderPipelineFlow(mount);
+    }, { once: true });
+  }
 });
 
 // Site Tracking Configuration

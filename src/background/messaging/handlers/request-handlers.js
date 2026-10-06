@@ -96,7 +96,7 @@ async function handleGetRequests(message, sender, context) {
     `;
 
     const result = database.db.exec(query);
-    const requests = mapResultToArray(result);
+    const requests = result?.[0] ? mapResultToArray(result[0]) : [];
 
     return { success: true, requests };
   } catch (error) {

@@ -107,7 +107,8 @@ async function handleGetCaptureSettings(message, sender, context) {
  */
 async function handleUpdateCaptureSettings(message, sender, context) {
   try {
-    const { settings } = message;
+    // capture:toggle sends { enabled } at top level; updateCaptureSettings sends { settings }
+    const settings = message.settings ?? (message.enabled !== undefined ? { enabled: message.enabled } : null);
 
     if (!settings) {
       return { success: false, error: "Capture settings are required" };
