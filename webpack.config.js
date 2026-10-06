@@ -130,6 +130,7 @@ module.exports = (env, argv) => {
       },
       fallback: {
         fs: false,
+        buffer: false,
         path: require.resolve("path-browserify"),
         crypto: require.resolve("crypto-browserify"),
         vm: require.resolve("vm-browserify"),

@@ -26,6 +26,7 @@ import { showNotification } from "./popup-utils.js";
 export function setupEventListeners() {
   setupModeToggle();
   setupRefreshButton();
+  setupCaptureToggle();
   setupFilters();
   setupQuickActions();
   setupFooterLinks();
@@ -66,6 +67,41 @@ function setupModeToggle() {
 
   // Load resource usage
   loadResourceUsage();
+}
+
+/**
+ * Setup capture toggle button
+ */
+async function setupCaptureToggle() {
+  const btn = document.getElementById("captureToggleBtn");
+  if (!btn) return;
+
+  // Load current state
+  try {
+    const response = await runtime.sendMessage({ action: "getCaptureSettings" });
+    const enabled = response?.settings?.enabled !== false;
+    btn.classList.toggle("capturing", enabled);
+    btn.setAttribute("aria-label", enabled ? "Capturing (click to pause)" : "Capture paused (click to resume)");
+  } catch (e) {
+    console.error("Failed to load capture state:", e);
+  }
+
+  btn.addEventListener("click", async () => {
+    const isCapturing = btn.classList.contains("capturing");
+    try {
+      const response = await runtime.sendMessage({
+        action: "updateCaptureSettings",
+        settings: { enabled: !isCapturing },
+      });
+      if (response?.success) {
+        btn.classList.toggle("capturing", !isCapturing);
+        btn.setAttribute("aria-label", !isCapturing ? "Capturing (click to pause)" : "Capture paused (click to resume)");
+        showNotification(!isCapturing ? "Capture resumed" : "Capture paused", false);
+      }
+    } catch (e) {
+      console.error("Failed to toggle capture:", e);
+    }
+  });
 }
 
 /**
@@ -139,40 +175,7 @@ function setupFilters() {
  */
 function setupQuickActions() {
   document.getElementById("openDevtools")?.addEventListener("click", () => {
-    // Open DevTools panel by instructing user to open browser DevTools
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        // Show notification with instructions
-        const notification = document.createElement("div");
-        notification.className = "devtools-notification";
-        notification.innerHTML = `
-          <div class="notification-content">
-            <i class="fas fa-info-circle"></i>
-            <div>
-              <strong>Open DevTools Panel</strong>
-              <p>Press <kbd>F12</kbd> or <kbd>Ctrl+Shift+I</kbd> (Windows/Linux) / <kbd>Cmd+Option+I</kbd> (Mac), then select the "Request Analyzer" tab</p>
-            </div>
-            <button class="close-notification"><i class="fas fa-times"></i></button>
-          </div>
-        `;
-        document.body.appendChild(notification);
-
-        setTimeout(() => notification.classList.add("show"), 10);
-
-        notification
-          .querySelector(".close-notification")
-          .addEventListener("click", () => {
-            notification.classList.remove("show");
-            setTimeout(() => notification.remove(), 300);
-          });
-
-        // Auto-hide after 8 seconds
-        setTimeout(() => {
-          notification.classList.remove("show");
-          setTimeout(() => notification.remove(), 300);
-        }, 8000);
-      }
-    });
+    runtime.openOptionsPage();
   });
 
   document.getElementById("openDashboard")?.addEventListener("click", () => {

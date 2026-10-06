@@ -3,7 +3,7 @@
 
 import { showNotification } from './popup-utils.js';
 import { updatePageSummary, updateDetailedViews } from './popup-ui.js';
-import { tabs } from '../../background/compat/browser-compat.js';
+import { tabs, runtime } from '../../background/compat/browser-compat.js';
 
 /**
  * Show empty state when no requests are available
@@ -178,7 +178,7 @@ function showSampleBanner() {
  */
 function openHelpPage() {
   tabs.create({
-    url: 'help/help.html'
+    url: runtime.getURL('help/help.html')
   });
 }
 

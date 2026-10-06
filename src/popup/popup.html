@@ -4,11 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Universal Request Analyzer</title>
-    <link rel="stylesheet" href="../css/themes.css" />
-    <link rel="stylesheet" href="../assets/fontawesome/css/all.min.css" />
-    <link rel="stylesheet" href="./css/popup.css" />
-    <script src="../lib/shared-theme-init.js"></script>
-    <script src="../lib/chart.min.js"></script>
+    <link rel="stylesheet" href="css/themes.css" />
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="css/popup.css" />
+    <script src="lib/shared-theme-init.js"></script>
+    <script src="lib/chart.min.js"></script>
   </head>
   <body>
     <!-- Welcome Screen Overlay (First Time Only) -->
@@ -103,13 +103,25 @@
       <div class="header-bar">
         <div class="header-title">
           <img
-            src="../assets/icons/icon48.png"
+            src="assets/icons/icon48.png"
             alt="Logo"
             class="header-logo"
           />
           <span class="header-text">Request Analyzer</span>
         </div>
         <div class="header-actions">
+          <span id="authStatus" class="header-auth">
+            <i class="fas fa-circle" style="font-size:7px;color:#48bb78"></i> Local
+          </span>
+          <button
+            id="captureToggleBtn"
+            class="action-btn capture-toggle capturing"
+            title="Toggle request capture"
+            aria-label="Capturing"
+          >
+            <i class="fas fa-circle"></i>
+            <span class="capture-label">REC</span>
+          </button>
           <button
             id="refreshSettingsBtn"
             class="action-btn"
@@ -142,7 +154,7 @@
       </div>
 
       <!-- Resource Usage Display -->
-      <div id="resourceUsage" class="resource-usage" style="display: none">
+      <div id="resourceUsage" class="resource-usage">
         <div class="resource-item">
           <span class="resource-label"
             ><i class="fas fa-database"></i> Requests:</span
@@ -176,26 +188,28 @@
         <button class="filter-chip" data-filter="5xx" data-filter-type="status">
           <i class="fas fa-times-circle"></i> 5xx
         </button>
-        <div class="filter-group-label">Type:</div>
-        <button class="filter-chip" data-filter="xhr" data-filter-type="type">
-          <i class="fas fa-exchange-alt"></i> XHR
-        </button>
-        <button class="filter-chip" data-filter="fetch" data-filter-type="type">
-          <i class="fas fa-satellite-dish"></i> Fetch
-        </button>
-        <button class="filter-chip" data-filter="js" data-filter-type="type">
-          <i class="fab fa-js-square"></i> JS
-        </button>
-        <button class="filter-chip" data-filter="css" data-filter-type="type">
-          <i class="fab fa-css3-alt"></i> CSS
-        </button>
-        <button class="filter-chip" data-filter="img" data-filter-type="type">
-          <i class="fas fa-image"></i> IMG
-        </button>
+        <div class="filter-type-group advanced-only">
+          <div class="filter-group-label">Type:</div>
+          <button class="filter-chip" data-filter="xhr" data-filter-type="type">
+            <i class="fas fa-exchange-alt"></i> XHR
+          </button>
+          <button class="filter-chip" data-filter="fetch" data-filter-type="type">
+            <i class="fas fa-satellite-dish"></i> Fetch
+          </button>
+          <button class="filter-chip" data-filter="js" data-filter-type="type">
+            <i class="fab fa-js-square"></i> JS
+          </button>
+          <button class="filter-chip" data-filter="css" data-filter-type="type">
+            <i class="fab fa-css3-alt"></i> CSS
+          </button>
+          <button class="filter-chip" data-filter="img" data-filter-type="type">
+            <i class="fas fa-image"></i> IMG
+          </button>
+        </div>
       </div>
 
       <!-- Export Actions -->
-      <div class="export-actions">
+      <div class="export-actions advanced-only">
         <button
           id="exportHARBtn"
           class="export-btn"
@@ -206,7 +220,7 @@
       </div>
 
       <!-- Filters Section - Collapsible -->
-      <details class="filters-section">
+      <details class="filters-section advanced-only">
         <summary class="filters-toggle">
           <i class="fas fa-sliders-h"></i> Advanced Filters
         </summary>
@@ -282,7 +296,7 @@
         </div>
 
         <!-- Request Timeline Chart -->
-        <div class="timeline-chart">
+        <div class="timeline-chart advanced-only">
           <div class="chart-title">Request Timeline (Last 5 min)</div>
           <canvas id="requestTimelineChart" width="400" height="200"></canvas>
         </div>
@@ -311,7 +325,7 @@
         </div>
 
         <!-- Request Types -->
-        <div class="request-types">
+        <div class="request-types advanced-only">
           <div class="breakdown-title">Request Types</div>
           <div class="types-list" id="requestTypesList">
             <div class="type-item">
@@ -332,8 +346,32 @@
           </div>
         </div>
 
+        <!-- Data Pipeline -->
+        <div class="data-pipeline">
+          <div class="pipeline-title"><i class="fas fa-project-diagram"></i> Data Flow</div>
+          <div class="pipeline-stages">
+            <div class="pipeline-stage">
+              <span class="pipeline-count" id="bronzeCount">—</span>
+              <span class="pipeline-label">Bronze</span>
+              <span class="pipeline-sub">captured</span>
+            </div>
+            <div class="pipeline-arrow"><i class="fas fa-arrow-right"></i></div>
+            <div class="pipeline-stage">
+              <span class="pipeline-count" id="silverCount">—</span>
+              <span class="pipeline-label">Silver</span>
+              <span class="pipeline-sub">enriched</span>
+            </div>
+            <div class="pipeline-arrow"><i class="fas fa-arrow-right"></i></div>
+            <div class="pipeline-stage">
+              <span class="pipeline-count" id="goldCount">—</span>
+              <span class="pipeline-label">Gold</span>
+              <span class="pipeline-sub">aggregated</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Recent Requests List -->
-        <div class="recent-requests">
+        <div class="recent-requests advanced-only">
           <div class="section-header">
             <div class="breakdown-title">
               <i class="fas fa-list"></i> Recent Requests (Last 10)
@@ -356,7 +394,7 @@
       </div>
 
       <!-- QA Quick View -->
-      <div class="qa-quick-view">
+      <div class="qa-quick-view advanced-only">
         <div class="qa-header"><i class="fas fa-search"></i> QA Quick View</div>
         <div class="site-selector">
           <label for="siteSelect">Filter by Domain:</label>
@@ -414,6 +452,6 @@
       </div>
     </div>
 
-    <script src="popup.js"></script>
+    <!-- popup.js injected by HtmlWebpackPlugin -->
   </body>
 </html>
