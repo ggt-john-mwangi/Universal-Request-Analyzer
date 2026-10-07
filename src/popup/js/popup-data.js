@@ -358,11 +358,11 @@ export async function loadPercentilesAndEndpoints(domain, timeWindow) {
   ]);
 
   if (pctRes.status === 'fulfilled' && pctRes.value?.success) {
-    updatePercentilesDisplay(pctRes.value.percentiles || pctRes.value.data);
+    updatePercentilesDisplay(pctRes.value.percentiles);
   }
 
   if (epRes.status === 'fulfilled' && epRes.value?.success) {
-    const endpoints = epRes.value.endpoints || epRes.value.data || [];
+    const endpoints = epRes.value.endpoints || [];
     _lastEndpoints = endpoints;
     const activeSort = document.getElementById('epSortError')?.classList.contains('active') ? 'error' : 'slow';
     updateEndpointsDisplay(endpoints, activeSort);

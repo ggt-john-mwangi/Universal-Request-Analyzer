@@ -287,43 +287,6 @@ class IntegratedExtensionInitializer {
           break;
         }
 
-        case "executeDirectQuery":
-          try {
-            // SQL.js doesn't support parameterized queries with ?
-            // The query should already have values embedded or we execute as-is
-            const rawResult = this.medallionDb.executeQuery(message.query);
-
-            // Format result like handleQuery does for consistency
-            if (!rawResult || rawResult.length === 0) {
-              sendResponse({ success: true, data: [] });
-            } else {
-              const columns = rawResult[0].columns;
-              const values = rawResult[0].values;
-
-              // IMPROVEMENT 4: Limit results to 1000 rows to prevent memory issues
-              const limitedValues = values.slice(0, 1000);
-
-              const data = limitedValues.map((row) => {
-                const obj = {};
-                columns.forEach((col, index) => {
-                  obj[col] = row[index];
-                });
-                return obj;
-              });
-
-              sendResponse({
-                success: true,
-                data,
-                totalRows: values.length,
-                limited: values.length > 1000,
-              });
-            }
-          } catch (queryError) {
-            console.error("Query execution error:", queryError);
-            sendResponse({ success: false, error: queryError.message });
-          }
-          break;
-
         case "ping":
           sendResponse({ success: true, message: "pong" });
           break;
@@ -334,53 +297,6 @@ class IntegratedExtensionInitializer {
           sendResponse({ success: true, message: "Capture settings reloaded" });
           break;
         }
-
-        case "clearDatabase":
-          try {
-            await this.medallionDb.clearDatabase();
-            sendResponse({ success: true });
-          } catch (clearError) {
-            console.error("Clear database error:", clearError);
-            sendResponse({ success: false, error: clearError.message });
-          }
-          break;
-
-        case "resetDatabase":
-          try {
-            await this.medallionDb.resetDatabase();
-            sendResponse({ success: true });
-          } catch (resetError) {
-            console.error("Reset database error:", resetError);
-            sendResponse({ success: false, error: resetError.message });
-          }
-          break;
-
-        case "performCleanup":
-          try {
-            const days = message.days || 30;
-            const stats = await this.medallionDb.cleanupOldRecords(days);
-            sendResponse({
-              success: true,
-              recordsDeleted: stats.recordsDeleted,
-              cutoffDate: stats.cutoffDate,
-            });
-          } catch (cleanupError) {
-            sendResponse({ success: false, error: cleanupError.message });
-          }
-          break;
-
-        case "previewCleanup":
-          try {
-            const days = message.days || 30;
-            const preview = this.medallionDb.previewCleanup(days);
-            sendResponse({
-              success: true,
-              ...preview,
-            });
-          } catch (previewError) {
-            sendResponse({ success: false, error: previewError.message });
-          }
-          break;
 
         case "vacuumDatabase":
           try {

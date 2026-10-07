@@ -121,10 +121,7 @@ export async function exportAsHAR() {
     // Request HAR export from background
     const response = await runtime.sendMessage({
       action: 'exportAsHAR',
-      filters: {
-        domain: domain,
-        quickFilter: currentQuickFilter,
-      },
+      filters: { domain },
     });
 
     if (response && response.success && response.har) {

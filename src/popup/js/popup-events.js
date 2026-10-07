@@ -1,7 +1,6 @@
 // Popup Event Handlers - Set up all event listeners
 
 import {
-  storage,
   runtime,
   tabs,
 } from "../../background/compat/browser-compat.js";
@@ -14,7 +13,6 @@ import {
 } from "./popup-data.js";
 import {
   exportDomainData,
-  exportPageData,
   exportAsHAR,
   setCurrentQuickFilter,
 } from "./popup-export.js";
@@ -31,7 +29,6 @@ export function setupEventListeners() {
   setupQuickActions();
   setupFooterLinks();
   setupQAQuickView();
-  setupLegacyButtons();
   setupQuickFilterChips();
   setupEndpointSort();
   setupHARExport();
@@ -228,11 +225,6 @@ function setupQAQuickView() {
       }
     });
 
-  // View details button
-  document.getElementById("viewDetailsBtn")?.addEventListener("click", () => {
-    runtime.openOptionsPage();
-  });
-
   // Export domain data
   document
     .getElementById("exportDomainData")
@@ -260,23 +252,6 @@ function setupQAQuickView() {
         showNotification("Export failed", true);
       }
     });
-}
-
-/**
- * Setup legacy buttons
- */
-function setupLegacyButtons() {
-  document.getElementById("viewRequests")?.addEventListener("click", () => {
-    runtime.openOptionsPage();
-  });
-
-  document.getElementById("viewAnalytics")?.addEventListener("click", () => {
-    runtime.openOptionsPage();
-  });
-
-  document.getElementById("exportData")?.addEventListener("click", async () => {
-    await exportPageData();
-  });
 }
 
 /**

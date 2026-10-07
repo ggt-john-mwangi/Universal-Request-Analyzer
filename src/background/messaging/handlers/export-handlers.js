@@ -137,24 +137,41 @@ function createZipArchive(files) {
 }
 
 /**
- * Handle export filtered data
+ * Handle export filtered data — query bronze_requests by domain or pageUrl
  */
 async function handleExportFilteredData(filters, format, context) {
   try {
     const { database } = context;
-    if (!database || !database.isReady || !database.db) {
+    if (!database?.isReady || !database.db) {
       return { success: false, error: "Database not initialized" };
     }
 
-    console.warn(
-      "handleExportFilteredData: Implementation delegated to specific export handlers"
+    const { domain, pageUrl } = filters || {};
+    const esc = (v) => `'${String(v).replace(/'/g, "''")}'`;
+
+    let where = "WHERE 1=1";
+    if (domain) where += ` AND domain = ${esc(domain)}`;
+    if (pageUrl) where += ` AND page_url = ${esc(pageUrl)}`;
+
+    const results = database.db.exec(
+      `SELECT id, method, url, status, type, duration, size_bytes, timestamp, domain, page_url
+       FROM bronze_requests ${where}
+       ORDER BY timestamp DESC LIMIT 1000`
     );
-    return {
-      success: true,
-      data: {},
-      format: format || "json",
-      filename: `request-analyzer-export-${Date.now()}.${format || "json"}`,
-    };
+
+    const records = [];
+    if (results?.length > 0) {
+      const { columns, values } = results[0];
+      values.forEach((row) => {
+        const obj = {};
+        columns.forEach((col, i) => { obj[col] = row[i]; });
+        records.push(obj);
+      });
+    }
+
+    const label = domain || "export";
+    const filename = `ura-${label}-${Date.now()}.json`;
+    return { success: true, data: records, filename };
   } catch (error) {
     console.error("Export error:", error);
     return { success: false, error: error.message };
