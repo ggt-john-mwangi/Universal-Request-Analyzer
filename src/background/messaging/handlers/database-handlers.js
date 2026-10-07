@@ -48,23 +48,31 @@ export const databaseHandlers = new Map([
           return { success: false, error: "Database not initialized" };
         }
 
-        // Get table counts
-        const tables = [
-          "bronze_requests",
-          "silver_requests",
-          "gold_daily_analytics",
-          "bronze_web_vitals",
-        ];
-        const stats = {};
+        const db = database.db;
+        const q = (sql) => { try { return db.exec(sql)?.[0]?.values?.[0]?.[0] ?? null; } catch { return null; } };
 
-        for (const table of tables) {
-          try {
-            const result = database.db.exec(`SELECT COUNT(*) FROM ${table}`);
-            stats[table] = result[0]?.values[0]?.[0] || 0;
-          } catch (e) {
-            stats[table] = 0;
-          }
-        }
+        // Total counts
+        const stats = {
+          bronze_requests:      q("SELECT COUNT(*) FROM bronze_requests")      || 0,
+          silver_requests:      q("SELECT COUNT(*) FROM silver_requests")      || 0,
+          gold_daily_analytics: q("SELECT COUNT(*) FROM gold_daily_analytics") || 0,
+          bronze_web_vitals:    q("SELECT COUNT(*) FROM bronze_web_vitals")    || 0,
+        };
+
+        // 5-minute throughput (rows added in last 300 s)
+        const since5m = Date.now() - 300_000;
+        stats.throughput = {
+          bronze: q(`SELECT COUNT(*) FROM bronze_requests WHERE timestamp > ${since5m}`)  || 0,
+          silver: q(`SELECT COUNT(*) FROM silver_requests WHERE timestamp > ${since5m}`)  || 0,
+        };
+
+        // Last-processed timestamps for pipeline edges
+        stats.lastProcessed = {
+          // latest silver row = last time B→S ran
+          bronzeToSilver: q("SELECT MAX(timestamp) FROM silver_requests"),
+          // latest gold update = last time S→G ran
+          silverToGold:   q("SELECT MAX(updated_at) FROM gold_daily_analytics"),
+        };
 
         return { success: true, stats };
       } catch (error) {
