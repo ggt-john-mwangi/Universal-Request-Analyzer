@@ -74,13 +74,10 @@ export class VariablesManager {
     this.loadSettings();
     this.renderVariables();
 
-    // Listen for settings changes from other components (e.g., runner wizard)
     window.addEventListener("settingsChanged", (event) => {
       if (event.detail && event.detail.key === "variables") {
-        // Reload settings from storage and re-render
-        settingsManager.initialize().then(() => {
-          this.renderVariables();
-        });
+        this.loadSettings();
+        this.renderVariables();
       }
     });
   }

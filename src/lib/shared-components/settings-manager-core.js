@@ -49,6 +49,7 @@ class SettingsManagerCore {
    * @returns {Promise<void>}
    */
   async initialize() {
+    if (this.initialized) return;
     try {
       console.log("[SettingsCore] Initializing...");
 

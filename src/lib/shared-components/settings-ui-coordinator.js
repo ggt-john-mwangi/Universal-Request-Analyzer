@@ -36,6 +36,7 @@ class SettingsUICoordinator {
    * @returns {Promise<void>}
    */
   async initialize() {
+    if (this.initialized) return;
     try {
       console.log("[SettingsUI] Initializing UI coordinator...");
 
@@ -332,6 +333,10 @@ class SettingsUICoordinator {
   // Expose core for direct access if needed
   getCore() {
     return this.core;
+  }
+
+  get settings() {
+    return this.core.settings;
   }
 }
 
