@@ -76,7 +76,14 @@ export class RequestCaptureIntegration {
     if (this.config.enabled === false) return false;
 
     const includeTypes = this.config.captureFilters?.includeTypes || [];
-    if (includeTypes.length > 0 && !includeTypes.includes(details.type)) return false;
+    if (includeTypes.length > 0) {
+      // Chrome webRequest has no "fetch" type — fetch calls arrive as "xmlhttprequest".
+      // Allow the request when either matching type is in the list.
+      const t = details.type;
+      const allowed = includeTypes.includes(t) ||
+        (t === "xmlhttprequest" && includeTypes.includes("fetch"));
+      if (!allowed) return false;
+    }
 
     const includeDomains = this.config.captureFilters?.includeDomains || [];
     const excludeDomains = this.config.captureFilters?.excludeDomains || [];

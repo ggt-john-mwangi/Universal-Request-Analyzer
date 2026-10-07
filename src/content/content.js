@@ -83,6 +83,15 @@ browserAPI.storage.onChanged.addListener((changes, area) => {
   });
 });
 
+// Map PerformanceResourceTiming initiatorType → includeTypes setting vocabulary.
+// Chrome's webRequest and PerformanceResourceTiming use different type names.
+function normInitiatorType(t) {
+  if (t === "img") return "image";
+  if (t === "link" || t === "css") return "stylesheet"; // <link rel="stylesheet"> and @import
+  if (t === "beacon" || t === "use") return "other";
+  return t; // xmlhttprequest, fetch, script, font — already match
+}
+
 // ── Pattern matching ─────────────────────────────────────────────────────────
 
 function matchesPattern(url, domain, pattern) {
@@ -213,7 +222,7 @@ function initializePageLoadMonitoring() {
     if (captureResourceTiming) {
       const allResources = performance.getEntriesByType("resource");
       const resources = captureTypes
-        ? allResources.filter((r) => captureTypes.includes(r.initiatorType))
+        ? allResources.filter((r) => captureTypes.includes(normInitiatorType(r.initiatorType)))
         : allResources;
       if (resources.length > 0) {
         safeSend({
