@@ -10,6 +10,7 @@ import {
   loadPagesForDomain,
   loadTrackedSites,
   loadResourceUsage,
+  rerenderEndpoints,
 } from "./popup-data.js";
 import {
   exportDomainData,
@@ -32,6 +33,7 @@ export function setupEventListeners() {
   setupQAQuickView();
   setupLegacyButtons();
   setupQuickFilterChips();
+  setupEndpointSort();
   setupHARExport();
   loadTrackedSites();
 }
@@ -321,6 +323,19 @@ async function applyQuickFilter(filterType) {
   // The backend will handle status filtering via currentQuickFilter
 
   await loadPageSummary();
+}
+
+/**
+ * Setup endpoint sort toggle (Slowest / Top Errors)
+ */
+function setupEndpointSort() {
+  ['epSortSlow', 'epSortError'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', function () {
+      document.querySelectorAll('[data-ep-sort]').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      rerenderEndpoints(this.dataset.epSort);
+    });
+  });
 }
 
 /**

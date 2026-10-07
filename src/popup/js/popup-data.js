@@ -6,6 +6,8 @@ import {
   updateDetailedViews,
   updateRecentErrorsDisplay,
   updateWebVitalsDisplay,
+  updatePercentilesDisplay,
+  updateEndpointsDisplay,
 } from "./popup-ui.js";
 import { showNotification } from "./popup-utils.js";
 import {
@@ -15,6 +17,11 @@ import {
 } from "./popup-empty-state.js";
 
 let refreshInterval = null;
+let _lastEndpoints = [];
+
+export function rerenderEndpoints(sort) {
+  updateEndpointsDisplay(_lastEndpoints, sort);
+}
 
 /**
  * Load page summary statistics
@@ -89,6 +96,7 @@ export async function loadPageSummary() {
         updatePageSummary(response.stats);
         updateDetailedViews(response.stats);
         loadWebVitals(filterDomain, timeWindow).catch(() => {});
+        loadPercentilesAndEndpoints(filterDomain, timeWindow).catch(() => {});
       }
 
       // Start auto-refresh only on first successful load
@@ -336,6 +344,28 @@ export function stopAutoRefresh() {
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = null;
+  }
+}
+
+/**
+ * Load percentiles and endpoint drilldown for the Advanced section
+ */
+export async function loadPercentilesAndEndpoints(domain, timeWindow) {
+  const timeRange = parseInt(timeWindow || 30) * 60;
+  const [pctRes, epRes] = await Promise.allSettled([
+    runtime.sendMessage({ action: 'getPercentilesAnalysis', filters: { domain, timeRange } }),
+    runtime.sendMessage({ action: 'getEndpointAnalysis', filters: { domain, timeRange } }),
+  ]);
+
+  if (pctRes.status === 'fulfilled' && pctRes.value?.success) {
+    updatePercentilesDisplay(pctRes.value.percentiles || pctRes.value.data);
+  }
+
+  if (epRes.status === 'fulfilled' && epRes.value?.success) {
+    const endpoints = epRes.value.endpoints || epRes.value.data || [];
+    _lastEndpoints = endpoints;
+    const activeSort = document.getElementById('epSortError')?.classList.contains('active') ? 'error' : 'slow';
+    updateEndpointsDisplay(endpoints, activeSort);
   }
 }
 

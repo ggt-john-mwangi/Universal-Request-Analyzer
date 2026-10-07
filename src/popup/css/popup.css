@@ -400,6 +400,53 @@ body {
 }
 .request-time { flex-shrink: 0; font-size: 10px; color: #484f58; font-variant-numeric: tabular-nums; }
 
+/* ── Percentile Row ── */
+.percentile-row {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 6px;
+}
+.pct-tile {
+  background: #161b22; border: 1px solid #30363d; border-radius: 7px;
+  padding: 8px 6px; text-align: center;
+}
+.pct-label { font-size: 9px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.pct-value { font-size: 14px; font-weight: 700; color: #e6edf3; font-variant-numeric: tabular-nums; }
+
+/* ── Endpoint Drilldown ── */
+.endpoints-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+.endpoint-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 9px; background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+  font-size: 11px;
+}
+.endpoint-item.has-errors { border-left: 3px solid #f0883e; }
+.ep-path {
+  flex: 1; color: #8b949e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px;
+}
+.ep-duration { flex-shrink: 0; font-weight: 700; color: #e6edf3; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.ep-error-rate {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 1px 5px;
+  border-radius: 4px; min-width: 38px; text-align: center;
+}
+.ep-error-rate.has-errors { background: rgba(240,136,62,.15); color: #f0883e; }
+.ep-error-rate.no-errors  { color: #484f58; }
+
+/* ── Core Web Vitals ── */
+.vitals-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+.vital-tile {
+  background: #161b22; border: 1px solid #30363d; border-radius: 7px;
+  padding: 8px 6px; text-align: center;
+}
+.vital-name  { font-size: 9px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.vital-value { font-size: 14px; font-weight: 700; color: #e6edf3; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+.vital-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px; display: inline-block; }
+.vital-good             { background: rgba(63,185,80,.15); color: #3fb950; }
+.vital-needs-improvement{ background: rgba(210,153,34,.15); color: #d29922; }
+.vital-poor             { background: rgba(248,81,73,.15); color: #f85149; }
+
+/* ── KPI sub-label ── */
+.kpi-sub { font-size: 9px; color: #e3b341; margin-top: 2px; }
+
 /* ── Quick Actions ── */
 .quick-actions {
   display: flex; align-items: center; justify-content: space-around;

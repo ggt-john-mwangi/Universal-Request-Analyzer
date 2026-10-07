@@ -273,6 +273,70 @@ export function updateWebVitalsDisplay(vitals) {
 }
 
 /**
+ * Update response time percentiles display
+ * @param {Object} percentiles - { p50, p95, p99, max, count }
+ */
+export function updatePercentilesDisplay(percentiles) {
+  const section = document.getElementById('percentilesSection');
+  if (!section) return;
+
+  if (!percentiles || !percentiles.count) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  const fmt = (ms) => ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
+  set('pct-p50', percentiles.p50);
+  set('pct-p95', percentiles.p95);
+  set('pct-p99', percentiles.p99);
+  set('pct-max', percentiles.max);
+}
+
+/**
+ * Update endpoint drilldown list
+ * @param {Array} endpoints - from getEndpointAnalysis
+ * @param {string} sort - 'slow' | 'error'
+ */
+export function updateEndpointsDisplay(endpoints, sort = 'slow') {
+  const section = document.getElementById('endpointsSection');
+  const container = document.getElementById('endpointsList');
+  if (!section || !container) return;
+
+  if (!endpoints || endpoints.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+
+  const sorted = [...endpoints].sort((a, b) =>
+    sort === 'error' ? (b.errorCount - a.errorCount) : (b.avgDuration - a.avgDuration)
+  );
+  const top = sorted.filter(e => sort === 'error' ? e.errorCount > 0 : true).slice(0, 7);
+
+  if (top.length === 0) {
+    container.innerHTML = '<p class="placeholder-text">No errors found</p>';
+    return;
+  }
+
+  const fmt = (ms) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+
+  container.innerHTML = top.map(ep => {
+    const path = ep.endpoint || ep.url;
+    const hasErr = ep.errorCount > 0;
+    const errLabel = hasErr ? `${ep.errorRate}%` : '0%';
+    return `
+      <div class="endpoint-item${hasErr ? ' has-errors' : ''}">
+        <span class="ep-path" title="${ep.url}">${path}</span>
+        <span class="ep-duration">${fmt(ep.avgDuration)}</span>
+        <span class="ep-error-rate ${hasErr ? 'has-errors' : 'no-errors'}">${errLabel}</span>
+      </div>`;
+  }).join('');
+}
+
+/**
  * Show main app container
  */
 export function showApp() {

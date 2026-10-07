@@ -68,7 +68,7 @@ webRequest.onCompleted
         │  chrome.alarm: dailyGoldProcessing (midnight)
         ▼
    Gold Layer                ← daily domain-level aggregates
-   (gold_domain_daily)       ← p50/p95/p99, error rate, volume, size totals
+   (gold_daily_analytics)    ← p50/p95/p99, error rate, volume, size totals
         │
         │  chrome.alarm: dataCleanup (midnight)
         ▼

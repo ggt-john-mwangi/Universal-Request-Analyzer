@@ -214,6 +214,43 @@
           <i class="fas fa-chevron-down chevron"></i>
         </summary>
 
+        <!-- Response Percentiles -->
+        <div class="adv-section" id="percentilesSection" style="display:none">
+          <div class="adv-title">Response Time Percentiles</div>
+          <div class="percentile-row">
+            <div class="pct-tile">
+              <div class="pct-label">p50</div>
+              <div class="pct-value" id="pct-p50">—</div>
+            </div>
+            <div class="pct-tile">
+              <div class="pct-label">p95</div>
+              <div class="pct-value" id="pct-p95">—</div>
+            </div>
+            <div class="pct-tile">
+              <div class="pct-label">p99</div>
+              <div class="pct-value" id="pct-p99">—</div>
+            </div>
+            <div class="pct-tile">
+              <div class="pct-label">max</div>
+              <div class="pct-value" id="pct-max">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Endpoint Drilldown -->
+        <div class="adv-section" id="endpointsSection" style="display:none">
+          <div class="section-header" style="margin-bottom:8px">
+            <span class="adv-title" style="margin-bottom:0">Endpoints</span>
+            <div class="filter-chips">
+              <button class="chip active" id="epSortSlow" data-ep-sort="slow">Slowest</button>
+              <button class="chip" id="epSortError" data-ep-sort="error">Top Errors</button>
+            </div>
+          </div>
+          <div id="endpointsList" class="endpoints-list">
+            <p class="placeholder-text">No data</p>
+          </div>
+        </div>
+
         <!-- Request Types -->
         <div class="adv-section">
           <div class="adv-title">Request Types</div>
