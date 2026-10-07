@@ -1,5 +1,5 @@
 // Auto export component for options page
-import "../../background/storage/storage-manager.js";
+import { DEFAULT_SETTINGS } from "../../config/settings-defaults.js";
 
 export default function renderAutoExport() {
   const container = document.createElement("div");
@@ -86,7 +86,7 @@ export default function renderAutoExport() {
 
       <div class="setting-row">
         <label for="fileNamePattern">File Name Pattern:</label>
-        <input type="text" id="fileNamePattern" 
+        <input type="text" id="fileNamePattern"
                placeholder="requests_{datetime}_{counter}"
                title="Available variables: {datetime}, {counter}, {format}">
         <span class="description">Pattern for exported file names</span>
@@ -144,48 +144,18 @@ export default function renderAutoExport() {
     <div id="autoExportStatus" class="status-message" style="display: none;"></div>
   `;
 
-  // Default settings
-  const defaultSettings = {
-    autoExport: false,
-    exportFormat: "json",
-    compressionType: "none",
-    exportInterval: "3600000", // 1 hour
-    exportOnlyWhenNew: true,
-    exportOnClose: true,
-    exportPath: "",
-    fileNamePattern: "requests_{datetime}_{counter}",
-    fileExistsAction: "increment",
-    excludeErrors: false,
-    excludeResources: true,
-    domainFilters: [],
-  };
-
-  // Initialize event listeners
   function attachEventListeners() {
-    const saveBtn = container.querySelector("#saveAutoExportSettings");
-    const resetBtn = container.querySelector("#resetAutoExportSettings");
-    const testBtn = container.querySelector("#testExport");
-    const browseBtn = container.querySelector("#browseExportPath");
-    const autoExportToggle = container.querySelector("#autoExport");
-    const domainFilterInput = container.querySelector("#domainFilter");
-
-    saveBtn.addEventListener("click", saveAutoExportSettings);
-    resetBtn.addEventListener("click", () => {
-      if (confirm("Reset all auto-export settings to defaults?")) {
-        resetSettings();
-      }
+    container.querySelector("#saveAutoExportSettings").addEventListener("click", saveAutoExportSettings);
+    container.querySelector("#resetAutoExportSettings").addEventListener("click", () => {
+      if (confirm("Reset all auto-export settings to defaults?")) resetSettings();
     });
+    container.querySelector("#testExport").addEventListener("click", testExport);
+    container.querySelector("#browseExportPath").addEventListener("click", browsePath);
 
-    testBtn.addEventListener("click", testExport);
-    browseBtn.addEventListener("click", browsePath);
+    const toggle = container.querySelector("#autoExport");
+    toggle.addEventListener("change", () => updateSettingsAvailability(toggle.checked));
 
-    // Add change listener for auto export toggle
-    autoExportToggle.addEventListener("change", () => {
-      updateSettingsAvailability(autoExportToggle.checked);
-    });
-
-    // Domain filter tag input
-    domainFilterInput.addEventListener("keyup", (e) => {
+    container.querySelector("#domainFilter").addEventListener("keyup", (e) => {
       if (e.key === "Enter" && e.target.value.trim()) {
         addDomainTag(e.target.value.trim());
         e.target.value = "";
@@ -193,209 +163,163 @@ export default function renderAutoExport() {
     });
   }
 
-  // Add domain filter tag
   function addDomainTag(domain) {
     const tagList = container.querySelector("#domainTags");
     const tag = document.createElement("span");
     tag.className = "tag";
-    tag.innerHTML = `
-      ${domain}
-      <button class="remove-tag">×</button>
-    `;
+    tag.innerHTML = `${domain}<button class="remove-tag">×</button>`;
+    tag.querySelector(".remove-tag").addEventListener("click", () => tag.remove());
     tagList.appendChild(tag);
-
-    // Add event listener for the remove button
-    tag.querySelector(".remove-tag").addEventListener("click", function () {
-      tag.remove();
-    });
   }
 
-  // Show status message
   function showStatus(message, success = true) {
-    const statusEl = container.querySelector("#autoExportStatus");
-    statusEl.textContent = message;
-    statusEl.className = `status-message ${success ? "success" : "error"}`;
-    statusEl.style.display = "block";
-
-    setTimeout(() => {
-      statusEl.style.display = "none";
-    }, 3000);
+    const el = container.querySelector("#autoExportStatus");
+    el.textContent = message;
+    el.className = `status-message ${success ? "success" : "error"}`;
+    el.style.display = "block";
+    setTimeout(() => { el.style.display = "none"; }, 3000);
   }
 
-  // Enable/disable settings based on auto export enabled state
   function updateSettingsAvailability(enabled) {
-    const inputs = container.querySelectorAll(
+    container.querySelectorAll(
       "input:not(#autoExport), select, button:not(#saveAutoExportSettings):not(#resetAutoExportSettings)"
-    );
-    inputs.forEach((input) => {
-      input.disabled = !enabled;
+    ).forEach((el) => { el.disabled = !enabled; });
+  }
+
+  function sendMessage(msg) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(msg, (response) => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        resolve(response);
+      });
     });
   }
 
-  // Save settings
-  async function saveAutoExportSettings() {
-    const settings = {
-      autoExport: container.querySelector("#autoExport").checked,
-      exportFormat: container.querySelector("#exportFormat").value,
-      compressionType: container.querySelector("#compressionType").value,
-      exportInterval: container.querySelector("#exportInterval").value,
-      exportOnlyWhenNew: container.querySelector("#exportOnlyWhenNew").checked,
-      exportOnClose: container.querySelector("#exportOnClose").checked,
-      exportPath: container.querySelector("#exportPath").value,
-      fileNamePattern: container.querySelector("#fileNamePattern").value,
-      fileExistsAction: container.querySelector(
-        'input[name="fileExistsAction"]:checked'
-      ).value,
-      excludeErrors: container.querySelector("#excludeErrors").checked,
-      excludeResources: container.querySelector("#excludeResources").checked,
-      domainFilters: Array.from(
-        container.querySelectorAll("#domainTags .tag")
-      ).map((tag) => tag.textContent.trim()),
+  function collectSettings() {
+    const get = (id) => container.querySelector(`#${id}`);
+    return {
+      general: {
+        autoExport: get("autoExport").checked,
+        defaultExportFormat: get("exportFormat").value,
+        autoExportInterval: parseInt(get("exportInterval").value),
+        exportPath: get("exportPath").value,
+      },
+      export: {
+        compressionType: get("compressionType").value,
+        exportOnlyWhenNew: get("exportOnlyWhenNew").checked,
+        exportOnClose: get("exportOnClose").checked,
+        fileNamePattern: get("fileNamePattern").value,
+        fileExistsAction: container.querySelector('input[name="fileExistsAction"]:checked')?.value || "increment",
+        excludeErrors: get("excludeErrors").checked,
+        excludeResources: get("excludeResources").checked,
+        domainFilters: Array.from(container.querySelectorAll("#domainTags .tag")).map(
+          (tag) => tag.firstChild.textContent.trim()
+        ),
+      },
+    };
+  }
+
+  function applyToUI(general, exp) {
+    const set = (id, val) => {
+      const el = container.querySelector(`#${id}`);
+      if (!el) return;
+      el.type === "checkbox" ? (el.checked = !!val) : (el.value = val);
     };
 
-    try {
-      await saveToStorage("autoExportSettings", settings);
+    set("autoExport", general.autoExport ?? false);
+    set("exportFormat", general.defaultExportFormat ?? "json");
+    set("exportInterval", String(general.autoExportInterval ?? 3600000));
+    set("exportPath", general.exportPath ?? "");
+    set("compressionType", exp.compressionType ?? "none");
+    set("exportOnlyWhenNew", exp.exportOnlyWhenNew ?? true);
+    set("exportOnClose", exp.exportOnClose ?? true);
+    set("fileNamePattern", exp.fileNamePattern ?? "requests_{datetime}_{counter}");
+    set("excludeErrors", exp.excludeErrors ?? false);
+    set("excludeResources", exp.excludeResources ?? true);
 
-      // Notify background script of settings change
-      chrome.runtime.sendMessage(
-        {
-          action: "updateAutoExportSettings",
-          settings,
-        },
-        (response) => {
-          if (response && response.success) {
-            showStatus("Auto-export settings saved successfully");
-          } else {
-            throw new Error(
-              response?.error || "Failed to update auto-export settings"
-            );
-          }
-        }
-      );
+    const radio = container.querySelector(
+      `input[name="fileExistsAction"][value="${exp.fileExistsAction ?? "increment"}"]`
+    );
+    if (radio) radio.checked = true;
+
+    container.querySelector("#domainTags").innerHTML = "";
+    (exp.domainFilters ?? []).forEach((d) => addDomainTag(d));
+  }
+
+  async function saveAutoExportSettings() {
+    try {
+      const settings = collectSettings();
+      const response = await sendMessage({ action: "updateSettings", settings });
+      if (response?.success) {
+        showStatus("Auto-export settings saved successfully");
+      } else {
+        throw new Error(response?.error || "Failed to save settings");
+      }
     } catch (error) {
       console.error("Failed to save auto-export settings:", error);
       showStatus("Failed to save auto-export settings", false);
     }
   }
 
-  // Test export
-  async function testExport() {
-    try {
-      chrome.runtime.sendMessage(
-        {
-          action: "testExport",
-        },
-        (response) => {
-          if (response && response.success) {
-            showStatus("Test export completed successfully");
-          } else {
-            throw new Error(response?.error || "Test export failed");
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Test export failed:", error);
-      showStatus("Test export failed", false);
-    }
-  }
-
-  // Browse for export path
-  function browsePath() {
-    chrome.runtime.sendMessage(
-      {
-        action: "browseDirectory",
-      },
-      (response) => {
-        if (response && response.path) {
-          container.querySelector("#exportPath").value = response.path;
-        }
-      }
-    );
-  }
-
-  // Load settings
   async function loadSettings() {
     try {
-      const settings =
-        (await loadFromStorage("autoExportSettings")) || defaultSettings;
-
-      // Update UI with loaded settings
-      Object.entries(settings).forEach(([key, value]) => {
-        if (key === "domainFilters") {
-          value.forEach((domain) => addDomainTag(domain));
-        } else if (key === "fileExistsAction") {
-          const radio = container.querySelector(
-            `input[name="fileExistsAction"][value="${value}"]`
-          );
-          if (radio) radio.checked = true;
-        } else {
-          const element = container.querySelector(`#${key}`);
-          if (element) {
-            if (element.type === "checkbox") {
-              element.checked = value;
-            } else {
-              element.value = value;
-            }
-          }
-        }
-      });
-
-      // Update settings availability
-      updateSettingsAvailability(settings.autoExport);
+      const response = await sendMessage({ action: "getSettings" });
+      const s = response?.settings || {};
+      applyToUI(
+        s.general || DEFAULT_SETTINGS.general,
+        s.export || DEFAULT_SETTINGS.export
+      );
+      updateSettingsAvailability(s.general?.autoExport ?? false);
     } catch (error) {
       console.error("Failed to load auto-export settings:", error);
       showStatus("Failed to load auto-export settings", false);
     }
   }
 
-  // Reset settings to defaults
   async function resetSettings() {
     try {
-      await saveToStorage("autoExportSettings", defaultSettings);
-
-      // Update UI
-      container.querySelector("#domainTags").innerHTML = "";
-      Object.entries(defaultSettings).forEach(([key, value]) => {
-        if (key === "domainFilters") {
-          value.forEach((domain) => addDomainTag(domain));
-        } else if (key === "fileExistsAction") {
-          const radio = container.querySelector(
-            `input[name="fileExistsAction"][value="${value}"]`
-          );
-          if (radio) radio.checked = true;
-        } else {
-          const element = container.querySelector(`#${key}`);
-          if (element) {
-            if (element.type === "checkbox") {
-              element.checked = value;
-            } else {
-              element.value = value;
-            }
-          }
-        }
-      });
-
-      // Notify background script
-      chrome.runtime.sendMessage(
-        {
-          action: "updateAutoExportSettings",
-          settings: defaultSettings,
+      const response = await sendMessage({
+        action: "updateSettings",
+        settings: {
+          general: {
+            autoExport: DEFAULT_SETTINGS.general.autoExport,
+            defaultExportFormat: DEFAULT_SETTINGS.general.defaultExportFormat,
+            autoExportInterval: DEFAULT_SETTINGS.general.autoExportInterval,
+            exportPath: DEFAULT_SETTINGS.general.exportPath,
+          },
+          export: DEFAULT_SETTINGS.export,
         },
-        (response) => {
-          if (response && response.success) {
-            showStatus("Settings reset to defaults");
-          } else {
-            throw new Error(response?.error || "Failed to reset settings");
-          }
-        }
-      );
+      });
+      if (!response?.success) throw new Error(response?.error || "Failed to reset");
+      applyToUI(DEFAULT_SETTINGS.general, DEFAULT_SETTINGS.export);
+      updateSettingsAvailability(DEFAULT_SETTINGS.general.autoExport);
+      showStatus("Settings reset to defaults");
     } catch (error) {
       console.error("Failed to reset auto-export settings:", error);
       showStatus("Failed to reset settings", false);
     }
   }
 
-  // Initialize component
+  async function testExport() {
+    try {
+      const response = await sendMessage({ action: "testExport" });
+      if (response?.success) {
+        showStatus("Test export completed successfully");
+      } else {
+        throw new Error(response?.error || "Test export failed");
+      }
+    } catch (error) {
+      console.error("Test export failed:", error);
+      showStatus("Test export failed", false);
+    }
+  }
+
+  function browsePath() {
+    chrome.runtime.sendMessage({ action: "browseDirectory" }, (response) => {
+      if (response?.path) container.querySelector("#exportPath").value = response.path;
+    });
+  }
+
   attachEventListeners();
   loadSettings();
 

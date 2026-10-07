@@ -1,5 +1,8 @@
 // Capture settings component for options page
-import "../../background/storage/storage-manager.js";
+import { DEFAULT_SETTINGS } from "../../config/settings-defaults.js";
+
+const XHR_TYPES = ["xmlhttprequest", "fetch"];
+const RESOURCE_TYPES = ["script", "image", "stylesheet", "font"];
 
 export default function renderCaptureSettings() {
   const container = document.createElement("div");
@@ -99,13 +102,6 @@ export default function renderCaptureSettings() {
         </label>
         <span class="description">Include detailed network timing information</span>
       </div>
-      <div class="setting-row">
-        <label>
-          <input type="checkbox" id="captureSize">
-          Capture Size Information
-        </label>
-        <span class="description">Track request/response sizes</span>
-      </div>
     </div>
 
     <div class="settings-actions">
@@ -116,174 +112,133 @@ export default function renderCaptureSettings() {
     <div id="captureSettingsStatus" class="status-message" style="display: none;"></div>
   `;
 
-  // Default settings
-  const defaultSettings = {
-    captureEnabled: true,
-    maxStoredRequests: 1000,
-    autoStartCapture: false,
-    captureHeaders: true,
-    captureRequestBody: true,
-    captureResponseBody: true,
-    maxBodySize: 256, // KB
-    captureXHR: true,
-    captureWebSocket: true,
-    captureEventSource: true,
-    captureResources: false,
-    captureTimings: true,
-    captureSize: true,
-  };
-
-  // Initialize event listeners
   function attachEventListeners() {
-    const saveBtn = container.querySelector("#saveCaptureSettings");
-    const resetBtn = container.querySelector("#resetCaptureSettings");
-
-    saveBtn.addEventListener("click", saveCaptureSettings);
-    resetBtn.addEventListener("click", () => {
-      if (confirm("Reset all capture settings to defaults?")) {
-        resetSettings();
-      }
+    container.querySelector("#saveCaptureSettings").addEventListener("click", saveCaptureSettings);
+    container.querySelector("#resetCaptureSettings").addEventListener("click", () => {
+      if (confirm("Reset all capture settings to defaults?")) resetSettings();
     });
-
-    // Add change listener for capture enabled toggle
-    const captureEnabledToggle = container.querySelector("#captureEnabled");
-    captureEnabledToggle.addEventListener("change", () => {
-      updateSettingsAvailability(captureEnabledToggle.checked);
-    });
+    const toggle = container.querySelector("#captureEnabled");
+    toggle.addEventListener("change", () => updateSettingsAvailability(toggle.checked));
   }
 
-  // Show status message
   function showStatus(message, success = true) {
-    const statusEl = container.querySelector("#captureSettingsStatus");
-    statusEl.textContent = message;
-    statusEl.className = `status-message ${success ? "success" : "error"}`;
-    statusEl.style.display = "block";
-
-    setTimeout(() => {
-      statusEl.style.display = "none";
-    }, 3000);
+    const el = container.querySelector("#captureSettingsStatus");
+    el.textContent = message;
+    el.className = `status-message ${success ? "success" : "error"}`;
+    el.style.display = "block";
+    setTimeout(() => { el.style.display = "none"; }, 3000);
   }
 
-  // Enable/disable settings based on capture enabled state
   function updateSettingsAvailability(enabled) {
-    const inputs = container.querySelectorAll("input:not(#captureEnabled)");
-    inputs.forEach((input) => {
+    container.querySelectorAll("input:not(#captureEnabled)").forEach((input) => {
       input.disabled = !enabled;
     });
   }
 
-  // Save settings
+  function sendMessage(msg) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(msg, (response) => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        resolve(response);
+      });
+    });
+  }
+
   async function saveCaptureSettings() {
-    const settings = {
-      captureEnabled: container.querySelector("#captureEnabled").checked,
-      maxStoredRequests: parseInt(
-        container.querySelector("#maxStoredRequests").value
-      ),
-      autoStartCapture: container.querySelector("#autoStartCapture").checked,
-      captureHeaders: container.querySelector("#captureHeaders").checked,
-      captureRequestBody: container.querySelector("#captureRequestBody")
-        .checked,
-      captureResponseBody: container.querySelector("#captureResponseBody")
-        .checked,
-      maxBodySize: parseInt(container.querySelector("#maxBodySize").value),
-      captureXHR: container.querySelector("#captureXHR").checked,
-      captureWebSocket: container.querySelector("#captureWebSocket").checked,
-      captureEventSource: container.querySelector("#captureEventSource")
-        .checked,
-      captureResources: container.querySelector("#captureResources").checked,
-      captureTimings: container.querySelector("#captureTimings").checked,
-      captureSize: container.querySelector("#captureSize").checked,
+    const get = (id) => container.querySelector(`#${id}`);
+
+    const types = ["other"];
+    if (get("captureXHR").checked) types.push(...XHR_TYPES);
+    if (get("captureResources").checked) types.push(...RESOURCE_TYPES);
+
+    const captureUpdate = {
+      enabled: get("captureEnabled").checked,
+      includeHeaders: get("captureHeaders").checked,
+      includeTiming: get("captureTimings").checked,
+      includeContent: get("captureRequestBody").checked || get("captureResponseBody").checked,
+      maxContentSize: parseInt(get("maxBodySize").value) * 1024,
+      captureWebSockets: get("captureWebSocket").checked,
+      captureServerSentEvents: get("captureEventSource").checked,
+      captureFilters: { includeTypes: types },
+    };
+
+    const generalUpdate = {
+      maxStoredRequests: parseInt(get("maxStoredRequests").value),
+      autoStartCapture: get("autoStartCapture").checked,
     };
 
     try {
-      await saveToStorage("captureSettings", settings);
-
-      // Notify background script of settings change
-      chrome.runtime.sendMessage(
-        {
-          action: "updateCaptureSettings",
-          settings,
-        },
-        (response) => {
-          if (response && response.success) {
-            showStatus("Capture settings saved successfully");
-          } else {
-            throw new Error(
-              response?.error || "Failed to update capture settings"
-            );
-          }
-        }
-      );
+      const response = await sendMessage({
+        action: "updateSettings",
+        settings: { capture: captureUpdate, general: generalUpdate },
+      });
+      if (!response?.success) throw new Error(response?.error || "Failed to save settings");
+      // Reload the live capture integration so new config takes effect immediately
+      await sendMessage({ action: "reloadCaptureSettings" });
+      showStatus("Capture settings saved successfully");
     } catch (error) {
       console.error("Failed to save capture settings:", error);
       showStatus("Failed to save capture settings", false);
     }
   }
 
-  // Load settings
   async function loadSettings() {
     try {
-      const settings =
-        (await loadFromStorage("captureSettings")) || defaultSettings;
+      const response = await sendMessage({ action: "getSettings" });
+      const s = response?.settings || {};
+      const capture = s.capture || DEFAULT_SETTINGS.capture;
+      const general = s.general || DEFAULT_SETTINGS.general;
+      const types = capture.captureFilters?.includeTypes || DEFAULT_SETTINGS.capture.captureFilters.includeTypes;
 
-      // Update UI with loaded settings
-      Object.entries(settings).forEach(([key, value]) => {
-        const element = container.querySelector(`#${key}`);
-        if (element) {
-          if (element.type === "checkbox") {
-            element.checked = value;
-          } else {
-            element.value = value;
-          }
-        }
-      });
+      const set = (id, val) => {
+        const el = container.querySelector(`#${id}`);
+        if (!el) return;
+        el.type === "checkbox" ? (el.checked = !!val) : (el.value = val);
+      };
 
-      // Update settings availability
-      updateSettingsAvailability(settings.captureEnabled);
+      set("captureEnabled", capture.enabled ?? true);
+      set("maxStoredRequests", general.maxStoredRequests ?? 10000);
+      set("autoStartCapture", general.autoStartCapture ?? true);
+      set("captureHeaders", capture.includeHeaders ?? true);
+      set("captureRequestBody", capture.includeContent ?? false);
+      set("captureResponseBody", capture.includeContent ?? false);
+      set("maxBodySize", Math.round((capture.maxContentSize ?? 1024 * 1024) / 1024));
+      set("captureXHR", types.some((t) => XHR_TYPES.includes(t)));
+      set("captureWebSocket", capture.captureWebSockets ?? false);
+      set("captureEventSource", capture.captureServerSentEvents ?? false);
+      set("captureResources", types.some((t) => RESOURCE_TYPES.includes(t)));
+      set("captureTimings", capture.includeTiming ?? true);
+
+      updateSettingsAvailability(capture.enabled ?? true);
     } catch (error) {
       console.error("Failed to load capture settings:", error);
       showStatus("Failed to load capture settings", false);
     }
   }
 
-  // Reset settings to defaults
   async function resetSettings() {
     try {
-      await saveToStorage("captureSettings", defaultSettings);
-
-      // Update UI
-      Object.entries(defaultSettings).forEach(([key, value]) => {
-        const element = container.querySelector(`#${key}`);
-        if (element) {
-          if (element.type === "checkbox") {
-            element.checked = value;
-          } else {
-            element.value = value;
-          }
-        }
-      });
-
-      // Notify background script
-      chrome.runtime.sendMessage(
-        {
-          action: "updateCaptureSettings",
-          settings: defaultSettings,
+      const { capture, general } = DEFAULT_SETTINGS;
+      const response = await sendMessage({
+        action: "updateSettings",
+        settings: {
+          capture,
+          general: {
+            maxStoredRequests: general.maxStoredRequests,
+            autoStartCapture: general.autoStartCapture,
+          },
         },
-        (response) => {
-          if (response && response.success) {
-            showStatus("Settings reset to defaults");
-          } else {
-            throw new Error(response?.error || "Failed to reset settings");
-          }
-        }
-      );
+      });
+      if (!response?.success) throw new Error(response?.error || "Failed to reset");
+      await sendMessage({ action: "reloadCaptureSettings" });
+      await loadSettings();
+      showStatus("Settings reset to defaults");
     } catch (error) {
       console.error("Failed to reset capture settings:", error);
       showStatus("Failed to reset settings", false);
     }
   }
 
-  // Initialize component
   attachEventListeners();
   loadSettings();
 

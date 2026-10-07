@@ -147,6 +147,7 @@ class SettingsManager {
         display: {},
         advanced: {},
         variables: { enabled: true, autoDetect: true, list: [] },
+        export: {},
         theme: {},
         logging: {},
       };
@@ -189,6 +190,11 @@ class SettingsManager {
       );
       if (variablesSettings && Object.keys(variablesSettings).length > 0) {
         settings.variables = variablesSettings;
+      }
+
+      const exportSettings = await configSchemaManager.getSettingsByCategory("export");
+      if (exportSettings && Object.keys(exportSettings).length > 0) {
+        settings.export = exportSettings;
       }
 
       const themeSettings = await configSchemaManager.getSettingsByCategory("theme");

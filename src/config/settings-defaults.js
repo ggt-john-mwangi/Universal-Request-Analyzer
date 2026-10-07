@@ -89,6 +89,16 @@ export const DEFAULT_SETTINGS = {
     autoDetect: true,
     list: [],
   },
+  export: {
+    compressionType: "none",
+    exportOnlyWhenNew: true,
+    exportOnClose: true,
+    fileNamePattern: "requests_{datetime}_{counter}",
+    fileExistsAction: "increment",
+    excludeErrors: false,
+    excludeResources: true,
+    domainFilters: [],
+  },
   theme: {
     current: "light",
   },

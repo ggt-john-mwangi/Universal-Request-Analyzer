@@ -129,14 +129,9 @@ class SettingsManagerCore {
         general: {},
         display: {},
         advanced: {},
-        variables: {
-          enabled: true,
-          autoDetect: true,
-          list: [],
-        },
-        theme: {
-          current: "light",
-        },
+        variables: { enabled: true, autoDetect: true, list: [] },
+        export: {},
+        theme: { current: "light" },
       };
 
       // Load capture settings
@@ -177,6 +172,11 @@ class SettingsManagerCore {
       );
       if (variablesSettings && Object.keys(variablesSettings).length > 0) {
         settings.variables = variablesSettings;
+      }
+
+      const exportSettings = await configSchemaManager.getSettingsByCategory("export");
+      if (exportSettings && Object.keys(exportSettings).length > 0) {
+        settings.export = exportSettings;
       }
 
       // Load theme preference (string only)
