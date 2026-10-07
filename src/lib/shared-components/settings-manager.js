@@ -170,25 +170,6 @@ class SettingsManager {
         }
       }
 
-      if (data && data.settings) {
-        // Merge saved settings with defaults
-        this.settings = this.mergeSettings(this.settings, data.settings);
-      }
-
-      // Initialize feature flags
-      await featureFlags.initialize({
-        permissionLevel: "basic",
-        initialFlags: {
-          // Disable online features by default for testing
-          onlineSync: false,
-          authentication: false,
-          remoteStorage: false,
-          cloudExport: false,
-          teamSharing: false,
-        },
-        onUpdate: this.handleFeatureFlagsUpdate.bind(this),
-      });
-
       // Initialize ACL manager
       await aclManager.initialize({
         initialRole: "powerUser", // Use powerUser role for testing
@@ -739,6 +720,29 @@ class SettingsManager {
         typeof data.settings[section] === "object" &&
         data.settings[section] !== null
     );
+  }
+
+  // ── Aliases used by settings-handlers.js ────────────────────────────────────
+
+  /** Alias for resetAllToDefaults — called by handleResetSettings */
+  resetSettings() { return this.resetAllToDefaults(); }
+
+  /** Alias for loadFromStorage + unwrap — called by handleLoadSettingsFromDb */
+  async loadSettings() {
+    const data = await this.loadFromStorage();
+    return data?.settings || this.settings;
+  }
+
+  /** Fine-grained save — called by handleSaveSettingToDb / handleSaveSetting */
+  async saveSetting(key, value, category) {
+    if (!category || !key) return { success: false, error: "category and key required" };
+    return { success: await this.updateSettings({ [category]: { [key]: value } }) };
+  }
+
+  /** Fine-grained read — called by handleGetSetting */
+  getSetting(key, category) {
+    if (!category || !key) return undefined;
+    return this.settings[category]?.[key];
   }
 
   /**

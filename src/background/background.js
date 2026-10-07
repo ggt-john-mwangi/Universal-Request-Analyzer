@@ -162,24 +162,9 @@ class IntegratedExtensionInitializer {
   }
 
   async initializeFeatureFlags() {
-    await featureFlags.initialize({
-      permissionLevel: "basic",
-      onUpdate: (flags) => {
-        // Broadcast eventTracking state to content scripts via storage
-        chrome.storage.local.get(["settings"], (data) => {
-          const current = data.settings || {};
-          chrome.storage.local.set({
-            settings: {
-              ...current,
-              settings: {
-                ...(current.settings || {}),
-                eventTracking: { enabled: flags.eventTracking },
-              },
-            },
-          });
-        });
-      },
-    });
+    // Content scripts watch the featureFlags storage key directly via storage.onChanged,
+    // so no onUpdate callback is needed here.
+    await featureFlags.initialize({ permissionLevel: "basic" });
   }
 
   async initializeRequestCapture() {

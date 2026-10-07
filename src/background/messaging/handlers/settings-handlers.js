@@ -4,7 +4,7 @@
  * Ported from popup-message-handler.js
  */
 
-import settingsManager from "../../../lib/shared-components/settings-manager-core.js";
+import settingsManager from "../../../lib/shared-components/settings-manager.js";
 
 /**
  * Handle get settings
