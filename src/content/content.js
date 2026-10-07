@@ -7,6 +7,9 @@ let shouldMonitor = false;
 let eventTrackingEnabled = false;
 let monitoringInitialized = false;    // prevent duplicate observers on re-init
 let eventTrackingInitialized = false; // prevent duplicate listeners on re-enable
+let captureResourceTiming = true;     // mirrors performanceMetrics.captureResourceTiming
+let captureNavTiming = true;          // mirrors performanceMetrics.captureNavigationTiming
+let captureTypes = null;              // null = all; array = filter by initiatorType
 
 // All IPC goes through safeSend — swallows "Extension context invalidated"
 function safeSend(msg) {
@@ -40,9 +43,15 @@ function applyConfig(config, flags) {
   }
 
   shouldMonitor = true;
-  // Either settings key or featureFlags key can enable event tracking
+
+  const perf = config.capture?.performanceMetrics || {};
+  captureResourceTiming = perf.captureResourceTiming !== false;
+  captureNavTiming = perf.captureNavigationTiming !== false;
+  captureTypes = filters.includeTypes?.length > 0 ? filters.includeTypes : null;
+
+  // featureFlags shape: { flags: { eventTracking: bool, ... }, timestamp }
   eventTrackingEnabled =
-    config.eventTracking?.enabled === true || flags.eventTracking === true;
+    config.eventTracking?.enabled === true || flags.flags?.eventTracking === true;
   return true;
 }
 
@@ -162,7 +171,7 @@ function initializePageLoadMonitoring() {
     if (!shouldMonitor) return;
 
     const nav = performance.getEntriesByType("navigation")[0];
-    if (nav) {
+    if (nav && captureNavTiming) {
       const ttfb = nav.responseStart - nav.requestStart;
       const dcl  = nav.domContentLoadedEventEnd - nav.startTime;
       const load = nav.loadEventEnd - nav.startTime;
@@ -196,27 +205,33 @@ function initializePageLoadMonitoring() {
     }
 
     // One batched resource timing message per page load (per CLAUDE.md spec)
-    const resources = performance.getEntriesByType("resource");
-    if (resources.length > 0) {
-      safeSend({
-        action: "batchResourceTiming",
-        timings: resources.map((r) => ({
-          url:          r.name,
-          type:         r.initiatorType,
-          dnsTime:      r.domainLookupEnd - r.domainLookupStart,
-          tcpTime:      r.connectEnd - r.connectStart,
-          tlsTime:      r.secureConnectionStart > 0 ? r.connectEnd - r.secureConnectionStart : 0,
-          requestTime:  r.responseStart - r.requestStart,
-          responseTime: r.responseEnd - r.responseStart,
-          totalTime:    r.duration,
-          transferSize: r.transferSize || 0,
-          encodedSize:  r.encodedBodySize || 0,
-          decodedSize:  r.decodedBodySize || 0,
-          fromCache:    r.transferSize === 0 && r.encodedBodySize > 0,
-          timestamp:    Date.now(),
-          pageUrl:      window.location.href,
-        })),
-      });
+    // Filter by user's includeTypes setting; skip entirely if captureResourceTiming is off
+    if (captureResourceTiming) {
+      const allResources = performance.getEntriesByType("resource");
+      const resources = captureTypes
+        ? allResources.filter((r) => captureTypes.includes(r.initiatorType))
+        : allResources;
+      if (resources.length > 0) {
+        safeSend({
+          action: "batchResourceTiming",
+          timings: resources.map((r) => ({
+            url:          r.name,
+            type:         r.initiatorType,
+            dnsTime:      r.domainLookupEnd - r.domainLookupStart,
+            tcpTime:      r.connectEnd - r.connectStart,
+            tlsTime:      r.secureConnectionStart > 0 ? r.connectEnd - r.secureConnectionStart : 0,
+            requestTime:  r.responseStart - r.requestStart,
+            responseTime: r.responseEnd - r.responseStart,
+            totalTime:    r.duration,
+            transferSize: r.transferSize || 0,
+            encodedSize:  r.encodedBodySize || 0,
+            decodedSize:  r.decodedBodySize || 0,
+            fromCache:    r.transferSize === 0 && r.encodedBodySize > 0,
+            timestamp:    Date.now(),
+            pageUrl:      window.location.href,
+          })),
+        });
+      }
     }
   });
 }
