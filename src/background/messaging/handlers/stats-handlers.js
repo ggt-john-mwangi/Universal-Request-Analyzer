@@ -35,8 +35,8 @@ async function handleGetPageStats(data, context) {
     // Use explicit domain param if provided (QA Quick View override), else derive from URL
     const domain = data.domain || new URL(url).hostname;
 
-    // Query requests for this domain — default 30-minute window (QA runs take time)
-    const fiveMinutesAgo = Date.now() - 30 * 60 * 1000;
+    const timeWindowMin = parseInt(data.timeWindow || 30);
+    const cutoff = Date.now() - timeWindowMin * 60 * 1000;
 
     const stats = {
       totalRequests: 0,
@@ -54,7 +54,7 @@ async function handleGetPageStats(data, context) {
         // Build query with optional request type filter
         let whereClause = `WHERE domain = ${escapeStr(
           domain
-        )} AND timestamp > ${fiveMinutesAgo}`;
+        )} AND timestamp > ${cutoff}`;
 
         if (requestType && requestType !== "") {
           whereClause += ` AND type = ${escapeStr(requestType)}`;
@@ -71,11 +71,12 @@ async function handleGetPageStats(data, context) {
 
         // Query aggregate stats across all pages in the domain
         const aggregateQuery = `
-          SELECT 
+          SELECT
             COUNT(*) as totalRequests,
             AVG(duration) as avgResponse,
             SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errorCount,
-            SUM(size_bytes) as dataTransferred
+            SUM(size_bytes) as dataTransferred,
+            SUM(CASE WHEN duration > 1000 THEN 1 ELSE 0 END) as slowRequests
           FROM bronze_requests
           ${whereClause}
         `;
@@ -87,12 +88,13 @@ async function handleGetPageStats(data, context) {
           aggregateResult[0]?.values &&
           aggregateResult[0].values.length > 0
         ) {
-          const [total, avg, errors, bytes] = aggregateResult[0].values[0];
+          const [total, avg, errors, bytes, slow] = aggregateResult[0].values[0];
           stats.totalRequests = total || 0;
           stats.avgResponse = Math.round(avg || 0);
           stats.errorCount = errors || 0;
           stats.errorRate = total > 0 ? Math.round((errors / total) * 100) : 0;
           stats.dataTransferred = bytes || 0;
+          stats.slowRequests = slow || 0;
         }
 
         // Query detailed request data for charts (aggregated across all pages)

@@ -5,6 +5,7 @@ import {
   updatePageSummary,
   updateDetailedViews,
   updateRecentErrorsDisplay,
+  updateWebVitalsDisplay,
 } from "./popup-ui.js";
 import { showNotification } from "./popup-utils.js";
 import {
@@ -34,6 +35,9 @@ export async function loadPageSummary() {
     if (!currentTab || !currentTab.url) {
       return;
     }
+
+    // Get time window selection
+    const timeWindow = parseInt(document.getElementById("timeWindowSelect")?.value || 30);
 
     // Get selected filters
     const requestTypeFilter = document.getElementById("requestTypeFilter");
@@ -72,6 +76,7 @@ export async function loadPageSummary() {
         requestType: requestType,
         domain: filterDomain,
         statusFilter: statusFilter,
+        timeWindow,
       },
     });
 
@@ -83,6 +88,7 @@ export async function loadPageSummary() {
         hideEmptyState();
         updatePageSummary(response.stats);
         updateDetailedViews(response.stats);
+        loadWebVitals(filterDomain, timeWindow).catch(() => {});
       }
 
       // Start auto-refresh only on first successful load
@@ -331,5 +337,21 @@ export function stopAutoRefresh() {
     clearInterval(refreshInterval);
     refreshInterval = null;
   }
+}
+
+/**
+ * Load and display Core Web Vitals for the current domain
+ */
+export async function loadWebVitals(domain, timeWindow) {
+  try {
+    const timeRange = parseInt(timeWindow || 30) * 60; // seconds
+    const response = await runtime.sendMessage({
+      action: 'getWebVitals',
+      filters: { domain, timeRange },
+    });
+    if (response?.success && response.vitals) {
+      updateWebVitalsDisplay(response.vitals);
+    }
+  } catch {}
 }
 

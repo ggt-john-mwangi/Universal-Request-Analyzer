@@ -29,6 +29,13 @@ export function updatePageSummary(data) {
   document.getElementById('dataTransferred').textContent = formatBytes(
     data.dataTransferred || data.totalBytes || 0
   );
+
+  const slowEl = document.getElementById('slowRequests');
+  if (slowEl) {
+    const slow = data.slowRequests || 0;
+    slowEl.textContent = slow > 0 ? `${slow} slow >1s` : '';
+    slowEl.style.display = slow > 0 ? '' : 'none';
+  }
 }
 
 /**
@@ -214,6 +221,55 @@ export function updateRecentErrorsDisplay(errors) {
         <span class="error-time">${formatTimeAgo(error.timestamp)}</span>
       </div>`;
   }).join('');
+}
+
+const VITAL_METRICS = ['LCP', 'FCP', 'CLS', 'TTFB'];
+
+/**
+ * Update Core Web Vitals display
+ * @param {Array} vitals - Array from getWebVitals handler
+ */
+export function updateWebVitalsDisplay(vitals) {
+  const section = document.getElementById('vitalsSection');
+  if (!section) return;
+
+  // Deduplicate: keep latest per metric
+  const latest = {};
+  vitals.forEach(v => {
+    if (!latest[v.metricName] || v.timestamp > latest[v.metricName].timestamp) {
+      latest[v.metricName] = v;
+    }
+  });
+
+  const hasData = VITAL_METRICS.some(m => latest[m]);
+  section.style.display = hasData ? '' : 'none';
+
+  VITAL_METRICS.forEach(metric => {
+    const entry = latest[metric];
+    const valEl = document.getElementById(`vital-${metric}-value`);
+    const badgeEl = document.getElementById(`vital-${metric}-badge`);
+    if (!valEl || !badgeEl) return;
+
+    if (!entry) {
+      valEl.textContent = '—';
+      badgeEl.textContent = '—';
+      badgeEl.className = 'vital-badge';
+      return;
+    }
+
+    const v = entry.metricValue;
+    if (metric === 'CLS') {
+      valEl.textContent = v != null ? Number(v).toFixed(3) : '—';
+    } else {
+      valEl.textContent = v != null ? (v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${Math.round(v)}ms`) : '—';
+    }
+
+    const classMap = { good: 'vital-good', 'needs-improvement': 'vital-needs-improvement', poor: 'vital-poor' };
+    const labelMap = { good: 'Good', 'needs-improvement': 'OK', poor: 'Poor' };
+    const r = entry.rating || '';
+    badgeEl.textContent = labelMap[r] || '—';
+    badgeEl.className = `vital-badge ${classMap[r] || ''}`;
+  });
 }
 
 /**

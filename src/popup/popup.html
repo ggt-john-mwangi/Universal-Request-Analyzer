@@ -106,6 +106,7 @@
         <div class="kpi-tile">
           <div class="kpi-value" id="avgResponse">—</div>
           <div class="kpi-label">Avg Response</div>
+          <div class="kpi-sub" id="slowRequests" style="display:none"></div>
         </div>
         <div class="kpi-tile">
           <div class="kpi-value" id="dataTransferred">—</div>
@@ -174,6 +175,35 @@
         </div>
         <div id="recentErrorsList" class="errors-list">
           <p class="placeholder-text">No errors detected</p>
+        </div>
+      </div>
+
+      <!-- ── Core Web Vitals ── -->
+      <div class="section-card" id="vitalsSection" style="display:none">
+        <div class="section-header">
+          <span class="section-title"><i class="fas fa-heartbeat" style="color:#58a6ff"></i> Core Web Vitals</span>
+        </div>
+        <div class="vitals-grid">
+          <div class="vital-tile">
+            <div class="vital-name">LCP</div>
+            <div class="vital-value" id="vital-LCP-value">—</div>
+            <div class="vital-badge" id="vital-LCP-badge">—</div>
+          </div>
+          <div class="vital-tile">
+            <div class="vital-name">FCP</div>
+            <div class="vital-value" id="vital-FCP-value">—</div>
+            <div class="vital-badge" id="vital-FCP-badge">—</div>
+          </div>
+          <div class="vital-tile">
+            <div class="vital-name">CLS</div>
+            <div class="vital-value" id="vital-CLS-value">—</div>
+            <div class="vital-badge" id="vital-CLS-badge">—</div>
+          </div>
+          <div class="vital-tile">
+            <div class="vital-name">TTFB</div>
+            <div class="vital-value" id="vital-TTFB-value">—</div>
+            <div class="vital-badge" id="vital-TTFB-badge">—</div>
+          </div>
         </div>
       </div>
 

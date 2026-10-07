@@ -441,6 +441,30 @@ body {
   cursor: pointer; display: flex; align-items: center; gap: 4px;
 }
 
+/* ── KPI sub-text ── */
+.kpi-sub {
+  font-size: 9px; font-weight: 600; color: #d29922;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Core Web Vitals ── */
+.vitals-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.vital-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 4px;
+  background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+  text-align: center;
+}
+.vital-name { font-size: 9px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: .04em; }
+.vital-value { font-size: 13px; font-weight: 700; color: #e6edf3; font-variant-numeric: tabular-nums; }
+.vital-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 10px; }
+.vital-good { background: rgba(63,185,80,.15); color: #3fb950; }
+.vital-needs-improvement { background: rgba(210,153,34,.15); color: #d29922; }
+.vital-poor { background: rgba(248,81,73,.15); color: #f85149; }
+
 /* ── Shared animations ── */
 @keyframes spin {
   from { transform: rotate(0deg); }
