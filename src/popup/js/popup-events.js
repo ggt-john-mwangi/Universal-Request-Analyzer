@@ -17,6 +17,7 @@ import {
   setCurrentQuickFilter,
 } from "./popup-export.js";
 import { showNotification } from "./popup-utils.js";
+import { clearRequestsList } from "./popup-requests.js";
 
 /**
  * Setup all event listeners
@@ -32,6 +33,7 @@ export function setupEventListeners() {
   setupQuickFilterChips();
   setupEndpointSort();
   setupHARExport();
+  setupRequestsPanel();
   loadTrackedSites();
 }
 
@@ -311,6 +313,14 @@ function setupEndpointSort() {
       rerenderEndpoints(this.dataset.epSort);
     });
   });
+}
+
+/**
+ * Wire clear + view-all buttons in the Recent Requests panel
+ */
+function setupRequestsPanel() {
+  document.getElementById("clearRequestsBtn")?.addEventListener("click", clearRequestsList);
+  document.getElementById("viewAllRequestsBtn")?.addEventListener("click", () => runtime.openOptionsPage());
 }
 
 /**

@@ -5,67 +5,73 @@ const browserAPI = globalThis.browser || globalThis.chrome;
 
 let shouldMonitor = false;
 let eventTrackingEnabled = false;
-let configLoaded = false;
+let monitoringInitialized = false;    // prevent duplicate observers on re-init
+let eventTrackingInitialized = false; // prevent duplicate listeners on re-enable
 
-// Load configuration once, then decide what to monitor
-browserAPI.storage.local.get(["settings"], (data) => {
-  const config = data.settings?.settings || {};
-  configLoaded = true;
+// All IPC goes through safeSend — swallows "Extension context invalidated"
+function safeSend(msg) {
+  browserAPI.runtime.sendMessage(msg).catch(() => {});
+}
 
-  const captureConfig = config.capture || {};
-  if (captureConfig.enabled === false) return;
+// ── Config ───────────────────────────────────────────────────────────────────
 
-  const captureFilters = captureConfig.captureFilters || {};
-  const excludeDomains = captureFilters.excludeDomains || [
-    "chrome://*",
-    "edge://*",
-    "about:*",
-    "chrome-extension://*",
-    "moz-extension://*",
+// Returns true if this page should be monitored; sets shouldMonitor + eventTrackingEnabled
+function applyConfig(config, flags) {
+  shouldMonitor = false;
+  eventTrackingEnabled = false;
+
+  if (config.capture?.enabled === false) return false;
+
+  const filters = config.capture?.captureFilters || {};
+  const excludeDomains = filters.excludeDomains || [
+    "chrome://*", "edge://*", "about:*", "chrome-extension://*", "moz-extension://*",
   ];
 
-  const currentUrl = window.location.href;
-  const currentDomain = window.location.hostname;
+  const url = window.location.href;
+  const host = window.location.hostname;
 
-  for (const pattern of excludeDomains) {
-    if (matchesPattern(currentUrl, currentDomain, pattern)) return;
+  for (const p of excludeDomains) {
+    if (matchesPattern(url, host, p)) return false;
   }
 
-  const includeDomains = captureFilters.includeDomains || [];
-  if (includeDomains.length > 0) {
-    const matched = includeDomains.some((p) =>
-      matchesPattern(currentUrl, currentDomain, p)
-    );
-    if (!matched) return;
+  const includeDomains = filters.includeDomains || [];
+  if (includeDomains.length > 0 && !includeDomains.some((p) => matchesPattern(url, host, p))) {
+    return false;
   }
 
   shouldMonitor = true;
-  // eventTracking defaults to OFF; only enable when explicitly set in settings
-  eventTrackingEnabled = config.eventTracking?.enabled === true;
+  // Either settings key or featureFlags key can enable event tracking
+  eventTrackingEnabled =
+    config.eventTracking?.enabled === true || flags.eventTracking === true;
+  return true;
+}
+
+// Startup: read both storage keys
+browserAPI.storage.local.get(["settings", "featureFlags"], (data) => {
+  if (!applyConfig(data.settings?.settings || {}, data.featureFlags || {})) return;
   initializeMonitoring();
 });
 
-// Re-evaluate monitoring when settings change — no page reload needed
+// Runtime config changes — react to either key changing
 browserAPI.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !changes.settings) return;
+  if (area !== "local" || (!changes.settings && !changes.featureFlags)) return;
 
-  const config = changes.settings.newValue?.settings || {};
-  const captureEnabled = config.capture?.enabled !== false;
-  const nowEnabled = captureEnabled;
-  const nowEventTracking = config.eventTracking?.enabled === true;
+  const wasMonitoring = shouldMonitor;
+  const wasEventTracking = eventTrackingEnabled;
 
-  if (!shouldMonitor && nowEnabled) {
-    shouldMonitor = true;
-    eventTrackingEnabled = nowEventTracking;
-    initializeMonitoring();
-  } else if (shouldMonitor && !nowEnabled) {
-    shouldMonitor = false;
-    // Observers can't be stopped once started, but future events won't be sent
-  } else if (shouldMonitor && nowEventTracking !== eventTrackingEnabled) {
-    eventTrackingEnabled = nowEventTracking;
-    if (eventTrackingEnabled) initializeEventTracking();
-  }
+  browserAPI.storage.local.get(["settings", "featureFlags"], (data) => {
+    applyConfig(data.settings?.settings || {}, data.featureFlags || {});
+
+    if (!wasMonitoring && shouldMonitor) {
+      initializeMonitoring();
+    } else if (!wasEventTracking && eventTrackingEnabled && shouldMonitor) {
+      initializeEventTracking();
+    }
+    // Disabling: observers can't be stopped; callbacks check shouldMonitor before sending
+  });
 });
+
+// ── Pattern matching ─────────────────────────────────────────────────────────
 
 function matchesPattern(url, domain, pattern) {
   pattern = pattern.trim();
@@ -77,17 +83,20 @@ function matchesPattern(url, domain, pattern) {
   }
   if (pattern.includes("*")) {
     try {
+      // Test against domain only — anchored regex doesn't match full URLs
       const re = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
-      return re.test(url) || re.test(domain);
+      return re.test(domain);
     } catch { return false; }
   }
-  return url.includes(pattern) || domain.includes(pattern) || url.startsWith(pattern);
+  return url.includes(pattern) || domain.includes(pattern);
 }
 
+// ── Monitoring init ──────────────────────────────────────────────────────────
+
 function initializeMonitoring() {
-  if (!shouldMonitor) return;
+  if (monitoringInitialized) return;
+  monitoringInitialized = true;
   initializeCoreWebVitals();
-  initializePerformanceObserver();
   initializePageLoadMonitoring();
   if (eventTrackingEnabled) initializeEventTracking();
 }
@@ -95,13 +104,10 @@ function initializeMonitoring() {
 // ── Core Web Vitals ──────────────────────────────────────────────────────────
 
 function sendVital(metric, value, rating) {
-  browserAPI.runtime.sendMessage({
-    action: "webVital",
-    metric,
-    value,
-    rating,
-    url: window.location.href,
-    timestamp: Date.now(),
+  if (!shouldMonitor) return;
+  safeSend({
+    action: "webVital", metric, value, rating,
+    url: window.location.href, timestamp: Date.now(),
   });
 }
 
@@ -123,14 +129,19 @@ function initializeCoreWebVitals() {
     }).observe({ type: "first-input", buffered: true });
   } catch {}
 
+  // CLS: accumulate all shifts, send once when page hides — not on every shift
   try {
     let clsValue = 0;
     new PerformanceObserver((list) => {
-      list.getEntries().forEach((e) => {
-        if (!e.hadRecentInput) clsValue += e.value;
-      });
-      sendVital("CLS", clsValue, clsValue < 0.1 ? "good" : clsValue < 0.25 ? "needs-improvement" : "poor");
+      list.getEntries().forEach((e) => { if (!e.hadRecentInput) clsValue += e.value; });
     }).observe({ type: "layout-shift", buffered: true });
+
+    const flushCLS = () =>
+      sendVital("CLS", clsValue, clsValue < 0.1 ? "good" : clsValue < 0.25 ? "needs-improvement" : "poor");
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushCLS();
+    });
+    document.addEventListener("pagehide", flushCLS, { once: true });
   } catch {}
 
   try {
@@ -144,195 +155,70 @@ function initializeCoreWebVitals() {
   } catch {}
 }
 
-// ── Resource Timing Observer ─────────────────────────────────────────────────
-// Batches entries into one message instead of N individual messages.
-
-function initializePerformanceObserver() {
-  let pendingEntries = [];
-  let flushTimer = null;
-
-  function flush() {
-    flushTimer = null;
-    if (pendingEntries.length === 0) return;
-    const batch = pendingEntries.splice(0);
-    browserAPI.runtime.sendMessage({
-      action: "performanceData",
-      entries: batch.map((e) => ({
-        name: e.name,
-        duration: e.duration,
-        startTime: e.startTime,
-        initiatorType: e.initiatorType,
-        timings: {
-          dns: e.domainLookupEnd - e.domainLookupStart,
-          tcp: e.connectEnd - e.connectStart,
-          ssl: e.secureConnectionStart > 0 ? e.connectEnd - e.secureConnectionStart : 0,
-          ttfb: e.responseStart - e.requestStart,
-          download: e.responseEnd - e.responseStart,
-          total: e.responseEnd - e.startTime,
-        },
-        size: e.transferSize || 0,
-        encodedBodySize: e.encodedBodySize || 0,
-        decodedBodySize: e.decodedBodySize || 0,
-      })),
-    });
-  }
-
-  try {
-    new PerformanceObserver((list) => {
-      pendingEntries.push(...list.getEntries().filter((e) => e.entryType === "resource"));
-      if (!flushTimer) flushTimer = setTimeout(flush, 500); // batch within 500ms
-    }).observe({ entryTypes: ["resource"] });
-  } catch {}
-}
-
 // ── Page Load Monitoring ─────────────────────────────────────────────────────
 
 function initializePageLoadMonitoring() {
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      browserAPI.runtime.sendMessage({
-        action: "pageNavigation",
-        url: window.location.href,
-        title: document.title,
-      });
-    }
-  });
-
   window.addEventListener("load", () => {
+    if (!shouldMonitor) return;
+
     const nav = performance.getEntriesByType("navigation")[0];
     if (nav) {
       const ttfb = nav.responseStart - nav.requestStart;
-      const dcl = nav.domContentLoadedEventEnd - nav.startTime;
-      const loadTime = nav.loadEventEnd - nav.startTime;
-      const tti = nav.domInteractive - nav.startTime;
+      const dcl  = nav.domContentLoadedEventEnd - nav.startTime;
+      const load = nav.loadEventEnd - nav.startTime;
+      const tti  = nav.domInteractive - nav.startTime;
 
-      sendVital("TTFB", ttfb, ttfb < 800 ? "good" : ttfb < 1800 ? "needs-improvement" : "poor");
-      sendVital("DCL", dcl, dcl < 1500 ? "good" : dcl < 2500 ? "needs-improvement" : "poor");
-      sendVital("Load", loadTime, loadTime < 2500 ? "good" : loadTime < 4000 ? "needs-improvement" : "poor");
-      sendVital("TTI", tti, tti < 3800 ? "good" : tti < 7300 ? "needs-improvement" : "poor");
+      sendVital("TTFB", ttfb, ttfb < 800  ? "good" : ttfb < 1800 ? "needs-improvement" : "poor");
+      sendVital("DCL",  dcl,  dcl  < 1500 ? "good" : dcl  < 2500 ? "needs-improvement" : "poor");
+      sendVital("Load", load, load < 2500 ? "good" : load < 4000 ? "needs-improvement" : "poor");
+      sendVital("TTI",  tti,  tti  < 3800 ? "good" : tti  < 7300 ? "needs-improvement" : "poor");
 
-      browserAPI.runtime.sendMessage({
+      safeSend({
         action: "pageLoad",
         url: window.location.href,
         title: document.title,
         performance: {
-          dnsTime: nav.domainLookupEnd - nav.domainLookupStart,
-          tcpTime: nav.connectEnd - nav.connectStart,
-          sslTime: nav.secureConnectionStart > 0 ? nav.connectEnd - nav.secureConnectionStart : 0,
-          ttfbTime: ttfb,
-          downloadTime: nav.responseEnd - nav.responseStart,
+          dnsTime:        nav.domainLookupEnd - nav.domainLookupStart,
+          tcpTime:        nav.connectEnd - nav.connectStart,
+          sslTime:        nav.secureConnectionStart > 0 ? nav.connectEnd - nav.secureConnectionStart : 0,
+          ttfbTime:       ttfb,
+          downloadTime:   nav.responseEnd - nav.responseStart,
           processingTime: nav.domComplete - nav.responseEnd,
-          loadTime,
-          domInteractive: nav.domInteractive - nav.startTime,
+          loadTime:       load,
+          domInteractive: tti,
           domContentLoaded: dcl,
-          domComplete: nav.domComplete - nav.startTime,
-          transferSize: nav.transferSize,
+          domComplete:    nav.domComplete - nav.startTime,
+          transferSize:   nav.transferSize,
           encodedBodySize: nav.encodedBodySize,
           decodedBodySize: nav.decodedBodySize,
         },
       });
     }
 
-    // Send all resources as a single batched message
+    // One batched resource timing message per page load (per CLAUDE.md spec)
     const resources = performance.getEntriesByType("resource");
     if (resources.length > 0) {
-      browserAPI.runtime.sendMessage({
+      safeSend({
         action: "batchResourceTiming",
         timings: resources.map((r) => ({
-          url: r.name,
-          type: r.initiatorType,
-          dnsTime: r.domainLookupEnd - r.domainLookupStart,
-          tcpTime: r.connectEnd - r.connectStart,
-          tlsTime: r.secureConnectionStart > 0 ? r.connectEnd - r.secureConnectionStart : 0,
-          requestTime: r.responseStart - r.requestStart,
+          url:          r.name,
+          type:         r.initiatorType,
+          dnsTime:      r.domainLookupEnd - r.domainLookupStart,
+          tcpTime:      r.connectEnd - r.connectStart,
+          tlsTime:      r.secureConnectionStart > 0 ? r.connectEnd - r.secureConnectionStart : 0,
+          requestTime:  r.responseStart - r.requestStart,
           responseTime: r.responseEnd - r.responseStart,
-          totalTime: r.duration,
+          totalTime:    r.duration,
           transferSize: r.transferSize || 0,
-          encodedSize: r.encodedBodySize || 0,
-          decodedSize: r.decodedBodySize || 0,
-          fromCache: r.transferSize === 0 && r.encodedBodySize > 0,
-          timestamp: Date.now(),
-          pageUrl: window.location.href,
-        })),
-      });
-
-      // Summary for backward compatibility (single message, not N)
-      browserAPI.runtime.sendMessage({
-        action: "pageResources",
-        url: window.location.href,
-        resources: resources.map((r) => ({
-          name: r.name,
-          type: r.initiatorType,
-          duration: r.duration,
-          size: r.transferSize || 0,
+          encodedSize:  r.encodedBodySize || 0,
+          decodedSize:  r.decodedBodySize || 0,
+          fromCache:    r.transferSize === 0 && r.encodedBodySize > 0,
+          timestamp:    Date.now(),
+          pageUrl:      window.location.href,
         })),
       });
     }
-
-    setTimeout(() => {
-      detectMixedContent();
-      classifyThirdPartyDomains();
-    }, 1000);
   });
-}
-
-function detectMixedContent() {
-  if (window.location.protocol !== "https:") return;
-  const issues = performance.getEntriesByType("resource")
-    .filter((r) => { try { return new URL(r.name).protocol === "http:"; } catch { return false; } })
-    .map((r) => ({
-      url: r.name,
-      type: r.initiatorType,
-      severity: ["script", "stylesheet", "fetch", "xmlhttprequest"].includes(r.initiatorType) ? "high" : "medium",
-      issue: "mixed-content",
-    }));
-  if (issues.length > 0) {
-    browserAPI.runtime.sendMessage({ action: "securityIssue", issues, pageUrl: window.location.href, timestamp: Date.now() });
-  }
-}
-
-function classifyThirdPartyDomains() {
-  const pageBase = getBaseDomain(window.location.hostname);
-  const knownCategories = {
-    analytics: ["google-analytics.com", "googletagmanager.com", "segment.com", "mixpanel.com", "amplitude.com"],
-    advertising: ["doubleclick.net", "googlesyndication.com", "adnxs.com"],
-    cdn: ["cloudflare.com", "fastly.net", "cloudfront.net", "jsdelivr.net", "unpkg.com", "cdnjs.com"],
-    social: ["facebook.com", "twitter.com", "linkedin.com", "youtube.com"],
-    fonts: ["fonts.googleapis.com", "fonts.gstatic.com", "typekit.net"],
-  };
-
-  const domains = new Map();
-  performance.getEntriesByType("resource").forEach((r) => {
-    try {
-      const h = new URL(r.name).hostname;
-      const base = getBaseDomain(h);
-      if (base === pageBase) return;
-      if (!domains.has(base)) {
-        let category = "other";
-        for (const [cat, list] of Object.entries(knownCategories)) {
-          if (list.some((d) => h.includes(d))) { category = cat; break; }
-        }
-        domains.set(base, { domain: base, category, requestCount: 0, resources: [] });
-      }
-      const d = domains.get(base);
-      d.requestCount++;
-      d.resources.push({ url: r.name, type: r.initiatorType, size: r.transferSize || 0 });
-    } catch {}
-  });
-
-  if (domains.size > 0) {
-    browserAPI.runtime.sendMessage({
-      action: "thirdPartyDomains",
-      domains: Array.from(domains.values()),
-      pageUrl: window.location.href,
-      timestamp: Date.now(),
-    });
-  }
-}
-
-function getBaseDomain(hostname) {
-  const parts = hostname.split(".");
-  return parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
 }
 
 // ── XHR / Fetch Interception ─────────────────────────────────────────────────
@@ -354,7 +240,7 @@ function getBaseDomain(hostname) {
       if (!shouldMonitor) return;
       try {
         const contentLength = parseInt(this.getResponseHeader("content-length") || "0", 10);
-        browserAPI.runtime.sendMessage({
+        safeSend({
           action: "xhrCompleted",
           method: this._uraMethod,
           url: this._uraUrl,
@@ -381,14 +267,13 @@ function getBaseDomain(hostname) {
     return origFetch.apply(this, arguments).then((response) => {
       try {
         const contentLength = parseInt(response.headers.get("content-length") || "0", 10);
-        browserAPI.runtime.sendMessage({
+        safeSend({
           action: "fetchCompleted",
-          method,
-          url,
+          method, url,
           status: response.status,
           statusText: response.statusText,
           duration: Date.now() - start,
-          responseSize: contentLength, // header only — no body read
+          responseSize: contentLength,
           requestSize: init?.body ? String(init.body).length : 0,
           startTime: start,
           endTime: Date.now(),
@@ -396,17 +281,14 @@ function getBaseDomain(hostname) {
       } catch {}
       return response;
     }).catch((error) => {
-      try {
-        browserAPI.runtime.sendMessage({
-          action: "fetchError",
-          method,
-          url,
-          error: error.message,
-          duration: Date.now() - start,
-          startTime: start,
-          endTime: Date.now(),
-        });
-      } catch {}
+      safeSend({
+        action: "fetchError",
+        method, url,
+        error: error.message,
+        duration: Date.now() - start,
+        startTime: start,
+        endTime: Date.now(),
+      });
       throw error;
     });
   };
@@ -415,9 +297,10 @@ function getBaseDomain(hostname) {
 // ── Event Tracking (OFF by default) ─────────────────────────────────────────
 
 function initializeEventTracking() {
-  if (!shouldMonitor || !eventTrackingEnabled) return;
+  if (!shouldMonitor || !eventTrackingEnabled || eventTrackingInitialized) return;
+  eventTrackingInitialized = true;
 
-  browserAPI.runtime.sendMessage({
+  safeSend({
     action: "pageVisit",
     url: window.location.href,
     domain: window.location.hostname,
@@ -427,7 +310,7 @@ function initializeEventTracking() {
 
   document.addEventListener("click", (e) => {
     if (!eventTrackingEnabled) return;
-    browserAPI.runtime.sendMessage({
+    safeSend({
       action: "userEvent",
       eventType: "click",
       eventData: { target: e.target.tagName, id: e.target.id, x: e.clientX, y: e.clientY },
@@ -441,7 +324,7 @@ function initializeEventTracking() {
     if (!eventTrackingEnabled || scrollTimer) return;
     scrollTimer = setTimeout(() => {
       scrollTimer = null;
-      browserAPI.runtime.sendMessage({
+      safeSend({
         action: "userEvent",
         eventType: "scroll",
         eventData: { scrollY: window.scrollY, scrollHeight: document.documentElement.scrollHeight },
@@ -453,7 +336,7 @@ function initializeEventTracking() {
 
   document.addEventListener("submit", (e) => {
     if (!eventTrackingEnabled) return;
-    browserAPI.runtime.sendMessage({
+    safeSend({
       action: "userEvent",
       eventType: "form_submit",
       eventData: { action: e.target.action, method: e.target.method },
@@ -463,7 +346,7 @@ function initializeEventTracking() {
   });
 
   window.addEventListener("beforeunload", () => {
-    browserAPI.runtime.sendMessage({
+    safeSend({
       action: "userEvent",
       eventType: "page_unload",
       eventData: { duration: Date.now() - performance.timeOrigin },

@@ -1,6 +1,7 @@
 // Popup Data Functions - Handle data loading and communication with background
 
 import { runtime, tabs } from "../../background/compat/browser-compat.js";
+import { currentQuickFilter } from "./popup-export.js";
 import {
   updatePageSummary,
   updateDetailedViews,
@@ -54,7 +55,6 @@ export async function loadPageSummary() {
     const selectedPage = pageFilter ? pageFilter.value : "";
 
     // Get status filter from quick filter chips
-    const { currentQuickFilter } = await import("./popup-export.js");
     const statusFilter = ["2xx", "4xx", "5xx"].includes(currentQuickFilter)
       ? currentQuickFilter
       : "";
@@ -324,16 +324,13 @@ export function startAutoRefresh() {
   if (refreshInterval) clearInterval(refreshInterval);
 
   refreshInterval = setInterval(() => {
-    if (runtime.id) {
-      loadPageSummary().catch((error) => {
-        if (error.message?.includes("Extension context invalidated")) {
-          stopAutoRefresh();
-        }
-      });
-      updateRecentErrors().catch(() => {});
-    } else {
-      stopAutoRefresh();
-    }
+    try {
+      if (!runtime.id) { stopAutoRefresh(); return; }
+    } catch { stopAutoRefresh(); return; }
+    loadPageSummary().catch((error) => {
+      if (error.message?.includes("Extension context invalidated")) stopAutoRefresh();
+    });
+    updateRecentErrors().catch(() => {});
   }, 5000);
 }
 

@@ -54,55 +54,6 @@ export async function exportDomainData(domain) {
 }
 
 /**
- * Export current page data
- */
-export async function exportPageData() {
-  try {
-    const currentTabs = await tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    const currentTab = currentTabs[0];
-
-    if (!currentTab || !currentTab.url) {
-      showNotification('No active tab found', true);
-      return false;
-    }
-
-    const response = await runtime.sendMessage({
-      action: 'exportFilteredData',
-      filters: { pageUrl: currentTab.url },
-      format: 'json',
-    });
-
-    if (response.success && response.data) {
-      const exportData = JSON.stringify(response.data, null, 2);
-      const blob = new Blob([exportData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = response.filename || `export-${Date.now()}.json`;
-      a.click();
-
-      URL.revokeObjectURL(url);
-      showNotification('Export successful!');
-      return true;
-    } else {
-      showNotification(
-        'Export failed: ' + (response.error || 'Unknown error'),
-        true
-      );
-      return false;
-    }
-  } catch (error) {
-    console.error('Export error:', error);
-    showNotification('Export failed', true);
-    return false;
-  }
-}
-
-/**
  * Export as HAR format
  */
 export async function exportAsHAR() {

@@ -10,28 +10,7 @@ import { tabs, runtime } from '../../background/compat/browser-compat.js';
  */
 export function showEmptyState() {
   const emptyState = document.getElementById('emptyState');
-  const pageSummary = document.querySelector('.page-summary');
-  const qaQuickView = document.querySelector('.qa-quick-view');
-  const quickActions = document.querySelector('.quick-actions');
-  
-  if (emptyState) {
-    emptyState.style.display = 'block';
-  }
-  
-  // Hide other sections
-  if (pageSummary) {
-    pageSummary.style.display = 'none';
-  }
-  if (qaQuickView) {
-    qaQuickView.style.display = 'none';
-  }
-  
-  // Keep quick actions visible
-  if (quickActions) {
-    quickActions.style.display = 'flex';
-  }
-  
-  // Setup event listeners
+  if (emptyState) emptyState.style.display = 'block';
   setupEmptyStateListeners();
 }
 
@@ -40,20 +19,7 @@ export function showEmptyState() {
  */
 export function hideEmptyState() {
   const emptyState = document.getElementById('emptyState');
-  const pageSummary = document.querySelector('.page-summary');
-  const qaQuickView = document.querySelector('.qa-quick-view');
-  
-  if (emptyState) {
-    emptyState.style.display = 'none';
-  }
-  
-  if (pageSummary) {
-    pageSummary.style.display = 'block';
-  }
-  
-  if (qaQuickView) {
-    qaQuickView.style.display = 'block';
-  }
+  if (emptyState) emptyState.style.display = 'none';
 }
 
 /**
@@ -146,6 +112,7 @@ function generateSampleData() {
  * Show banner indicating sample data is displayed
  */
 function showSampleBanner() {
+  if (document.querySelector('.sample-banner')) return; // already shown
   const banner = document.createElement('div');
   banner.className = 'sample-banner';
   banner.innerHTML = `

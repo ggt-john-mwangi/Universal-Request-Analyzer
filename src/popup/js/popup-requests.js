@@ -346,7 +346,7 @@ function showEmptyRequestsState() {
   const listContainer = document.getElementById("recentRequestsList");
   if (listContainer) {
     listContainer.innerHTML =
-      '<p class="placeholder">No requests captured yet. Browse a website to see requests here.</p>';
+      '<p class="placeholder-text">No requests captured yet. Browse a website to see requests here.</p>';
   }
 }
 
@@ -357,7 +357,7 @@ export function clearRequestsList() {
   const listContainer = document.getElementById("recentRequestsList");
   if (listContainer) {
     listContainer.innerHTML =
-      '<p class="placeholder">List cleared. New requests will appear here.</p>';
+      '<p class="placeholder-text">List cleared. New requests will appear here.</p>';
   }
   showNotification("Request list cleared", false);
 }
