@@ -259,6 +259,14 @@ class IntegratedExtensionInitializer {
   async handleMedallionMessages(message, sender, sendResponse) {
     try {
       switch (message.action) {
+        // Content-script telemetry — handled silently (webRequest already captures traffic)
+        case "performanceData":
+        case "batchResourceTiming":
+        case "pageLoad":
+        case "pageNavigation":
+          sendResponse({ success: true });
+          break;
+
         case "processToSilver": {
           const count = await this.medallionManager.processAllPendingToSilver();
           sendResponse({ success: true, processed: count });

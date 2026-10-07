@@ -5,7 +5,6 @@ import {
   runtime,
   tabs,
 } from "../../background/compat/browser-compat.js";
-import { setViewMode } from "./popup-ui.js";
 import {
   loadPageSummary,
   loadPagesForDomain,
@@ -38,35 +37,15 @@ export function setupEventListeners() {
 }
 
 /**
- * Setup mode toggle (Simple/Advanced)
+ * Setup mode toggle / resource usage
  */
 function setupModeToggle() {
-  const simpleModeBtn = document.getElementById("simpleModeBtn");
-  const advancedModeBtn = document.getElementById("advancedModeBtn");
-
-  if (simpleModeBtn && advancedModeBtn) {
-    // Load saved mode preference
-    storage
-      .get(["viewMode"])
-      .then((result) => {
-        const mode = result.viewMode || "simple";
-        setViewMode(mode);
-      })
-      .catch((err) => console.error("Failed to load view mode:", err));
-
-    simpleModeBtn.addEventListener("click", () => {
-      setViewMode("simple");
-      storage.set({ viewMode: "simple" });
-    });
-
-    advancedModeBtn.addEventListener("click", () => {
-      setViewMode("advanced");
-      storage.set({ viewMode: "advanced" });
-    });
-  }
-
-  // Load resource usage
   loadResourceUsage();
+
+  // Time window selector
+  document.getElementById("timeWindowSelect")?.addEventListener("change", () => {
+    loadPageSummary().catch(() => {});
+  });
 }
 
 /**
@@ -302,17 +281,15 @@ function setupLegacyButtons() {
  * Setup quick filter chips
  */
 function setupQuickFilterChips() {
-  document.querySelectorAll(".filter-chip").forEach((chip) => {
+  document.querySelectorAll(".chip").forEach((chip) => {
     chip.addEventListener("click", async function () {
-      // Toggle active state
-      document
-        .querySelectorAll(".filter-chip")
+      // Toggle active within same filter group (status or type)
+      const filterType = this.dataset.filterType;
+      document.querySelectorAll(`.chip[data-filter-type="${filterType}"]`)
         .forEach((c) => c.classList.remove("active"));
       this.classList.add("active");
 
-      // Apply filter
-      const filterType = this.dataset.filter;
-      await applyQuickFilter(filterType);
+      await applyQuickFilter(this.dataset.filter);
     });
   });
 }

@@ -103,8 +103,6 @@ export function initializeMessageRouter(auth, database) {
 
     const handler = handlers.get(resolvedAction);
     if (!handler) {
-      console.warn(`No handler registered for action: ${resolvedAction}`);
-      console.warn("Available actions:", Array.from(handlers.keys()).sort());
       // Return null to allow fallback to other handlers (e.g., handleMedallionMessages)
       return null;
     }

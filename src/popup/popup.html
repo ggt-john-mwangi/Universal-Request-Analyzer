@@ -11,422 +11,306 @@
     <script src="lib/chart.min.js"></script>
   </head>
   <body>
-    <!-- Welcome Screen Overlay (First Time Only) -->
-    <div id="welcomeOverlay" class="welcome-overlay" style="display: none">
+
+    <!-- Welcome Overlay (first-run only) -->
+    <div id="welcomeOverlay" class="welcome-overlay" style="display:none">
       <div class="welcome-content">
         <div class="welcome-header">
-          <div class="welcome-icon">
-            <i class="fas fa-network-wired"></i>
-          </div>
-          <h2>Welcome to Universal Request Analyzer</h2>
-          <p class="welcome-subtitle">
-            A powerful network debugging and performance monitoring tool
-          </p>
+          <div class="welcome-icon"><i class="fas fa-network-wired"></i></div>
+          <h2>Universal Request Analyzer</h2>
+          <p class="welcome-subtitle">Persistent network analytics for QA engineers</p>
         </div>
-
         <div class="welcome-features">
           <div class="welcome-feature">
-            <div class="feature-icon feature-icon-green">
-              <i class="fas fa-history"></i>
-            </div>
+            <div class="feature-icon feature-icon-green"><i class="fas fa-history"></i></div>
             <div class="feature-content">
-              <h3>Persistent Data Storage</h3>
-              <p>
-                Never lose your network data—requests persist across browser
-                sessions unlike DevTools
-              </p>
+              <h3>Persistent Data</h3>
+              <p>Requests persist across sessions — never lose your network data again</p>
             </div>
           </div>
           <div class="welcome-feature">
-            <div class="feature-icon feature-icon-blue">
-              <i class="fas fa-chart-line"></i>
-            </div>
+            <div class="feature-icon feature-icon-blue"><i class="fas fa-chart-line"></i></div>
             <div class="feature-content">
-              <h3>Real-time Analytics</h3>
-              <p>
-                Track API performance trends with detailed metrics and
-                visualizations over time
-              </p>
+              <h3>Domain Analytics</h3>
+              <p>Error rates, response times, and status breakdowns per domain</p>
             </div>
           </div>
           <div class="welcome-feature">
-            <div class="feature-icon feature-icon-purple">
-              <i class="fas fa-filter"></i>
-            </div>
+            <div class="feature-icon feature-icon-orange"><i class="fas fa-download"></i></div>
             <div class="feature-content">
-              <h3>Advanced Filtering</h3>
-              <p>
-                Filter by domain, status, method, or request type to focus on
-                what matters
-              </p>
-            </div>
-          </div>
-          <div class="welcome-feature">
-            <div class="feature-icon feature-icon-orange">
-              <i class="fas fa-download"></i>
-            </div>
-            <div class="feature-content">
-              <h3>Multi-format Export</h3>
-              <p>
-                Export your data in HAR, JSON, CSV, or copy individual requests
-                as cURL
-              </p>
+              <h3>Export Anywhere</h3>
+              <p>HAR, JSON, CSV — share results with your team instantly</p>
             </div>
           </div>
         </div>
-
         <div class="welcome-actions">
           <button class="welcome-btn-primary" id="getStartedBtn">
-            <i class="fas fa-rocket"></i>
-            <span>Get Started</span>
+            <i class="fas fa-rocket"></i> Get Started
           </button>
           <label class="welcome-checkbox">
             <input type="checkbox" id="dontShowAgain" />
-            <span>Don't show this welcome screen again</span>
+            <span>Don't show again</span>
           </label>
-        </div>
-
-        <div class="welcome-footer">
-          <a href="#" class="welcome-link" id="viewDocsLink">
-            <i class="fas fa-book"></i> View Documentation
-          </a>
-          <a href="#" class="welcome-link" id="openSettingsLink">
-            <i class="fas fa-cog"></i> Settings
-          </a>
         </div>
       </div>
     </div>
 
     <!-- Main App -->
     <div id="appContainer" class="app-container">
-      <!-- Header Bar -->
-      <div class="header-bar">
-        <div class="header-title">
-          <img
-            src="assets/icons/icon48.png"
-            alt="Logo"
-            class="header-logo"
-          />
-          <span class="header-text">Request Analyzer</span>
+
+      <!-- ── Header ── -->
+      <div class="header">
+        <div class="header-brand">
+          <img src="assets/icons/icon48.png" alt="" class="header-logo" />
+          <span class="header-title">Request Analyzer</span>
         </div>
         <div class="header-actions">
-          <span id="authStatus" class="header-auth">
-            <i class="fas fa-circle" style="font-size:7px;color:#48bb78"></i> Local
+          <span id="authStatus" class="auth-badge">
+            <i class="fas fa-circle" style="font-size:6px;color:#3fb950"></i> Local
           </span>
-          <button
-            id="captureToggleBtn"
-            class="action-btn capture-toggle capturing"
-            title="Toggle request capture"
-            aria-label="Capturing"
-          >
-            <i class="fas fa-circle"></i>
-            <span class="capture-label">REC</span>
+          <button id="captureToggleBtn" class="rec-btn capturing" title="Toggle capture">
+            <span class="rec-dot"></span>
+            <span class="rec-label">REC</span>
           </button>
-          <button
-            id="refreshSettingsBtn"
-            class="action-btn"
-            title="Refresh data"
-          >
+        </div>
+      </div>
+
+      <!-- ── Domain Bar ── -->
+      <div class="domain-bar">
+        <div class="domain-left">
+          <i class="fas fa-globe domain-icon"></i>
+          <span id="currentDomainDisplay" class="domain-name">—</span>
+        </div>
+        <div class="domain-right">
+          <select id="timeWindowSelect" class="time-select" title="Time window">
+            <option value="5">5 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="60">1 hr</option>
+          </select>
+          <button id="refreshSettingsBtn" class="icon-btn" title="Refresh">
             <i class="fas fa-sync-alt"></i>
           </button>
         </div>
       </div>
 
-      <!-- Mode Toggle -->
-      <div class="mode-toggle">
-        <button id="simpleModeBtn" class="mode-btn active" data-mode="simple">
-          <i class="fas fa-th-large"></i> Simple
-        </button>
-        <button id="advancedModeBtn" class="mode-btn" data-mode="advanced">
-          <i class="fas fa-cogs"></i> Advanced
-        </button>
-      </div>
-
-      <!-- Contextual Tips Banner -->
-      <div id="tipBanner" class="tip-banner" style="display: none">
-        <i class="fas fa-lightbulb"></i>
-        <span id="tipText"
-          >Tip: Click any status code chip to filter requests</span
-        >
-        <button id="closeTipBtn" class="close-tip" title="Dismiss tip">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-
-      <!-- Resource Usage Display -->
-      <div id="resourceUsage" class="resource-usage advanced-only">
-        <div class="resource-item">
-          <span class="resource-label"
-            ><i class="fas fa-database"></i> Requests:</span
-          >
-          <span class="resource-value" id="requestCount">0 / 10,000</span>
+      <!-- ── KPI Row ── -->
+      <div class="kpi-row">
+        <div class="kpi-tile">
+          <div class="kpi-value" id="totalRequests">—</div>
+          <div class="kpi-label">Requests</div>
         </div>
-        <div class="resource-item">
-          <span class="resource-label"
-            ><i class="fas fa-hdd"></i> Storage:</span
-          >
-          <span class="resource-value" id="storageSize">0 MB</span>
+        <div class="kpi-tile kpi-error-tile">
+          <div class="kpi-value" id="errorCount">—</div>
+          <div class="kpi-label">Error Rate</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-value" id="avgResponse">—</div>
+          <div class="kpi-label">Avg Response</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-value" id="dataTransferred">—</div>
+          <div class="kpi-label">Transferred</div>
         </div>
       </div>
 
-      <!-- Quick Filter Chips -->
-      <div class="quick-filters">
-        <div class="filter-group-label">Status:</div>
-        <button
-          class="filter-chip active"
-          data-filter="all"
-          data-filter-type="all"
-        >
-          <i class="fas fa-globe"></i> All
-        </button>
-        <button class="filter-chip" data-filter="2xx" data-filter-type="status">
-          <i class="fas fa-check-circle"></i> 2xx
-        </button>
-        <button class="filter-chip" data-filter="4xx" data-filter-type="status">
-          <i class="fas fa-exclamation-triangle"></i> 4xx
-        </button>
-        <button class="filter-chip" data-filter="5xx" data-filter-type="status">
-          <i class="fas fa-times-circle"></i> 5xx
-        </button>
-        <div class="filter-type-group advanced-only">
-          <div class="filter-group-label">Type:</div>
-          <button class="filter-chip" data-filter="xhr" data-filter-type="type">
-            <i class="fas fa-exchange-alt"></i> XHR
-          </button>
-          <button class="filter-chip" data-filter="fetch" data-filter-type="type">
-            <i class="fas fa-satellite-dish"></i> Fetch
-          </button>
-          <button class="filter-chip" data-filter="js" data-filter-type="type">
-            <i class="fab fa-js-square"></i> JS
-          </button>
-          <button class="filter-chip" data-filter="css" data-filter-type="type">
-            <i class="fab fa-css3-alt"></i> CSS
-          </button>
-          <button class="filter-chip" data-filter="img" data-filter-type="type">
-            <i class="fas fa-image"></i> IMG
-          </button>
-        </div>
-      </div>
-
-      <!-- Export Actions -->
-      <div class="export-actions advanced-only">
-        <button
-          id="exportHARBtn"
-          class="export-btn"
-          title="Export as HAR (HTTP Archive)"
-        >
-          <i class="fas fa-download"></i> Export HAR
-        </button>
-      </div>
-
-      <!-- Filters Section - Collapsible -->
-      <details class="filters-section advanced-only">
-        <summary class="filters-toggle">
-          <i class="fas fa-sliders-h"></i> Advanced Filters
-        </summary>
-        <div class="filters-bar">
-          <div class="filter-group">
-            <label for="pageFilter"><i class="fas fa-file"></i> Page:</label>
-            <select id="pageFilter" class="filter-select">
-              <option value="">All Pages in Domain</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="requestTypeFilter"
-              ><i class="fas fa-filter"></i> Type:</label
-            >
-            <select id="requestTypeFilter" class="filter-select">
-              <option value="">All Types</option>
-              <option value="xmlhttprequest">XHR/API</option>
-              <option value="fetch">Fetch</option>
-              <option value="script">Scripts</option>
-              <option value="stylesheet">Stylesheets</option>
-              <option value="image">Images</option>
-              <option value="font">Fonts</option>
-              <option value="document">Documents</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
-      </details>
-
-      <!-- Empty State (shown when no data) -->
-      <div id="emptyState" class="empty-state" style="display: none">
-        <div class="empty-icon">
-          <i class="fas fa-inbox"></i>
-        </div>
-        <h3>No requests captured yet</h3>
-        <p>
-          Browse to any website and come back to see your network data here.
-        </p>
+      <!-- ── Empty State ── -->
+      <div id="emptyState" class="empty-state" style="display:none">
+        <i class="fas fa-inbox empty-icon"></i>
+        <p class="empty-title">No requests yet</p>
+        <p class="empty-sub">Browse to a website to start capturing traffic</p>
         <div class="empty-actions">
-          <button id="viewSampleBtn" class="secondary-btn">
-            <i class="fas fa-eye"></i> View Sample Data
+          <button id="viewSampleBtn" class="ghost-btn">
+            <i class="fas fa-eye"></i> Sample data
           </button>
-          <button id="openHelpBtn" class="secondary-btn">
-            <i class="fas fa-question-circle"></i> Learn More
+          <button id="openHelpBtn" class="ghost-btn">
+            <i class="fas fa-question-circle"></i> Help
           </button>
         </div>
       </div>
 
-      <!-- Page Summary -->
-      <div class="page-summary">
-        <div class="summary-title">
-          <i class="fas fa-chart-line"></i>
-          <span id="currentDomainDisplay">Loading...</span>
+      <!-- ── Status Distribution ── -->
+      <div class="section-card">
+        <div class="section-header">
+          <span class="section-title">Status Distribution</span>
+          <!-- filter chips -->
+          <div class="filter-chips">
+            <button class="chip active" data-filter="all" data-filter-type="all">All</button>
+            <button class="chip" data-filter="2xx" data-filter-type="status">2xx</button>
+            <button class="chip" data-filter="4xx" data-filter-type="status">4xx</button>
+            <button class="chip" data-filter="5xx" data-filter-type="status">5xx</button>
+          </div>
         </div>
+        <div class="status-bars">
+          <div class="status-bar-row">
+            <span class="sc-label sc-2xx">2xx</span>
+            <div class="sc-track"><div class="sc-fill sc-fill-2xx" id="bar2xx" style="width:0%"></div></div>
+            <span class="sc-count" id="status2xx">0</span>
+          </div>
+          <div class="status-bar-row">
+            <span class="sc-label sc-3xx">3xx</span>
+            <div class="sc-track"><div class="sc-fill sc-fill-3xx" id="bar3xx" style="width:0%"></div></div>
+            <span class="sc-count" id="status3xx">0</span>
+          </div>
+          <div class="status-bar-row">
+            <span class="sc-label sc-4xx">4xx</span>
+            <div class="sc-track"><div class="sc-fill sc-fill-4xx" id="bar4xx" style="width:0%"></div></div>
+            <span class="sc-count" id="status4xx">0</span>
+          </div>
+          <div class="status-bar-row">
+            <span class="sc-label sc-5xx">5xx</span>
+            <div class="sc-track"><div class="sc-fill sc-fill-5xx" id="bar5xx" style="width:0%"></div></div>
+            <span class="sc-count" id="status5xx">0</span>
+          </div>
+        </div>
+      </div>
 
-        <div class="summary-stats">
-          <div class="stat-item">
-            <div class="stat-label">Total Requests</div>
-            <div class="stat-value" id="totalRequests">0</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Avg Response</div>
-            <div class="stat-value" id="avgResponse">0ms</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Error Rate</div>
-            <div class="stat-value" id="errorCount">0%</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Data Transferred</div>
-            <div class="stat-value" id="dataTransferred">0KB</div>
-          </div>
+      <!-- ── Recent Errors ── -->
+      <div class="section-card">
+        <div class="section-header">
+          <span class="section-title">
+            <i class="fas fa-exclamation-triangle err-icon"></i> Recent Errors
+          </span>
+          <span id="errorBadge" class="error-badge" style="display:none">0</span>
         </div>
+        <div id="recentErrorsList" class="errors-list">
+          <p class="placeholder-text">No errors detected</p>
+        </div>
+      </div>
 
-        <!-- Request Timeline Chart -->
-        <div class="timeline-chart advanced-only">
-          <div class="chart-title">Request Timeline (Last 30 min)</div>
-          <canvas id="requestTimelineChart" width="400" height="200"></canvas>
-        </div>
-
-        <!-- Status Breakdown -->
-        <div class="status-breakdown">
-          <div class="breakdown-title">Status Codes</div>
-          <div class="status-grid">
-            <div class="status-badge success">
-              <span class="status-label">2xx</span>
-              <span class="status-count" id="status2xx">0</span>
-            </div>
-            <div class="status-badge redirect">
-              <span class="status-label">3xx</span>
-              <span class="status-count" id="status3xx">0</span>
-            </div>
-            <div class="status-badge client-error">
-              <span class="status-label">4xx</span>
-              <span class="status-count" id="status4xx">0</span>
-            </div>
-            <div class="status-badge server-error">
-              <span class="status-label">5xx</span>
-              <span class="status-count" id="status5xx">0</span>
-            </div>
-          </div>
-        </div>
+      <!-- ── Advanced (collapsible) ── -->
+      <details class="advanced-details">
+        <summary class="advanced-summary">
+          <i class="fas fa-cogs"></i> Advanced
+          <i class="fas fa-chevron-down chevron"></i>
+        </summary>
 
         <!-- Request Types -->
-        <div class="request-types advanced-only">
-          <div class="breakdown-title">Request Types</div>
-          <div class="types-list" id="requestTypesList">
-            <div class="type-item">
-              <span class="type-name">XHR</span>
-              <span class="type-bar"><span class="type-bar-fill"></span></span>
-              <span class="type-count">0</span>
+        <div class="adv-section">
+          <div class="adv-title">Request Types</div>
+          <div id="requestTypesList" class="types-list">
+            <p class="placeholder-text">No data</p>
+          </div>
+        </div>
+
+        <!-- Timeline Chart -->
+        <div class="adv-section">
+          <div class="adv-title">Response Timeline (Last 30 min)</div>
+          <canvas id="requestTimelineChart" class="timeline-canvas"></canvas>
+        </div>
+
+        <!-- Export -->
+        <div class="adv-section adv-row">
+          <button id="exportHARBtn" class="adv-btn">
+            <i class="fas fa-download"></i> Export HAR
+          </button>
+        </div>
+
+        <!-- Advanced Filters -->
+        <div class="adv-section">
+          <div class="adv-title">Filters</div>
+          <div class="adv-filters">
+            <div class="filter-row">
+              <label class="filter-label"><i class="fas fa-file"></i> Page</label>
+              <select id="pageFilter" class="filter-select">
+                <option value="">All Pages</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <label class="filter-label"><i class="fas fa-filter"></i> Type</label>
+              <select id="requestTypeFilter" class="filter-select">
+                <option value="">All Types</option>
+                <option value="xmlhttprequest">XHR / API</option>
+                <option value="fetch">Fetch</option>
+                <option value="script">Scripts</option>
+                <option value="stylesheet">CSS</option>
+                <option value="image">Images</option>
+                <option value="font">Fonts</option>
+                <option value="document">Document</option>
+                <option value="other">Other</option>
+              </select>
             </div>
           </div>
         </div>
 
-        <!-- Recent Errors (Max 5) -->
-        <div class="recent-errors">
-          <div class="breakdown-title">
-            <i class="fas fa-exclamation-triangle"></i> Recent Errors (Last 5)
-          </div>
-          <div class="errors-list" id="recentErrorsList">
-            <p class="placeholder">No errors in the last 5 minutes</p>
+        <!-- Type Filter Chips -->
+        <div class="adv-section">
+          <div class="filter-chips">
+            <button class="chip" data-filter="xhr" data-filter-type="type"><i class="fas fa-exchange-alt"></i> XHR</button>
+            <button class="chip" data-filter="fetch" data-filter-type="type"><i class="fas fa-satellite-dish"></i> Fetch</button>
+            <button class="chip" data-filter="js" data-filter-type="type"><i class="fab fa-js-square"></i> JS</button>
+            <button class="chip" data-filter="css" data-filter-type="type"><i class="fab fa-css3-alt"></i> CSS</button>
+            <button class="chip" data-filter="img" data-filter-type="type"><i class="fas fa-image"></i> Img</button>
           </div>
         </div>
 
-        <!-- Recent Requests List -->
-        <div class="recent-requests advanced-only">
+        <!-- Resource Usage -->
+        <div class="adv-section">
+          <div id="resourceUsage" class="resource-usage">
+            <div class="resource-row">
+              <span class="resource-label"><i class="fas fa-database"></i> Records</span>
+              <span class="resource-val" id="requestCount">0 / 10,000</span>
+            </div>
+            <div class="resource-row">
+              <span class="resource-label"><i class="fas fa-hdd"></i> Storage</span>
+              <span class="resource-val" id="storageSize">0 MB</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- QA Quick View -->
+        <div class="adv-section">
+          <div class="adv-title">QA Domain View</div>
+          <div class="qa-row">
+            <select id="siteSelect" class="filter-select">
+              <option value="">All Domains</option>
+            </select>
+            <button class="adv-btn" id="navigateToSite" disabled title="Open site">
+              <i class="fas fa-external-link-alt"></i>
+            </button>
+            <button class="adv-btn" id="exportDomainData" disabled title="Export domain">
+              <i class="fas fa-download"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Recent Requests -->
+        <div class="adv-section">
           <div class="section-header">
-            <div class="breakdown-title">
-              <i class="fas fa-list"></i> Recent Requests (Last 10)
-            </div>
-            <button id="clearRequestsBtn" class="clear-btn" title="Clear list">
-              <i class="fas fa-trash-alt"></i>
-            </button>
+            <span class="adv-title">Recent Requests</span>
+            <button id="clearRequestsBtn" class="icon-btn" title="Clear"><i class="fas fa-trash-alt"></i></button>
           </div>
-          <div class="requests-list" id="recentRequestsList">
-            <p class="placeholder">
-              No requests captured yet. Browse a website to see requests here.
-            </p>
+          <div id="recentRequestsList" class="requests-list">
+            <p class="placeholder-text">No requests captured yet</p>
           </div>
-          <div class="requests-actions">
-            <button id="viewAllRequestsBtn" class="secondary-btn">
-              <i class="fas fa-external-link-alt"></i> View All in DevTools
-            </button>
-          </div>
+          <button id="viewAllRequestsBtn" class="ghost-btn full-width">
+            <i class="fas fa-external-link-alt"></i> View All in DevTools
+          </button>
         </div>
-      </div>
 
-      <!-- QA Quick View -->
-      <div class="qa-quick-view advanced-only">
-        <div class="qa-header"><i class="fas fa-search"></i> QA Quick View</div>
-        <div class="site-selector">
-          <label for="siteSelect">Filter by Domain:</label>
-          <select id="siteSelect">
-            <option value="">All Domains</option>
-          </select>
-        </div>
-        <div class="qa-actions">
-          <button
-            class="qa-action-btn"
-            id="navigateToSite"
-            disabled
-            title="Navigate to selected domain"
-          >
-            <i class="fas fa-external-link-alt"></i> Visit
-          </button>
-          <button
-            class="qa-action-btn"
-            id="viewDetailsBtn"
-            title="View detailed analytics"
-          >
-            <i class="fas fa-chart-line"></i> Details
-          </button>
-          <button
-            class="qa-action-btn"
-            id="exportDomainData"
-            disabled
-            title="Export data for selected domain"
-          >
-            <i class="fas fa-download"></i> Export
-          </button>
-        </div>
-      </div>
+      </details>
 
-      <!-- Quick Actions -->
+      <!-- ── Quick Actions ── -->
       <div class="quick-actions">
-        <button class="action-btn" id="openDevtools">
+        <button class="qa-btn" id="openDevtools">
           <i class="fas fa-chart-line"></i>
           <span>Analytics</span>
         </button>
-        <button class="action-btn" id="openDashboard">
+        <button class="qa-btn" id="openDashboard">
           <i class="fas fa-th-large"></i>
           <span>Dashboard</span>
         </button>
-        <button class="action-btn" id="openHelp">
+        <button class="qa-btn" id="openHelp">
           <i class="fas fa-question-circle"></i>
           <span>Help</span>
         </button>
       </div>
 
-      <!-- Footer -->
-      <div class="footer-info">
-        Extension v1.0.0 • <a href="#" id="viewPrivacy">Privacy</a> •
-        <a href="#" id="reportIssue">Report Issue</a>
+      <!-- ── Footer ── -->
+      <div class="footer">
+        v1.0.0 · <a href="#" id="viewPrivacy">Privacy</a> · <a href="#" id="reportIssue">Report Issue</a>
       </div>
-    </div>
+
+    </div><!-- /appContainer -->
 
     <!-- popup.js injected by HtmlWebpackPlugin -->
   </body>
