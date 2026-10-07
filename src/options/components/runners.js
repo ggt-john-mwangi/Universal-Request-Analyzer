@@ -905,10 +905,35 @@ class RunnersManager {
 
       const results = response.results || [];
 
-      // Show results in a new modal or expand section
-      alert(
-        `Execution Results:\n\n${results.length} results loaded\n\nTODO: Implement results view UI`
-      );
+      const rows = results.length === 0
+        ? '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-secondary)">No results found</td></tr>'
+        : results.map((r) => {
+            const statusClass = r.status >= 400 ? "status-error" : "status-success";
+            const duration = r.duration != null ? Math.round(r.duration) + "ms" : "N/A";
+            const url = (r.url || "").length > 60 ? (r.url || "").slice(0, 60) + "…" : (r.url || "—");
+            const passed = r.success ? "✓" : r.error_message ? `✗ ${r.error_message}` : "—";
+            return `<tr>
+              <td title="${r.url || ""}">${url}</td>
+              <td>${r.method || "—"}</td>
+              <td><span class="status-badge ${statusClass}">${r.status || "N/A"}</span></td>
+              <td>${duration}</td>
+              <td>${passed}</td>
+            </tr>`;
+          }).join("");
+
+      const html = `<div class="details-section">
+        <h3>Execution Results (${results.length})</h3>
+        <table class="data-table"><thead><tr>
+          <th>URL</th><th>Method</th><th>Status</th><th>Duration</th><th>Passed</th>
+        </tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+
+      const modal = document.getElementById("runnerDetailsModal");
+      const body = modal?.querySelector(".modal-body");
+      if (body && modal) {
+        body.innerHTML = html;
+        modal.style.display = "flex";
+      }
     } catch (error) {
       console.error("[Runners] Error loading execution results:", error);
       this.showToast("Error loading results", "error");
@@ -1717,7 +1742,7 @@ class RunnersManager {
       // Import settingsManager dynamically if not already available
       if (!window.settingsManager) {
         const module = await import(
-          "../../lib/shared-components/settings-manager.js"
+          "../../lib/shared-components/settings-manager-core.js"
         );
         window.settingsManager = module.default;
         await window.settingsManager.initialize();
@@ -1933,7 +1958,7 @@ class RunnersManager {
       // Import settingsManager dynamically if not already available
       if (!window.settingsManager) {
         const module = await import(
-          "../../lib/shared-components/settings-manager.js"
+          "../../lib/shared-components/settings-manager-core.js"
         );
         window.settingsManager = module.default;
         await window.settingsManager.initialize();
@@ -2062,7 +2087,7 @@ class RunnersManager {
           // Import settingsManager dynamically if not already available
           if (!window.settingsManager) {
             const module = await import(
-              "../../lib/shared-components/settings-manager.js"
+              "../../lib/shared-components/settings-manager-core.js"
             );
             window.settingsManager = module.default;
             await window.settingsManager.initialize();
