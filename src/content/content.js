@@ -45,8 +45,9 @@ function applyConfig(config, flags) {
   shouldMonitor = true;
 
   const perf = config.capture?.performanceMetrics || {};
-  captureResourceTiming = perf.captureResourceTiming !== false;
-  captureNavTiming = perf.captureNavigationTiming !== false;
+  const perfEnabled = perf.enabled !== false; // parent switch; sub-flags only apply when parent is on
+  captureResourceTiming = perfEnabled && perf.captureResourceTiming !== false;
+  captureNavTiming      = perfEnabled && perf.captureNavigationTiming !== false;
   captureTypes = filters.includeTypes?.length > 0 ? filters.includeTypes : null;
 
   // featureFlags shape: { flags: { eventTracking: bool, ... }, timestamp }
@@ -253,6 +254,7 @@ function initializePageLoadMonitoring() {
   XMLHttpRequest.prototype.send = function (body) {
     this.addEventListener("load", function () {
       if (!shouldMonitor) return;
+      if (captureTypes && !captureTypes.includes("xmlhttprequest")) return;
       try {
         const contentLength = parseInt(this.getResponseHeader("content-length") || "0", 10);
         safeSend({
@@ -275,6 +277,7 @@ function initializePageLoadMonitoring() {
   const origFetch = window.fetch;
   window.fetch = function (input, init) {
     if (!shouldMonitor) return origFetch.apply(this, arguments);
+    if (captureTypes && !captureTypes.includes("fetch")) return origFetch.apply(this, arguments);
     const start = Date.now();
     const method = init?.method || "GET";
     const url = typeof input === "string" ? input : input.url;
