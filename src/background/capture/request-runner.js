@@ -71,10 +71,16 @@ class RequestRunner {
       useVariables: runner.use_variables,
     };
 
-    // Get variables if needed
+    // Get variables if needed — global settings vars merged with runner-level vars
+    // Runner vars take precedence (same as Postman collection vars > global vars)
     let variables = {};
     if (runner.use_variables) {
       variables = await this.getVariables();
+      // Merge runner-level variables on top
+      if (this.dbManager?.runner?.getRunnerVariables) {
+        const runnerVars = await this.dbManager.runner.getRunnerVariables(runnerId);
+        Object.assign(variables, runnerVars);
+      }
     }
 
     // Parse header overrides
@@ -478,16 +484,15 @@ class RequestRunner {
       // Parse request headers
       let headers = this.parseHeaders(request.request_headers);
 
-      // Apply variable substitution to headers
-      if (variables && Object.keys(variables).length > 0) {
+      // Apply {{VAR}} / ${VAR} substitution to headers, URL, and body
+      const hasVars = variables && Object.keys(variables).length > 0;
+      if (hasVars) {
         headers = this.substituteVariables(headers, variables);
       }
 
-      // Apply header overrides
+      // Apply header overrides then re-substitute (overrides may also contain {{vars}})
       Object.assign(headers, headerOverrides);
-
-      // Apply variable substitution to overrides
-      if (variables && Object.keys(variables).length > 0) {
+      if (hasVars) {
         headers = this.substituteVariables(headers, variables);
       }
 
@@ -496,6 +501,10 @@ class RequestRunner {
       delete headers["content-length"];
       delete headers["connection"];
 
+      // Substitute variables in URL and body
+      const url = hasVars ? this.substituteString(request.url, variables) : request.url;
+      result.url = url;
+
       // Build fetch options
       const fetchOptions = {
         method: request.method,
@@ -503,16 +512,18 @@ class RequestRunner {
         redirect: followRedirects ? "follow" : "manual",
       };
 
-      // Add body for POST/PUT/PATCH
+      // Add body for POST/PUT/PATCH — with variable substitution
       if (
         ["POST", "PUT", "PATCH"].includes(request.method) &&
         request.request_payload
       ) {
-        fetchOptions.body = request.request_payload;
+        fetchOptions.body = hasVars
+          ? this.substituteString(request.request_payload, variables)
+          : request.request_payload;
       }
 
       // Execute request
-      const response = await fetch(request.url, fetchOptions);
+      const response = await fetch(url, fetchOptions);
 
       const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
@@ -827,28 +838,29 @@ class RequestRunner {
   }
 
   /**
-   * Substitute variables in headers
+   * Substitute {{VAR}} (Postman) and ${VAR} (legacy) in any string.
+   */
+  substituteString(str, variables) {
+    if (!str || typeof str !== "string") return str;
+    let result = str;
+    for (const [name, value] of Object.entries(variables)) {
+      const safe = this.escapeRegex(name);
+      // {{VAR}} — Postman style (primary)
+      result = result.replace(new RegExp(`\\{\\{${safe}\\}\\}`, "g"), value);
+      // ${VAR} — legacy style
+      result = result.replace(new RegExp(`\\$\\{${safe}\\}`, "g"), value);
+    }
+    return result;
+  }
+
+  /**
+   * Substitute variables in a headers object (all string values).
    */
   substituteVariables(headers, variables) {
     const substituted = {};
-
     for (const [key, value] of Object.entries(headers)) {
-      let substitutedValue = value;
-
-      // Replace ${VAR_NAME} with actual values
-      for (const [varName, varValue] of Object.entries(variables)) {
-        const placeholder = `\${${varName}}`;
-        if (substitutedValue.includes(placeholder)) {
-          substitutedValue = substitutedValue.replace(
-            new RegExp(this.escapeRegex(placeholder), "g"),
-            varValue
-          );
-        }
-      }
-
-      substituted[key] = substitutedValue;
+      substituted[key] = this.substituteString(String(value), variables);
     }
-
     return substituted;
   }
 

@@ -566,6 +566,21 @@ class IntegratedExtensionInitializer {
           } catch (error) {
             console.error("Bronze→Silver failed:", error);
           }
+          // Evaluate alert rules after Silver data is updated
+          try {
+            const triggered = await this.medallionDb?.checkAlertRules?.();
+            for (const alert of (triggered || [])) {
+              chrome.notifications?.create(`ura_alert_${alert.rule_id}_${Date.now()}`, {
+                type: "basic",
+                iconUrl: "icons/icon48.png",
+                title: `URA Alert: ${alert.rule_name}`,
+                message: alert.message,
+                priority: 1,
+              });
+            }
+          } catch (alertError) {
+            console.error("[Alerts] Rule evaluation failed:", alertError);
+          }
           // Evict stale pending requests (>1 min old) from in-memory capture map
           this.requestCapture?.cleanup();
         } else if (alarm.name === "dailyGoldProcessing") {

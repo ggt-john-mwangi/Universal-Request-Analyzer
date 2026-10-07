@@ -237,6 +237,7 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
         getRunnerExecutions,
         getExecutionResults,
         getRunnerPerformanceStats,
+        getRunnerVariables,
         cleanupTemporaryRunners,
         deleteRunner,
       },
@@ -260,6 +261,9 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
         updateScheduledRun,
         deleteScheduledRun,
       },
+
+      // Alert evaluation
+      checkAlertRules,
     };
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -1122,6 +1126,8 @@ async function updateRunnerDefinition(runnerId, updates) {
     if (updates.last_run_at) sets.push(`last_run_at = ${updates.last_run_at}`);
     if (updates.run_count !== undefined)
       sets.push(`run_count = ${updates.run_count}`);
+    if (updates.variables !== undefined)
+      sets.push(`variables = ${escapeStr(typeof updates.variables === "string" ? updates.variables : JSON.stringify(updates.variables))}`);
 
     sets.push(`updated_at = ${Date.now()}`);
 
@@ -1478,6 +1484,29 @@ async function deleteRunner(runnerId) {
   } catch (error) {
     console.error("[Runner] Failed to delete runner:", error);
     throw new DatabaseError(`Failed to delete runner: ${error.message}`);
+  }
+}
+
+/**
+ * Get runner-level variables as a {name: value} map.
+ * These override global settings variables during execution.
+ */
+async function getRunnerVariables(runnerId) {
+  if (!db) return {};
+  try {
+    const result = db.exec(
+      `SELECT variables FROM config_runner_definitions WHERE id = ${escapeStr(runnerId)} LIMIT 1`
+    );
+    const raw = result?.[0]?.values?.[0]?.[0];
+    if (!raw) return {};
+    const list = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const map = {};
+    (Array.isArray(list) ? list : []).forEach((v) => {
+      if (v.name && v.value !== undefined) map[v.name] = v.value;
+    });
+    return map;
+  } catch {
+    return {};
   }
 }
 
@@ -1981,6 +2010,96 @@ async function deleteScheduledRun(scheduleId) {
 }
 
 /**
+ * Evaluate all enabled alert rules against recent Silver data.
+ * Inserts new rows into alert_history (deduped: same rule not re-fired within 10 min).
+ * Returns the list of newly triggered alert objects.
+ */
+async function checkAlertRules() {
+  if (!db) return [];
+  try {
+    // Ensure tables exist (safe no-op if already there)
+    db.exec(`CREATE TABLE IF NOT EXISTS alert_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, metric TEXT NOT NULL,
+      condition TEXT NOT NULL, threshold REAL NOT NULL, domain TEXT,
+      enabled INTEGER DEFAULT 1, created_at INTEGER)`);
+    db.exec(`CREATE TABLE IF NOT EXISTS alert_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id INTEGER, rule_name TEXT,
+      triggered_at INTEGER, value REAL, threshold REAL, message TEXT)`);
+
+    const rulesResult = db.exec(`SELECT * FROM alert_rules WHERE enabled = 1`);
+    if (!rulesResult?.[0]?.values?.length) return [];
+
+    const cols = rulesResult[0].columns;
+    const rules = rulesResult[0].values.map((row) => {
+      const r = {};
+      cols.forEach((c, i) => { r[c] = row[i]; });
+      return r;
+    });
+
+    const cutoff = Date.now() - 5 * 60 * 1000; // last 5 min
+    const dedupWindow = Date.now() - 10 * 60 * 1000; // 10 min dedup
+
+    const triggered = [];
+
+    for (const rule of rules) {
+      const domainClause = rule.domain
+        ? `AND domain = ${escapeStr(rule.domain)}`
+        : "";
+
+      // Compute the metric value from silver_requests in last 5 min
+      let metricValue = null;
+      try {
+        let metricQuery;
+        if (rule.metric === "avgDuration") {
+          metricQuery = `SELECT AVG(duration) FROM silver_requests WHERE timestamp > ${cutoff} ${domainClause} AND duration IS NOT NULL`;
+        } else if (rule.metric === "maxDuration") {
+          metricQuery = `SELECT MAX(duration) FROM silver_requests WHERE timestamp > ${cutoff} ${domainClause} AND duration IS NOT NULL`;
+        } else if (rule.metric === "errorRate") {
+          metricQuery = `SELECT CAST(SUM(CASE WHEN status >= 400 OR has_error = 1 THEN 1 ELSE 0 END) AS REAL) * 100.0 / MAX(COUNT(*), 1) FROM silver_requests WHERE timestamp > ${cutoff} ${domainClause}`;
+        } else if (rule.metric === "requestCount") {
+          metricQuery = `SELECT COUNT(*) FROM silver_requests WHERE timestamp > ${cutoff} ${domainClause}`;
+        } else {
+          continue;
+        }
+        const r = db.exec(metricQuery);
+        metricValue = r?.[0]?.values?.[0]?.[0];
+      } catch { continue; }
+
+      if (metricValue === null || metricValue === undefined) continue;
+
+      const passes =
+        rule.condition === "gt" ? metricValue > rule.threshold :
+        rule.condition === "lt" ? metricValue < rule.threshold :
+        rule.condition === "eq" ? Math.abs(metricValue - rule.threshold) < 0.001 :
+        false;
+
+      if (!passes) continue;
+
+      // Dedup: skip if this rule already fired within the dedup window
+      const recentCheck = db.exec(
+        `SELECT COUNT(*) FROM alert_history WHERE rule_id = ${rule.id} AND triggered_at > ${dedupWindow}`
+      );
+      if (recentCheck?.[0]?.values?.[0]?.[0] > 0) continue;
+
+      const metricLabels = { avgDuration: "Avg duration", maxDuration: "Max duration", errorRate: "Error rate", requestCount: "Request count" };
+      const suffix = rule.metric.includes("Duration") ? "ms" : rule.metric === "errorRate" ? "%" : "";
+      const message = `${metricLabels[rule.metric] || rule.metric} ${parseFloat(metricValue).toFixed(1)}${suffix} ${rule.condition === "gt" ? ">" : rule.condition === "lt" ? "<" : "="} ${rule.threshold}${suffix}${rule.domain ? ` on ${rule.domain}` : ""}`;
+
+      db.exec(
+        `INSERT INTO alert_history (rule_id, rule_name, triggered_at, value, threshold, message) VALUES (${rule.id}, ${escapeStr(rule.name)}, ${Date.now()}, ${parseFloat(metricValue).toFixed(4)}, ${rule.threshold}, ${escapeStr(message)})`
+      );
+      scheduleSave();
+      triggered.push({ rule_id: rule.id, rule_name: rule.name, message, value: metricValue, threshold: rule.threshold });
+    }
+
+    return triggered;
+  } catch (error) {
+    console.error("[Alerts] checkAlertRules error:", error);
+    return [];
+  }
+}
+
+/**
  * Class wrapper for backward compatibility
  */
 export class DatabaseManagerMedallion {
@@ -2112,6 +2231,11 @@ export class DatabaseManagerMedallion {
   get collection() {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.collection;
+  }
+
+  async checkAlertRules() {
+    if (!this.initialized) return [];
+    return this.dbApi.checkAlertRules();
   }
 
   async cleanup() {

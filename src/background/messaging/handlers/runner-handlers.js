@@ -431,10 +431,11 @@ async function handleUpdateRunnerMetadata(message, sender, context) {
       return { success: false, error: "Database not initialized" };
     }
 
-    const { runnerId, name, description } = message;
+    const { runnerId, name, description, variables } = message;
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
+    if (variables !== undefined) updates.variables = variables;
 
     await database.runner.updateRunnerDefinition(runnerId, updates);
 

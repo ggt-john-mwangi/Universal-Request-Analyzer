@@ -754,15 +754,12 @@ class CollectionsManager {
   }
 
   showNotification(message, type = "info") {
-    // Reuse the global notification system if available
-    if (
-      typeof window.showNotification === "function" &&
-      window.showNotification !== this.showNotification
-    ) {
-      window.showNotification(message, type);
+    if (window.dashboardManager?.showToast) {
+      window.dashboardManager.showToast(message, type);
+    } else if (typeof window.showNotification === "function") {
+      window.showNotification(message, type === "error");
     } else {
-      // Fallback to simple alert
-      alert(`${type.toUpperCase()}: ${message}`);
+      console.log(`[Collections] ${type.toUpperCase()}: ${message}`);
     }
   }
 
