@@ -109,8 +109,6 @@ function setupRefreshButton() {
             btn.classList.remove("syncing");
             btn.disabled = false;
           }, 1500);
-
-          console.log("Settings refreshed:", response.message);
         } else {
           throw new Error(response?.error || "Failed to refresh settings");
         }

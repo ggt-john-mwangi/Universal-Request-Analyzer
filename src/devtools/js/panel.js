@@ -1,11 +1,6 @@
 import Chart from "../../lib/chart.min.js";
 import logger from "../../lib/utils/logger.js";
 
-// Global initialization function that can be called from devtools.js
-window.initializePanel = function () {
-  logger.debug("Panel initialization requested");
-};
-
 export class DevToolsPanel {
   constructor() {
     this.charts = {};
@@ -229,7 +224,7 @@ export class DevToolsPanel {
           
           <!-- Overview Tab -->
           <div id="overviewTab" class="tab-content active">
-            <div class="charts-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
+            <div class="charts-grid">
               <div class="chart-container">
                 <h4><i class="fas fa-chart-line"></i> Response Time Timeline</h4>
                 <canvas id="performanceChart"></canvas>
@@ -335,19 +330,16 @@ export class DevToolsPanel {
               <div id="endpointsTable"></div>
             </div>
             
-            <div class="endpoint-performance-history" style="margin-top: 24px;">
-              <h4 style="margin: 0;"><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
-              <p class="hint" id="performanceHint" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+            <div class="endpoint-performance-history">
+              <h4 class="section-h4"><i class="fas fa-chart-line"></i> Endpoint Performance Over Time</h4>
+              <p class="hint" id="performanceHint">
                 Track request types (fetch, xhr, script, etc.) or specific API endpoints performance over time.
               </p>
-              
-              <div class="history-controls" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
-                <!-- Row 1: Time Controls -->
+
+              <div class="history-controls">
                 <div class="filter-group">
-                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-                    <i class="fas fa-clock"></i> Time Range
-                  </label>
-                  <select id="historyTimeRange" class="filter-select" style="width: 100%">
+                  <label><i class="fas fa-clock"></i> Time Range</label>
+                  <select id="historyTimeRange" class="filter-select">
                     <option value="1800000">Last 30 minutes</option>
                     <option value="3600000">Last 1 hour</option>
                     <option value="21600000">Last 6 hours</option>
@@ -359,10 +351,8 @@ export class DevToolsPanel {
                 </div>
 
                 <div class="filter-group">
-                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-                    <i class="fas fa-filter"></i> Resource Type
-                  </label>
-                  <select id="endpointTypeFilter" class="filter-select" style="width: 100%">
+                  <label><i class="fas fa-filter"></i> Resource Type</label>
+                  <select id="endpointTypeFilter" class="filter-select">
                     <option value="">All Types</option>
                     <option value="fetch">Fetch</option>
                     <option value="xmlhttprequest">XHR/AJAX</option>
@@ -375,12 +365,9 @@ export class DevToolsPanel {
                   </select>
                 </div>
 
-                <!-- Row 2: Sorting & Filtering -->
                 <div class="filter-group">
-                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-                    <i class="fas fa-sort"></i> Sort By
-                  </label>
-                  <select id="endpointSortBy" class="filter-select" style="width: 100%">
+                  <label><i class="fas fa-sort"></i> Sort By</label>
+                  <select id="endpointSortBy" class="filter-select">
                     <option value="requests" selected>Most Requests</option>
                     <option value="slowest">Slowest Avg</option>
                     <option value="errors">Most Errors</option>
@@ -389,10 +376,8 @@ export class DevToolsPanel {
                 </div>
 
                 <div class="filter-group">
-                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-                    <i class="fas fa-list-ol"></i> Show Top
-                  </label>
-                  <select id="endpointTopN" class="filter-select" style="width: 100%">
+                  <label><i class="fas fa-list-ol"></i> Show Top</label>
+                  <select id="endpointTopN" class="filter-select">
                     <option value="5">Top 5</option>
                     <option value="10" selected>Top 10</option>
                     <option value="15">Top 15</option>
@@ -402,42 +387,31 @@ export class DevToolsPanel {
                 </div>
 
                 <div class="filter-group">
-                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-                    <i class="fas fa-sync-alt"></i> Action
-                  </label>
-                  <button id="loadHistoryBtn" class="btn-primary" style="width: 100%; padding: 8px 16px; height: 36px">
+                  <label><i class="fas fa-sync-alt"></i> Action</label>
+                  <button id="loadHistoryBtn" class="btn-primary btn-full">
                     <i class="fas fa-sync-alt"></i> Load Data
                   </button>
                 </div>
 
-                <!-- Row 3: Search (spans all columns) -->
-                <div class="filter-group" style="grid-column: span 3">
-                  <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
-                    <i class="fas fa-search"></i> Search Endpoint
-                  </label>
-                  <input type="text" id="endpointPattern" placeholder="Filter by URL pattern (e.g., /api/users, /login, /products/:id)" class="modern-input" style="width: 100%; padding: 8px 12px;">
+                <div class="filter-group filter-group-full">
+                  <label><i class="fas fa-search"></i> Search Endpoint</label>
+                  <input type="text" id="endpointPattern" placeholder="Filter by URL pattern (e.g., /api/users, /login, /products/:id)" class="modern-input">
                 </div>
               </div>
 
               <!-- Endpoint Selection Panel (shows after loading) -->
-              <div id="endpointSelector" style="display: none; margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <label style="font-weight: 500; color: var(--text-primary)">
-                    <i class="fas fa-chart-line"></i> Select Endpoints to Plot (click to toggle):
-                  </label>
-                  <div style="display: flex; gap: 8px">
-                    <button id="selectAllEndpoints" class="btn-secondary" style="padding: 4px 12px; font-size: 12px">
-                      Select All
-                    </button>
-                    <button id="deselectAllEndpoints" class="btn-secondary" style="padding: 4px 12px; font-size: 12px">
-                      Deselect All
-                    </button>
+              <div id="endpointSelector" style="display: none;">
+                <div class="endpoint-selector-header">
+                  <label><i class="fas fa-chart-line"></i> Select Endpoints to Plot (click to toggle):</label>
+                  <div class="endpoint-selector-actions">
+                    <button id="selectAllEndpoints" class="btn-secondary btn-compact">Select All</button>
+                    <button id="deselectAllEndpoints" class="btn-secondary btn-compact">Deselect All</button>
                   </div>
                 </div>
-                <div id="endpointList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; max-height: 300px; overflow-y: auto;"></div>
+                <div id="endpointList"></div>
               </div>
-              
-              <div id="performanceHistoryChart" style="min-height: 300px; position: relative;">
+
+              <div id="performanceHistoryChart">
                 <canvas id="historyChartCanvas"></canvas>
               </div>
             </div>
@@ -551,28 +525,6 @@ export class DevToolsPanel {
       resetFiltersBtn.addEventListener("click", () => this.clearFilters());
     }
 
-    // Time Travel feature
-    const timeTravelBtn = document.getElementById("timeTravelBtn");
-    if (timeTravelBtn) {
-      timeTravelBtn.addEventListener("click", () => this.openTimeTravelModal());
-    }
-
-    const closeTimeTravelModal = document.getElementById(
-      "closeTimeTravelModal"
-    );
-    if (closeTimeTravelModal) {
-      closeTimeTravelModal.addEventListener("click", () =>
-        this.closeTimeTravelModal()
-      );
-    }
-
-    const loadHistoricalData = document.getElementById("loadHistoricalData");
-    if (loadHistoricalData) {
-      loadHistoricalData.addEventListener("click", () =>
-        this.loadHistoricalData()
-      );
-    }
-
     // HAR export features
     const copyHAR = document.getElementById("copyHAR");
     if (copyHAR) {
@@ -638,10 +590,10 @@ export class DevToolsPanel {
   // Get chart colors from theme
   getChartColors() {
     return {
-      success: this.getThemeColor("--success-color"),
-      info: this.getThemeColor("--info-color"),
-      warning: this.getThemeColor("--warning-color"),
-      error: this.getThemeColor("--error-color"),
+      success: this.getThemeColor("--success"),
+      info: this.getThemeColor("--info"),
+      warning: this.getThemeColor("--warning"),
+      error: this.getThemeColor("--error"),
       primary: this.getThemeColor("--primary-color"),
     };
   }
@@ -660,10 +612,7 @@ export class DevToolsPanel {
             );
             resolve("");
           } else {
-            console.log(
-              "[DevTools Panel] Got domain from inspectedWindow:",
-              result
-            );
+            logger.debug("[DevTools Panel] Got domain from inspectedWindow:", result);
             resolve(result || "");
           }
         }
@@ -689,7 +638,6 @@ export class DevToolsPanel {
   }
 
   async initializeCharts() {
-    // Check if charts are enabled globally
     const showCharts = this.userSettings?.display?.showCharts !== false;
     const enabledCharts = this.userSettings?.display?.enabledCharts || [
       "performanceChart",
@@ -697,184 +645,163 @@ export class DevToolsPanel {
       "requestsChart",
     ];
 
-    logger.debug("Initializing charts with settings:", {
-      showCharts,
-      enabledCharts,
-    });
-
-    if (!showCharts) {
-      logger.debug("Charts disabled by user settings");
-      return;
-    }
+    logger.debug("Initializing charts with settings:", { showCharts, enabledCharts });
+    if (!showCharts) return;
 
     const colors = this.getChartColors();
 
-    // Performance Chart - Line chart for response times over time
+    const tooltipDefaults = {
+      backgroundColor: "rgba(0,0,0,0.85)",
+      titleColor: "#fff",
+      bodyColor: "rgba(255,255,255,0.85)",
+      padding: 10,
+      cornerRadius: 6,
+    };
+
+    const scaleDefaults = {
+      grid: { color: "rgba(0,0,0,0.06)", drawBorder: false },
+      ticks: { font: { size: 11 } },
+    };
+
+    // Performance Chart - gradient line
     if (enabledCharts.includes("performanceChart")) {
-      const perfCtx = document
-        .getElementById("performanceChart")
-        ?.getContext("2d");
+      const perfCtx = document.getElementById("performanceChart")?.getContext("2d");
       if (perfCtx) {
+        const grad = perfCtx.createLinearGradient(0, 0, 0, 280);
+        grad.addColorStop(0, `${colors.info}55`);
+        grad.addColorStop(1, `${colors.info}00`);
         this.charts.performance = new Chart(perfCtx, {
           type: "line",
           data: {
             labels: [],
-            datasets: [
-              {
-                label: "Response Time (ms)",
-                data: [],
-                borderColor: colors.info,
-                backgroundColor: "transparent",
-                tension: 0.4,
-                fill: false,
-              },
-            ],
+            datasets: [{
+              label: "Response Time (ms)",
+              data: [],
+              borderColor: colors.info,
+              backgroundColor: grad,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+            }],
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: {
-                display: true,
-                position: "top",
-              },
-              tooltip: {
-                mode: "index",
-                intersect: false,
-              },
+              legend: { display: true, position: "top" },
+              tooltip: { ...tooltipDefaults, mode: "index", intersect: false },
             },
             scales: {
-              y: {
-                beginAtZero: true,
-                title: {
-                  display: true,
-                  text: "Response Time (ms)",
-                },
-              },
-              x: {
-                title: {
-                  display: true,
-                  text: "Time",
+              y: { ...scaleDefaults, beginAtZero: true, title: { display: true, text: "Response Time (ms)" } },
+              x: { ...scaleDefaults, title: { display: true, text: "Time" } },
+            },
+          },
+        });
+      }
+    }
+
+    // Status Chart - doughnut
+    if (enabledCharts.includes("statusChart")) {
+      const statusCtx = document.getElementById("statusChart")?.getContext("2d");
+      if (statusCtx) {
+        this.charts.status = new Chart(statusCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["2xx Success", "3xx Redirect", "4xx Client Error", "5xx Server Error"],
+            datasets: [{
+              data: [],
+              backgroundColor: [colors.success, colors.info, colors.warning, colors.error],
+              borderWidth: 0,
+              hoverOffset: 6,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "68%",
+            plugins: {
+              legend: { position: "right", labels: { font: { size: 12 }, padding: 12 } },
+              tooltip: {
+                ...tooltipDefaults,
+                callbacks: {
+                  label: (ctx) => {
+                    const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                    const pct = total ? Math.round((ctx.raw / total) * 100) : 0;
+                    return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+                  },
                 },
               },
             },
           },
         });
-
-        // Status Chart - Pie chart for status distribution
-        if (enabledCharts.includes("statusChart")) {
-          const statusCtx = document
-            .getElementById("statusChart")
-            ?.getContext("2d");
-          if (statusCtx) {
-            this.charts.status = new Chart(statusCtx, {
-              type: "pie",
-              data: {
-                labels: [],
-                datasets: [
-                  {
-                    data: [],
-                    backgroundColor: [
-                      colors.success, // 2xx
-                      colors.info, // 3xx
-                      colors.warning, // 4xx
-                      colors.error, // 5xx
-                    ],
-                  },
-                ],
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: "right",
-                  },
-                },
-              },
-            });
-          }
-        }
-
-        // Requests Chart - Bar chart for request types
-        if (enabledCharts.includes("requestsChart")) {
-          const reqCtx = document
-            .getElementById("requestsChart")
-            ?.getContext("2d");
-          if (reqCtx) {
-            this.charts.requests = new Chart(reqCtx, {
-              type: "bar",
-              data: {
-                labels: [],
-                datasets: [
-                  {
-                    label: "Requests by Type",
-                    data: [],
-                    backgroundColor: colors.primary,
-                    borderWidth: 1,
-                  },
-                ],
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false,
-                  },
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: "Count",
-                    },
-                  },
-                },
-              },
-            });
-          }
-        }
-
-        // Errors Chart for errors tab (always enabled)
-        const errCtx = document.getElementById("errorsChart")?.getContext("2d");
-        if (errCtx) {
-          this.charts.errors = new Chart(errCtx, {
-            type: "bar",
-            data: {
-              labels: [],
-              datasets: [
-                {
-                  label: "Error Count",
-                  data: [],
-                  backgroundColor: colors.error,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  display: false,
-                },
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    precision: 0,
-                  },
-                },
-              },
-            },
-          });
-        }
       }
-
-      logger.debug("Charts initialized:", Object.keys(this.charts));
     }
+
+    // Requests Chart - multi-color bar
+    if (enabledCharts.includes("requestsChart")) {
+      const reqCtx = document.getElementById("requestsChart")?.getContext("2d");
+      if (reqCtx) {
+        const palette = [colors.info, colors.success, colors.warning, "#9c27b0", "#ff5722", colors.primary, "#00bcd4", colors.error];
+        this.charts.requests = new Chart(reqCtx, {
+          type: "bar",
+          data: {
+            labels: [],
+            datasets: [{
+              label: "Requests by Type",
+              data: [],
+              backgroundColor: palette,
+              borderWidth: 0,
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { ...tooltipDefaults },
+            },
+            scales: {
+              y: { ...scaleDefaults, beginAtZero: true, title: { display: true, text: "Count" } },
+              x: { ...scaleDefaults },
+            },
+          },
+        });
+      }
+    }
+
+    // Errors Chart (always)
+    const errCtx = document.getElementById("errorsChart")?.getContext("2d");
+    if (errCtx) {
+      this.charts.errors = new Chart(errCtx, {
+        type: "bar",
+        data: {
+          labels: [],
+          datasets: [{
+            label: "Error Count",
+            data: [],
+            backgroundColor: colors.error,
+            borderWidth: 0,
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { ...tooltipDefaults },
+          },
+          scales: {
+            y: { ...scaleDefaults, beginAtZero: true, ticks: { precision: 0 } },
+            x: { ...scaleDefaults },
+          },
+        },
+      });
+    }
+
+    logger.debug("Charts initialized:", Object.keys(this.charts));
   }
 
   async startMetricsCollection() {
@@ -922,45 +849,26 @@ export class DevToolsPanel {
       logger.debug("DevTools Panel: Collecting metrics with filters:", filters);
 
       // Get metrics from background page
-      chrome.runtime.sendMessage(
-        {
-          action: "getFilteredStats",
-          filters,
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            // Context invalidated or extension reloaded
-            logger.warn(
-              "Runtime error (context may be invalidated):",
-              chrome.runtime.lastError.message
-            );
-            this.stopMetricsCollection();
-            return;
-          }
+      const response = await chrome.runtime.sendMessage({
+        action: "getFilteredStats",
+        filters,
+      });
 
-          logger.debug("DevTools Panel: Received response:", response);
+      logger.debug("DevTools Panel: Received response:", response);
 
-          if (response && response.success) {
-            // Check if there's data
-            if (!response.totalRequests || response.totalRequests === 0) {
-              logger.debug(
-                "DevTools Panel: No data available (totalRequests = 0)"
-              );
-              this.showNoDataState(true);
-            } else {
-              logger.debug("DevTools Panel: Data available, updating metrics");
-              this.showNoDataState(false);
-              this.updateMetrics(response);
-            }
-          } else {
-            logger.error(
-              "DevTools Panel: Failed to get metrics:",
-              response?.error
-            );
-            this.showNoDataState(true);
-          }
+      if (response?.success) {
+        if (!response.totalRequests || response.totalRequests === 0) {
+          logger.debug("DevTools Panel: No data available (totalRequests = 0)");
+          this.showNoDataState(true);
+        } else {
+          logger.debug("DevTools Panel: Data available, updating metrics");
+          this.showNoDataState(false);
+          this.updateMetrics(response);
         }
-      );
+      } else {
+        logger.error("DevTools Panel: Failed to get metrics:", response?.error);
+        this.showNoDataState(true);
+      }
     } catch (error) {
       logger.error("DevTools Panel: Error collecting metrics:", error);
       // Stop collection on error to prevent spam
@@ -1076,14 +984,6 @@ export class DevToolsPanel {
       this.charts.requests.update();
     }
 
-    // Update volume chart (aggregate by minute)
-    if (this.charts.volume && metrics.timestamps) {
-      const timelineData = this.aggregateByMinute(metrics.timestamps);
-      this.charts.volume.data.labels = timelineData.labels;
-      this.charts.volume.data.datasets[0].data = timelineData.values;
-      this.charts.volume.update();
-    }
-
     // Update errors chart (for errors tab)
     if (this.charts.errors && metrics.statusCodes) {
       const errorCodes = [];
@@ -1116,19 +1016,6 @@ export class DevToolsPanel {
       labels: Array.from(minuteCounts.keys()),
       values: Array.from(minuteCounts.values()),
     };
-  }
-
-  switchChart(chartId) {
-    document.querySelectorAll(".charts-tabs button").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.chart === chartId);
-    });
-
-    Object.keys(this.charts).forEach((key) => {
-      const canvas = document.getElementById(`${key}Chart`);
-      if (canvas) {
-        canvas.style.display = key === chartId ? "block" : "none";
-      }
-    });
   }
 
   handleUrlChange(url) {
@@ -1189,37 +1076,6 @@ export class DevToolsPanel {
         (response) => {
           restoreButton();
 
-          if (chrome.runtime.lastError) {
-            logger.error("Export error:", chrome.runtime.lastError);
-            this.showToast(
-              "Export failed: " + chrome.runtime.lastError.message,
-              "error"
-            );
-            return;
-          }
-
-          if (response && response.success) {
-            this.showToast("Metrics exported successfully", "success");
-          } else {
-            logger.error("Export failed:", response?.error);
-            this.showToast(
-              "Export failed: " + (response?.error || "Unknown error"),
-              "error"
-            );
-          }
-        }
-      );
-    } else {
-      // Fallback if button not found
-      this.showToast("Starting export...", "info");
-
-      chrome.runtime.sendMessage(
-        {
-          action: "exportFilteredData",
-          filters: filters,
-          format: "json",
-        },
-        (response) => {
           if (chrome.runtime.lastError) {
             logger.error("Export error:", chrome.runtime.lastError);
             this.showToast(
@@ -1416,7 +1272,7 @@ export class DevToolsPanel {
       const tbody = document.getElementById("requestsTableBody");
 
       if (
-        !response.success ||
+        !response?.success ||
         !response.requests ||
         response.requests.length === 0
       ) {
@@ -2040,7 +1896,7 @@ export class DevToolsPanel {
       });
 
       if (
-        !response.success ||
+        !response?.success ||
         !response.responseTimes ||
         response.responseTimes.length === 0
       ) {
@@ -2273,7 +2129,7 @@ export class DevToolsPanel {
       const table = document.getElementById("endpointsTable");
 
       if (
-        !response.success ||
+        !response?.success ||
         !response.endpoints ||
         response.endpoints.length === 0
       ) {
@@ -2473,38 +2329,11 @@ export class DevToolsPanel {
         const isSelected = this.selectedEndpoints.has(endpoint);
 
         return `
-        <label 
-          class="endpoint-checkbox-item" 
-          style="
-            display: flex; 
-            align-items: center; 
-            padding: 8px; 
-            background: ${
-              isSelected
-                ? "var(--primary-color-alpha)"
-                : "var(--background-color)"
-            }; 
-            border: 1px solid ${
-              isSelected ? "var(--primary-color)" : "var(--border-color)"
-            };
-            border-radius: 4px; 
-            cursor: pointer;
-            transition: all 0.2s;
-          "
-          data-endpoint="${endpoint}"
-        >
-          <input 
-            type="checkbox" 
-            ${isSelected ? "checked" : ""}
-            style="margin-right: 8px;"
-          />
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${endpoint}">
-              ${endpoint}
-            </div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
-              ${totalRequests} req · ${avgDuration}ms avg
-            </div>
+        <label class="endpoint-checkbox-item${isSelected ? " selected" : ""}" data-endpoint="${endpoint}">
+          <input type="checkbox" ${isSelected ? "checked" : ""}/>
+          <div class="endpoint-checkbox-body">
+            <div class="endpoint-checkbox-name" title="${endpoint}">${endpoint}</div>
+            <div class="endpoint-checkbox-meta">${totalRequests} req · ${avgDuration}ms avg</div>
           </div>
         </label>
       `;
@@ -2523,28 +2352,15 @@ export class DevToolsPanel {
         if (this.selectedEndpoints.has(endpoint)) {
           this.selectedEndpoints.delete(endpoint);
           checkbox.checked = false;
-          item.style.background = "var(--background-color)";
-          item.style.borderColor = "var(--border-color)";
+          item.classList.remove("selected");
         } else {
           this.selectedEndpoints.add(endpoint);
           checkbox.checked = true;
-          item.style.background = "var(--primary-color-alpha)";
-          item.style.borderColor = "var(--primary-color)";
+          item.classList.add("selected");
         }
 
         // Re-render chart with new selection
-        try {
-          if (typeof this.updateChartVisibility === "function") {
-            this.updateChartVisibility();
-          } else {
-            logger.error(
-              "updateChartVisibility is not a function:",
-              typeof this.updateChartVisibility
-            );
-          }
-        } catch (err) {
-          logger.error("Error calling updateChartVisibility:", err);
-        }
+        this.updateChartVisibility();
       };
 
       item.addEventListener("click", clickHandler);
@@ -2559,13 +2375,7 @@ export class DevToolsPanel {
       selectAllBtn.addEventListener("click", () => {
         this.selectedEndpoints = new Set(endpoints);
         this.renderEndpointSelector();
-        try {
-          if (typeof this.updateChartVisibility === "function") {
-            this.updateChartVisibility();
-          }
-        } catch (err) {
-          logger.error("Error in selectAll:", err);
-        }
+        this.updateChartVisibility();
       });
     }
 
@@ -2574,13 +2384,7 @@ export class DevToolsPanel {
       deselectAllBtn.addEventListener("click", () => {
         this.selectedEndpoints = new Set();
         this.renderEndpointSelector();
-        try {
-          if (typeof this.updateChartVisibility === "function") {
-            this.updateChartVisibility();
-          }
-        } catch (err) {
-          logger.error("Error in deselectAll:", err);
-        }
+        this.updateChartVisibility();
       });
     }
   }
@@ -3167,7 +2971,7 @@ export class DevToolsPanel {
     const data = breakdown.map((b) => b.totalBytes);
 
     this.resourceChart = new Chart(ctx, {
-      type: "pie",
+      type: "doughnut",
       data: {
         labels,
         datasets: [
@@ -3188,14 +2992,10 @@ export class DevToolsPanel {
       },
       options: {
         responsive: true,
+        cutout: "68%",
         plugins: {
-          legend: {
-            position: "right",
-          },
-          title: {
-            display: true,
-            text: "Resource Size Distribution",
-          },
+          legend: { position: "right" },
+          title: { display: true, text: "Resource Size Distribution" },
         },
       },
     });
@@ -3232,16 +3032,16 @@ export class DevToolsPanel {
               <label>Compressed Bytes:</label>
               <span style="color: ${
                 compressionRate > 50
-                  ? "var(--success-color)"
-                  : "var(--warning-color)"
+                  ? "var(--success)"
+                  : "var(--warning)"
               }">${this.formatBytes(stats.compressedBytes)}</span>
             </div>
             <div class="stat-item">
               <label>Potential Savings:</label>
               <span style="color: ${
                 stats.potentialSavings > 1000000
-                  ? "var(--error-color)"
-                  : "var(--success-color)"
+                  ? "var(--error)"
+                  : "var(--success)"
               }">${this.formatBytes(stats.potentialSavings)}</span>
             </div>
             <div class="stat-item">
@@ -3252,7 +3052,7 @@ export class DevToolsPanel {
               <i class="fas fa-${
                 compressionRate > 50 ? "check-circle" : "exclamation-triangle"
               }" style="color: ${
-          compressionRate > 50 ? "var(--success-color)" : "var(--warning-color)"
+          compressionRate > 50 ? "var(--success)" : "var(--warning)"
         }"></i>
               <small style="color: var(--text-secondary);">${
                 compressionRate > 50
@@ -3616,7 +3416,7 @@ export class DevToolsPanel {
     if (this.currentDomain) {
       filters.domain = this.currentDomain;
     } else {
-      console.warn(
+      logger.warn(
         "[DevTools Panel] No currentDomain available - will show all domains"
       );
     }
@@ -3698,137 +3498,6 @@ export class DevToolsPanel {
       noDataEl.style.display = "none";
       contentEl.style.display = "block";
     }
-  }
-
-  // Time Travel Modal methods
-  openTimeTravelModal() {
-    const modal = document.getElementById("timeTravelModal");
-    if (modal) {
-      modal.style.display = "flex";
-    }
-  }
-
-  closeTimeTravelModal() {
-    const modal = document.getElementById("timeTravelModal");
-    if (modal) {
-      modal.style.display = "none";
-    }
-  }
-
-  async loadHistoricalData() {
-    try {
-      const filters = this.getActiveFilters();
-      const groupBy = document.getElementById("timeTravelGroupBy").value;
-
-      const response = await chrome.runtime.sendMessage({
-        action: "getHistoricalData",
-        filters,
-        groupBy,
-      });
-
-      if (!response.success || !response.data || response.data.length === 0) {
-        // Show inline message instead of alert
-        const container = document.getElementById("historicalChartContainer");
-        container.innerHTML =
-          '<p class="info-message"><i class="fas fa-info-circle"></i> No historical data available for the selected filters and time range</p>';
-        return;
-      }
-
-      // Create historical chart
-      this.renderHistoricalChart(response.data);
-    } catch (error) {
-      logger.error("Failed to load historical data:", error);
-      const container = document.getElementById("historicalChartContainer");
-      container.innerHTML =
-        '<p class="error-message"><i class="fas fa-exclamation-circle"></i> Error loading historical data. Please try again.</p>';
-    }
-  }
-
-  renderHistoricalChart(data) {
-    const ctx = document.getElementById("historicalChart").getContext("2d");
-
-    // Destroy existing chart if any
-    if (this.historicalChart) {
-      this.historicalChart.destroy();
-    }
-
-    const labels = data.map((d) => d.timeBucket);
-    const requestCounts = data.map((d) => d.requestCount);
-    const avgDurations = data.map((d) => d.avgDuration);
-    const errorCounts = data.map((d) => d.errorCount);
-
-    this.historicalChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "Request Count",
-            data: requestCounts,
-            borderColor: "rgb(75, 192, 192)",
-            backgroundColor: "rgba(75, 192, 192, 0.1)",
-            yAxisID: "y",
-            tension: 0.4,
-          },
-          {
-            label: "Avg Duration (ms)",
-            data: avgDurations,
-            borderColor: "rgb(54, 162, 235)",
-            backgroundColor: "rgba(54, 162, 235, 0.1)",
-            yAxisID: "y1",
-            tension: 0.4,
-          },
-          {
-            label: "Errors",
-            data: errorCounts,
-            borderColor: "rgb(255, 99, 132)",
-            backgroundColor: "rgba(255, 99, 132, 0.1)",
-            yAxisID: "y",
-            tension: 0.4,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        interaction: {
-          mode: "index",
-          intersect: false,
-        },
-        plugins: {
-          title: {
-            display: true,
-            text: "Historical Performance Data",
-          },
-          legend: {
-            display: true,
-            position: "top",
-          },
-        },
-        scales: {
-          y: {
-            type: "linear",
-            display: true,
-            position: "left",
-            title: {
-              display: true,
-              text: "Request Count / Errors",
-            },
-          },
-          y1: {
-            type: "linear",
-            display: true,
-            position: "right",
-            title: {
-              display: true,
-              text: "Avg Duration (ms)",
-            },
-            grid: {
-              drawOnChartArea: false,
-            },
-          },
-        },
-      },
-    });
   }
 
   // HAR Export functions
@@ -4016,141 +3685,12 @@ export class DevToolsPanel {
     const toast = document.createElement("div");
     toast.className = `toast-notification toast-${type}`;
     const icon =
-      type === "success"
-        ? "check-circle"
-        : type === "error"
-        ? "exclamation-circle"
-        : "info-circle";
+      type === "success" ? "check-circle" :
+      type === "error"   ? "exclamation-circle" :
+                           "info-circle";
     toast.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
-    toast.style.cssText =
-      "position: fixed; bottom: 20px; right: 20px; background: " +
-      (type === "success"
-        ? "#4CAF50"
-        : type === "error"
-        ? "#F44336"
-        : "#2196F3") +
-      "; color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10000;";
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
-  }
-
-  // Request Comparison features
-  openComparisonModal() {
-    const modal = document.getElementById("comparisonModal");
-    if (modal) {
-      modal.style.display = "flex";
-      this.loadComparisonData();
-    }
-  }
-
-  closeComparisonModal() {
-    const modal = document.getElementById("comparisonModal");
-    if (modal) {
-      modal.style.display = "none";
-    }
-  }
-
-  async loadComparisonData() {
-    const filters = this.getActiveFilters();
-    const response = await chrome.runtime.sendMessage({
-      action: "getDetailedRequests",
-      filters,
-      limit: 10,
-    });
-
-    if (
-      !response.success ||
-      !response.requests ||
-      response.requests.length < 2
-    ) {
-      document.getElementById("comparisonContent").innerHTML =
-        '<p class="info-message">Select at least 2 requests to compare. Showing first 10 requests for demonstration.</p>';
-      return;
-    }
-
-    // Take first 2 requests for comparison
-    const req1 = response.requests[0];
-    const req2 = response.requests[1];
-
-    const html = `
-      <div class="comparison-columns">
-        <div class="comparison-column">
-          <h4>Request 1</h4>
-          ${this.renderComparisonDetails(req1)}
-        </div>
-        <div class="comparison-divider"></div>
-        <div class="comparison-column">
-          <h4>Request 2</h4>
-          ${this.renderComparisonDetails(req2)}
-        </div>
-      </div>
-      <div class="comparison-diff">
-        <h4>Differences</h4>
-        <ul>
-          <li><strong>Duration:</strong> ${this.formatDiff(
-            req1.duration,
-            req2.duration,
-            "ms"
-          )}</li>
-          <li><strong>Size:</strong> ${this.formatDiff(
-            req1.size_bytes,
-            req2.size_bytes,
-            "bytes"
-          )}</li>
-          <li><strong>Status:</strong> ${req1.status} vs ${req2.status}</li>
-        </ul>
-      </div>
-    `;
-
-    document.getElementById("comparisonContent").innerHTML = html;
-  }
-
-  renderComparisonDetails(req) {
-    return `
-      <div class="comparison-details">
-        <div class="detail-row">
-          <label>URL:</label>
-          <span title="${req.url}">${this.truncateUrl(req.url, 50)}</span>
-        </div>
-        <div class="detail-row">
-          <label>Method:</label>
-          <span class="method-badge">${req.method || "GET"}</span>
-        </div>
-        <div class="detail-row">
-          <label>Status:</label>
-          <span class="status-badge ${
-            req.status >= 400 ? "status-error" : "status-success"
-          }">${req.status}</span>
-        </div>
-        <div class="detail-row">
-          <label>Type:</label>
-          <span>${req.type || "N/A"}</span>
-        </div>
-        <div class="detail-row">
-          <label>Duration:</label>
-          <span>${req.duration || 0}ms</span>
-        </div>
-        <div class="detail-row">
-          <label>Size:</label>
-          <span>${this.formatBytes(req.size_bytes || 0)}</span>
-        </div>
-        <div class="detail-row">
-          <label>Time:</label>
-          <span>${new Date(req.timestamp).toLocaleString()}</span>
-        </div>
-        <div class="detail-row">
-          <label>Cache:</label>
-          <span>${req.from_cache ? "Yes" : "No"}</span>
-        </div>
-      </div>
-    `;
-  }
-
-  formatDiff(val1, val2, unit) {
-    const diff = (val1 || 0) - (val2 || 0);
-    const sign = diff > 0 ? "+" : "";
-    const color = diff > 0 ? "red" : diff < 0 ? "green" : "gray";
-    return `<span style="color: ${color}">${sign}${diff} ${unit}</span>`;
   }
 
   // Initialize capture button state from settings
@@ -4220,83 +3760,6 @@ export class DevToolsPanel {
       this.capturePaused = !this.capturePaused;
       logger.error("Error toggling capture:", error);
       this.showToast("Failed to toggle capture", "error");
-    }
-  }
-
-  closeLiveStreamModal() {
-    const modal = document.getElementById("liveStreamModal");
-    if (modal) {
-      modal.style.display = "none";
-    }
-  }
-
-  toggleStreamPause() {
-    this.streamPaused = !this.streamPaused;
-    const btn = document.getElementById("pauseStream");
-    if (btn) {
-      btn.innerHTML = this.streamPaused
-        ? '<i class="fas fa-play"></i> Resume'
-        : '<i class="fas fa-pause"></i> Pause';
-    }
-  }
-
-  clearStream() {
-    this.streamData = [];
-    const content = document.getElementById("liveStreamContent");
-    if (content) {
-      content.innerHTML =
-        '<p class="info-message">Stream cleared. New requests will appear here.</p>';
-    }
-  }
-
-  addToStream(request) {
-    if (this.streamPaused) return;
-
-    this.streamData.push(request);
-    if (this.streamData.length > 100) {
-      this.streamData.shift(); // Keep last 100
-    }
-
-    const content = document.getElementById("liveStreamContent");
-    if (!content) return;
-
-    const highlightCriteria =
-      document.getElementById("highlightCriteria")?.value;
-    let shouldHighlight = false;
-
-    if (highlightCriteria === "errors" && request.status >= 400) {
-      shouldHighlight = true;
-    } else if (highlightCriteria === "slow" && request.duration > 1000) {
-      shouldHighlight = true;
-    } else if (
-      highlightCriteria === "large" &&
-      request.size_bytes > 1024 * 1024
-    ) {
-      shouldHighlight = true;
-    }
-
-    const item = document.createElement("div");
-    item.className = `stream-item ${shouldHighlight ? "highlight" : ""}`;
-    item.innerHTML = `
-      <span class="stream-time">${new Date(
-        request.timestamp
-      ).toLocaleTimeString()}</span>
-      <span class="method-badge">${request.method || "GET"}</span>
-      <span class="status-badge ${
-        request.status >= 400 ? "status-error" : "status-success"
-      }">${request.status}</span>
-      <span class="stream-url" title="${request.url}">${this.truncateUrl(
-      request.url,
-      60
-    )}</span>
-      <span class="stream-duration">${request.duration || 0}ms</span>
-    `;
-
-    content.appendChild(item);
-
-    const autoScroll = document.getElementById("autoScroll")?.checked;
-    if (autoScroll) {
-      content.scrollTop = content.scrollHeight;
     }
   }
 
@@ -4404,98 +3867,12 @@ export class DevToolsPanel {
     ).length;
     const connections = new Set(this.websocketMessages.map((m) => m.url)).size;
 
-    document.getElementById("wsConnectionCount").textContent = connections;
-    document.getElementById("wsSentCount").textContent = sentCount;
-    document.getElementById("wsReceivedCount").textContent = receivedCount;
-  }
-
-  // Real-time Feed Methods
-  startRealtimeFeed() {
-    this.realtimeMessages = this.realtimeMessages || [];
-    this.realtimePaused = false;
-
-    // Setup event listeners
-    const clearBtn = document.getElementById("clearRealtimeBtn");
-    const pauseBtn = document.getElementById("pauseRealtimeBtn");
-
-    if (clearBtn) {
-      // Remove existing listener if any
-      clearBtn.replaceWith(clearBtn.cloneNode(true));
-      document
-        .getElementById("clearRealtimeBtn")
-        .addEventListener("click", () => this.clearRealtimeFeed());
-    }
-    if (pauseBtn) {
-      // Remove existing listener if any
-      pauseBtn.replaceWith(pauseBtn.cloneNode(true));
-      document
-        .getElementById("pauseRealtimeBtn")
-        .addEventListener("click", () => this.toggleRealtimePause());
-    }
-
-    // Start polling for new requests
-    if (!this.realtimeInterval) {
-      this.realtimeInterval = setInterval(
-        () => this.pollRealtimeRequests(),
-        1000
-      );
-    }
-
-    this.updateRealtimeDisplay();
-  }
-
-  async pollRealtimeRequests() {
-    if (this.realtimePaused) return;
-
-    try {
-      const filters = {
-        ...this.getActiveFilters(),
-        timeRange: 5, // Last 5 seconds
-      };
-
-      const response = await chrome.runtime.sendMessage({
-        action: "getDetailedRequests",
-        filters,
-        limit: 10,
-      });
-
-      if (response && response.success && response.requests) {
-        response.requests.forEach((req) => {
-          // Only add if not already in feed
-          if (!this.realtimeMessages.find((m) => m.id === req.id)) {
-            this.addRealtimeRequest(req);
-          }
-        });
-      }
-    } catch (error) {
-      logger.error("Failed to poll realtime requests:", error);
-    }
-  }
-
-  toggleRealtimePause() {
-    this.realtimePaused = !this.realtimePaused;
-    const btn = document.getElementById("pauseRealtimeBtn");
-    if (btn) {
-      btn.innerHTML = this.realtimePaused
-        ? '<i class="fas fa-play"></i> Resume'
-        : '<i class="fas fa-pause"></i> Pause';
-    }
-  }
-
-  clearRealtimeFeed() {
-    this.realtimeMessages = [];
-    this.updateRealtimeDisplay();
-  }
-
-  addRealtimeRequest(request) {
-    if (this.realtimePaused) return;
-
-    this.realtimeMessages.push(request);
-    if (this.realtimeMessages.length > 200) {
-      this.realtimeMessages.shift();
-    }
-
-    this.updateRealtimeDisplay();
+    const wsConn = document.getElementById("wsConnectionCount");
+    const wsSent = document.getElementById("wsSentCount");
+    const wsRecv = document.getElementById("wsReceivedCount");
+    if (wsConn) wsConn.textContent = connections;
+    if (wsSent) wsSent.textContent = sentCount;
+    if (wsRecv) wsRecv.textContent = receivedCount;
   }
 
   // WebSocket tab visibility management

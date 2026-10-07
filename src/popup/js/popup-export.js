@@ -26,7 +26,7 @@ export async function exportDomainData(domain) {
       format: 'json',
     });
 
-    if (response.success && response.data) {
+    if (response?.success && response?.data) {
       const exportData = JSON.stringify(response.data, null, 2);
       const blob = new Blob([exportData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -41,7 +41,7 @@ export async function exportDomainData(domain) {
       return true;
     } else {
       showNotification(
-        'Export failed: ' + (response.error || 'Unknown error'),
+        'Export failed: ' + (response?.error || 'Unknown error'),
         true
       );
       return false;
