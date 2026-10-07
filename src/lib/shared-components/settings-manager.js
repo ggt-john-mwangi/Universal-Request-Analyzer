@@ -8,6 +8,7 @@
 import featureFlags from "../../config/feature-flags.js";
 import aclManager from "../../auth/acl-manager.js";
 import themeManager from "../../config/theme-manager.js";
+import { DEFAULT_SETTINGS } from "../../config/settings-defaults.js";
 
 // Cross-browser API support
 const browserAPI = globalThis.browser || globalThis.chrome;
@@ -21,96 +22,7 @@ let configSchemaManager = null;
 class SettingsManager {
   constructor() {
     this.initialized = false;
-    this.settings = {
-      general: {
-        maxStoredRequests: 10000,
-        autoStartCapture: true,
-        showNotifications: true,
-        confirmClearRequests: true,
-        defaultExportFormat: "json",
-        dateFormat: "yyyy-MM-dd HH:mm:ss",
-        timeZone: "local",
-        autoExport: false,
-        autoExportInterval: 3600000, // 1 hour
-        exportPath: "",
-      },
-      capture: {
-        enabled: true,
-        includeHeaders: true,
-        includeTiming: true,
-        includeContent: false,
-        maxContentSize: 1024 * 1024,
-        captureWebSockets: false,
-        captureServerSentEvents: false,
-        performanceMetrics: {
-          enabled: false,
-          samplingRate: 100,
-          captureNavigationTiming: true,
-          captureResourceTiming: true,
-          captureServerTiming: false,
-          captureCustomMetrics: false,
-          retentionPeriod: 7 * 24 * 60 * 60 * 1000,
-        },
-        captureFilters: {
-          includeDomains: [],
-          excludeDomains: [],
-          includeTypes: [
-            "xmlhttprequest",
-            "fetch",
-            "script",
-            "stylesheet",
-            "image",
-            "font",
-            "other",
-          ],
-        },
-        trackOnlyConfiguredSites: false, // Default: track all sites; use includeDomains to restrict
-      },
-      display: {
-        requestsPerPage: 50,
-        expandedDetails: false,
-        showStatusColors: true,
-        showTimingBars: true,
-        defaultTab: "requests",
-        showCharts: true,
-        enabledCharts: [
-          "responseTime",
-          "statusCodes",
-          "domains",
-          "requestTypes",
-          "timeDistribution",
-        ],
-        columnOrder: [
-          "method",
-          "domain",
-          "path",
-          "status",
-          "type",
-          "size",
-          "duration",
-          "time",
-        ],
-      },
-      advanced: {
-        enableDebugMode: false,
-        persistFilters: true,
-        useCompression: true,
-        backgroundMode: "persistent",
-        syncInterval: 60,
-        sqliteExport: {
-          enabled: false,
-          autoVacuum: true,
-          vacuumInterval: 3600000,
-        },
-      },
-      variables: {
-        enabled: true,
-        autoDetect: true,
-        list: [
-          // Example: { id: '1', name: 'API_TOKEN', value: '', description: 'API authentication token', createdAt: Date.now() }
-        ],
-      },
-    };
+    this.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 
     // Add event listeners for settings changes
     if (browserAPI && browserAPI.runtime) {
@@ -234,11 +146,9 @@ class SettingsManager {
         general: {},
         display: {},
         advanced: {},
-        variables: {
-          enabled: true,
-          autoDetect: true,
-          list: [],
-        },
+        variables: { enabled: true, autoDetect: true, list: [] },
+        theme: {},
+        logging: {},
       };
 
       // Load capture settings
@@ -280,10 +190,16 @@ class SettingsManager {
       if (variablesSettings && Object.keys(variablesSettings).length > 0) {
         settings.variables = variablesSettings;
       }
-      console.log(
-        "[SettingsManager] Loaded variables from DB:",
-        settings.variables
-      );
+
+      const themeSettings = await configSchemaManager.getSettingsByCategory("theme");
+      if (themeSettings && Object.keys(themeSettings).length > 0) {
+        settings.theme = themeSettings;
+      }
+
+      const loggingSettings = await configSchemaManager.getSettingsByCategory("logging");
+      if (loggingSettings && Object.keys(loggingSettings).length > 0) {
+        settings.logging = loggingSettings;
+      }
 
       return settings;
     } catch (error) {
@@ -516,89 +432,7 @@ class SettingsManager {
    */
   async resetAllToDefaults() {
     try {
-      // Reset settings
-      this.settings = {
-        general: {
-          maxStoredRequests: 10000,
-          autoStartCapture: true,
-          showNotifications: true,
-          confirmClearRequests: true,
-          defaultExportFormat: "json",
-          dateFormat: "yyyy-MM-dd HH:mm:ss",
-          timeZone: "local",
-          autoExport: false,
-          autoExportInterval: 3600000,
-          exportPath: "",
-        },
-        capture: {
-          enabled: true,
-          includeHeaders: true,
-          includeTiming: true,
-          includeContent: false,
-          maxContentSize: 1024 * 1024,
-          captureWebSockets: false,
-          captureServerSentEvents: false,
-          performanceMetrics: {
-            enabled: false,
-            samplingRate: 100,
-            captureNavigationTiming: true,
-            captureResourceTiming: true,
-            captureServerTiming: false,
-            captureCustomMetrics: false,
-            retentionPeriod: 7 * 24 * 60 * 60 * 1000,
-          },
-          captureFilters: {
-            includeDomains: [],
-            excludeDomains: [],
-            includeTypes: [
-              "xmlhttprequest",
-              "fetch",
-              "script",
-              "stylesheet",
-              "image",
-              "font",
-              "other",
-            ],
-          },
-        },
-        display: {
-          requestsPerPage: 50,
-          expandedDetails: false,
-          showStatusColors: true,
-          showTimingBars: true,
-          defaultTab: "requests",
-          showCharts: true,
-          enabledCharts: [
-            "responseTime",
-            "statusCodes",
-            "domains",
-            "requestTypes",
-            "timeDistribution",
-          ],
-          columnOrder: [
-            "method",
-            "domain",
-            "path",
-            "status",
-            "type",
-            "size",
-            "duration",
-            "time",
-          ],
-        },
-        advanced: {
-          enableDebugMode: false,
-          persistFilters: true,
-          useCompression: true,
-          backgroundMode: "persistent",
-          syncInterval: 60,
-          sqliteExport: {
-            enabled: false,
-            autoVacuum: true,
-            vacuumInterval: 3600000,
-          },
-        },
-      };
+      this.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 
       // Reset feature flags, ACL, and theme
       await featureFlags.resetToDefaults();
@@ -607,9 +441,7 @@ class SettingsManager {
         await themeManager.resetToDefaults();
       }
 
-      // Save settings
       await this.saveToStorage();
-
       return true;
     } catch (error) {
       console.error("Error resetting settings:", error);

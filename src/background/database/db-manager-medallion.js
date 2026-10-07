@@ -491,26 +491,22 @@ export async function clearDatabase() {
   }
 
   try {
-    // Clear all data but keep schema
+    // Clear all data but keep schema (only tables that exist in medallion-schema.js)
     const tables = [
       "bronze_requests",
       "bronze_request_headers",
       "bronze_request_timings",
-      "bronze_performance_entries",
       "bronze_events",
       "bronze_sessions",
       "bronze_errors",
+      "bronze_web_vitals",
       "silver_requests",
       "silver_request_metrics",
       "silver_domain_stats",
       "silver_resource_stats",
       "silver_hourly_stats",
-      "silver_request_tags",
       "gold_daily_analytics",
       "gold_domain_performance",
-      "gold_optimization_opportunities",
-      "gold_trends",
-      "gold_anomalies",
     ];
 
     db.exec("BEGIN TRANSACTION");
@@ -638,16 +634,12 @@ export async function cleanupOldRecords(days) {
     // First, count records that will be deleted (Bronze + Silver + Gold layers)
     const cutoffDate = new Date(cutoffTimestamp).toISOString().split("T")[0];
     const countQuery = `
-      SELECT 
+      SELECT
         (SELECT COUNT(*) FROM bronze_requests WHERE timestamp < ${cutoffTimestamp}) as bronze_count,
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}) as vitals_count,
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp < ${cutoffTimestamp}) as silver_count,
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date < '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_performance_insights WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_trends WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_anomalies WHERE detected_at < ${cutoffTimestamp}) as gold_count
+        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) as gold_count
     `;
 
     const countResult = db.exec(countQuery);
@@ -681,13 +673,6 @@ export async function cleanupOldRecords(days) {
     db.exec(`DELETE FROM gold_daily_analytics WHERE date < '${cutoffDate}'`);
     db.exec(
       `DELETE FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}`
-    );
-    db.exec(
-      `DELETE FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}`
-    );
-    db.exec(`DELETE FROM gold_trends WHERE created_at < ${cutoffTimestamp}`);
-    db.exec(
-      `DELETE FROM gold_anomalies WHERE detected_at < ${cutoffTimestamp}`
     );
 
     // Commit transaction
@@ -734,23 +719,17 @@ export function previewCleanup(days) {
     const cutoffDate = new Date(cutoffTimestamp).toISOString().split("T")[0];
 
     const query = `
-      SELECT 
+      SELECT
         (SELECT COUNT(*) FROM bronze_requests WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp < ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date < '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_trends WHERE created_at < ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_anomalies WHERE detected_at < ${cutoffTimestamp}) as records_to_delete,
+        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at < ${cutoffTimestamp}) as records_to_delete,
         (SELECT COUNT(*) FROM bronze_requests WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM bronze_web_vitals WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM silver_requests WHERE timestamp >= ${cutoffTimestamp}) +
         (SELECT COUNT(*) FROM gold_daily_analytics WHERE date >= '${cutoffDate}') +
-        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at >= ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_optimization_opportunities WHERE created_at >= ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_trends WHERE created_at >= ${cutoffTimestamp}) +
-        (SELECT COUNT(*) FROM gold_anomalies WHERE detected_at >= ${cutoffTimestamp}) as records_remaining,
+        (SELECT COUNT(*) FROM gold_domain_performance WHERE created_at >= ${cutoffTimestamp}) as records_remaining,
         (SELECT MIN(timestamp) FROM bronze_requests) as oldest_timestamp
     `;
 
@@ -922,15 +901,7 @@ async function createRunner(definition, requests) {
       `[db-manager-medallion] Inserted ${requests.length} requests for runner`
     );
 
-    try {
-      await saveDatabaseToOPFS(db.export());
-    } catch (saveError) {
-      console.warn(
-        "[Runner] Database save warning (non-critical):",
-        saveError.message
-      );
-      // Continue - the runner was created in memory successfully
-    }
+    scheduleSave();
 
     console.log(
       `[Runner] Created runner: ${definition.name} with ${requests.length} requests`
@@ -1042,7 +1013,7 @@ async function createRunnerExecution(execution) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[Runner] Created execution: ${execution.id}`);
     return { success: true };
@@ -1124,7 +1095,7 @@ async function updateRunnerExecution(executionId, updates) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     return { success: true };
   } catch (error) {
@@ -1160,7 +1131,7 @@ async function updateRunnerDefinition(runnerId, updates) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     return { success: true };
   } catch (error) {
@@ -1193,7 +1164,7 @@ async function ensureRunnerTablesExist() {
 
       // Create runner tables
       await createMedallionSchema(db);
-      await saveDatabaseToOPFS(db.export());
+      scheduleSave();
 
       console.log("[Runner] Runner tables created successfully");
     }
@@ -1408,7 +1379,7 @@ async function cleanupTemporaryRunners(daysOld = 7) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(
       `[Runner] Cleaned up temporary runners older than ${daysOld} days`
@@ -1434,7 +1405,7 @@ async function deleteRunner(runnerId) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[Runner] Deleted runner: ${runnerId}`);
     return { success: true };
@@ -1474,7 +1445,7 @@ async function createCollection(collectionData) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[Collection] Created collection: ${collectionData.name}`);
     return { success: true, collectionId: collectionData.id };
@@ -1628,7 +1599,7 @@ async function updateCollection(collectionId, updates) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[Collection] Updated collection: ${collectionId}`);
     return { success: true };
@@ -1660,7 +1631,7 @@ async function deleteCollection(collectionId) {
     `;
     db.exec(deleteQuery);
 
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[Collection] Deleted collection: ${collectionId}`);
     return { success: true };
@@ -1689,7 +1660,7 @@ async function assignRunnersToCollection(runnerIds, collectionId) {
       db.exec(query);
     }
 
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(
       `[Collection] Assigned ${runnerIdList.length} runner(s) to collection: ${collectionId}`
@@ -1720,7 +1691,7 @@ async function removeRunnersFromCollection(runnerIds) {
       db.exec(query);
     }
 
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(
       `[Collection] Removed ${runnerIdList.length} runner(s) from collection`
@@ -1766,7 +1737,7 @@ async function createScheduledRun(scheduleData) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[ScheduledRun] Created scheduled run: ${scheduleData.id}`);
     return { success: true, schedule: scheduleData };
@@ -1910,7 +1881,7 @@ async function updateScheduledRun(scheduleId, updates) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[ScheduledRun] Updated scheduled run: ${scheduleId}`);
     return { success: true };
@@ -1933,7 +1904,7 @@ async function deleteScheduledRun(scheduleId) {
     `;
 
     db.exec(query);
-    await saveDatabaseToOPFS(db.export());
+    scheduleSave();
 
     console.log(`[ScheduledRun] Deleted scheduled run: ${scheduleId}`);
     return { success: true };

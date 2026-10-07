@@ -415,9 +415,5 @@ export function setupRequestCaptureIntegration(dbManager, eventBus, config) {
     config
   );
   integration.initialize();
-
-  // Cleanup every minute
-  setInterval(() => integration.cleanup(), 60000);
-
   return integration;
 }

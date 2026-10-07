@@ -1,0 +1,102 @@
+// Canonical default settings — single source of truth.
+// Both SettingsManager and SettingsManagerCore import from here.
+// Deep-clone before use: JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
+
+export const DEFAULT_SETTINGS = {
+  general: {
+    maxStoredRequests: 10000,
+    autoStartCapture: true,
+    showNotifications: true,
+    confirmClearRequests: true,
+    defaultExportFormat: "json",
+    dateFormat: "yyyy-MM-dd HH:mm:ss",
+    timeZone: "local",
+    autoExport: false,
+    autoExportInterval: 3600000,
+    exportPath: "",
+  },
+  capture: {
+    enabled: true,
+    includeHeaders: true,
+    includeTiming: true,
+    includeContent: false,
+    maxContentSize: 1024 * 1024,
+    captureWebSockets: false,
+    captureServerSentEvents: false,
+    performanceMetrics: {
+      enabled: false,
+      samplingRate: 100,
+      captureNavigationTiming: true,
+      captureResourceTiming: true,
+      captureServerTiming: false,
+      captureCustomMetrics: false,
+      retentionPeriod: 7 * 24 * 60 * 60 * 1000,
+    },
+    captureFilters: {
+      includeDomains: [],
+      excludeDomains: [],
+      includeTypes: [
+        "xmlhttprequest",
+        "fetch",
+        "script",
+        "stylesheet",
+        "image",
+        "font",
+        "other",
+      ],
+    },
+    trackOnlyConfiguredSites: false,
+  },
+  display: {
+    requestsPerPage: 50,
+    expandedDetails: false,
+    showStatusColors: true,
+    showTimingBars: true,
+    defaultTab: "requests",
+    showCharts: true,
+    enabledCharts: [
+      "responseTime",
+      "statusCodes",
+      "domains",
+      "requestTypes",
+      "timeDistribution",
+    ],
+    columnOrder: [
+      "method",
+      "domain",
+      "path",
+      "status",
+      "type",
+      "size",
+      "duration",
+      "time",
+    ],
+  },
+  advanced: {
+    enableDebugMode: false,
+    persistFilters: true,
+    useCompression: true,
+    backgroundMode: "persistent",
+    syncInterval: 60,
+    sqliteExport: {
+      enabled: false,
+      autoVacuum: true,
+      vacuumInterval: 3600000,
+    },
+  },
+  variables: {
+    enabled: true,
+    autoDetect: true,
+    list: [],
+  },
+  theme: {
+    current: "light",
+  },
+  logging: {
+    level: "INFO",
+    persistErrors: false,
+    maxErrorAge: 7 * 24 * 60 * 60 * 1000,
+    enableConsoleColors: true,
+    enableTimestamps: true,
+  },
+};

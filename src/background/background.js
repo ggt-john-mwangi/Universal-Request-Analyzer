@@ -566,6 +566,8 @@ class IntegratedExtensionInitializer {
           } catch (error) {
             console.error("Bronze→Silver failed:", error);
           }
+          // Evict stale pending requests (>1 min old) from in-memory capture map
+          this.requestCapture?.cleanup();
         } else if (alarm.name === "dailyGoldProcessing") {
           try {
             await this.medallionManager.processDailyAnalytics();

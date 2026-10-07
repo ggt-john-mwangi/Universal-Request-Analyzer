@@ -6,6 +6,8 @@
  * Handles only core settings, database, and storage operations.
  */
 
+import { DEFAULT_SETTINGS } from "../../config/settings-defaults.js";
+
 // Cross-browser API support
 const browserAPI = globalThis.browser || globalThis.chrome;
 
@@ -18,106 +20,7 @@ let configSchemaManager = null;
 class SettingsManagerCore {
   constructor() {
     this.initialized = false;
-    this.settings = {
-      general: {
-        maxStoredRequests: 10000,
-        autoStartCapture: true,
-        showNotifications: true,
-        confirmClearRequests: true,
-        defaultExportFormat: "json",
-        dateFormat: "yyyy-MM-dd HH:mm:ss",
-        timeZone: "local",
-        autoExport: false,
-        autoExportInterval: 3600000, // 1 hour
-        exportPath: "",
-      },
-      capture: {
-        enabled: true,
-        includeHeaders: true,
-        includeTiming: true,
-        includeContent: false,
-        maxContentSize: 1024 * 1024,
-        captureWebSockets: false,
-        captureServerSentEvents: false,
-        performanceMetrics: {
-          enabled: false,
-          samplingRate: 100,
-          captureNavigationTiming: true,
-          captureResourceTiming: true,
-          captureServerTiming: false,
-          captureCustomMetrics: false,
-          retentionPeriod: 7 * 24 * 60 * 60 * 1000,
-        },
-        captureFilters: {
-          includeDomains: [],
-          excludeDomains: [],
-          includeTypes: [
-            "xmlhttprequest",
-            "fetch",
-            "script",
-            "stylesheet",
-            "image",
-            "font",
-            "other",
-          ],
-        },
-        trackOnlyConfiguredSites: false, // Default: track all sites; use includeDomains to restrict
-      },
-      display: {
-        requestsPerPage: 50,
-        expandedDetails: false,
-        showStatusColors: true,
-        showTimingBars: true,
-        defaultTab: "requests",
-        showCharts: true,
-        enabledCharts: [
-          "responseTime",
-          "statusCodes",
-          "domains",
-          "requestTypes",
-          "timeDistribution",
-        ],
-        columnOrder: [
-          "method",
-          "domain",
-          "path",
-          "status",
-          "type",
-          "size",
-          "duration",
-          "time",
-        ],
-      },
-      advanced: {
-        enableDebugMode: false,
-        persistFilters: true,
-        useCompression: true,
-        backgroundMode: "persistent",
-        syncInterval: 60,
-        sqliteExport: {
-          enabled: false,
-          autoVacuum: true,
-          vacuumInterval: 3600000,
-        },
-      },
-      variables: {
-        enabled: true,
-        autoDetect: true,
-        list: [],
-      },
-      // Store theme preference as string only (no DOM operations)
-      theme: {
-        current: "light", // 'light' | 'dark' | 'highContrast' | 'blue' | 'system'
-      },
-      // Logging configuration
-      logging: {
-        level: "INFO", // DEBUG, INFO, WARN, ERROR
-        persistErrors: false, // OFF by default - enable to save errors to bronze_errors table
-        maxErrorAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
-        enableConsoleColors: true,
-        enableTimestamps: true,
-      },
-    };
+    this.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 
     // Add event listeners for settings changes
     if (browserAPI && browserAPI.runtime) {
@@ -460,97 +363,8 @@ class SettingsManagerCore {
    */
   async resetAllToDefaults() {
     try {
-      // Reset settings
-      this.settings = {
-        general: {
-          maxStoredRequests: 10000,
-          autoStartCapture: true,
-          showNotifications: true,
-          confirmClearRequests: true,
-          defaultExportFormat: "json",
-          dateFormat: "yyyy-MM-dd HH:mm:ss",
-          timeZone: "local",
-          autoExport: false,
-          autoExportInterval: 3600000,
-          exportPath: "",
-        },
-        capture: {
-          enabled: true,
-          includeHeaders: true,
-          includeTiming: true,
-          includeContent: false,
-          maxContentSize: 1024 * 1024,
-          captureWebSockets: false,
-          captureServerSentEvents: false,
-          performanceMetrics: {
-            enabled: false,
-            samplingRate: 100,
-            captureNavigationTiming: true,
-            captureResourceTiming: true,
-            captureServerTiming: false,
-            captureCustomMetrics: false,
-            retentionPeriod: 7 * 24 * 60 * 60 * 1000,
-          },
-          captureFilters: {
-            includeDomains: [],
-            excludeDomains: [],
-            includeTypes: [
-              "xmlhttprequest",
-              "fetch",
-              "script",
-              "stylesheet",
-              "image",
-              "font",
-              "other",
-            ],
-          },
-          trackOnlyConfiguredSites: false,
-        },
-        display: {
-          requestsPerPage: 50,
-          expandedDetails: false,
-          showStatusColors: true,
-          showTimingBars: true,
-          defaultTab: "requests",
-          showCharts: true,
-          enabledCharts: [
-            "responseTime",
-            "statusCodes",
-            "domains",
-            "requestTypes",
-            "timeDistribution",
-          ],
-          columnOrder: [
-            "method",
-            "domain",
-            "path",
-            "status",
-            "type",
-            "size",
-            "duration",
-            "time",
-          ],
-        },
-        advanced: {
-          enableDebugMode: false,
-          persistFilters: true,
-          useCompression: true,
-          backgroundMode: "persistent",
-          syncInterval: 60,
-          sqliteExport: {
-            enabled: false,
-            autoVacuum: true,
-            vacuumInterval: 3600000,
-          },
-        },
-        theme: {
-          current: "light",
-        },
-      };
-
-      // Save settings
+      this.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
       await this.saveToStorage();
-
       return true;
     } catch (error) {
       console.error("[SettingsCore] Error resetting settings:", error);
