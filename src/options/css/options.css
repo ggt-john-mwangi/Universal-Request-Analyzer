@@ -400,29 +400,6 @@ button.secondary:hover {
   }
 }
 
-.database-info {
-  margin-top: 30px;
-  padding: 15px;
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-.database-info h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 16px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
-}
-
-.info-label {
-  font-weight: 500;
-}
 
 /* Theme Cards */
 .themes-container {

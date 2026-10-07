@@ -1,36 +1,15 @@
-// Import necessary modules
 import "../components/dashboard.js";
-import "../components/analytics.js"; // Analytics features available through Dashboard
+import "../components/analytics.js";
 import "../components/alerts.js";
 import "../components/runners.js";
-import "../components/collections.js"; // Collections integrated into Runners tab
-import "../components/auto-export.js";
-import "../components/capture-filters.js";
-import "../components/capture-settings.js";
-import "../../lib/shared-components/chart-components.js";
-import "../../lib/shared-components/chart-renderer.js";
-import "../../lib/shared-components/data-filter-panel.js";
+import "../components/collections.js";
 import {
   initializeDataManagement,
   updateDatabaseSizeDisplay,
 } from "./data-management.js";
-import "../../lib/shared-components/data-loader.js";
-// Removed unused import: renderDataPurge - Data Retention section is now in HTML
-import "../../lib/shared-components/data-visualization.js";
-import "../components/export-db.js";
-import "../../lib/shared-components/export-panel.js";
-import "../../lib/shared-components/filters.js";
-import "../../lib/shared-components/notifications.js";
-import "../../lib/shared-components/performance-monitor.js";
-import settingsManager from "../../lib/shared-components/settings-ui-coordinator.js";
-import "../../lib/shared-components/settings-ui.js";
-import "../../lib/shared-components/tab-manager.js";
-import "../components/visualization.js";
 import { renderPipelineFlow } from "../components/pipeline-flow.js";
-import "../../auth/acl-manager.js";
-import "../../config/feature-flags.js";
+import settingsManager from "../../lib/shared-components/settings-ui-coordinator.js";
 import themeManager from "../../lib/ui/theme-manager.js";
-import "../../lib/chart.min.js";
 import variablesManager from "./variables-manager.js";
 import {
   groupTablesBySchema,
@@ -185,7 +164,9 @@ const POPULAR_API_PATTERNS = [
   "https://*.amazonaws.com/*",
 ];
 
-// DOM elements - will be initialized in DOMContentLoaded
+// ============================================================================
+// DOM ELEMENT REFERENCES
+// ============================================================================
 let captureEnabled;
 let maxStoredRequests;
 let captureTypeCheckboxes;
@@ -213,7 +194,9 @@ let themesContainer;
 let saveThemeBtn;
 let resetThemeBtn;
 
-// Load when DOM is ready
+// ============================================================================
+// INITIALIZATION — DOMContentLoaded
+// ============================================================================
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     logger.info("DOM loaded, initializing...");
@@ -376,7 +359,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// Load options from storage
+// ============================================================================
+// SETTINGS — LOAD / SAVE / RESET
+// ============================================================================
+
 async function loadOptions() {
   try {
     const allSettings = settingsManager.getAllSettings();
@@ -604,7 +590,10 @@ async function resetOptions() {
   }
 }
 
-// Show export preview before downloading
+// ============================================================================
+// SETTINGS IMPORT / EXPORT  (Security tab)
+// ============================================================================
+
 async function showExportPreview() {
   try {
     const exportData = settingsManager.exportSettings();
@@ -1044,9 +1033,9 @@ async function importSettings(event) {
   event.target.value = "";
 }
 
-// ===============================================
-// Settings Profiles Management
-// ===============================================
+// ============================================================================
+// SETTINGS PROFILES  (Retention tab)
+// ============================================================================
 
 const PROFILES_KEY = "settingsProfiles";
 
@@ -1478,7 +1467,10 @@ if (selectiveImportCheckbox && selectiveImportOptions) {
   });
 }
 
-// Render theme options
+// ============================================================================
+// THEME MANAGEMENT  (Themes tab)
+// ============================================================================
+
 function renderThemeOptions() {
   // Handle theme selection change
   currentThemeSelect.addEventListener("change", async (e) => {
@@ -1573,7 +1565,9 @@ function renderThemeCards() {
   });
 }
 
-// Setup tab navigation
+// ============================================================================
+// TAB NAVIGATION + SIDEBAR PILL
+// ============================================================================
 function setupTabNavigation() {
   const navItems = document.querySelectorAll(".nav-item");
   const tabContents = document.querySelectorAll(".tab-content");
@@ -1692,7 +1686,10 @@ function showNotification(message, isError = false) {
   }, 5000);
 }
 
-// Setup event listeners for all buttons and controls
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
 function setupEventListeners() {
   // Save and Reset buttons
   if (saveBtn) {
@@ -2139,7 +2136,10 @@ function setupEventListeners() {
   }
 }
 
-// Helper function to update storage usage display
+// ============================================================================
+// CAPTURE / STORAGE / TRACKING HELPERS
+// ============================================================================
+
 function updateStorageUsageDisplay() {
   const currentCount = parseInt(
     document.getElementById("currentStorageCount")?.textContent || "0"
@@ -2263,7 +2263,7 @@ function handleSitePreset(preset) {
 }
 
 // ============================================================================
-// Advanced Query Safety and Enhancement Utilities
+// ADVANCED TAB — SQL QUERY CONSOLE + DATABASE TOOLS
 // ============================================================================
 
 /**
@@ -3609,9 +3609,10 @@ async function loadQueryHistory() {
   }
 }
 
-// New Features Implementation
+// ============================================================================
+// DASHBOARD AUTO-REFRESH + FILTER WIRING
+// ============================================================================
 
-// Dashboard Auto-refresh
 let dashboardRefreshInterval = null;
 
 function initializeDashboard() {
@@ -4237,7 +4238,10 @@ if (exportNowBtn) {
   });
 }
 
-// Auto Export Status (using existing autoExport variable)
+// ============================================================================
+// EXPORT TAB — AUTO-EXPORT SCHEDULING + MANUAL EXPORT
+// ============================================================================
+
 const autoExportStatus = document.getElementById("autoExportStatus");
 
 function updateNextExportTime() {
@@ -4682,7 +4686,10 @@ async function filterDashboardBySite(site) {
   }
 }
 
-// Initialize Analytics component
+// ============================================================================
+// ANALYTICS + ALERTS INITIALIZATION
+// ============================================================================
+
 let analyticsInstance = null;
 
 async function initializeAnalytics() {
