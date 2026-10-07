@@ -1,5 +1,6 @@
 // Popup Export Functions - Handle data export operations
 
+import logger from '../../lib/utils/logger.js';
 import { runtime, tabs } from '../../background/compat/browser-compat.js';
 import { showNotification } from './popup-utils.js';
 
@@ -47,7 +48,7 @@ export async function exportDomainData(domain) {
       return false;
     }
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error:', error);
     showNotification('Export failed', true);
     return false;
   }
@@ -97,7 +98,7 @@ export async function exportAsHAR() {
       return false;
     }
   } catch (error) {
-    console.error('HAR export error:', error);
+    logger.error('HAR export error:', error);
     showNotification('HAR export failed', true);
     return false;
   }

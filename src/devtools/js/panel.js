@@ -1049,53 +1049,46 @@ export class DevToolsPanel {
     }
   }
 
-  exportMetrics() {
+  async exportMetrics() {
     const btn = document.getElementById("exportMetrics");
-    const filters = this.getActiveFilters();
+    if (!btn) return;
 
-    // Show loading state
-    if (btn) {
-      const originalText = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
 
-      // Restore button after operation
-      const restoreButton = () => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-      };
+    try {
+      const filters = this.getActiveFilters();
+      const response = await chrome.runtime.sendMessage({
+        action: "exportFilteredData",
+        filters,
+        format: "json",
+      });
 
-      this.showToast("Starting export...", "info");
-
-      chrome.runtime.sendMessage(
-        {
-          action: "exportFilteredData",
-          filters: filters,
-          format: "json",
-        },
-        (response) => {
-          restoreButton();
-
-          if (chrome.runtime.lastError) {
-            logger.error("Export error:", chrome.runtime.lastError);
-            this.showToast(
-              "Export failed: " + chrome.runtime.lastError.message,
-              "error"
-            );
-            return;
-          }
-
-          if (response && response.success) {
-            this.showToast("Metrics exported successfully", "success");
-          } else {
-            logger.error("Export failed:", response?.error);
-            this.showToast(
-              "Export failed: " + (response?.error || "Unknown error"),
-              "error"
-            );
-          }
-        }
-      );
+      if (response?.success && response.data) {
+        const blob = new Blob([JSON.stringify(response.data, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = response.filename || `ura-export-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showToast("Export downloaded", "success");
+      } else {
+        logger.error("Export failed:", response?.error);
+        this.showToast(
+          "Export failed: " + (response?.error || "Unknown error"),
+          "error"
+        );
+      }
+    } catch (error) {
+      logger.error("Export error:", error);
+      this.showToast("Export failed", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
     }
   }
 

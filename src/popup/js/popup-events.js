@@ -1,5 +1,6 @@
 // Popup Event Handlers - Set up all event listeners
 
+import logger from "../../lib/utils/logger.js";
 import {
   runtime,
   tabs,
@@ -63,7 +64,7 @@ async function setupCaptureToggle() {
     btn.classList.toggle("capturing", enabled);
     btn.setAttribute("aria-label", enabled ? "Capturing (click to pause)" : "Capture paused (click to resume)");
   } catch (e) {
-    console.error("Failed to load capture state:", e);
+    logger.error("Failed to load capture state:", e);
   }
 
   btn.addEventListener("click", async () => {
@@ -79,7 +80,7 @@ async function setupCaptureToggle() {
         showNotification(!isCapturing ? "Capture resumed" : "Capture paused", false);
       }
     } catch (e) {
-      console.error("Failed to toggle capture:", e);
+      logger.error("Failed to toggle capture:", e);
     }
   });
 }
@@ -113,7 +114,7 @@ function setupRefreshButton() {
           throw new Error(response?.error || "Failed to refresh settings");
         }
       } catch (error) {
-        console.error("Failed to refresh settings:", error);
+        logger.error("Failed to refresh settings:", error);
         icon.className = "fas fa-times";
         setTimeout(() => {
           icon.className = "fas fa-sync-alt";
@@ -144,7 +145,7 @@ function setupFilters() {
 
   // Load pages for current domain
   loadPagesForDomain().catch((err) =>
-    console.error("Failed to load pages:", err)
+    logger.error("Failed to load pages:", err)
   );
 }
 
@@ -248,7 +249,7 @@ function setupQAQuickView() {
 
         await exportDomainData(domain);
       } catch (error) {
-        console.error("Export error:", error);
+        logger.error("Export error:", error);
         showNotification("Export failed", true);
       }
     });

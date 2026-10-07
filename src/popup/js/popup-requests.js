@@ -1,6 +1,7 @@
 // Recent Requests List Functions
 // Handle displaying and interacting with recent requests
 
+import logger from "../../lib/utils/logger.js";
 import { runtime } from "../../background/compat/browser-compat.js";
 import { truncateUrl, showNotification } from "./popup-utils.js";
 
@@ -21,7 +22,7 @@ export async function loadRecentRequests() {
       try {
         domain = new URL(currentTab.url).hostname;
       } catch (e) {
-        console.error("Invalid URL:", currentTab.url);
+        logger.error("Invalid URL:", currentTab.url);
       }
     }
 
@@ -36,7 +37,7 @@ export async function loadRecentRequests() {
       showEmptyRequestsState();
     }
   } catch (error) {
-    console.error("Error loading recent requests:", error);
+    logger.error("Error loading recent requests:", error);
     showEmptyRequestsState();
   }
 }
@@ -174,7 +175,7 @@ async function copyAsCurl(request) {
     await navigator.clipboard.writeText(curlCommand);
     showNotification("Copied as cURL!", false);
   } catch (error) {
-    console.error("Failed to copy:", error);
+    logger.error("Failed to copy:", error);
     showNotification("Failed to copy to clipboard", true);
   }
 }
@@ -256,7 +257,7 @@ async function copyAsFetch(request) {
     await navigator.clipboard.writeText(fetchCode);
     showNotification("Copied as Fetch!", false);
   } catch (error) {
-    console.error("Failed to copy:", error);
+    logger.error("Failed to copy:", error);
     showNotification("Failed to copy to clipboard", true);
   }
 }

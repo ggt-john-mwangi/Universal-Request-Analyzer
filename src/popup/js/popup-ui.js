@@ -1,5 +1,6 @@
 // Popup UI Functions - Handle all UI updates and rendering
 
+import logger from '../../lib/utils/logger.js';
 import { formatBytes, formatTimeAgo, truncateUrl } from './popup-utils.js';
 
 /**
@@ -182,7 +183,7 @@ export function updateTimelineChart(timestamps, responseTimes) {
       drawSimpleChart(ctx, ts.slice(0, len), rt.slice(0, len));
     }
   } catch (e) {
-    console.error('Chart error:', e);
+    logger.error('Chart error:', e);
   }
 }
 

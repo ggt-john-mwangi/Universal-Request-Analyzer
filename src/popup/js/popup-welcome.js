@@ -1,6 +1,7 @@
 // Welcome Screen and Tips Functions
 // Handle first-time user experience and contextual tips
 
+import logger from '../../lib/utils/logger.js';
 import { storage } from '../../background/compat/browser-compat.js';
 
 // Tips to rotate through
@@ -29,7 +30,7 @@ export async function checkAndShowWelcome() {
       showWelcomeScreen();
     }
   } catch (error) {
-    console.error('Error checking welcome status:', error);
+    logger.error('Error checking welcome status:', error);
   }
 }
 
@@ -69,7 +70,7 @@ async function closeWelcomeScreen() {
       await storage.set({ neverShowWelcome: true });
     }
   } catch (error) {
-    console.error('Error saving welcome preference:', error);
+    logger.error('Error saving welcome preference:', error);
   }
 }
 
@@ -142,7 +143,7 @@ async function dismissTipsBanner() {
   try {
     await storage.set({ tipsDismissed: true });
   } catch (error) {
-    console.error('Error saving tips preference:', error);
+    logger.error('Error saving tips preference:', error);
   }
 }
 

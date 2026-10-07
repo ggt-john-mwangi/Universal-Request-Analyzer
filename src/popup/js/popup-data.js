@@ -1,5 +1,6 @@
 // Popup Data Functions - Handle data loading and communication with background
 
+import logger from "../../lib/utils/logger.js";
 import { runtime, tabs } from "../../background/compat/browser-compat.js";
 import { currentQuickFilter } from "./popup-export.js";
 import {
@@ -104,18 +105,18 @@ export async function loadPageSummary() {
         startAutoRefresh();
       }
     } else {
-      console.warn("No stats available, showing defaults");
+      logger.warn("No stats available, showing defaults");
       // Show empty state
       showEmptyState();
     }
   } catch (error) {
     // Stop refresh loop on extension context invalidation
     if (error.message?.includes("Extension context invalidated")) {
-      console.log("Extension context invalidated, stopping refresh");
+      logger.debug("Extension context invalidated, stopping refresh");
       stopAutoRefresh();
       return;
     }
-    console.error("Failed to load page summary:", error);
+    logger.error("Failed to load page summary:", error);
     showNotification("Failed to load statistics. Please try refreshing.", true);
   } finally {
     // Hide loading state
@@ -191,7 +192,7 @@ export async function loadPagesForDomain() {
       });
     }
   } catch (error) {
-    console.error("Failed to load pages for domain:", error);
+    logger.error("Failed to load pages for domain:", error);
   }
 }
 
@@ -236,15 +237,15 @@ export async function loadTrackedSites() {
           }
         });
       } else {
-        console.warn(
+        logger.warn(
           "Query successful but no domains found - database may be empty or domains are NULL"
         );
       }
     } else {
-      console.error("Query failed:", response?.error);
+      logger.error("Query failed:", response?.error);
     }
   } catch (error) {
-    console.error("Failed to load tracked sites:", error);
+    logger.error("Failed to load tracked sites:", error);
   }
 }
 
@@ -274,7 +275,7 @@ export async function loadResourceUsage() {
       }
     }
   } catch (error) {
-    console.error("Failed to load resource usage:", error);
+    logger.error("Failed to load resource usage:", error);
   }
 }
 
@@ -308,7 +309,7 @@ export async function updateRecentErrors() {
       updateRecentErrorsDisplay([]);
     }
   } catch (error) {
-    console.error("Failed to load recent errors:", error);
+    logger.error("Failed to load recent errors:", error);
     const container = document.getElementById("recentErrorsList");
     if (container) {
       container.innerHTML =

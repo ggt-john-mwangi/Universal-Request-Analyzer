@@ -1698,25 +1698,23 @@ function setupEventListeners() {
 
   // Database buttons
   if (exportDbBtn) {
-    exportDbBtn.addEventListener("click", () => {
-      chrome.runtime.sendMessage(
-        {
+    exportDbBtn.addEventListener("click", async () => {
+      try {
+        const fmt = exportFormat?.value || DEFAULT_EXPORT_FORMAT;
+        const response = await chrome.runtime.sendMessage({
           action: "exportDatabase",
-          format: exportFormat?.value || DEFAULT_EXPORT_FORMAT,
-          filename: `database-export-${new Date().toISOString().slice(0, 10)}.${
-            exportFormat?.value || DEFAULT_EXPORT_FORMAT
-          }`,
-        },
-        (response) => {
-          if (response && response.success) {
-            showNotification("Database exported successfully!");
-            if (lastExport)
-              lastExport.textContent = new Date().toLocaleString();
-          } else {
-            showNotification("Failed to export database", true);
-          }
+          format: fmt,
+        });
+        if (response?.success && response.data) {
+          downloadBytes(response.data, response.filename, response.mimeType);
+          showNotification("Database exported successfully!");
+          if (lastExport) lastExport.textContent = new Date().toLocaleString();
+        } else {
+          showNotification("Failed to export database", true);
         }
-      );
+      } catch (e) {
+        showNotification("Failed to export database", true);
+      }
     });
   }
 
@@ -2435,6 +2433,21 @@ function exportQueryResultToCSV(data, filename = "query_results.csv") {
 }
 
 /**
+ * Download a byte-array response from background export handlers.
+ * All exportDatabase/exportToSQLite/exportToJSON/exportToCSV handlers
+ * return { data: Array<number>, filename, mimeType }.
+ */
+function downloadBytes(data, filename, mimeType) {
+  const blob = new Blob([new Uint8Array(data)], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
  * IMPROVEMENT 3: Export query results to JSON
  */
 function exportQueryResultToJSON(data, filename = "query_results.json") {
@@ -2753,8 +2766,9 @@ function initializeAdvancedTab() {
             format: "sqlite",
           });
 
-          if (response && response.success) {
-            showNotification("Database export initiated");
+          if (response?.success && response.data) {
+            downloadBytes(response.data, response.filename, response.mimeType);
+            showNotification("SQLite database exported!");
           } else {
             showNotification("Export failed", true);
           }
@@ -4190,34 +4204,25 @@ if (exportNowBtn) {
         filename: filename,
       });
 
-      if (response && response.success) {
-        // Format file size
+      if (response?.success && response.data) {
+        downloadBytes(response.data, response.filename, response.mimeType);
+
+        // Format file size for notification
         const sizeKB = (response.size / 1024).toFixed(2);
         const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
         const sizeDisplay =
           response.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
-
-        // Get format name
-        const formatNames = {
-          json: "JSON",
-          csv: "CSV (ZIP)",
-          sqlite: "SQLite",
-        };
+        const formatNames = { json: "JSON", csv: "CSV (ZIP)", sqlite: "SQLite" };
         const formatName = response.format
           ? formatNames[response.format] || response.format.toUpperCase()
           : "Database";
 
         showNotification(
-          `Export completed! ${formatName} file (${sizeDisplay}) - ${response.filename}`
+          `Export downloaded! ${formatName} (${sizeDisplay}) — ${response.filename}`
         );
 
-        // Update last export time
         const lastExportTime = document.getElementById("lastExportTime");
-        if (lastExportTime) {
-          lastExportTime.textContent = new Date().toLocaleString();
-        }
-
-        // Save last export time
+        if (lastExportTime) lastExportTime.textContent = new Date().toLocaleString();
         await chrome.storage.local.set({ lastExportTime: Date.now() });
       } else {
         showNotification(
