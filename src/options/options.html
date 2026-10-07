@@ -462,47 +462,21 @@
                 <div class="dashboard-tab-content" data-tab-content="requests">
                   <!-- Requests Table Section -->
                   <div class="chart-section">
-                    <div
-                      style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 12px;
-                      "
-                    >
-                      <h3 style="margin: 0">
+                    <div class="section-header-row">
+                      <h3>
                         <i class="fas fa-list"></i> Requests Table
                       </h3>
                       <button id="dashboardExportHAR" class="btn-secondary">
                         <i class="fas fa-download"></i> Export HAR
                       </button>
                     </div>
-                    <p
-                      class="hint"
-                      style="
-                        font-size: 13px;
-                        color: var(--text-secondary-color);
-                        margin-bottom: 16px;
-                      "
-                    >
+                    <p class="section-desc">
                       View detailed request information with search, pagination,
                       and cURL export capabilities.
                     </p>
 
-                    <div
-                      class="table-controls"
-                      style="
-                        display: flex;
-                        gap: 12px;
-                        margin-bottom: 16px;
-                        flex-wrap: wrap;
-                        justify-content: space-between;
-                      "
-                    >
-                      <div
-                        class="search-container"
-                        style="flex: 1; max-width: 400px"
-                      >
+                    <div class="table-controls">
+                      <div class="search-container">
                         <i class="fas fa-search"></i>
                         <input
                           type="text"
@@ -523,62 +497,25 @@
                     </div>
 
                     <!-- Request Runner Controls -->
-                    <div
-                      id="runnerControls"
-                      style="
-                        display: none;
-                        margin: 16px 0;
-                        padding: 12px;
-                        background: var(--surface-color);
-                        border: 1px solid var(--border-color);
-                        border-radius: 8px;
-                      "
-                    >
-                      <div
-                        style="
-                          display: flex;
-                          align-items: center;
-                          gap: 12px;
-                          flex-wrap: wrap;
-                        "
-                      >
-                        <span style="font-weight: 600"
-                          ><span id="selectedRequestsCount">0</span>
-                          selected</span
+                    <div id="runnerControls">
+                      <div class="runner-controls-row">
+                        <span class="selection-count"
+                          ><span id="selectedRequestsCount">0</span> selected</span
                         >
-                        <button
-                          id="btnRunSelectedRequests"
-                          class="btn-primary"
-                          style="margin: 0"
-                        >
+                        <button id="btnRunSelectedRequests" class="btn-primary">
                           <i class="fas fa-play"></i> Run Selected
                         </button>
-                        <button
-                          id="btnClearSelection"
-                          class="btn-secondary"
-                          style="margin: 0"
-                        >
+                        <button id="btnClearSelection" class="btn-secondary">
                           <i class="fas fa-times"></i> Clear Selection
                         </button>
-                        <button
-                          id="btnRunnerHistory"
-                          class="btn-secondary"
-                          style="margin: 0"
-                        >
+                        <button id="btnRunnerHistory" class="btn-secondary">
                           <i class="fas fa-history"></i> History
                         </button>
                       </div>
                     </div>
 
-                    <div
-                      class="requests-table-container"
-                      style="overflow-x: auto"
-                    >
-                      <table
-                        id="dashboardRequestsTable"
-                        class="data-table"
-                        style="width: 100%; border-collapse: collapse"
-                      >
+                    <div class="requests-table-container">
+                      <table id="dashboardRequestsTable" class="data-table">
                         <thead>
                           <tr>
                             <th
@@ -641,63 +578,34 @@
                   class="dashboard-tab-content"
                   data-tab-content="performance"
                 >
-                  <p class="hint" style="margin-bottom: 16px">
+                  <p class="hint">
                     <i class="fas fa-info-circle"></i> Track endpoint
                     performance, response times, and request trends over time.
                   </p>
 
                   <!-- Endpoint Performance Over Time -->
                   <div class="chart-section">
-                    <div
-                      style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 12px;
-                      "
-                    >
-                      <h3 style="margin: 0">
+                    <div class="section-header-row">
+                      <h3>
                         <i class="fas fa-chart-line"></i> Endpoint Performance
                         Over Time
                       </h3>
                     </div>
-                    <p
-                      class="hint"
-                      style="
-                        font-size: 13px;
-                        color: var(--text-secondary-color);
-                        margin-bottom: 16px;
-                      "
-                    >
+                    <p class="hint">
                       Track request types (fetch, xhr, script, etc.) or specific
                       API endpoints performance over time.
                     </p>
 
-                    <div
-                      class="history-controls"
-                      style="
-                        display: grid;
-                        grid-template-columns: repeat(3, 1fr);
-                        gap: 16px;
-                        margin-bottom: 20px;
-                      "
-                    >
+                    <div class="history-controls">
                       <!-- Row 1: Time Controls -->
                       <div class="filter-group">
-                        <label
-                          style="
-                            display: block;
-                            margin-bottom: 6px;
-                            font-weight: 500;
-                            font-size: 13px;
-                          "
-                        >
+                        <label>
                           <i class="fas fa-clock"></i> Time Range
                         </label>
                         <select
                           id="dashboardEndpointTimeRange"
                           class="filter-select"
-                          style="width: 100%"
+                         
                         >
                           <option value="30">Last 30 minutes</option>
                           <option value="60">Last 1 hour</option>
@@ -710,20 +618,13 @@
                       </div>
 
                       <div class="filter-group">
-                        <label
-                          style="
-                            display: block;
-                            margin-bottom: 6px;
-                            font-weight: 500;
-                            font-size: 13px;
-                          "
-                        >
+                        <label>
                           <i class="fas fa-filter"></i> Resource Type
                         </label>
                         <select
                           id="dashboardEndpointTypeFilter"
                           class="filter-select"
-                          style="width: 100%"
+                         
                         >
                           <option value="">All Types</option>
                           <option value="fetch">Fetch</option>
@@ -739,20 +640,13 @@
 
                       <!-- Row 2: Sorting & Filtering -->
                       <div class="filter-group">
-                        <label
-                          style="
-                            display: block;
-                            margin-bottom: 6px;
-                            font-weight: 500;
-                            font-size: 13px;
-                          "
-                        >
+                        <label>
                           <i class="fas fa-sort"></i> Sort By
                         </label>
                         <select
                           id="dashboardEndpointSortBy"
                           class="filter-select"
-                          style="width: 100%"
+                         
                         >
                           <option value="requests" selected>
                             Most Requests
@@ -764,20 +658,13 @@
                       </div>
 
                       <div class="filter-group">
-                        <label
-                          style="
-                            display: block;
-                            margin-bottom: 6px;
-                            font-weight: 500;
-                            font-size: 13px;
-                          "
-                        >
+                        <label>
                           <i class="fas fa-list-ol"></i> Show Top
                         </label>
                         <select
                           id="dashboardEndpointTopN"
                           class="filter-select"
-                          style="width: 100%"
+                         
                         >
                           <option value="5">Top 5</option>
                           <option value="10" selected>Top 10</option>
@@ -788,35 +675,21 @@
                       </div>
 
                       <div class="filter-group">
-                        <label
-                          style="
-                            display: block;
-                            margin-bottom: 6px;
-                            font-weight: 500;
-                            font-size: 13px;
-                          "
-                        >
+                        <label>
                           <i class="fas fa-sync-alt"></i> Action
                         </label>
                         <button
                           id="dashboardLoadHistoryBtn"
                           class="btn-primary"
-                          style="width: 100%; padding: 8px 16px; height: 36px"
+                         
                         >
                           <i class="fas fa-sync-alt"></i> Load Data
                         </button>
                       </div>
 
                       <!-- Row 3: Search (spans all columns) -->
-                      <div class="filter-group" style="grid-column: span 3">
-                        <label
-                          style="
-                            display: block;
-                            margin-bottom: 6px;
-                            font-weight: 500;
-                            font-size: 13px;
-                          "
-                        >
+                      <div class="filter-group filter-group-full">
+                        <label>
                           <i class="fas fa-search"></i> Search Endpoint
                         </label>
                         <input
@@ -824,49 +697,28 @@
                           id="dashboardEndpointPattern"
                           placeholder="Filter by URL pattern (e.g., /api/users, /login, /products/:id)"
                           class="modern-input"
-                          style="width: 100%; padding: 8px 12px"
+                         
                         />
                       </div>
                     </div>
 
                     <!-- Endpoint Selection Panel (shows after loading) -->
-                    <div
-                      id="dashboardEndpointSelector"
-                      style="
-                        display: none;
-                        margin-bottom: 16px;
-                        padding: 12px;
-                        background: var(--bg-secondary);
-                        border-radius: 6px;
-                        border: 1px solid var(--border-color);
-                      "
-                    >
-                      <div
-                        style="
-                          display: flex;
-                          justify-content: space-between;
-                          align-items: center;
-                          margin-bottom: 8px;
-                        "
-                      >
-                        <label
-                          style="font-weight: 500; color: var(--text-primary)"
-                        >
+                    <div id="dashboardEndpointSelector" style="display: none">
+                      <div class="endpoint-selector-header">
+                        <label>
                           <i class="fas fa-chart-line"></i> Select Endpoints to
                           Plot (click to toggle):
                         </label>
-                        <div style="display: flex; gap: 8px">
+                        <div class="endpoint-selector-actions">
                           <button
                             id="dashboardSelectAllEndpoints"
-                            class="btn-secondary"
-                            style="padding: 4px 12px; font-size: 12px"
+                            class="btn-secondary btn-compact"
                           >
                             Select All
                           </button>
                           <button
                             id="dashboardDeselectAllEndpoints"
-                            class="btn-secondary"
-                            style="padding: 4px 12px; font-size: 12px"
+                            class="btn-secondary btn-compact"
                           >
                             Deselect All
                           </button>
@@ -2778,7 +2630,7 @@ curl 'https://api.example.com/data' \
             <label for="dashboardModalDomainFilter">
               <i class="fas fa-globe"></i> Domain:
             </label>
-            <select id="dashboardModalDomainFilter" style="width: 100%">
+            <select id="dashboardModalDomainFilter">
               <option value="all">All Domains</option>
             </select>
           </div>
@@ -2786,7 +2638,7 @@ curl 'https://api.example.com/data' \
             <label for="dashboardModalPageFilter">
               <i class="fas fa-file"></i> Page:
             </label>
-            <select id="dashboardModalPageFilter" style="width: 100%">
+            <select id="dashboardModalPageFilter">
               <option value="">All Pages (Aggregated)</option>
             </select>
           </div>
@@ -2794,7 +2646,7 @@ curl 'https://api.example.com/data' \
             <label for="dashboardModalRequestTypeFilter">
               <i class="fas fa-filter"></i> Type:
             </label>
-            <select id="dashboardModalRequestTypeFilter" style="width: 100%">
+            <select id="dashboardModalRequestTypeFilter">
               <option value="">All Types</option>
               <option value="xmlhttprequest">XHR/API</option>
               <option value="fetch">Fetch</option>
@@ -2830,7 +2682,7 @@ curl 'https://api.example.com/data' \
             <label for="analyticsModalDomainFilter">
               <i class="fas fa-globe"></i> Domain:
             </label>
-            <select id="analyticsModalDomainFilter" style="width: 100%">
+            <select id="analyticsModalDomainFilter">
               <option value="all">All Domains</option>
             </select>
           </div>
@@ -2838,7 +2690,7 @@ curl 'https://api.example.com/data' \
             <label for="analyticsModalPageFilter">
               <i class="fas fa-file"></i> Page:
             </label>
-            <select id="analyticsModalPageFilter" style="width: 100%">
+            <select id="analyticsModalPageFilter">
               <option value="">All Pages (Aggregated)</option>
             </select>
           </div>
@@ -2846,7 +2698,7 @@ curl 'https://api.example.com/data' \
             <label for="analyticsModalRequestTypeFilter">
               <i class="fas fa-filter"></i> Type:
             </label>
-            <select id="analyticsModalRequestTypeFilter" style="width: 100%">
+            <select id="analyticsModalRequestTypeFilter">
               <option value="">All Types</option>
               <option value="xmlhttprequest">XHR/API</option>
               <option value="fetch">Fetch</option>
@@ -3255,7 +3107,7 @@ curl 'https://api.example.com/data' \
               id="runnerName"
               placeholder="e.g., Quick API Test"
               class="filter-select"
-              style="width: 100%"
+             
             />
             <small>Give this runner a name to save and reuse it later.</small>
           </div>
@@ -3302,7 +3154,7 @@ curl 'https://api.example.com/data' \
 
           <div class="form-group">
             <label> <i class="fas fa-bolt"></i> Execution Mode </label>
-            <select id="runnerMode" class="filter-select" style="width: 100%">
+            <select id="runnerMode" class="filter-select">
               <option value="sequential">Sequential (one at a time)</option>
               <option value="parallel">Parallel (all at once)</option>
             </select>
@@ -3323,7 +3175,7 @@ curl 'https://api.example.com/data' \
               min="0"
               step="100"
               class="filter-select"
-              style="width: 100%"
+             
             />
             <small
               >Time to wait between each request (only for sequential
@@ -3526,7 +3378,7 @@ curl 'https://api.example.com/data' \
                   <select
                     id="wizardDomainSelect"
                     class="filter-select"
-                    style="width: 100%"
+                   
                   >
                     <option value="">Loading domains...</option>
                   </select>
@@ -3538,7 +3390,7 @@ curl 'https://api.example.com/data' \
                   <select
                     id="wizardPageSelect"
                     class="filter-select"
-                    style="width: 100%"
+                   
                     disabled
                   >
                     <option value="">All pages</option>
@@ -3551,7 +3403,7 @@ curl 'https://api.example.com/data' \
                   <select
                     id="wizardTypeSelect"
                     class="filter-select"
-                    style="width: 100%"
+                   
                     disabled
                   >
                     <option value="">All types</option>
@@ -3625,7 +3477,7 @@ curl 'https://api.example.com/data' \
 
             <div class="form-group">
               <label><i class="fas fa-bolt"></i> Execution Mode</label>
-              <select id="wizardMode" class="filter-select" style="width: 100%">
+              <select id="wizardMode" class="filter-select">
                 <option value="sequential">Sequential (one at a time)</option>
                 <option value="parallel">Parallel (all at once)</option>
               </select>
@@ -3642,7 +3494,7 @@ curl 'https://api.example.com/data' \
                 min="0"
                 step="100"
                 class="filter-select"
-                style="width: 100%"
+               
               />
             </div>
 
@@ -3750,7 +3602,7 @@ curl 'https://api.example.com/data' \
                 id="wizardRunnerName"
                 placeholder="e.g., GitHub API Test"
                 class="filter-select"
-                style="width: 100%"
+               
               />
               <small>Give your runner a descriptive name</small>
             </div>

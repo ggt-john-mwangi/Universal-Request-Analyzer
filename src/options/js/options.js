@@ -507,15 +507,9 @@ function loadSqliteExportToggle() {
 
 // Handle settings changes from other views
 function handleSettingsChange(newSettings) {
-  // Update UI elements with new settings
-  captureEnabled.checked = newSettings.capture.enabled;
-  maxStoredRequests.value = newSettings.general.maxStoredRequests;
-
-  // Update theme UI if needed
-  if (
-    newSettings.theme &&
-    newSettings.theme.current !== currentThemeSelect.value
-  ) {
+  if (captureEnabled) captureEnabled.checked = newSettings.capture?.enabled ?? false;
+  if (maxStoredRequests) maxStoredRequests.value = newSettings.general?.maxStoredRequests ?? "";
+  if (currentThemeSelect && newSettings.theme && newSettings.theme.current !== currentThemeSelect.value) {
     currentThemeSelect.value = newSettings.theme.current;
     renderThemeCards();
   }
@@ -523,7 +517,7 @@ function handleSettingsChange(newSettings) {
 
 // Handle theme updates
 function handleThemeUpdate(themeData) {
-  currentThemeSelect.value = themeData.theme;
+  if (currentThemeSelect) currentThemeSelect.value = themeData.theme;
   renderThemeCards();
 }
 
@@ -531,16 +525,16 @@ function handleThemeUpdate(themeData) {
 async function saveOptions() {
   const newSettings = {
     capture: {
-      enabled: captureEnabled.checked,
+      enabled: captureEnabled?.checked ?? false,
       captureFilters: {
-        includeTypes: Array.from(captureTypeCheckboxes)
+        includeTypes: Array.from(captureTypeCheckboxes || [])
           .filter((checkbox) => checkbox.checked)
           .map((checkbox) => checkbox.value),
-        includeDomains: includeDomains.value
+        includeDomains: (includeDomains?.value || "")
           .split(",")
           .map((d) => d.trim())
           .filter((d) => d),
-        excludeDomains: excludeDomains.value
+        excludeDomains: (excludeDomains?.value || "")
           .split(",")
           .map((d) => d.trim())
           .filter((d) => d),
@@ -548,17 +542,17 @@ async function saveOptions() {
       trackOnlyConfiguredSites: document.getElementById("trackOnlyConfiguredSites")?.checked === true,
     },
     general: {
-      maxStoredRequests: Number.parseInt(maxStoredRequests.value, 10),
-      autoExport: autoExport.checked,
-      defaultExportFormat: exportFormat.value,
-      autoExportInterval: Number.parseInt(exportInterval.value, 10) * 60000,
-      exportPath: exportPath.value.trim(),
+      maxStoredRequests: Number.parseInt(maxStoredRequests?.value || "0", 10),
+      autoExport: autoExport?.checked ?? false,
+      defaultExportFormat: exportFormat?.value || "json",
+      autoExportInterval: Number.parseInt(exportInterval?.value || "0", 10) * 60000,
+      exportPath: exportPath?.value?.trim() || "",
     },
     display: {
-      showCharts: plotEnabled.checked,
-      enabledCharts: Array.from(plotTypeCheckboxes)
+      showCharts: plotEnabled?.checked ?? true,
+      enabledCharts: Array.from(plotTypeCheckboxes || [])
         .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value), // Now uses: performanceChart, statusChart, requestsChart
+        .map((checkbox) => checkbox.value),
     },
     theme: {
       current: themeManager.currentTheme,
@@ -621,6 +615,8 @@ async function showExportPreview() {
     const previewContent = document.getElementById("exportPreviewContent");
     const downloadBtn = document.getElementById("confirmExport");
 
+    if (!modal || !sectionsCount || !settingsCount || !fileSize || !sectionsList || !previewContent || !downloadBtn) return false;
+
     sectionsCount.textContent = sections.length;
     settingsCount.textContent = totalSettings;
     fileSize.textContent = `${sizeInKB} KB`;
@@ -656,22 +652,18 @@ async function showExportPreview() {
         resolve(false);
       };
 
+      const closeBtn = modal.querySelector(".close");
+      const cancelBtn = document.getElementById("cancelExport");
       const cleanup = () => {
         downloadBtn.removeEventListener("click", handleDownload);
-        modal
-          .querySelector(".close")
-          .removeEventListener("click", handleCancel);
-        document
-          .getElementById("cancelExport")
-          .removeEventListener("click", handleCancel);
+        closeBtn?.removeEventListener("click", handleCancel);
+        cancelBtn?.removeEventListener("click", handleCancel);
         modal.style.display = "none";
       };
 
       downloadBtn.addEventListener("click", handleDownload);
-      modal.querySelector(".close").addEventListener("click", handleCancel);
-      document
-        .getElementById("cancelExport")
-        .addEventListener("click", handleCancel);
+      closeBtn?.addEventListener("click", handleCancel);
+      cancelBtn?.addEventListener("click", handleCancel);
     });
   } catch (error) {
     console.error("Export preview error:", error);
@@ -833,6 +825,10 @@ function showImportPreview(
   const noChangesDiv = document.getElementById("importNoChanges");
   const applyBtn = document.getElementById("applyImportBtn");
 
+  if (!modal || !summary || !errorsDiv || !warningsDiv || !changesDiv || !noChangesDiv || !applyBtn) {
+    return Promise.resolve(false);
+  }
+
   // Show modal
   modal.style.display = "flex";
 
@@ -926,7 +922,7 @@ function showImportPreview(
     };
 
     const closeBtn = modal.querySelector(".modal-close");
-    closeBtn.onclick = () => {
+    if (closeBtn) closeBtn.onclick = () => {
       modal.style.display = "none";
       resolve(false);
     };
@@ -1472,6 +1468,7 @@ if (selectiveImportCheckbox && selectiveImportOptions) {
 // ============================================================================
 
 function renderThemeOptions() {
+  if (!currentThemeSelect) return;
   // Handle theme selection change
   currentThemeSelect.addEventListener("change", async (e) => {
     const themeId = e.target.value;
@@ -1488,7 +1485,7 @@ function renderThemeOptions() {
   });
 
   // Handle theme save
-  saveThemeBtn.addEventListener("click", async () => {
+  saveThemeBtn?.addEventListener("click", async () => {
     const success = await settingsManager.updateSettings({
       theme: {
         current: themeManager.currentTheme,
@@ -1503,10 +1500,10 @@ function renderThemeOptions() {
   });
 
   // Handle theme reset
-  resetThemeBtn.addEventListener("click", async () => {
+  resetThemeBtn?.addEventListener("click", async () => {
     if (confirm("Are you sure you want to reset theme settings to defaults?")) {
       await themeManager.resetToDefaults();
-      currentThemeSelect.value = themeManager.currentTheme;
+      if (currentThemeSelect) currentThemeSelect.value = themeManager.currentTheme;
       renderThemeCards();
       showNotification("Theme settings reset to defaults!");
     }

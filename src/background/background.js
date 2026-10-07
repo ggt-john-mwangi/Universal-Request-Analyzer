@@ -401,6 +401,7 @@ class IntegratedExtensionInitializer {
             }
 
             if (!exportResponse?.success) throw new Error(exportResponse?.error || "Export failed");
+            if (!exportResponse.data) throw new Error("Export returned no data");
 
             const data = new Uint8Array(exportResponse.data);
             let binary = "";

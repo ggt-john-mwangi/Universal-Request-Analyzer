@@ -465,153 +465,160 @@ class Dashboard {
 
     const colors = this.getChartColors();
 
-    // Volume Chart - Line chart for request volume over time
+    const scaleDefaults = {
+      grid: { color: "rgba(128,128,128,0.12)" },
+      ticks: { color: "rgba(128,128,128,0.8)", font: { size: 11 } },
+    };
+    const tooltipDefaults = {
+      backgroundColor: "rgba(15,20,30,0.92)",
+      titleColor: "#e2e8f0",
+      bodyColor: "#a0aec0",
+      borderColor: "rgba(255,255,255,0.08)",
+      borderWidth: 1,
+      padding: 10,
+      cornerRadius: 6,
+    };
+
+    // Volume Chart — area line with gradient fill
     const volumeCanvas = document.getElementById("dashboardVolumeChart");
     if (volumeCanvas) {
       const ctx = volumeCanvas.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, 0, 220);
+      grad.addColorStop(0, colors.success + "44");
+      grad.addColorStop(1, colors.success + "00");
       this.charts.volume = new Chart(ctx, {
         type: "line",
         data: {
           labels: [],
-          datasets: [
-            {
-              label: "Requests",
-              data: [],
-              borderColor: colors.success,
-              backgroundColor: "transparent",
-              tension: 0.4,
-              fill: false,
-            },
-          ],
+          datasets: [{
+            label: "Requests",
+            data: [],
+            borderColor: colors.success,
+            backgroundColor: grad,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            borderWidth: 2,
+          }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { intersect: false, mode: "index" },
           plugins: {
-            legend: {
-              display: true,
-              position: "top",
-            },
+            legend: { display: false },
+            tooltip: { ...tooltipDefaults, callbacks: {
+              label: (ctx) => ` ${ctx.parsed.y} requests`,
+            }},
           },
           scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: "Number of Requests",
-              },
+            x: { ...scaleDefaults },
+            y: { ...scaleDefaults, beginAtZero: true,
+              title: { display: true, text: "Requests", color: "rgba(128,128,128,0.7)", font: { size: 11 } },
             },
           },
         },
       });
     }
 
-    // Status Chart - Doughnut chart for status distribution
+    // Status Chart — doughnut with cutout and clean styling
     const statusCanvas = document.getElementById("dashboardStatusChart");
     if (statusCanvas) {
       const ctx = statusCanvas.getContext("2d");
       this.charts.status = new Chart(ctx, {
         type: "doughnut",
         data: {
-          labels: [
-            "2xx Success",
-            "3xx Redirect",
-            "4xx Client Error",
-            "5xx Server Error",
-          ],
-          datasets: [
-            {
-              data: [],
-              backgroundColor: [
-                colors.success,
-                colors.info,
-                colors.warning,
-                colors.error,
-              ],
-            },
-          ],
+          labels: ["2xx Success", "3xx Redirect", "4xx Client Error", "5xx Server Error"],
+          datasets: [{
+            data: [],
+            backgroundColor: [colors.success, colors.info, colors.warning, colors.error],
+            borderWidth: 0,
+            hoverOffset: 6,
+          }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          cutout: "68%",
           plugins: {
-            legend: {
-              position: "right",
-            },
+            legend: { position: "right", labels: { padding: 14, font: { size: 11 }, color: "rgba(128,128,128,0.8)" } },
+            tooltip: { ...tooltipDefaults, callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${ctx.parsed}`,
+            }},
           },
         },
       });
     }
 
-    // Domains Chart - Horizontal bar chart for top domains
-    // domainsCanvas already declared above in visibility control section
+    // Domains Chart — horizontal bar with accent palette
     if (domainsCanvas) {
       const ctx = domainsCanvas.getContext("2d");
+      const barColors = ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#43e97b"].map(c => c + "cc");
       this.charts.domains = new Chart(ctx, {
         type: "bar",
         data: {
           labels: [],
-          datasets: [
-            {
-              label: "Requests",
-              data: [],
-              backgroundColor: colors.primary,
-            },
-          ],
+          datasets: [{
+            label: "Requests",
+            data: [],
+            backgroundColor: barColors,
+            borderRadius: 4,
+          }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           indexAxis: "y",
           plugins: {
-            legend: {
-              display: false,
-            },
+            legend: { display: false },
+            tooltip: { ...tooltipDefaults },
           },
           scales: {
-            x: {
-              beginAtZero: true,
-            },
+            x: { ...scaleDefaults, beginAtZero: true },
+            y: { ...scaleDefaults },
           },
         },
       });
     }
 
-    // Performance Chart - Line chart for performance trends
+    // Performance Chart — area line with gradient fill
     const perfCanvas = document.getElementById("dashboardPerformanceChart");
     if (perfCanvas) {
       const ctx = perfCanvas.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, 0, 220);
+      grad.addColorStop(0, colors.info + "44");
+      grad.addColorStop(1, colors.info + "00");
       this.charts.performance = new Chart(ctx, {
         type: "line",
         data: {
           labels: [],
-          datasets: [
-            {
-              label: "Avg Response Time (ms)",
-              data: [],
-              borderColor: colors.info,
-              backgroundColor: "transparent",
-              tension: 0.4,
-              fill: false,
-            },
-          ],
+          datasets: [{
+            label: "Avg Response Time",
+            data: [],
+            borderColor: colors.info,
+            backgroundColor: grad,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            borderWidth: 2,
+          }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { intersect: false, mode: "index" },
           plugins: {
-            legend: {
-              display: true,
-              position: "top",
-            },
+            legend: { display: false },
+            tooltip: { ...tooltipDefaults, callbacks: {
+              label: (ctx) => ` ${Math.round(ctx.parsed.y)}ms`,
+            }},
           },
           scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: "Response Time (ms)",
-              },
+            x: { ...scaleDefaults },
+            y: { ...scaleDefaults, beginAtZero: true,
+              title: { display: true, text: "ms", color: "rgba(128,128,128,0.7)", font: { size: 11 } },
             },
           },
         },
@@ -622,54 +629,13 @@ class Dashboard {
   showPlotsDisabledMessage() {
     const chartsSection = document.querySelector(".dashboard-charts");
     if (!chartsSection) return;
-
     chartsSection.innerHTML = `
-      <div style="
-        text-align: center;
-        padding: 60px 20px;
-        background: var(--surface-color);
-        border: 2px dashed var(--border-color);
-        border-radius: 12px;
-        margin: 20px 0;
-      ">
-        <div style="font-size: 48px; color: var(--warning-color); margin-bottom: 16px;">
-          <i class="fas fa-chart-line"></i>
-        </div>
-        <h3 style="
-          color: var(--text-primary);
-          margin: 0 0 12px 0;
-          font-size: 20px;
-          font-weight: 600;
-        ">
-          Visualizations Disabled
-        </h3>
-        <p style="
-          color: var(--text-secondary);
-          margin: 0 0 24px 0;
-          font-size: 14px;
-          max-width: 400px;
-          margin-left: auto;
-          margin-right: auto;
-        ">
-          Chart visualizations are currently disabled in your settings.
-          Enable them to see request volume, status distribution, and performance trends.
-        </p>
-        <button 
-          onclick="window.location.hash = '#settings'; document.querySelector('[data-section=\\'general\\']')?.click();"
-          style="
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: opacity 0.2s;
-          "
-          onmouseover="this.style.opacity='0.9'"
-          onmouseout="this.style.opacity='1'"
-        >
+      <div class="plots-disabled-msg">
+        <div class="plots-disabled-icon"><i class="fas fa-chart-line"></i></div>
+        <h3>Visualizations Disabled</h3>
+        <p>Chart visualizations are currently disabled in your settings.
+          Enable them to see request volume, status distribution, and performance trends.</p>
+        <button class="btn-primary" onclick="document.querySelector('[data-tab=general]')?.click()">
           <i class="fas fa-cog"></i> Enable in Settings
         </button>
       </div>
@@ -1288,9 +1254,10 @@ class Dashboard {
   updateWebVitalCard(metricKey, vitalData) {
     const valueEl = document.getElementById(`${metricKey}Value`);
     if (!valueEl) return;
+    const ratingEl = document.getElementById(`${metricKey}Rating`);
+    const cardEl = valueEl.closest(".vital-card");
 
     if (vitalData) {
-      // Format value based on metric type
       let displayValue;
       if (metricKey === "cls") {
         displayValue = vitalData.value.toFixed(3);
@@ -1299,21 +1266,23 @@ class Dashboard {
       } else {
         displayValue = `${Math.round(vitalData.value)}ms`;
       }
-
       valueEl.textContent = displayValue;
 
-      // Apply rating class (preserve existing vital-value class)
-      valueEl.className = "vital-value";
-      if (vitalData.rating === "good") {
-        valueEl.classList.add("vital-good");
-      } else if (vitalData.rating === "needs-improvement") {
-        valueEl.classList.add("vital-warning");
-      } else {
-        valueEl.classList.add("vital-poor");
+      const rating = vitalData.rating || "needs-improvement";
+      const ratingLabel = { good: "Good", "needs-improvement": "Needs work", poor: "Poor" }[rating] || rating;
+      const valueClass = { good: "vital-good", "needs-improvement": "vital-warning", poor: "vital-poor" }[rating];
+
+      valueEl.className = `vital-value ${valueClass}`;
+      if (ratingEl) {
+        ratingEl.textContent = ratingLabel;
+        ratingEl.className = `vital-rating ${rating}`;
       }
+      if (cardEl) cardEl.className = `vital-card ${rating}`;
     } else {
       valueEl.textContent = "-";
       valueEl.className = "vital-value";
+      if (ratingEl) { ratingEl.textContent = ""; ratingEl.className = "vital-rating"; }
+      if (cardEl) cardEl.className = "vital-card";
     }
   }
 
@@ -1782,6 +1751,7 @@ class Dashboard {
       });
 
       const tbody = document.getElementById("dashboardRequestsTableBody");
+      if (!tbody) return;
 
       if (
         !response.success ||
@@ -1790,7 +1760,8 @@ class Dashboard {
       ) {
         tbody.innerHTML =
           '<tr class="no-data-row"><td colspan="8" style="text-align: center; padding: 24px;">No requests available for selected filters</td></tr>';
-        document.getElementById("dashboardTablePagination").innerHTML = "";
+        const pag = document.getElementById("dashboardTablePagination");
+        if (pag) pag.innerHTML = "";
         return;
       }
 
@@ -1855,8 +1826,8 @@ class Dashboard {
       this.renderPagination(page, response.totalCount, perPage);
     } catch (error) {
       console.error("Failed to load requests table:", error);
-      document.getElementById("dashboardRequestsTableBody").innerHTML =
-        '<tr class="no-data-row"><td colspan="8" style="text-align: center;">Error loading requests</td></tr>';
+      const el = document.getElementById("dashboardRequestsTableBody");
+      if (el) el.innerHTML = '<tr class="no-data-row"><td colspan="8" style="text-align: center;">Error loading requests</td></tr>';
     }
   }
 
@@ -2618,6 +2589,7 @@ class Dashboard {
       });
 
       const resourcesTable = document.getElementById("dashboardResourcesTable");
+      if (!resourcesTable) return;
 
       if (
         !response.success ||
@@ -2626,8 +2598,8 @@ class Dashboard {
       ) {
         resourcesTable.innerHTML =
           '<p class="no-data">No resource data available for selected filters</p>';
-        document.getElementById("dashboardCompressionStats").innerHTML =
-          '<p class="no-data">No compression data available</p>';
+        const comp = document.getElementById("dashboardCompressionStats");
+        if (comp) comp.innerHTML = '<p class="no-data">No compression data available</p>';
         return;
       }
 
@@ -2673,8 +2645,8 @@ class Dashboard {
       this.renderCompressionAnalysis(response.breakdown, response.totalSize);
     } catch (error) {
       console.error("Failed to load resources breakdown:", error);
-      document.getElementById("dashboardResourcesTable").innerHTML =
-        '<p class="no-data">Error loading resource data</p>';
+      const el = document.getElementById("dashboardResourcesTable");
+      if (el) el.innerHTML = '<p class="no-data">Error loading resource data</p>';
     }
   }
 
@@ -2879,9 +2851,8 @@ class Dashboard {
       });
 
       const errorsList = document.getElementById("dashboardErrorsList");
-      const errorCategories = document.getElementById(
-        "dashboardErrorCategories"
-      );
+      const errorCategories = document.getElementById("dashboardErrorCategories");
+      if (!errorsList || !errorCategories) return;
 
       const errors4xx = response4xx.success ? response4xx.requests : [];
       const errors5xx = response5xx.success ? response5xx.requests : [];
@@ -2946,8 +2917,8 @@ class Dashboard {
       this.renderErrorChart(errors4xx, errors5xx);
     } catch (error) {
       console.error("Failed to load errors analysis:", error);
-      document.getElementById("dashboardErrorsList").innerHTML =
-        '<p class="no-data">Error loading error analysis data</p>';
+      const el = document.getElementById("dashboardErrorsList");
+      if (el) el.innerHTML = '<p class="no-data">Error loading error analysis data</p>';
     }
   }
 
@@ -3275,8 +3246,11 @@ class Dashboard {
     // Store selected requests for runner execution
     this.selectedRunnerRequests = selectedRequests;
 
-    document.getElementById("runnerRequestCount").textContent =
-      selectedRequests.length;
+    const runnerModal = document.getElementById("runnerConfigModal");
+    if (!runnerModal) return;
+
+    const reqCountEl = document.getElementById("runnerRequestCount");
+    if (reqCountEl) reqCountEl.textContent = selectedRequests.length;
 
     // Auto-generate runner name
     const now = new Date();
@@ -3288,9 +3262,12 @@ class Dashboard {
       hour12: true,
     });
     const autoName = `Quick Run - ${timestamp}`;
-    document.getElementById("runnerName").value = autoName;
-    document.getElementById("runnerDescription").value = "";
-    document.getElementById("runnerSaveAsPermanent").checked = false;
+    const nameEl = document.getElementById("runnerName");
+    if (nameEl) nameEl.value = autoName;
+    const descEl = document.getElementById("runnerDescription");
+    if (descEl) descEl.value = "";
+    const permEl = document.getElementById("runnerSaveAsPermanent");
+    if (permEl) permEl.checked = false;
 
     // Load and display variables
     await this.loadRunnerVariables();
@@ -3304,7 +3281,7 @@ class Dashboard {
         : "none";
     }
 
-    document.getElementById("runnerConfigModal").style.display = "flex";
+    runnerModal.style.display = "flex";
   }
 
   async loadRunnerVariables() {
