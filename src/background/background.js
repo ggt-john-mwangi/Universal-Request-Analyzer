@@ -3,7 +3,7 @@
 
 import { setupLocalAuth } from "./auth/local-auth-manager.js";
 import { initializePopupMessageHandler } from "./messaging/message-router.js";
-import { DatabaseManagerMedallion } from "./database/db-manager-medallion.js";
+import { DatabaseManagerMedallion, scheduleSave } from "./database/db-manager-medallion.js";
 import { MedallionManager } from "./database/medallion-manager.js";
 import { AnalyticsProcessor } from "./database/analytics-processor.js";
 import { ConfigSchemaManager } from "./database/config-schema-manager.js";
@@ -204,7 +204,7 @@ class IntegratedExtensionInitializer {
         excludeDomains: settings.capture?.captureFilters?.excludeDomains || [],
       },
       trackOnlyConfiguredSites:
-        settings.capture?.trackOnlyConfiguredSites ?? true,
+        settings.capture?.trackOnlyConfiguredSites ?? false,
     };
 
     this.requestCapture = new RequestCaptureIntegration(
@@ -259,13 +259,48 @@ class IntegratedExtensionInitializer {
   async handleMedallionMessages(message, sender, sendResponse) {
     try {
       switch (message.action) {
-        // Content-script telemetry — handled silently (webRequest already captures traffic)
+        // Content-script telemetry — resource timing and nav stored silently
         case "performanceData":
         case "batchResourceTiming":
         case "pageLoad":
         case "pageNavigation":
           sendResponse({ success: true });
           break;
+
+        // Content-script XHR/Fetch intercepts — store to Bronze alongside webRequest data
+        case "xhrCompleted":
+        case "fetchCompleted":
+        case "fetchError": {
+          try {
+            const { url, method, status, statusText, duration, responseSize, startTime, endTime, error: reqError } = message;
+            const pageUrl = sender.tab?.url || null;
+            let domain = null, path = null, queryString = null, protocol = null;
+            try {
+              const u = new URL(url);
+              domain = u.hostname; path = u.pathname;
+              queryString = u.search; protocol = u.protocol;
+            } catch {}
+            await this.medallionManager.insertBronzeRequest({
+              id: crypto.randomUUID(),
+              url, method: method || "GET",
+              type: message.action === "xhrCompleted" ? "xmlhttprequest" : "fetch",
+              status: status || 0, statusText,
+              domain, path, queryString, protocol,
+              startTime, endTime, duration,
+              sizeBytes: responseSize || 0,
+              timestamp: endTime || Date.now(),
+              tabId: sender.tab?.id,
+              pageUrl,
+              error: reqError || null,
+              fromCache: false,
+            });
+            scheduleSave();
+            sendResponse({ success: true });
+          } catch (e) {
+            sendResponse({ success: true }); // non-fatal
+          }
+          break;
+        }
 
         case "processToSilver": {
           const count = await this.medallionManager.processAllPendingToSilver();

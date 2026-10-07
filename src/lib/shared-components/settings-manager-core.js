@@ -61,7 +61,7 @@ class SettingsManagerCore {
             "other",
           ],
         },
-        trackOnlyConfiguredSites: true, // Default: only track configured sites
+        trackOnlyConfiguredSites: false, // Default: track all sites; use includeDomains to restrict
       },
       display: {
         requestsPerPage: 50,
@@ -504,6 +504,7 @@ class SettingsManagerCore {
               "other",
             ],
           },
+          trackOnlyConfiguredSites: false,
         },
         display: {
           requestsPerPage: 50,

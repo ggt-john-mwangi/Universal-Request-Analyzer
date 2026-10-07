@@ -80,7 +80,7 @@ export class RequestCaptureIntegration {
 
     const includeDomains = this.config.captureFilters?.includeDomains || [];
     const excludeDomains = this.config.captureFilters?.excludeDomains || [];
-    const trackOnlyConfigured = this.config.trackOnlyConfiguredSites ?? true;
+    const trackOnlyConfigured = this.config.trackOnlyConfiguredSites ?? false;
 
     if (excludeDomains.includes(domain)) return false;
 

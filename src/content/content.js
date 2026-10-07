@@ -10,6 +10,7 @@ let eventTrackingInitialized = false; // prevent duplicate listeners on re-enabl
 let captureResourceTiming = true;     // mirrors performanceMetrics.captureResourceTiming
 let captureNavTiming = true;          // mirrors performanceMetrics.captureNavigationTiming
 let captureTypes = null;              // null = all; array = filter by initiatorType
+let perfSamplingRate = 100;           // 1–100; gate applied per page-load event
 
 // All IPC goes through safeSend — swallows "Extension context invalidated"
 function safeSend(msg) {
@@ -49,6 +50,7 @@ function applyConfig(config, flags) {
   captureResourceTiming = perfEnabled && perf.captureResourceTiming !== false;
   captureNavTiming      = perfEnabled && perf.captureNavigationTiming !== false;
   captureTypes = filters.includeTypes?.length > 0 ? filters.includeTypes : null;
+  perfSamplingRate = perf.samplingRate ?? 100;
 
   // featureFlags shape: { flags: { eventTracking: bool, ... }, timestamp }
   eventTrackingEnabled =
@@ -170,6 +172,7 @@ function initializeCoreWebVitals() {
 function initializePageLoadMonitoring() {
   window.addEventListener("load", () => {
     if (!shouldMonitor) return;
+    if (Math.random() * 100 >= perfSamplingRate) return; // sampling gate
 
     const nav = performance.getEntriesByType("navigation")[0];
     if (nav && captureNavTiming) {

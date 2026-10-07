@@ -417,6 +417,10 @@ async function loadOptions() {
       ).join(", ");
     }
 
+    // Track only configured sites toggle
+    const tocsEl = document.getElementById("trackOnlyConfiguredSites");
+    if (tocsEl) tocsEl.checked = settings?.capture?.trackOnlyConfiguredSites === true;
+
     // Update export settings
     if (autoExport) autoExport.checked = settings?.general?.autoExport ?? false;
     if (exportFormat)
@@ -549,6 +553,7 @@ async function saveOptions() {
           .map((d) => d.trim())
           .filter((d) => d),
       },
+      trackOnlyConfiguredSites: document.getElementById("trackOnlyConfiguredSites")?.checked === true,
     },
     general: {
       maxStoredRequests: Number.parseInt(maxStoredRequests.value, 10),
@@ -4483,29 +4488,19 @@ if (addCurrentSiteBtn) {
 const trackOnlyConfigured = document.getElementById("trackOnlyConfiguredSites");
 if (trackOnlyConfigured) {
   // Load saved setting
-  chrome.storage.local.get("trackOnlyConfiguredSites").then((result) => {
-    trackOnlyConfigured.checked = result.trackOnlyConfiguredSites !== false; // Default true
-  });
+  // Load from settings manager (canonical source)
+  const tocs = settingsManager.getAllSettings()?.settings?.capture?.trackOnlyConfiguredSites;
+  trackOnlyConfigured.checked = tocs === true; // Default: false (track all)
 
   // Save to database when changed
   trackOnlyConfigured.addEventListener("change", async () => {
     const value = trackOnlyConfigured.checked;
 
-    // Save to database first
-    await chrome.runtime.sendMessage({
-      action: "saveSettingToDb",
-      key: "trackOnlyConfiguredSites",
-      value: value,
-    });
-
-    // Also save to local storage
-    chrome.storage.local.set({ trackOnlyConfiguredSites: value });
-
-    // Notify content scripts
-    chrome.runtime.sendMessage({
-      action: "updateTrackingMode",
-      trackOnlyConfigured: value,
-    });
+    // Save through settings manager (canonical path)
+    await settingsManager.updateSettings({ capture: { trackOnlyConfiguredSites: value } });
+    try {
+      await chrome.runtime.sendMessage({ action: "reloadCaptureSettings" });
+    } catch {}
   });
 }
 

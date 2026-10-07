@@ -64,7 +64,7 @@ class SettingsManager {
             "other",
           ],
         },
-        trackOnlyConfiguredSites: true, // Default: only track configured sites
+        trackOnlyConfiguredSites: false, // Default: track all sites; use includeDomains to restrict
       },
       display: {
         requestsPerPage: 50,
