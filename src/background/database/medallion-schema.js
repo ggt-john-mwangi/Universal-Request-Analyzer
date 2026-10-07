@@ -1173,17 +1173,21 @@ export async function validateAndFixSchema(db) {
       if (!existingRunnerTables.includes("bronze_runner_execution_results")) {
         db.exec(`
           CREATE TABLE IF NOT EXISTS bronze_runner_execution_results (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             execution_id TEXT NOT NULL,
             runner_request_id TEXT NOT NULL,
             logged_request_id TEXT,
+            sequence_order INTEGER NOT NULL DEFAULT 0,
+            url TEXT NOT NULL DEFAULT '',
+            method TEXT NOT NULL DEFAULT 'GET',
             status INTEGER,
             duration INTEGER,
-            success BOOLEAN NOT NULL,
+            success BOOLEAN DEFAULT 0,
+            assertion_results TEXT,
+            validation_errors TEXT,
             error_message TEXT,
-            created_at INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(execution_id) REFERENCES bronze_runner_executions(id) ON DELETE CASCADE,
-            FOREIGN KEY(runner_request_id) REFERENCES config_runner_requests(id) ON DELETE CASCADE,
             FOREIGN KEY(logged_request_id) REFERENCES bronze_requests(id) ON DELETE SET NULL
           )
         `);
@@ -1216,6 +1220,31 @@ export async function validateAndFixSchema(db) {
         }
       } catch (migrationError) {
         console.warn("Migration warning:", migrationError);
+      }
+
+      // Migration: Add missing columns to bronze_runner_execution_results
+      // (for databases created with the old truncated fallback schema)
+      try {
+        const rerInfo = db.exec(`PRAGMA table_info(bronze_runner_execution_results)`);
+        if (rerInfo && rerInfo[0]) {
+          const cols = rerInfo[0].values.map((r) => r[1]);
+          const missing = [
+            ["sequence_order", "INTEGER NOT NULL DEFAULT 0"],
+            ["url",            "TEXT NOT NULL DEFAULT ''"],
+            ["method",         "TEXT NOT NULL DEFAULT 'GET'"],
+            ["assertion_results", "TEXT"],
+            ["validation_errors", "TEXT"],
+            ["timestamp",      "INTEGER NOT NULL DEFAULT 0"],
+          ];
+          for (const [col, def] of missing) {
+            if (!cols.includes(col)) {
+              db.exec(`ALTER TABLE bronze_runner_execution_results ADD COLUMN ${col} ${def}`);
+              console.log(`✓ Migrated: added ${col} to bronze_runner_execution_results`);
+            }
+          }
+        }
+      } catch (rerMigrationError) {
+        console.warn("Runner results migration warning:", rerMigrationError);
       }
     }
 

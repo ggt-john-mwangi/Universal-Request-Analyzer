@@ -236,6 +236,7 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
         getAllRunners,
         getRunnerExecutions,
         getExecutionResults,
+        getRunnerPerformanceStats,
         cleanupTemporaryRunners,
         deleteRunner,
       },
@@ -1360,6 +1361,71 @@ async function getExecutionResults(executionId) {
     throw new DatabaseError(
       `Failed to get execution results: ${error.message}`
     );
+  }
+}
+
+/**
+ * Aggregate per-endpoint timing stats across all executions of a runner.
+ * Returns avg/min/max/p50/p95 per URL+method.
+ */
+async function getRunnerPerformanceStats(runnerId) {
+  if (!db) throw new DatabaseError("Database not initialized");
+  try {
+    const aggResult = db.exec(`
+      SELECT
+        rer.url,
+        rer.method,
+        COUNT(*) as run_count,
+        ROUND(AVG(rer.duration)) as avg_ms,
+        MIN(rer.duration) as min_ms,
+        MAX(rer.duration) as max_ms,
+        SUM(CASE WHEN rer.success = 1 THEN 1 ELSE 0 END) as success_count
+      FROM bronze_runner_execution_results rer
+      JOIN bronze_runner_executions re ON rer.execution_id = re.id
+      WHERE re.runner_id = ${escapeStr(runnerId)} AND rer.duration IS NOT NULL
+      GROUP BY rer.url, rer.method
+      ORDER BY avg_ms DESC
+    `);
+
+    if (!aggResult || aggResult.length === 0 || !aggResult[0].values) return [];
+
+    const cols = aggResult[0].columns;
+    const rows = aggResult[0].values.map((values) => {
+      const row = {};
+      cols.forEach((col, i) => { row[col] = values[i]; });
+      return row;
+    });
+
+    // Fetch individual durations sorted ascending for percentile calculation
+    const durResult = db.exec(`
+      SELECT rer.url, rer.method, rer.duration
+      FROM bronze_runner_execution_results rer
+      JOIN bronze_runner_executions re ON rer.execution_id = re.id
+      WHERE re.runner_id = ${escapeStr(runnerId)} AND rer.duration IS NOT NULL
+      ORDER BY rer.url, rer.method, rer.duration
+    `);
+
+    const byEndpoint = {};
+    if (durResult && durResult[0]?.values) {
+      durResult[0].values.forEach(([url, method, duration]) => {
+        const key = `${url}|${method}`;
+        if (!byEndpoint[key]) byEndpoint[key] = [];
+        byEndpoint[key].push(duration);
+      });
+    }
+
+    rows.forEach((row) => {
+      const durations = byEndpoint[`${row.url}|${row.method}`] || [];
+      if (durations.length > 0) {
+        row.p50_ms = durations[Math.floor(durations.length * 0.5)];
+        row.p95_ms = durations[Math.max(0, Math.ceil(durations.length * 0.95) - 1)];
+      }
+    });
+
+    return rows;
+  } catch (error) {
+    console.error("[Runner] getRunnerPerformanceStats error:", error);
+    throw new DatabaseError(`Failed to get performance stats: ${error.message}`);
   }
 }
 

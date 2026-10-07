@@ -666,9 +666,82 @@ class RunnersManager {
       // Show details modal
       this.renderRunnerDetailsModal(runner, executions);
       document.getElementById("runnerDetailsModal").style.display = "flex";
+
+      // Wire "Run N times" button
+      const runNBtn = document.getElementById("runNTimesBtn");
+      if (runNBtn) {
+        runNBtn.onclick = async () => {
+          const input = prompt("Run how many times? (1–50)", "5");
+          const n = parseInt(input);
+          if (!input || isNaN(n) || n < 1) return;
+          runNBtn.disabled = true;
+          runNBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+          try {
+            const resp = await chrome.runtime.sendMessage({
+              action: "runRunner",
+              runnerId,
+              repeatCount: Math.min(50, n),
+            });
+            if (resp?.success) {
+              this.showToast(`Completed ${Math.min(50, n)} runs`, "success");
+              this.loadPerformanceStats(runnerId);
+            } else {
+              this.showToast("Run failed: " + (resp?.error || "Unknown"), "error");
+            }
+          } catch (e) {
+            this.showToast("Run failed: " + e.message, "error");
+          } finally {
+            runNBtn.disabled = false;
+            runNBtn.innerHTML = '<i class="fas fa-redo"></i> Run N times…';
+          }
+        };
+      }
+
+      // Load performance stats asynchronously
+      this.loadPerformanceStats(runnerId);
     } catch (error) {
       console.error("[Runners] Error loading runner details:", error);
       this.showToast("Error loading details", "error");
+    }
+  }
+
+  async loadPerformanceStats(runnerId) {
+    const container = document.getElementById("runnerPerfTable");
+    if (!container) return;
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        action: "getRunnerPerformanceStats",
+        runnerId,
+      });
+      if (!resp?.success || !resp.stats?.length) {
+        container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">No performance data yet. Run the runner at least once.</p>';
+        return;
+      }
+      const rows = resp.stats.map((s) => {
+        const url = (s.url || "").length > 55 ? (s.url || "").slice(0, 55) + "…" : (s.url || "—");
+        const successPct = s.run_count > 0 ? Math.round((s.success_count / s.run_count) * 100) : 0;
+        const badgeClass = successPct === 100 ? "status-success" : successPct >= 80 ? "status-warning" : "status-error";
+        return `<tr>
+          <td title="${this.escapeHtml(s.url || "")}">${this.escapeHtml(url)}</td>
+          <td>${s.method || "—"}</td>
+          <td>${s.run_count}</td>
+          <td>${s.avg_ms != null ? s.avg_ms + "ms" : "—"}</td>
+          <td>${s.min_ms != null ? s.min_ms + "ms" : "—"}</td>
+          <td>${s.max_ms != null ? s.max_ms + "ms" : "—"}</td>
+          <td>${s.p50_ms != null ? s.p50_ms + "ms" : "—"}</td>
+          <td>${s.p95_ms != null ? s.p95_ms + "ms" : "—"}</td>
+          <td><span class="status-badge ${badgeClass}">${successPct}%</span></td>
+        </tr>`;
+      }).join("");
+      container.innerHTML = `<table class="data-table">
+        <thead><tr>
+          <th>Endpoint</th><th>Method</th><th>Runs</th>
+          <th>Avg</th><th>Min</th><th>Max</th><th>P50</th><th>P95</th><th>Success</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    } catch (e) {
+      container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">Failed to load stats.</p>';
     }
   }
 
@@ -870,6 +943,12 @@ class RunnersManager {
 
         <div class="details-section">
           <h3><i class="fas fa-history"></i> Execution History</h3>
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+            <button id="runNTimesBtn" class="secondary-btn" style="font-size:12px;padding:4px 10px;">
+              <i class="fas fa-redo"></i> Run N times…
+            </button>
+            <span style="font-size:12px;color:var(--text-secondary)">Repeat the runner to build a performance sample</span>
+          </div>
           <div style="overflow-x: auto;">
             <table class="data-table">
               <thead>
@@ -885,6 +964,13 @@ class RunnersManager {
                 ${executionsHtml}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div class="details-section" id="runnerPerfSection">
+          <h3><i class="fas fa-tachometer-alt"></i> Endpoint Performance <span style="font-size:12px;font-weight:normal;color:var(--text-secondary)">across all runs</span></h3>
+          <div id="runnerPerfTable" style="overflow-x:auto;">
+            <p style="color:var(--text-secondary);font-size:13px;">Loading…</p>
           </div>
         </div>
       </div>

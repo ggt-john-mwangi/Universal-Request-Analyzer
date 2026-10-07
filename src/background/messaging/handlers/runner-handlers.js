@@ -302,7 +302,7 @@ async function handleEnsureRunnerTables(message, sender, context) {
 }
 
 /**
- * Handle run runner
+ * Handle run runner — supports repeatCount for performance sampling
  */
 async function handleRunRunner(message, sender, context) {
   try {
@@ -312,17 +312,39 @@ async function handleRunRunner(message, sender, context) {
     }
 
     const runnerId = message.runnerId;
-    const result = await requestRunner.runRunner(runnerId, (progress) => {
-      // Progress updates available via getRunnerProgress
-    });
+    const repeatCount = Math.max(1, Math.min(50, parseInt(message.repeatCount || 1)));
+
+    const executionIds = [];
+    for (let i = 0; i < repeatCount; i++) {
+      const result = await requestRunner.runRunner(runnerId, () => {});
+      executionIds.push(result.id);
+    }
 
     return {
       success: true,
-      executionId: result.id,
-      status: result.status,
+      executionId: executionIds[executionIds.length - 1],
+      executionIds,
+      status: "completed",
     };
   } catch (error) {
     console.error("Run runner error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Handle get runner performance stats (avg/min/max/p50/p95 per endpoint across all runs)
+ */
+async function handleGetRunnerPerformanceStats(message, sender, context) {
+  try {
+    const { database } = context;
+    if (!database || !database.isReady || !database.runner) {
+      return { success: false, error: "Database not initialized" };
+    }
+    const stats = await database.runner.getRunnerPerformanceStats(message.runnerId);
+    return { success: true, stats };
+  } catch (error) {
+    console.error("Get runner performance stats error:", error);
     return { success: false, error: error.message };
   }
 }
@@ -486,6 +508,7 @@ export const runnerHandlers = new Map([
   ["runRunner", handleRunRunner],
   ["getRunnerHistory", handleGetRunnerHistory],
   ["getExecutionResults", handleGetExecutionResults],
+  ["getRunnerPerformanceStats", handleGetRunnerPerformanceStats],
   ["convertToSavedRunner", handleConvertToSavedRunner],
   ["updateRunnerMetadata", handleUpdateRunnerMetadata],
   ["cleanupTemporaryRunners", handleCleanupTemporaryRunners],
