@@ -244,13 +244,37 @@ class IntegratedExtensionInitializer {
   async handleMedallionMessages(message, sender, sendResponse) {
     try {
       switch (message.action) {
-        // Content-script telemetry — resource timing and nav stored silently
+        // Content-script telemetry — nav stored silently; resource timing stored for waterfall
         case "performanceData":
-        case "batchResourceTiming":
         case "pageLoad":
         case "pageNavigation":
           sendResponse({ success: true });
           break;
+
+        case "batchResourceTiming": {
+          const timings = message.timings;
+          if (timings?.length && this.medallionDb?.isReady) {
+            const db = this.medallionDb.db;
+            const esc = (v) => v == null ? "NULL" : `'${String(v).replace(/'/g, "''")}'`;
+            for (const t of timings) {
+              try {
+                const res = db.exec(
+                  `SELECT id FROM bronze_requests WHERE url = ${esc(t.url)} ORDER BY timestamp DESC LIMIT 1`
+                );
+                const id = res?.[0]?.values?.[0]?.[0];
+                if (id) {
+                  db.exec(`INSERT OR REPLACE INTO bronze_request_timings (
+                    request_id, dns_duration, tcp_duration, ssl_duration,
+                    request_duration, response_duration, created_at
+                  ) VALUES (${esc(id)}, ${t.dnsTime|0}, ${t.tcpTime|0}, ${t.tlsTime|0},
+                    ${t.requestTime|0}, ${t.responseTime|0}, ${Date.now()})`);
+                }
+              } catch (_) { /* non-fatal */ }
+            }
+          }
+          sendResponse({ success: true });
+          break;
+        }
 
         // Content-script XHR/Fetch intercepts — webRequest already captures these;
         // drop duplicates. Timing data arrives via batchResourceTiming instead.

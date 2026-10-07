@@ -784,26 +784,29 @@ export const analyticsHandlers = new Map([
         };
 
         let query = `
-          SELECT 
-            id, url, method, type, status, status_text, duration, 
-            size_bytes, timestamp, from_cache, domain, page_url
-          FROM bronze_requests
-          WHERE timestamp > ${startTime}
+          SELECT
+            b.id, b.url, b.method, b.type, b.status, b.status_text, b.duration,
+            b.size_bytes, b.timestamp, b.from_cache, b.domain, b.page_url,
+            t.dns_duration, t.tcp_duration, t.ssl_duration,
+            t.request_duration, t.response_duration
+          FROM bronze_requests b
+          LEFT JOIN bronze_request_timings t ON t.request_id = b.id
+          WHERE b.timestamp > ${startTime}
         `;
 
         if (domain && domain !== "all") {
-          query += ` AND domain = ${escapeStr(domain)}`;
+          query += ` AND b.domain = ${escapeStr(domain)}`;
         }
 
         if (pageUrl && pageUrl !== "") {
-          query += ` AND page_url = ${escapeStr(pageUrl)}`;
+          query += ` AND b.page_url = ${escapeStr(pageUrl)}`;
         }
 
         if (type && type !== "") {
-          query += ` AND type = ${escapeStr(type)}`;
+          query += ` AND b.type = ${escapeStr(type)}`;
         }
 
-        query += ` ORDER BY timestamp ASC LIMIT ${parseInt(limit)}`;
+        query += ` ORDER BY b.timestamp ASC LIMIT ${parseInt(limit)}`;
 
         let requests = [];
         const result = database.db.exec(query);
@@ -811,15 +814,23 @@ export const analyticsHandlers = new Map([
           requests = mapResultToArray(result[0]);
           requests = requests.map((req) => {
             const duration = req.duration || 0;
+            // Use real PerformanceResourceTiming data when available, fall back to estimates
+            const hasReal = req.dns_duration != null || req.tcp_duration != null;
             return {
               ...req,
               startTime: req.timestamp,
-              phases: {
-                queued: Math.round(duration * 0.05),
-                dns: Math.round(duration * 0.1),
-                tcp: Math.round(duration * 0.15),
-                ssl: Math.round(duration * 0.1),
-                ttfb: Math.round(duration * 0.3),
+              phases: hasReal ? {
+                dns:      req.dns_duration || 0,
+                tcp:      req.tcp_duration || 0,
+                ssl:      req.ssl_duration || 0,
+                ttfb:     req.request_duration || 0,
+                download: req.response_duration || 0,
+              } : {
+                queued:   Math.round(duration * 0.05),
+                dns:      Math.round(duration * 0.1),
+                tcp:      Math.round(duration * 0.15),
+                ssl:      Math.round(duration * 0.1),
+                ttfb:     Math.round(duration * 0.3),
                 download: Math.round(duration * 0.3),
               },
             };
