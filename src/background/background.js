@@ -642,7 +642,7 @@ class IntegratedExtensionInitializer {
               const settings = await this.medallionDb.executeQuery(
                 "SELECT value FROM config_settings WHERE key = 'retentionPeriodDays' LIMIT 1"
               );
-              const days = settings?.[0]?.value ? parseInt(settings[0].value) : 30;
+              const days = settings?.[0]?.values?.[0]?.[0] ? parseInt(settings[0].values[0][0]) : 30;
               await this.medallionDb.cleanupOldRecords(days);
             }
           } catch (error) {

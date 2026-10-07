@@ -458,28 +458,23 @@ export function exportDatabase() {
 
 /**
  * Import database from Uint8Array
+ * Writes bytes to OPFS; the class-level importDatabase reinitializes from OPFS after this.
  */
 export async function importDatabase(uint8Array) {
-  if (!SQL || !dbConfig) {
+  if (!db) {
     throw new DatabaseError("Database not initialized");
   }
 
   try {
     console.log("[DB] Importing database...");
 
-    // Close current database
-    if (db) {
-      db.close();
-    }
+    db.close();
+    db = null;
 
-    // Create new database from imported data
-    db = new SQL.Database(uint8Array);
-
-    // Save to OPFS
-    await saveToOPFS(db.export());
+    // Write imported bytes to OPFS — initDatabase() will reload from here
+    await saveDatabaseToOPFS(uint8Array);
 
     console.log("[DB] Database imported successfully");
-
     return true;
   } catch (error) {
     console.error("Failed to import database:", error);

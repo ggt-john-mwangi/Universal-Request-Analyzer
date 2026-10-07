@@ -664,6 +664,34 @@ export class MedallionManager {
   }
 
   /**
+   * Get domain statistics from Silver layer
+   */
+  async getDomainStatistics(domain) {
+    if (!domain) throw new Error("Domain is required");
+
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    try {
+      const result = this.db.exec(`
+        SELECT domain, total_requests, total_bytes, avg_duration,
+               min_duration, max_duration, success_count, error_count,
+               last_request_at, first_request_at
+        FROM silver_domain_stats
+        WHERE domain = ${escapeStr(domain)}
+      `);
+
+      if (!result?.[0]?.values?.length) return null;
+      return this.mapResultToObject(result[0]);
+    } catch (error) {
+      console.error("Failed to get domain statistics:", error);
+      throw new DatabaseError("Failed to get domain statistics", error);
+    }
+  }
+
+  /**
    * Process daily analytics to Gold layer
    */
   async processDailyAnalytics(date) {
