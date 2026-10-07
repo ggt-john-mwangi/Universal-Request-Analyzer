@@ -5003,4 +5003,412 @@ input[type="number"] {
   position: relative;
 }
 
+/* ============================================================
+   UI ENHANCEMENT LAYER — visual polish, charts, transitions
+   ============================================================ */
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  background: linear-gradient(180deg, #1e2537 0%, #2d3748 60%, #242f43 100%);
+}
+
+.sidebar-header {
+  background: rgba(255,255,255,.04);
+}
+
+.sidebar-title {
+  font-size: 15px;
+  letter-spacing: .3px;
+}
+
+/* Nav group labels */
+.nav-group-label {
+  padding: 14px 20px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.3);
+  user-select: none;
+}
+
+/* Active state: accent pill on the left, subtle glow */
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(102,126,234,.35) 0%, rgba(102,126,234,.12) 100%);
+  border-left-color: #667eea;
+  color: #a5b4fc;
+  font-weight: 600;
+  box-shadow: inset 0 0 20px rgba(102,126,234,.08);
+}
+
+.nav-item:hover:not(.active) {
+  background: rgba(255,255,255,.07);
+  color: #e2e8f0;
+  border-left-color: rgba(255,255,255,.2);
+  opacity: 1;
+}
+
+.nav-item i {
+  opacity: .75;
+  transition: opacity .2s;
+}
+
+.nav-item.active i,
+.nav-item:hover i {
+  opacity: 1;
+}
+
+/* Sidebar capture status pill */
+.capture-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.7);
+  margin: 0 20px 12px;
+}
+
+.capture-status-pill .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6c757d;
+  box-shadow: 0 0 0 2px rgba(108,117,125,.3);
+  animation: none;
+}
+
+.capture-status-pill.capturing .status-dot {
+  background: #4caf50;
+  box-shadow: 0 0 0 3px rgba(76,175,80,.25);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,100% { box-shadow: 0 0 0 2px rgba(76,175,80,.25); }
+  50%      { box-shadow: 0 0 0 5px rgba(76,175,80,.1); }
+}
+
+/* ── Content header ──────────────────────────────────────── */
+.content-header {
+  background: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 28px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+}
+
+.content-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary-color);
+}
+
+/* ── Metric cards ─────────────────────────────────────────── */
+.metric-card {
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 18px 20px 14px;
+  position: relative;
+  border-top: 3px solid transparent;
+  transition: transform .18s, box-shadow .18s;
+}
+
+.metric-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+
+.metric-card:has(.metric-icon.success) { border-top-color: #4caf50; }
+.metric-card:has(.metric-icon.info)    { border-top-color: #2196f3; }
+.metric-card:has(.metric-icon.warning) { border-top-color: #ff9800; }
+.metric-card:has(.metric-icon.error)   { border-top-color: #f44336; }
+
+.metric-icon.success { background: linear-gradient(135deg,#43a047,#66bb6a); }
+.metric-icon.info    { background: linear-gradient(135deg,#1976d2,#42a5f5); }
+.metric-icon.warning { background: linear-gradient(135deg,#f57c00,#ffb74d); }
+.metric-icon.error   { background: linear-gradient(135deg,#c62828,#ef5350); }
+
+/* Sparkline slot — JS injects SVG here */
+.metric-sparkline {
+  margin-top: 8px;
+  height: 28px;
+  opacity: .65;
+}
+
+.metric-value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+}
+
+.metric-label {
+  font-size: 11px;
+  letter-spacing: .6px;
+}
+
+/* ── Tab animations ─────────────────────────────────────── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tab-content.active,
+.dashboard-tab-content.active {
+  animation: fadeSlideIn .22s ease-out;
+}
+
+/* ── Dashboard sub-tab pills ─────────────────────────────── */
+.dashboard-tabs .tabs-nav {
+  gap: 4px;
+  border-bottom: none;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 4px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.dashboard-tab-btn {
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  transition: background .15s, color .15s;
+}
+
+.dashboard-tab-btn:hover:not(.active) {
+  background: rgba(102,126,234,.1);
+  color: var(--text-primary-color);
+}
+
+.dashboard-tab-btn.active {
+  background: var(--primary-color);
+  color: #fff;
+  font-weight: 600;
+}
+
+.dashboard-tab-btn.active::after { display: none; }
+
+/* ── Section cards (chart-section, details-section) ──────── */
+.chart-section,
+.details-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+.chart-section h3,
+.details-section h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary-color);
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-section h3 i,
+.details-section h3 i {
+  color: var(--primary-color);
+  font-size: 14px;
+}
+
+/* ── Section panels (settings forms) ────────────────────── */
+.option-section,
+.options-container {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+.option-section h2 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary-color);
+}
+
+/* ── Form controls ──────────────────────────────────────── */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input[type="password"],
+select,
+textarea {
+  border-radius: 8px !important;
+  border: 1.5px solid var(--border-color) !important;
+  transition: border-color .15s, box-shadow .15s !important;
+  font-size: 13px !important;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="password"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(102,126,234,.18) !important;
+  outline: none !important;
+}
+
+/* ── Primary / secondary buttons ───────────────────────── */
+.btn-primary,
+.primary-btn,
+button[class*="primary"] {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  letter-spacing: .2px !important;
+  transition: transform .15s, box-shadow .15s, background .15s !important;
+}
+
+.btn-primary:hover,
+.primary-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(102,126,234,.35) !important;
+}
+
+.secondary-btn,
+.btn-secondary {
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+}
+
+/* ── Vital cards ─────────────────────────────────────────── */
+.vital-card {
+  border-radius: 12px !important;
+  border: 1px solid var(--border-color) !important;
+  transition: transform .18s, box-shadow .18s !important;
+  overflow: hidden;
+}
+
+.vital-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.1) !important;
+}
+
+/* ── Data table rows ─────────────────────────────────────── */
+.data-table thead tr {
+  background: var(--surface-color);
+}
+
+.data-table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--text-secondary-color);
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.data-table tbody tr {
+  transition: background .12s;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(102,126,234,.05);
+}
+
+.data-table tbody td {
+  padding: 9px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+/* ── Runner cards ─────────────────────────────────────────── */
+.runner-card {
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  padding: 16px 18px;
+  transition: transform .18s, box-shadow .18s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+.runner-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.09);
+  border-color: var(--primary-color);
+}
+
+/* ── Alert rule cards ────────────────────────────────────── */
+.alert-rule-card {
+  border-radius: 12px !important;
+  border: 1px solid var(--border-color) !important;
+  padding: 14px 18px !important;
+  transition: box-shadow .18s !important;
+}
+
+.alert-rule-card.enabled {
+  border-left: 4px solid var(--success-color, #4caf50) !important;
+}
+
+.alert-rule-card.disabled {
+  opacity: .65;
+  border-left: 4px solid var(--text-disabled-color) !important;
+}
+
+/* ── Mini traffic SVG bar chart ──────────────────────────── */
+#dashboardMiniTraffic {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+  padding: 2px 0;
+}
+
+/* ── Notification toast ──────────────────────────────────── */
+.notification {
+  border-radius: 10px !important;
+  padding: 12px 20px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.2) !important;
+}
+
+/* ── Modal improvements ──────────────────────────────────── */
+.modal-content,
+.modal-body {
+  border-radius: 14px !important;
+}
+
+/* ── Dark-mode tint adjustments ──────────────────────────── */
+body.dark .sidebar,
+body.theme-dark .sidebar {
+  background: linear-gradient(180deg, #0f1319 0%, #1a1d23 60%, #141820 100%);
+}
+
+body.dark .metric-card,
+body.theme-dark .metric-card {
+  background: #1e2330;
+}
+
+body.dark .dashboard-tabs .tabs-nav,
+body.theme-dark .dashboard-tabs .tabs-nav {
+  background: #1e2330;
+  border-color: #2d3748;
+}
+
 /* End of options.css */

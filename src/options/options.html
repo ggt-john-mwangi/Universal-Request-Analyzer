@@ -25,6 +25,7 @@
         </div>
 
         <nav class="sidebar-nav">
+          <div class="nav-group-label">Observe</div>
           <button class="nav-item active" data-tab="dashboard">
             <i class="fas fa-chart-line"></i>
             <span>Dashboard</span>
@@ -33,45 +34,55 @@
             <i class="fas fa-play-circle"></i>
             <span>Runners</span>
           </button>
-          <button class="nav-item" data-tab="general">
-            <i class="fas fa-cog"></i>
-            <span>General</span>
-          </button>
           <button class="nav-item" data-tab="alerts">
             <i class="fas fa-bell"></i>
             <span>Alerts</span>
           </button>
+
+          <div class="nav-group-label">Configure</div>
+          <button class="nav-item" data-tab="general">
+            <i class="fas fa-cog"></i>
+            <span>General</span>
+          </button>
+          <button class="nav-item" data-tab="variables">
+            <i class="fas fa-code"></i>
+            <span>Variables</span>
+          </button>
+          <button class="nav-item" data-tab="security">
+            <i class="fas fa-shield-alt"></i>
+            <span>Security</span>
+          </button>
+
+          <div class="nav-group-label">Data</div>
           <button class="nav-item" data-tab="export">
             <i class="fas fa-file-export"></i>
             <span>Export</span>
           </button>
           <button class="nav-item" data-tab="retention">
             <i class="fas fa-database"></i>
-            <span>Data</span>
-          </button>
-          <button class="nav-item" data-tab="security">
-            <i class="fas fa-shield-alt"></i>
-            <span>Security</span>
-          </button>
-          <button class="nav-item" data-tab="themes">
-            <i class="fas fa-palette"></i>
-            <span>Themes</span>
-          </button>
-          <button class="nav-item" data-tab="variables">
-            <i class="fas fa-dollar-sign"></i>
-            <span>Variables</span>
+            <span>Retention</span>
           </button>
           <button class="nav-item" data-tab="pipeline">
             <i class="fas fa-project-diagram"></i>
             <span>Pipeline</span>
           </button>
+
+          <div class="nav-group-label">Appearance</div>
+          <button class="nav-item" data-tab="themes">
+            <i class="fas fa-palette"></i>
+            <span>Themes</span>
+          </button>
           <button class="nav-item" data-tab="advanced">
-            <i class="fas fa-code"></i>
+            <i class="fas fa-sliders-h"></i>
             <span>Advanced</span>
           </button>
         </nav>
 
         <div class="sidebar-footer">
+          <div id="sidebarCaptureStatus" class="capture-status-pill">
+            <span class="status-dot"></span>
+            <span id="sidebarCaptureText">Capture off</span>
+          </div>
           <div class="version-info">
             <i class="fas fa-info-circle"></i>
             <span>Version 1.0.0</span>
@@ -223,9 +234,8 @@
                   <div class="metric-content">
                     <div class="metric-label">Total Requests</div>
                     <div class="metric-value" id="dashTotalRequests">0</div>
-                    <div class="metric-change positive" id="dashTotalChange">
-                      +0%
-                    </div>
+                    <div class="metric-change positive" id="dashTotalChange">+0%</div>
+                    <div class="metric-sparkline" id="sparkline-total"></div>
                   </div>
                 </div>
 
@@ -237,6 +247,7 @@
                     <div class="metric-label">Avg Response Time</div>
                     <div class="metric-value" id="dashAvgResponse">0ms</div>
                     <div class="metric-change" id="dashAvgChange">+0%</div>
+                    <div class="metric-sparkline" id="sparkline-avgResponse"></div>
                   </div>
                 </div>
 
@@ -248,6 +259,7 @@
                     <div class="metric-label">Slow Requests</div>
                     <div class="metric-value" id="dashSlowRequests">0</div>
                     <div class="metric-change" id="dashSlowChange">+0%</div>
+                    <div class="metric-sparkline" id="sparkline-slow"></div>
                   </div>
                 </div>
 
@@ -259,6 +271,7 @@
                     <div class="metric-label">Error Rate</div>
                     <div class="metric-value" id="dashErrorRate">0%</div>
                     <div class="metric-change" id="dashErrorChange">+0%</div>
+                    <div class="metric-sparkline" id="sparkline-errors"></div>
                   </div>
                 </div>
               </div>
@@ -1157,9 +1170,11 @@
                     <div class="form-group">
                       <label for="alertCondition">Condition:</label>
                       <select id="alertCondition">
-                        <option value="gt">Greater Than</option>
-                        <option value="lt">Less Than</option>
-                        <option value="eq">Equal To</option>
+                        <option value="gt">Greater Than (&gt;)</option>
+                        <option value="gte">Greater Than or Equal (≥)</option>
+                        <option value="lt">Less Than (&lt;)</option>
+                        <option value="lte">Less Than or Equal (≤)</option>
+                        <option value="eq">Equal To (=)</option>
                       </select>
                     </div>
                     <div class="form-group">
@@ -2272,11 +2287,12 @@ example.org/api/*"
           <section id="variables" class="tab-content">
             <div class="options-container">
               <div class="option-section">
-                <h2><i class="fas fa-variable"></i> Variables Management</h2>
+                <h2><i class="fas fa-code"></i> Variables Management</h2>
                 <p class="description">
-                  Define reusable variables for curl/fetch commands. Use
-                  ${VAR_NAME} syntax in your exported requests to reference
-                  sensitive values like API tokens.
+                  Define reusable variables for runners and exports. Use
+                  <code>{{VAR_NAME}}</code> syntax (Postman-style) in URLs,
+                  headers, and request bodies. Legacy <code>${VAR_NAME}</code>
+                  also works in exported curl/fetch snippets.
                 </p>
 
                 <div class="variables-controls">
@@ -2317,22 +2333,18 @@ Description: Production API authentication token</pre
                       >
                     </div>
                     <div class="example">
-                      <h4>Use in curl:</h4>
+                      <h4>Use in runner URL / header (Postman-style):</h4>
                       <pre>
-curl 'https://api.example.com/data' \
-  -H 'Authorization: Bearer ${API_TOKEN}' \
-  --compressed</pre
+URL:  https://api.example.com/{{ENV}}/data
+Header: Authorization: Bearer {{API_TOKEN}}</pre
                       >
                     </div>
                     <div class="example">
-                      <h4>Use in fetch:</h4>
+                      <h4>Use in exported curl:</h4>
                       <pre>
-fetch('https://api.example.com/data', {
-  "method": "GET",
-  "headers": {
-    "Authorization": "Bearer ${API_TOKEN}"
-  }
-})</pre
+curl 'https://api.example.com/data' \
+  -H 'Authorization: Bearer {{API_TOKEN}}' \
+  --compressed</pre
                       >
                     </div>
                   </div>

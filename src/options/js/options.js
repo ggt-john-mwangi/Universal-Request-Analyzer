@@ -316,6 +316,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 captureStatus.title = "Capture is disabled";
               }
             }
+            // Sync sidebar pill
+            updateSidebarCapturePill(enabled);
             showNotification(
               `Request capture ${enabled ? "enabled" : "disabled"}`,
               false
@@ -1669,6 +1671,14 @@ function setupSubTabNavigation() {
       }
     });
   });
+}
+
+function updateSidebarCapturePill(enabled) {
+  const pill = document.getElementById("sidebarCaptureStatus");
+  const text = document.getElementById("sidebarCaptureText");
+  if (!pill) return;
+  pill.classList.toggle("capturing", !!enabled);
+  if (text) text.textContent = enabled ? "Capturing" : "Capture off";
 }
 
 // Show notification
@@ -3693,6 +3703,7 @@ async function updateStorageUsage() {
           captureStatus.className = "status-indicator inactive";
           captureStatus.title = "Capture is disabled";
         }
+        updateSidebarCapturePill(captureEnabled.checked);
       }
     }
   } catch (error) {

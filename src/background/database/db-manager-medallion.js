@@ -2068,9 +2068,11 @@ async function checkAlertRules() {
       if (metricValue === null || metricValue === undefined) continue;
 
       const passes =
-        rule.condition === "gt" ? metricValue > rule.threshold :
-        rule.condition === "lt" ? metricValue < rule.threshold :
-        rule.condition === "eq" ? Math.abs(metricValue - rule.threshold) < 0.001 :
+        rule.condition === "gt"  ? metricValue >  rule.threshold :
+        rule.condition === "gte" ? metricValue >= rule.threshold :
+        rule.condition === "lt"  ? metricValue <  rule.threshold :
+        rule.condition === "lte" ? metricValue <= rule.threshold :
+        rule.condition === "eq"  ? Math.abs(metricValue - rule.threshold) < 0.001 :
         false;
 
       if (!passes) continue;
@@ -2082,8 +2084,9 @@ async function checkAlertRules() {
       if (recentCheck?.[0]?.values?.[0]?.[0] > 0) continue;
 
       const metricLabels = { avgDuration: "Avg duration", maxDuration: "Max duration", errorRate: "Error rate", requestCount: "Request count" };
+      const condSymbol = { gt: ">", gte: "≥", lt: "<", lte: "≤", eq: "=" };
       const suffix = rule.metric.includes("Duration") ? "ms" : rule.metric === "errorRate" ? "%" : "";
-      const message = `${metricLabels[rule.metric] || rule.metric} ${parseFloat(metricValue).toFixed(1)}${suffix} ${rule.condition === "gt" ? ">" : rule.condition === "lt" ? "<" : "="} ${rule.threshold}${suffix}${rule.domain ? ` on ${rule.domain}` : ""}`;
+      const message = `${metricLabels[rule.metric] || rule.metric} ${parseFloat(metricValue).toFixed(1)}${suffix} ${condSymbol[rule.condition] || rule.condition} ${rule.threshold}${suffix}${rule.domain ? ` on ${rule.domain}` : ""}`;
 
       db.exec(
         `INSERT INTO alert_history (rule_id, rule_name, triggered_at, value, threshold, message) VALUES (${rule.id}, ${escapeStr(rule.name)}, ${Date.now()}, ${parseFloat(metricValue).toFixed(4)}, ${rule.threshold}, ${escapeStr(message)})`

@@ -1066,6 +1066,19 @@ class Dashboard {
     };
   }
 
+  _svgSparkline(values, { w = 80, h = 24, color = "#667eea" } = {}) {
+    if (!values || values.length < 2) return "";
+    const max = Math.max(...values, 1);
+    const pts = values
+      .map((v, i) => {
+        const x = (i / (values.length - 1)) * w;
+        const y = h - (v / max) * (h - 2) - 1;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" style="display:block"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/></svg>`;
+  }
+
   updateMetricCards(stats) {
     // Total Requests
     const totalEl = document.getElementById("dashTotalRequests");
@@ -1087,13 +1100,11 @@ class Dashboard {
 
     // Error Rate
     const errorEl = document.getElementById("dashErrorRate");
-    if (errorEl) {
-      const rate =
-        stats.totalRequests > 0
-          ? (((stats.errorCount || 0) / stats.totalRequests) * 100).toFixed(1)
-          : 0;
-      errorEl.textContent = `${rate}%`;
-    }
+    const errorRate =
+      stats.totalRequests > 0
+        ? ((stats.errorCount || 0) / stats.totalRequests) * 100
+        : 0;
+    if (errorEl) errorEl.textContent = `${errorRate.toFixed(1)}%`;
 
     // Update change indicators (simplified - would need historical data for real changes)
     const updateChange = (id, value) => {
@@ -1108,6 +1119,30 @@ class Dashboard {
     updateChange("dashAvgChange", 0);
     updateChange("dashSlowChange", 0);
     updateChange("dashErrorChange", 0);
+
+    // Rolling sparkline history (last 20 samples, one per refresh cycle)
+    if (!this._metricHistory) {
+      this._metricHistory = { total: [], avg: [], slow: [], errors: [] };
+    }
+    const mh = this._metricHistory;
+    mh.total.push(stats.totalRequests || 0);
+    mh.avg.push(stats.avgResponse || 0);
+    mh.slow.push(stats.slowRequests || 0);
+    mh.errors.push(errorRate);
+    if (mh.total.length > 20) {
+      mh.total.shift(); mh.avg.shift(); mh.slow.shift(); mh.errors.shift();
+    }
+
+    const sparklines = [
+      ["sparkline-total",       mh.total,  "#4caf50"],
+      ["sparkline-avgResponse", mh.avg,    "#2196f3"],
+      ["sparkline-slow",        mh.slow,   "#ff9800"],
+      ["sparkline-errors",      mh.errors, "#f44336"],
+    ];
+    for (const [id, values, color] of sparklines) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = this._svgSparkline(values, { color });
+    }
   }
 
   updateCharts(stats) {
