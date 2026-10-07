@@ -3,6 +3,105 @@
  * Part of unified runner architecture (Phase 3)
  */
 
+// ─── SVG mini-chart helpers ──────────────────────────────────────────────────
+
+/**
+ * Donut ring chart — shows a percentage as a circular arc.
+ * @param {number} pct  0–100
+ * @param {Object} opts  size(px), stroke(px), fg(css color), label(string)
+ */
+function svgRing(pct, opts = {}) {
+  const size   = opts.size   ?? 42;
+  const stroke = opts.stroke ?? 3.5;
+  const label  = opts.label  ?? `${pct}%`;
+  const r      = (size - stroke * 2) / 2;
+  const circ   = 2 * Math.PI * r;
+  const dash   = Math.min(Math.max(pct, 0), 100) / 100 * circ;
+  const cx = size / 2, cy = size / 2;
+  const fg = opts.fg ?? (pct >= 90 ? '#4caf50' : pct >= 70 ? '#ff9800' : '#f44336');
+  const bg = opts.bg ?? 'var(--border-color, #e0e0e0)';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;display:block">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${bg}" stroke-width="${stroke}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${fg}" stroke-width="${stroke}"
+      stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}" stroke-linecap="round"
+      transform="rotate(-90 ${cx} ${cy})"/>
+    <text x="${cx}" y="${cy + 0.5}" text-anchor="middle" dominant-baseline="middle"
+      font-size="${size <= 42 ? 9 : 11}" fill="currentColor" font-weight="600">${label}</text>
+  </svg>`;
+}
+
+/**
+ * Sparkline — tiny polyline of an array of numbers.
+ * @param {number[]} values
+ * @param {Object}   opts  w, h, color, fill(bool)
+ */
+function svgSparkline(values, opts = {}) {
+  const w = opts.w ?? 72; const h = opts.h ?? 22;
+  const color = opts.color ?? '#667eea';
+  if (!values || values.length < 2) return '';
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * (w - 4) + 2;
+    const y = h - 4 - ((v - min) / range) * (h - 8);
+    return [+x.toFixed(1), +y.toFixed(1)];
+  });
+  const poly = pts.map(p => p.join(',')).join(' ');
+  const area = opts.fill
+    ? `<polygon points="${pts[0][0]},${h} ${poly} ${pts.at(-1)[0]},${h}" fill="${color}" opacity="0.12"/>`
+    : '';
+  const last = pts.at(-1);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    ${area}
+    <polyline points="${poly}" fill="none" stroke="${color}" stroke-width="1.5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2" fill="${color}"/>
+  </svg>`;
+}
+
+/**
+ * Horizontal fill bar — shows value relative to max.
+ * @param {number} value
+ * @param {number} max
+ * @param {Object} opts  w, h, color, bg
+ */
+function svgHBar(value, max, opts = {}) {
+  const w = opts.w ?? 100; const h = opts.h ?? 6;
+  const color = opts.color ?? '#667eea';
+  const bg    = opts.bg    ?? 'var(--border-color, #e0e0e0)';
+  const filled = max > 0 ? +(Math.min(value / max * w, w)).toFixed(1) : 0;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block">
+    <rect x="0" y="0" width="${w}" height="${h}" rx="${h/2}" fill="${bg}"/>
+    <rect x="0" y="0" width="${filled}" height="${h}" rx="${h/2}" fill="${color}"/>
+  </svg>`;
+}
+
+/**
+ * Stacked horizontal bar — shows proportional segments (e.g. status codes).
+ * @param {{ [label]: number }} counts  e.g. { '2xx': 40, '4xx': 5, '5xx': 2 }
+ * @param {Object} opts  w, h
+ */
+function svgStackedBar(counts, opts = {}) {
+  const w = opts.w ?? 100; const h = opts.h ?? 8;
+  const palette = { '2xx': '#4caf50', '3xx': '#2196f3', '4xx': '#ff9800', '5xx': '#f44336', error: '#9e9e9e' };
+  const total = Object.values(counts).reduce((s, v) => s + (v || 0), 0);
+  if (total === 0) return '';
+  let x = 0;
+  const bars = Object.entries(counts).map(([key, val]) => {
+    if (!val) return '';
+    const bw = +(val / total * w).toFixed(2);
+    const bar = `<rect x="${x.toFixed(2)}" y="0" width="${bw}" height="${h}" fill="${palette[key] ?? '#9e9e9e'}"/>`;
+    x += bw;
+    return bar;
+  }).join('');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;border-radius:${h/2}px;overflow:hidden">
+    <rect width="${w}" height="${h}" fill="${palette.error}"/>
+    ${bars}
+  </svg>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class RunnersManager {
   constructor() {
     this.runners = [];
@@ -386,11 +485,7 @@ class RunnersManager {
 
     const successRate =
       runner.run_count > 0
-        ? Math.round(
-            (runner.total_success /
-              (runner.run_count * runner.total_requests)) *
-              100
-          )
+        ? Math.round((runner.total_success / runner.run_count) * 100)
         : 0;
 
     const isTemporary = runner.is_temporary;
@@ -490,9 +585,8 @@ class RunnersManager {
             <i class="fas fa-history"></i>
             <span>${runner.run_count || 0} executions</span>
           </div>
-          <div class="runner-stat">
-            <i class="fas fa-check-circle" style="color: var(--success-color);"></i>
-            <span>${successRate}% success</span>
+          <div class="runner-stat" style="gap:6px;align-items:center;">
+            ${svgRing(successRate, { size: 38 })}
           </div>
         </div>
         
@@ -717,26 +811,34 @@ class RunnersManager {
         container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">No performance data yet. Run the runner at least once.</p>';
         return;
       }
+      const maxAvg = Math.max(...resp.stats.map((s) => s.avg_ms || 0), 1);
       const rows = resp.stats.map((s) => {
-        const url = (s.url || "").length > 55 ? (s.url || "").slice(0, 55) + "…" : (s.url || "—");
+        const url = (s.url || "").length > 48 ? (s.url || "").slice(0, 48) + "…" : (s.url || "—");
         const successPct = s.run_count > 0 ? Math.round((s.success_count / s.run_count) * 100) : 0;
-        const badgeClass = successPct === 100 ? "status-success" : successPct >= 80 ? "status-warning" : "status-error";
+        const ringColor = successPct >= 90 ? '#4caf50' : successPct >= 70 ? '#ff9800' : '#f44336';
+        const barColor = s.avg_ms > maxAvg * 0.7 ? '#f44336' : s.avg_ms > maxAvg * 0.4 ? '#ff9800' : '#4caf50';
+        const avgBar = s.avg_ms != null
+          ? `<div style="display:flex;align-items:center;gap:6px">
+               <span style="min-width:42px;font-size:12px">${s.avg_ms}ms</span>
+               ${svgHBar(s.avg_ms, maxAvg, { w: 80, h: 6, color: barColor })}
+             </div>`
+          : "—";
         return `<tr>
-          <td title="${this.escapeHtml(s.url || "")}">${this.escapeHtml(url)}</td>
-          <td>${s.method || "—"}</td>
-          <td>${s.run_count}</td>
-          <td>${s.avg_ms != null ? s.avg_ms + "ms" : "—"}</td>
-          <td>${s.min_ms != null ? s.min_ms + "ms" : "—"}</td>
-          <td>${s.max_ms != null ? s.max_ms + "ms" : "—"}</td>
-          <td>${s.p50_ms != null ? s.p50_ms + "ms" : "—"}</td>
-          <td>${s.p95_ms != null ? s.p95_ms + "ms" : "—"}</td>
-          <td><span class="status-badge ${badgeClass}">${successPct}%</span></td>
+          <td title="${this.escapeHtml(s.url || "")}" style="font-size:12px">${this.escapeHtml(url)}</td>
+          <td><span class="status-badge">${s.method || "—"}</span></td>
+          <td style="text-align:center">${s.run_count}</td>
+          <td>${avgBar}</td>
+          <td style="font-size:12px">${s.min_ms != null ? s.min_ms + "ms" : "—"}</td>
+          <td style="font-size:12px">${s.max_ms != null ? s.max_ms + "ms" : "—"}</td>
+          <td style="font-size:12px">${s.p50_ms != null ? s.p50_ms + "ms" : "—"}</td>
+          <td style="font-size:12px">${s.p95_ms != null ? s.p95_ms + "ms" : "—"}</td>
+          <td style="text-align:center">${svgRing(successPct, { size: 34, fg: ringColor })}</td>
         </tr>`;
       }).join("");
       container.innerHTML = `<table class="data-table">
         <thead><tr>
           <th>Endpoint</th><th>Method</th><th>Runs</th>
-          <th>Avg</th><th>Min</th><th>Max</th><th>P50</th><th>P95</th><th>Success</th>
+          <th>Avg (bar)</th><th>Min</th><th>Max</th><th>P50</th><th>P95</th><th>Success</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
@@ -749,32 +851,34 @@ class RunnersManager {
     const modal = document.getElementById("runnerDetailsModal");
     if (!modal) return;
 
+    const maxExecDur = executions.length
+      ? Math.max(...executions.map(e => e.duration || 0), 1)
+      : 1;
     const executionsHtml =
       executions.length > 0
         ? executions
             .map(
-              (exec) => `
+              (exec) => {
+                const durMs = exec.duration || 0;
+                const durCell = durMs
+                  ? `<div style="display:flex;align-items:center;gap:5px">
+                       <span style="min-width:38px;font-size:12px">${(durMs/1000).toFixed(2)}s</span>
+                       ${svgHBar(durMs, maxExecDur, { w: 56, h: 5 })}
+                     </div>`
+                  : 'N/A';
+                return `
           <tr>
             <td>${new Date(exec.start_time).toLocaleString()}</td>
-            <td>
-              <span class="status-badge status-${exec.status}">${
-                exec.status
-              }</span>
-            </td>
-            <td>${
-              exec.duration ? (exec.duration / 1000).toFixed(2) + "s" : "N/A"
-            }</td>
+            <td><span class="status-badge status-${exec.status}">${exec.status}</span></td>
+            <td>${durCell}</td>
             <td>${exec.success_count || 0} / ${exec.total_requests || 0}</td>
             <td>
-              <button 
-                class="link-btn view-results-btn" 
-                data-execution-id="${exec.id}"
-              >
+              <button class="link-btn view-results-btn" data-execution-id="${exec.id}">
                 <i class="fas fa-list"></i> View Results
               </button>
             </td>
-          </tr>
-        `
+          </tr>`;
+              }
             )
             .join("")
         : '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">No executions yet</td></tr>';
@@ -949,6 +1053,25 @@ class RunnersManager {
             </button>
             <span style="font-size:12px;color:var(--text-secondary)">Repeat the runner to build a performance sample</span>
           </div>
+          ${executions.length > 1 ? (() => {
+            const sorted = [...executions].reverse(); // oldest first
+            const durs = sorted.map(e => e.duration || 0);
+            const maxDur = Math.max(...durs, 1);
+            const bw = Math.max(6, Math.floor((220 - (sorted.length - 1) * 3) / sorted.length));
+            const rects = sorted.map((e, i) => {
+              const bh = Math.max(4, Math.round(((e.duration || 1) / maxDur) * 26));
+              const color = e.status === 'completed' ? '#4caf50' : '#f44336';
+              return `<rect x="${i * (bw + 3)}" y="${30 - bh}" width="${bw}" height="${bh}" rx="2" fill="${color}" opacity="0.85"><title>${e.status}: ${e.duration ? (e.duration/1000).toFixed(2)+'s' : 'N/A'}</title></rect>`;
+            }).join('');
+            const passPct = Math.round(sorted.filter(e => e.status === 'completed').length / sorted.length * 100);
+            return `<div style="margin-bottom:12px;padding:10px 12px;background:var(--surface-color);border:1px solid var(--border-color);border-radius:6px">
+              <div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">
+                <span style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px">Run history — height=duration, green=pass, red=fail</span>
+                ${svgRing(passPct, { size: 32, stroke: 3 })}
+              </div>
+              <svg width="220" height="30" viewBox="0 0 220 30" style="display:block">${rects}</svg>
+            </div>`;
+          })() : ''}
           <div style="overflow-x: auto;">
             <table class="data-table">
               <thead>
@@ -991,26 +1114,70 @@ class RunnersManager {
 
       const results = response.results || [];
 
+      // Status distribution for stacked bar summary
+      const dist = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, error: 0 };
+      const durations = [];
+      results.forEach((r) => {
+        if (r.duration != null) durations.push(r.duration);
+        if (!r.status) { dist.error++; }
+        else if (r.status < 300) { dist['2xx']++; }
+        else if (r.status < 400) { dist['3xx']++; }
+        else if (r.status < 500) { dist['4xx']++; }
+        else { dist['5xx']++; }
+      });
+      const avgDur = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
+      const maxDur = durations.length ? Math.max(...durations) : null;
+
+      const summaryHtml = results.length > 0 ? `
+        <div style="display:flex;gap:20px;align-items:center;padding:12px 0 16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">Status distribution</div>
+            ${svgStackedBar(dist, { w: 200, h: 10 })}
+            <div style="display:flex;gap:10px;margin-top:5px;font-size:11px;flex-wrap:wrap">
+              ${Object.entries(dist).filter(([,v])=>v>0).map(([k,v])=>`<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${({
+                '2xx':'#4caf50','3xx':'#2196f3','4xx':'#ff9800','5xx':'#f44336',error:'#9e9e9e'})[k]};margin-right:3px"></span>${k}: ${v}</span>`).join('')}
+            </div>
+          </div>
+          ${avgDur != null ? `<div style="text-align:center">
+            <div style="font-size:11px;color:var(--text-secondary)">Avg duration</div>
+            <div style="font-size:20px;font-weight:700;color:var(--text-primary)">${avgDur}ms</div>
+          </div>` : ''}
+          ${maxDur != null ? `<div style="text-align:center">
+            <div style="font-size:11px;color:var(--text-secondary)">Max duration</div>
+            <div style="font-size:20px;font-weight:700;color:var(--text-primary)">${maxDur}ms</div>
+          </div>` : ''}
+        </div>` : '';
+
+      const maxDuration = durations.length ? Math.max(...durations, 1) : 1;
       const rows = results.length === 0
-        ? '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-secondary)">No results found</td></tr>'
+        ? '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-secondary)">No results found</td></tr>'
         : results.map((r) => {
-            const statusClass = r.status >= 400 ? "status-error" : "status-success";
-            const duration = r.duration != null ? Math.round(r.duration) + "ms" : "N/A";
-            const url = (r.url || "").length > 60 ? (r.url || "").slice(0, 60) + "…" : (r.url || "—");
-            const passed = r.success ? "✓" : r.error_message ? `✗ ${r.error_message}` : "—";
+            const statusClass = r.status >= 400 ? "status-error" : r.status >= 300 ? "status-warning" : "status-success";
+            const dur = r.duration != null ? Math.round(r.duration) : null;
+            const durationCell = dur != null
+              ? `<div style="display:flex;align-items:center;gap:5px">
+                   <span style="min-width:40px;font-size:12px">${dur}ms</span>
+                   ${svgHBar(dur, maxDuration, { w: 60, h: 5 })}
+                 </div>`
+              : "N/A";
+            const url = (r.url || "").length > 55 ? (r.url || "").slice(0, 55) + "…" : (r.url || "—");
+            const passed = r.success
+              ? '<span style="color:#4caf50">✓</span>'
+              : `<span style="color:#f44336" title="${this.escapeHtml(r.error_message || '')}">✗</span>`;
             return `<tr>
-              <td title="${r.url || ""}">${url}</td>
-              <td>${r.method || "—"}</td>
+              <td title="${this.escapeHtml(r.url || "")}" style="font-size:12px">${this.escapeHtml(url)}</td>
+              <td><span class="status-badge">${r.method || "—"}</span></td>
               <td><span class="status-badge ${statusClass}">${r.status || "N/A"}</span></td>
-              <td>${duration}</td>
-              <td>${passed}</td>
+              <td>${durationCell}</td>
+              <td style="text-align:center">${passed}</td>
             </tr>`;
           }).join("");
 
       const html = `<div class="details-section">
         <h3>Execution Results (${results.length})</h3>
+        ${summaryHtml}
         <table class="data-table"><thead><tr>
-          <th>URL</th><th>Method</th><th>Status</th><th>Duration</th><th>Passed</th>
+          <th>URL</th><th>Method</th><th>Status</th><th>Duration</th><th>OK</th>
         </tr></thead><tbody>${rows}</tbody></table>
       </div>`;
 
