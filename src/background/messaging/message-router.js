@@ -41,7 +41,9 @@ const ACTION_ALIASES = {
   getRetentionSettings: "getSettings", // Get all settings (filter client-side)
   updateRetentionSettings: "updateSettings", // Update settings
   updateAutoCleanupSettings: "updateSettings", // Update settings
-  reloadCaptureSettings: "getCaptureSettings", // Options: re-read after save
+  // reloadCaptureSettings is intentionally NOT aliased here — it must fall
+  // through to handleMedallionMessages in background.js which calls
+  // initializeRequestCapture() to actually reload the live capture pipeline.
 
   // Query aliases
   getAvailableTable: "getTableList", // Database table list

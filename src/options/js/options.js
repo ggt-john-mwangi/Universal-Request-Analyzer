@@ -321,10 +321,14 @@ document.addEventListener("DOMContentLoaded", async () => {
               false
             );
 
-            // Also save to settings for persistence
+            // Save to settings for persistence
             await settingsManager.updateSettings({
               capture: { enabled: enabled },
             });
+            // Reload the live capture pipeline so the change takes effect immediately
+            try {
+              await chrome.runtime.sendMessage({ action: "reloadCaptureSettings" });
+            } catch (_) { /* non-fatal */ }
           } else {
             // Revert toggle on failure
             e.target.checked = !enabled;
@@ -1785,27 +1789,6 @@ function setupEventListeners() {
     saveAllBtn.addEventListener("click", saveOptions);
   }
 
-  // Theme buttons
-  if (saveThemeBtn) {
-    saveThemeBtn.addEventListener("click", async () => {
-      if (currentThemeSelect && themeManager) {
-        const selectedTheme = currentThemeSelect.value;
-        await themeManager.setTheme(selectedTheme);
-        showNotification("Theme saved successfully!");
-      }
-    });
-  }
-
-  if (resetThemeBtn) {
-    resetThemeBtn.addEventListener("click", async () => {
-      if (themeManager) {
-        await themeManager.setTheme("light");
-        if (currentThemeSelect) currentThemeSelect.value = "light";
-        showNotification("Theme reset to default!");
-      }
-    });
-  }
-
   // Preset buttons for storage
   const presetButtons = document.querySelectorAll(".preset-btn");
   presetButtons.forEach((btn) => {
@@ -2944,6 +2927,55 @@ function initializeAdvancedTab() {
       } catch (error) {
         console.error("Backup error:", error);
         showNotification("Failed to create backup: " + error.message, true);
+      }
+    });
+  }
+
+  // Preview Cleanup
+  const previewCleanupBtn = document.getElementById("previewCleanupBtn");
+  if (previewCleanupBtn) {
+    previewCleanupBtn.addEventListener("click", async () => {
+      const days = parseInt(document.getElementById("cleanupAge")?.value) || 30;
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: "previewCleanup",
+          days,
+        });
+        if (response?.success) {
+          const preview = document.getElementById("cleanupPreview");
+          if (preview) {
+            document.getElementById("previewRecordsCount").textContent =
+              response.recordsToDelete.toLocaleString();
+            document.getElementById("previewSizeFreed").textContent =
+              (response.sizeFreed / (1024 * 1024)).toFixed(2) + " MB";
+            document.getElementById("previewRecordsRemaining").textContent =
+              response.recordsRemaining.toLocaleString();
+            preview.style.display = "block";
+          }
+        } else {
+          showNotification("Preview failed: " + (response?.error || "Unknown error"), true);
+        }
+      } catch (error) {
+        showNotification("Failed to preview cleanup: " + error.message, true);
+      }
+    });
+  }
+
+  // Vacuum Database
+  const vacuumDatabaseBtn = document.getElementById("vacuumDatabaseBtn");
+  if (vacuumDatabaseBtn) {
+    vacuumDatabaseBtn.addEventListener("click", async () => {
+      if (!confirm("Compact the database to reclaim disk space? This may take a moment.")) return;
+      try {
+        showNotification("Vacuuming database...");
+        const response = await chrome.runtime.sendMessage({ action: "vacuumDatabase" });
+        if (response?.success) {
+          showNotification("Database vacuumed successfully!");
+        } else {
+          showNotification("Vacuum failed: " + (response?.error || "Unknown error"), true);
+        }
+      } catch (error) {
+        showNotification("Failed to vacuum database: " + error.message, true);
       }
     });
   }
@@ -4197,6 +4229,20 @@ if (exportNowBtn) {
 // Auto Export Status (using existing autoExport variable)
 const autoExportStatus = document.getElementById("autoExportStatus");
 
+function updateNextExportTime() {
+  const el = document.getElementById("nextExportTime");
+  if (!el) return;
+  if (!chrome.alarms) { el.textContent = "--"; return; }
+  chrome.alarms.get("autoExport", (alarm) => {
+    if (alarm) {
+      const mins = Math.round((alarm.scheduledTime - Date.now()) / 60000);
+      el.textContent = mins <= 1 ? "< 1 min" : `in ${mins} min`;
+    } else {
+      el.textContent = "not scheduled";
+    }
+  });
+}
+
 if (autoExport && autoExportStatus) {
   autoExport.addEventListener("change", () => {
     if (autoExport.checked) {
@@ -4206,6 +4252,7 @@ if (autoExport && autoExportStatus) {
       autoExportStatus.className = "status-indicator inactive";
       autoExportStatus.title = "Auto-export is disabled";
     }
+    updateNextExportTime();
   });
 
   // Set initial state
@@ -4215,6 +4262,9 @@ if (autoExport && autoExportStatus) {
     autoExportStatus.className = "status-indicator inactive";
   }
 }
+
+// Populate next export time on page load
+updateNextExportTime();
 
 // Load last export time
 async function loadLastExportTime() {

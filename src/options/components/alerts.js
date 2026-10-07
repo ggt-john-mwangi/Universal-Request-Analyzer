@@ -323,8 +323,22 @@ class Alerts {
   }
 
   async toggleAlertRule(ruleId) {
-    // TODO: Implement toggle functionality
-    this.showToast("Toggle functionality coming soon", "info");
+    const rule = this.rules.find((r) => String(r.id) === String(ruleId));
+    if (!rule) return;
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "saveAlertRule",
+        rule: { ...rule, enabled: !rule.enabled },
+      });
+      if (response?.success) {
+        await this.loadAlertRules();
+      } else {
+        this.showToast("Failed to toggle alert rule", "error");
+      }
+    } catch (error) {
+      console.error("Failed to toggle alert rule:", error);
+      this.showToast("Failed to toggle alert rule", "error");
+    }
   }
 
   async loadDomainsForAlerts() {
