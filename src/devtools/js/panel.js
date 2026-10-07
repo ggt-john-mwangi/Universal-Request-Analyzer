@@ -220,6 +220,9 @@ export class DevToolsPanel {
             <button data-tab="websocket" class="tab-btn" id="websocketTabBtn" style="display: none;">
               <i class="fas fa-plug"></i> WebSocket
             </button>
+            <button data-tab="realtime" class="tab-btn">
+              <i class="fas fa-broadcast-tower"></i> Live Feed
+            </button>
           </div>
           
           <!-- Overview Tab -->
@@ -448,6 +451,22 @@ export class DevToolsPanel {
             </div>
           </div>
           
+          <!-- Live Feed Tab -->
+          <div id="realtimeTab" class="tab-content">
+            <div class="realtime-header">
+              <span class="realtime-indicator" id="realtimeIndicator">
+                <i class="fas fa-circle"></i> Live
+              </span>
+              <span id="realtimeCount" class="realtime-count">0 requests/s</span>
+              <button id="realtimePauseBtn" class="btn-secondary btn-sm">
+                <i class="fas fa-pause"></i> Pause
+              </button>
+            </div>
+            <div id="realtimeFeed" class="realtime-feed">
+              <p class="placeholder">Waiting for requests…</p>
+            </div>
+          </div>
+
           <!-- WebSocket Tab -->
           <div id="websocketTab" class="tab-content">
             <div class="websocket-header">
@@ -572,11 +591,13 @@ export class DevToolsPanel {
       );
     });
 
-    // Search
+    // Search — debounced backend query
+    let searchTimer = null;
     const searchRequests = document.getElementById("searchRequests");
     if (searchRequests) {
-      searchRequests.addEventListener("input", (e) => {
-        this.searchRequests(e.target.value);
+      searchRequests.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => this.loadRequestsTable(1), 300);
       });
     }
   }
@@ -1185,6 +1206,12 @@ export class DevToolsPanel {
 
   // Switch between tabs
   switchTab(tabName) {
+    // Stop realtime feed when leaving that tab
+    if (this._activeTab === "realtime" && tabName !== "realtime") {
+      this.stopRealtimeFeed();
+    }
+    this._activeTab = tabName;
+
     // Update tab buttons
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.classList.remove("active");
@@ -1231,7 +1258,87 @@ export class DevToolsPanel {
       case "websocket":
         await this.loadWebSocketData();
         break;
+      case "realtime":
+        this.startRealtimeFeed();
+        break;
     }
+  }
+
+  startRealtimeFeed() {
+    if (this._realtimeTimer) return; // already running
+    this._realtimePaused = false;
+    this._updateRealtimeDisplay([]);
+
+    const pauseBtn = document.getElementById("realtimePauseBtn");
+    if (pauseBtn) {
+      pauseBtn.onclick = () => {
+        this._realtimePaused = !this._realtimePaused;
+        pauseBtn.innerHTML = this._realtimePaused
+          ? '<i class="fas fa-play"></i> Resume'
+          : '<i class="fas fa-pause"></i> Pause';
+        const indicator = document.getElementById("realtimeIndicator");
+        if (indicator) indicator.className = `realtime-indicator${this._realtimePaused ? " paused" : ""}`;
+      };
+    }
+
+    const poll = async () => {
+      if (!this._realtimePaused) {
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "getDetailedRequests",
+            filters: { timeRange: 30 },
+            limit: 50,
+            offset: 0,
+          });
+          if (response?.success) this._updateRealtimeDisplay(response.requests || []);
+        } catch (e) {
+          // SW may be inactive — ignore
+        }
+      }
+      if (this._realtimeTimer !== null) {
+        this._realtimeTimer = setTimeout(poll, 2000);
+      }
+    };
+
+    this._realtimeTimer = setTimeout(poll, 0);
+  }
+
+  stopRealtimeFeed() {
+    clearTimeout(this._realtimeTimer);
+    this._realtimeTimer = null;
+    this._realtimePaused = false;
+  }
+
+  _updateRealtimeDisplay(requests) {
+    const feed = document.getElementById("realtimeFeed");
+    const countEl = document.getElementById("realtimeCount");
+    if (!feed) return;
+
+    if (countEl) countEl.textContent = `${requests.length} recent`;
+
+    if (requests.length === 0) {
+      feed.innerHTML = '<p class="placeholder">Waiting for requests…</p>';
+      return;
+    }
+
+    const statusClass = (s) => {
+      if (!s) return "";
+      if (s < 300) return "success";
+      if (s < 400) return "redirect";
+      if (s < 500) return "client-error";
+      return "server-error";
+    };
+
+    feed.innerHTML = requests.map((r) => {
+      const dur = r.duration ? `${Math.round(r.duration)}ms` : "—";
+      const url = r.url ? r.url.replace(/^https?:\/\//, "").slice(0, 80) : "—";
+      return `<div class="realtime-row">
+        <span class="request-status ${statusClass(r.status)}">${r.status || "—"}</span>
+        <span class="request-method ${(r.method || "get").toLowerCase()}">${r.method || "GET"}</span>
+        <span class="realtime-url" title="${r.url}">${url}</span>
+        <span class="realtime-dur">${dur}</span>
+      </div>`;
+    }).join("");
   }
 
   // Load requests table
@@ -3341,63 +3448,13 @@ export class DevToolsPanel {
     });
   }
 
-  // Search requests
-  searchRequests(query) {
-    const tbody = document.getElementById("requestsTableBody");
-    if (!tbody) {
-      logger.warn("requestsTableBody not found");
-      return;
-    }
-
-    const rows = tbody.querySelectorAll("tr");
-    const searchLower = query.toLowerCase().trim();
-
-    logger.debug(`Searching for: "${query}" in ${rows.length} rows`);
-
-    let matchCount = 0;
-    let totalDataRows = 0;
-
-    // Filter rows based on search query
-    rows.forEach((row) => {
-      // Skip no-data-row
-      if (row.classList.contains("no-data-row")) {
-        return;
-      }
-
-      totalDataRows++;
-
-      if (!searchLower) {
-        // Show all rows if search is empty
-        row.style.display = "";
-        matchCount++;
-        return;
-      }
-
-      const cells = row.querySelectorAll("td");
-      let found = false;
-
-      cells.forEach((cell) => {
-        const text = cell.textContent.toLowerCase();
-        if (text.includes(searchLower)) {
-          found = true;
-        }
-      });
-
-      row.style.display = found ? "" : "none";
-      if (found) matchCount++;
-    });
-
-    logger.debug(
-      `Search: "${query}" - ${matchCount} matches out of ${totalDataRows} total rows`
-    );
-  }
-
   // Get active filters
   getActiveFilters() {
     const pageFilter = document.getElementById("pageFilter");
     const timeRange = document.getElementById("timeRange");
     const requestTypeFilter = document.getElementById("requestTypeFilter");
     const statusFilter = document.getElementById("statusFilter");
+    const searchInput = document.getElementById("searchRequests");
 
     const filters = {
       timeRange: timeRange
@@ -3430,6 +3487,12 @@ export class DevToolsPanel {
     const status = statusFilter ? statusFilter.value : "";
     if (status) {
       filters.statusPrefix = status;
+    }
+
+    // Add search query
+    const searchQuery = searchInput ? searchInput.value.trim() : "";
+    if (searchQuery) {
+      filters.searchQuery = searchQuery;
     }
 
     // Update active filters display

@@ -221,6 +221,7 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
       clearDatabase,
       resetDatabase,
       cleanupOldRecords,
+      cleanupBronze,
       previewCleanup,
       vacuumDatabase,
 
@@ -620,6 +621,29 @@ export function vacuumDatabase() {
       error: "vacuum_failed",
       message: error.message,
     });
+  }
+}
+
+/**
+ * Prune bronze_requests (and cascaded headers/timings) older than maxAgeHours.
+ * Runs frequently (every 30 min via alarm) to prevent unbounded table growth.
+ * Silver/Gold retention is managed separately by cleanupOldRecords.
+ * @param {number} maxAgeHours - Delete bronze records older than this many hours
+ */
+export function cleanupBronze(maxAgeHours = 24) {
+  if (!db) return 0;
+  const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
+  try {
+    db.exec(`DELETE FROM bronze_requests WHERE timestamp < ${cutoff}`);
+    const deleted = db.exec("SELECT changes()")[0]?.values?.[0]?.[0] || 0;
+    if (deleted > 0) {
+      scheduleSave();
+      console.log(`[Bronze cleanup] Deleted ${deleted} records older than ${maxAgeHours}h`);
+    }
+    return deleted;
+  } catch (error) {
+    console.error("Bronze cleanup failed:", error);
+    return 0;
   }
 }
 
@@ -2197,6 +2221,11 @@ export class DatabaseManagerMedallion {
   async cleanupOldRecords(days) {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return await this.dbApi.cleanupOldRecords(days);
+  }
+
+  cleanupBronze(maxAgeHours) {
+    if (!this.initialized) return 0;
+    return this.dbApi.cleanupBronze(maxAgeHours);
   }
 
   previewCleanup(days) {

@@ -445,10 +445,10 @@ export class MedallionManager {
       await this.processSilverMetrics(requestId);
 
       // Update domain stats
-      await this.updateDomainStats(request.domain);
+      await this.updateDomainStats(request.domain, request);
 
       // Update resource stats
-      await this.updateResourceStats(request.type);
+      await this.updateResourceStats(request.type, request);
 
       this.eventBus?.publish("medallion:silver:processed", { requestId });
 
@@ -511,125 +511,79 @@ export class MedallionManager {
   }
 
   /**
-   * Update domain statistics in Silver layer
+   * Incrementally update domain statistics in Silver layer — O(1) per request.
    */
-  async updateDomainStats(domain) {
+  async updateDomainStats(domain, request) {
     if (!domain) return;
 
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const now = Date.now();
+    const sizeBytes = Number(request?.size_bytes) || 0;
+    const duration = Number(request?.duration) || 0;
+    const timestamp = Number(request?.timestamp) || now;
+    const isError = (request?.error || (request?.status >= 400)) ? 1 : 0;
+    const isSuccess = (!isError && request?.status >= 200 && request?.status < 400) ? 1 : 0;
+
     try {
-      const now = Date.now();
-
-      // Helper to handle undefined/null values
-      const toSqlValue = (val, defaultVal = null) => {
-        if (val === undefined || val === null) {
-          return defaultVal;
-        }
-        return val;
-      };
-
-      // Helper function to escape SQL strings
-      const escapeStr = (val) => {
-        if (val === undefined || val === null) return "NULL";
-        return `'${String(val).replace(/'/g, "''")}'`;
-      };
-
-      // Get current stats
-      const existing = this.db.exec(`
-        SELECT * FROM silver_domain_stats WHERE domain = ${escapeStr(domain)}
+      this.db.exec(`
+        INSERT INTO silver_domain_stats (
+          domain, total_requests, total_bytes, avg_duration,
+          min_duration, max_duration, success_count, error_count,
+          last_request_at, first_request_at, updated_at
+        ) VALUES (
+          ${escapeStr(domain)}, 1, ${sizeBytes}, ${duration},
+          ${duration}, ${duration}, ${isSuccess}, ${isError},
+          ${timestamp}, ${timestamp}, ${now}
+        )
+        ON CONFLICT(domain) DO UPDATE SET
+          total_requests = total_requests + 1,
+          total_bytes = total_bytes + ${sizeBytes},
+          avg_duration = (avg_duration * total_requests + ${duration}) / (total_requests + 1),
+          min_duration = CASE WHEN ${duration} < min_duration OR min_duration IS NULL THEN ${duration} ELSE min_duration END,
+          max_duration = CASE WHEN ${duration} > max_duration OR max_duration IS NULL THEN ${duration} ELSE max_duration END,
+          success_count = success_count + ${isSuccess},
+          error_count = error_count + ${isError},
+          last_request_at = ${timestamp},
+          updated_at = ${now}
       `);
-
-      // Get aggregate data from bronze
-      const stats = this.db.exec(`
-        SELECT 
-          COUNT(*) as total_requests,
-          SUM(size_bytes) as total_bytes,
-          AVG(duration) as avg_duration,
-          MIN(duration) as min_duration,
-          MAX(duration) as max_duration,
-          SUM(CASE WHEN status >= 200 AND status < 400 THEN 1 ELSE 0 END) as success_count,
-          SUM(CASE WHEN status >= 400 OR error IS NOT NULL THEN 1 ELSE 0 END) as error_count,
-          MAX(timestamp) as last_request_at,
-          MIN(timestamp) as first_request_at
-        FROM bronze_requests WHERE domain = ${escapeStr(domain)}
-      `);
-
-      if (stats && stats.length > 0) {
-        const statData = this.mapResultToObject(stats[0]);
-
-        this.db.exec(`
-          INSERT OR REPLACE INTO silver_domain_stats (
-            domain, total_requests, total_bytes, avg_duration,
-            min_duration, max_duration, success_count, error_count,
-            last_request_at, first_request_at, updated_at
-          ) VALUES (
-            ${escapeStr(domain)},
-            ${toSqlValue(statData.total_requests, 0)},
-            ${toSqlValue(statData.total_bytes, 0)},
-            ${toSqlValue(statData.avg_duration, 0)},
-            ${toSqlValue(statData.min_duration, 0)},
-            ${toSqlValue(statData.max_duration, 0)},
-            ${toSqlValue(statData.success_count, 0)},
-            ${toSqlValue(statData.error_count, 0)},
-            ${toSqlValue(statData.last_request_at, now)},
-            ${toSqlValue(statData.first_request_at, now)},
-            ${now}
-          )
-        `);
-      }
     } catch (error) {
       console.error("Failed to update domain stats:", error);
     }
   }
 
   /**
-   * Update resource type statistics in Silver layer
+   * Incrementally update resource type statistics in Silver layer — O(1) per request.
    */
-  async updateResourceStats(resourceType) {
+  async updateResourceStats(resourceType, request) {
     if (!resourceType) return;
 
+    const escapeStr = (val) => {
+      if (val === undefined || val === null) return "NULL";
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const now = Date.now();
+    const sizeBytes = Number(request?.size_bytes) || 0;
+    const duration = Number(request?.duration) || 0;
+
     try {
-      const now = Date.now();
-
-      // Helper to handle undefined/null values
-      const toSqlValue = (val, defaultVal = 0) => {
-        if (val === undefined || val === null) {
-          return defaultVal;
-        }
-        return val;
-      };
-
-      // Helper function to escape SQL strings
-      const escapeStr = (val) => {
-        if (val === undefined || val === null) return "NULL";
-        return `'${String(val).replace(/'/g, "''")}'`;
-      };
-
-      const stats = this.db.exec(`
-        SELECT 
-          COUNT(*) as total_requests,
-          SUM(size_bytes) as total_bytes,
-          AVG(duration) as avg_duration,
-          AVG(size_bytes) as avg_size
-        FROM bronze_requests WHERE type = ${escapeStr(resourceType)}
+      this.db.exec(`
+        INSERT INTO silver_resource_stats (
+          resource_type, total_requests, total_bytes, avg_duration, avg_size, updated_at
+        ) VALUES (
+          ${escapeStr(resourceType)}, 1, ${sizeBytes}, ${duration}, ${sizeBytes}, ${now}
+        )
+        ON CONFLICT(resource_type) DO UPDATE SET
+          total_requests = total_requests + 1,
+          total_bytes = total_bytes + ${sizeBytes},
+          avg_duration = (avg_duration * total_requests + ${duration}) / (total_requests + 1),
+          avg_size = (avg_size * total_requests + ${sizeBytes}) / (total_requests + 1),
+          updated_at = ${now}
       `);
-
-      if (stats && stats.length > 0) {
-        const statData = this.mapResultToObject(stats[0]);
-
-        this.db.exec(`
-          INSERT OR REPLACE INTO silver_resource_stats (
-            resource_type, total_requests, total_bytes,
-            avg_duration, avg_size, updated_at
-          ) VALUES (
-            ${escapeStr(resourceType)},
-            ${toSqlValue(statData.total_requests, 0)},
-            ${toSqlValue(statData.total_bytes, 0)},
-            ${toSqlValue(statData.avg_duration, 0)},
-            ${toSqlValue(statData.avg_size, 0)},
-            ${now}
-          )
-        `);
-      }
     } catch (error) {
       console.error("Failed to update resource stats:", error);
     }
@@ -660,6 +614,13 @@ export class MedallionManager {
     for (const id of ids) {
       await this.processBronzeToSilver(id);
     }
+
+    // Delete Bronze rows already in Silver that are older than 2h — prevents unbounded growth
+    const cutoff2h = Date.now() - 2 * 60 * 60 * 1000;
+    this.db.exec(`DELETE FROM bronze_requests WHERE id IN (SELECT id FROM silver_requests) AND timestamp < ${cutoff2h}`);
+    this.db.exec(`DELETE FROM bronze_request_headers WHERE request_id NOT IN (SELECT id FROM bronze_requests)`);
+    this.db.exec(`DELETE FROM bronze_request_timings WHERE request_id NOT IN (SELECT id FROM bronze_requests)`);
+
     return ids.length;
   }
 

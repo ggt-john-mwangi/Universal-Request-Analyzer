@@ -252,40 +252,13 @@ class IntegratedExtensionInitializer {
           sendResponse({ success: true });
           break;
 
-        // Content-script XHR/Fetch intercepts — store to Bronze alongside webRequest data
+        // Content-script XHR/Fetch intercepts — webRequest already captures these;
+        // drop duplicates. Timing data arrives via batchResourceTiming instead.
         case "xhrCompleted":
         case "fetchCompleted":
-        case "fetchError": {
-          try {
-            const { url, method, status, statusText, duration, responseSize, startTime, endTime, error: reqError } = message;
-            const pageUrl = sender.tab?.url || null;
-            let domain = null, path = null, queryString = null, protocol = null;
-            try {
-              const u = new URL(url);
-              domain = u.hostname; path = u.pathname;
-              queryString = u.search; protocol = u.protocol;
-            } catch {}
-            await this.medallionManager.insertBronzeRequest({
-              id: crypto.randomUUID(),
-              url, method: method || "GET",
-              type: message.action === "xhrCompleted" ? "xmlhttprequest" : "fetch",
-              status: status || 0, statusText,
-              domain, path, queryString, protocol,
-              startTime, endTime, duration,
-              sizeBytes: responseSize || 0,
-              timestamp: endTime || Date.now(),
-              tabId: sender.tab?.id,
-              pageUrl,
-              error: reqError || null,
-              fromCache: false,
-            });
-            scheduleSave();
-            sendResponse({ success: true });
-          } catch (e) {
-            sendResponse({ success: true }); // non-fatal
-          }
+        case "fetchError":
+          sendResponse({ success: true });
           break;
-        }
 
         case "processToSilver": {
           const count = await this.medallionManager.processAllPendingToSilver();
@@ -559,10 +532,13 @@ class IntegratedExtensionInitializer {
         periodInMinutes: 24 * 60,
       });
 
+      // Bronze-layer rolling cleanup every 30 min — keeps Bronze at ≤24h depth
+      alarms.create("bronzeCleanup", { periodInMinutes: 30 });
+
       alarms.onAlarm.addListener(async (alarm) => {
         if (alarm.name === "bronzeToSilver") {
           try {
-            const count = await this.medallionManager.processAllPendingToSilver();
+            const count = await this.medallionManager.processAllPendingToSilver(500);
             if (count > 0) console.log(`[Medallion] Bronze→Silver: ${count} records`);
           } catch (error) {
             console.error("Bronze→Silver failed:", error);
@@ -601,6 +577,21 @@ class IntegratedExtensionInitializer {
             }
           } catch (error) {
             console.error("Data cleanup failed:", error);
+          }
+        } else if (alarm.name === "bronzeCleanup") {
+          try {
+            if (this.medallionDb?.isReady) {
+              this.medallionDb.cleanupBronze(24);
+              // Emergency: if DB exceeds 50 MB, aggressively trim bronze to 6h
+              const sizeBytes = this.medallionDb.getDatabaseSize();
+              if (sizeBytes > 50 * 1024 * 1024) {
+                console.warn(`[DB] Size ${Math.round(sizeBytes / 1048576)}MB exceeds cap — emergency bronze trim to 6h`);
+                this.medallionDb.cleanupBronze(6);
+                this.medallionDb.vacuumDatabase();
+              }
+            }
+          } catch (error) {
+            console.error("Bronze cleanup failed:", error);
           }
         } else if (alarm.name === "autoExport") {
           try {
@@ -764,6 +755,7 @@ class IntegratedExtensionInitializer {
       alarms.clear("bronzeToSilver");
       alarms.clear("dailyGoldProcessing");
       alarms.clear("dataCleanup");
+      alarms.clear("bronzeCleanup");
       alarms.clear("autoExport");
     }
 

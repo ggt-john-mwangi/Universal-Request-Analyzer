@@ -2006,3 +2006,17 @@ body {
   color: var(--text-secondary);
   margin-top: 2px;
 }
+
+/* Live Feed tab */
+.realtime-header { display: flex; align-items: center; gap: 12px; padding: 10px 0 8px; border-bottom: 1px solid var(--border-color); margin-bottom: 8px; }
+.realtime-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--success); }
+.realtime-indicator i { font-size: 8px; animation: pulse-dot 1.2s infinite; }
+.realtime-indicator.paused { color: var(--text-secondary); }
+.realtime-indicator.paused i { animation: none; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.realtime-count { margin-left: auto; font-size: 11px; color: var(--text-secondary); }
+.realtime-feed { overflow-y: auto; max-height: calc(100vh - 180px); }
+.realtime-row { display: grid; grid-template-columns: 48px 52px 1fr 56px; align-items: center; gap: 6px; padding: 5px 4px; border-bottom: 1px solid var(--border-color); font-size: 12px; }
+.realtime-row:last-child { border-bottom: none; }
+.realtime-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-family: monospace; font-size: 11px; }
+.realtime-dur { text-align: right; color: var(--text-secondary); font-size: 11px; }
