@@ -791,6 +791,69 @@ class RunnersManager {
         };
       }
 
+      // Wire runner variable editor (Add / Delete / Save)
+      const varBody = document.getElementById("runnerVarRows");
+      const saveVarsBtn = document.getElementById("saveRunnerVarsBtn");
+      const addVarBtn = document.getElementById("addRunnerVarBtn");
+
+      const collectVars = () => {
+        const rows = document.querySelectorAll("#runnerVarRows tr[data-var-index]");
+        return Array.from(rows).map((tr) => ({
+          name: tr.querySelector(".runner-var-name")?.value?.trim() || "",
+          value: tr.querySelector(".runner-var-value")?.value || "",
+        })).filter((v) => v.name);
+      };
+
+      if (varBody) {
+        varBody.addEventListener("click", (e) => {
+          const btn = e.target.closest(".runner-var-del");
+          if (btn) btn.closest("tr")?.remove();
+        });
+      }
+
+      if (addVarBtn) {
+        addVarBtn.onclick = () => {
+          const name = document.getElementById("newVarName")?.value?.trim();
+          const value = document.getElementById("newVarValue")?.value || "";
+          if (!name) return;
+          const addRow = document.getElementById("runnerVarAddRow");
+          const tr = document.createElement("tr");
+          const idx = document.querySelectorAll("#runnerVarRows tr[data-var-index]").length;
+          tr.dataset.varIndex = idx;
+          tr.innerHTML = `
+            <td><input class="runner-var-name" type="text" value="${this.escapeHtml(name)}" style="width:100%;font-family:monospace;font-size:12px;padding:4px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--background-color);color:var(--text-primary)"/></td>
+            <td><input class="runner-var-value" type="text" value="${this.escapeHtml(value)}" style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--background-color);color:var(--text-primary)"/></td>
+            <td style="width:32px;text-align:center"><button class="runner-var-del icon-btn" title="Remove" style="color:var(--error-color);padding:2px 6px"><i class="fas fa-times"></i></button></td>`;
+          varBody.insertBefore(tr, addRow);
+          document.getElementById("newVarName").value = "";
+          document.getElementById("newVarValue").value = "";
+        };
+      }
+
+      if (saveVarsBtn) {
+        saveVarsBtn.onclick = async () => {
+          const vars = collectVars();
+          saveVarsBtn.disabled = true;
+          try {
+            const resp = await chrome.runtime.sendMessage({
+              action: "updateRunnerMetadata",
+              runnerId,
+              variables: vars,
+            });
+            const status = document.getElementById("runnerVarsSaveStatus");
+            if (resp?.success) {
+              if (status) { status.style.display = "inline"; setTimeout(() => { status.style.display = "none"; }, 2000); }
+            } else {
+              this.showToast("Failed to save variables", "error");
+            }
+          } catch (e) {
+            this.showToast("Error saving variables", "error");
+          } finally {
+            saveVarsBtn.disabled = false;
+          }
+        };
+      }
+
       // Load performance stats asynchronously
       this.loadPerformanceStats(runnerId);
     } catch (error) {
@@ -896,89 +959,62 @@ class RunnersManager {
       }
     }
 
-    // Build variables section HTML
-    const variablesHtml =
-      variables.length > 0
-        ? `
-        <div class="details-section">
-          <h3><i class="fas fa-code"></i> Variables in Use (${
-            variables.length
-          })</h3>
-          <div class="variables-list">
-            ${variables
-              .map(
-                (variable) => `
-              <div class="variable-item">
-                <div class="variable-name">
-                  <i class="fas fa-dollar-sign"></i>
-                  <code>{{${this.escapeHtml(variable.name)}}}</code>
-                </div>
-                <div class="variable-value">
-                  <span class="value-preview">${this.escapeHtml(
-                    variable.value || "(not set)"
-                  )}</span>
-                </div>
-              </div>
-            `
-              )
-              .join("")}
-          </div>
-          <style>
-            .variables-list {
-              display: flex;
-              flex-direction: column;
-              gap: 8px;
-              margin-top: 12px;
-            }
-            .variable-item {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 12px;
-              background: var(--surface-color);
-              border: 1px solid var(--border-color);
-              border-radius: 6px;
-              gap: 16px;
-            }
-            .variable-name {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              font-weight: 500;
-              color: var(--text-primary);
-            }
-            .variable-name i {
-              color: var(--primary-color);
-              font-size: 12px;
-            }
-            .variable-name code {
-              background: var(--background-color);
-              padding: 4px 8px;
-              border-radius: 4px;
-              font-size: 13px;
-              color: var(--primary-color);
-            }
-            .variable-value {
-              flex: 1;
-              text-align: right;
-            }
-            .value-preview {
-              font-family: 'Courier New', monospace;
-              font-size: 12px;
-              color: var(--text-secondary);
-              padding: 4px 8px;
-              background: var(--background-color);
-              border-radius: 4px;
-              max-width: 300px;
-              display: inline-block;
-              overflow: hidden;
-              text-overflow: ellipsis;
+    // Build variables section HTML — inline editable Postman-style editor
+    const varRows = variables.map((v, i) => `
+      <tr data-var-index="${i}">
+        <td><input class="runner-var-name" type="text" value="${this.escapeHtml(v.name)}" placeholder="variable_name" style="width:100%;font-family:monospace;font-size:12px;padding:4px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--background-color);color:var(--text-primary)"/></td>
+        <td><input class="runner-var-value" type="text" value="${this.escapeHtml(v.value || "")}" placeholder="value" style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--background-color);color:var(--text-primary)"/></td>
+        <td style="width:32px;text-align:center"><button class="runner-var-del icon-btn" title="Remove" style="color:var(--error-color);padding:2px 6px"><i class="fas fa-times"></i></button></td>
+      </tr>`).join("");
+
+    const variablesHtml = `
+      <div class="details-section">
+        <h3 style="display:flex;align-items:center;justify-content:space-between">
+          <span><i class="fas fa-code"></i> Runner Variables</span>
+          <span style="font-size:11px;font-weight:normal;color:var(--text-secondary)">Use <code style="background:var(--background-color);padding:1px 5px;border-radius:3px">{{name}}</code> in URLs, headers &amp; body</span>
+        </h3>
+        <p style="font-size:12px;color:var(--text-secondary);margin:0 0 10px">These override global variables. Loaded at run time — changes saved immediately.</p>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="font-size:11px;color:var(--text-secondary)">
+            <th style="text-align:left;padding-bottom:4px;width:40%">Name</th>
+            <th style="text-align:left;padding-bottom:4px">Value</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="runnerVarRows">${varRows}
+            <tr id="runnerVarAddRow">
+              <td><input id="newVarName" type="text" placeholder="variable_name" style="width:100%;font-family:monospace;font-size:12px;padding:4px 6px;border:1px dashed var(--border-color);border-radius:4px;background:transparent;color:var(--text-primary)"/></td>
+              <td><input id="newVarValue" type="text" placeholder="value" style="width:100%;font-size:12px;padding:4px 6px;border:1px dashed var(--border-color);border-radius:4px;background:transparent;color:var(--text-primary)"/></td>
+              <td style="text-align:center"><button id="addRunnerVarBtn" class="icon-btn" title="Add" style="color:var(--success-color);padding:2px 6px"><i class="fas fa-plus"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <button id="saveRunnerVarsBtn" class="primary-btn" style="font-size:12px;padding:4px 12px"><i class="fas fa-save"></i> Save Variables</button>
+          <span id="runnerVarsSaveStatus" style="font-size:12px;color:var(--success-color);display:none">Saved ✓</span>
+        </div>
+        <style>
+          /* placeholder kept minimal — inputs use inline styles above */
+          .runner-var-del:hover { opacity:0.7 }
+          #runnerVarRows tr { border-bottom:1px solid var(--border-color,#e0e0e0) }
+          #runnerVarRows tr:last-child { border-bottom:none }
+          #runnerVarRows td { padding:4px 4px 4px 0 }
+          /* suppress old value-preview style if present */
+          .value-preview {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            background: var(--background-color);
+            border-radius: 4px;
+            max-width: 300px;
+            display: inline-block;
+            overflow: hidden;
+            text-overflow: ellipsis;
               white-space: nowrap;
             }
           </style>
         </div>
-      `
-        : "";
+      `;
 
     const modalContent = modal.querySelector(".modal-body");
     modalContent.innerHTML = `
@@ -1016,22 +1052,6 @@ class RunnersManager {
               <th>Total Requests:</th>
               <td>${runner.total_requests || 0}</td>
             </tr>
-            ${
-              variables.length > 0
-                ? `
-            <tr>
-              <th>Variables:</th>
-              <td>
-                <span class="badge" style="background: var(--info-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
-                  ${variables.length} variable${
-                    variables.length !== 1 ? "s" : ""
-                  }
-                </span>
-              </td>
-            </tr>
-            `
-                : ""
-            }
             <tr>
               <th>Total Runs:</th>
               <td>${runner.run_count || 0}</td>
