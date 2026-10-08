@@ -2,7 +2,7 @@
 // Handle displaying and interacting with recent requests
 
 import logger from "../../lib/utils/logger.js";
-import { runtime } from "../../background/compat/browser-compat.js";
+import { runtime, tabs } from "../../background/compat/browser-compat.js";
 import { truncateUrl, showNotification } from "./popup-utils.js";
 
 /**
@@ -11,11 +11,11 @@ import { truncateUrl, showNotification } from "./popup-utils.js";
 export async function loadRecentRequests() {
   try {
     // Get current tab to filter by domain
-    const tabs = await (globalThis.browser || globalThis.chrome).tabs.query({
+    const currentTabs = await tabs.query({
       active: true,
       currentWindow: true,
     });
-    const currentTab = tabs[0];
+    const currentTab = currentTabs[0];
 
     let domain = null;
     if (currentTab?.url) {
