@@ -2,6 +2,7 @@
  * Variables section — CRUD for reusable request variables.
  * Manages via settings (getSettings / updateSettings actions).
  */
+import { runtime } from '../../../background/compat/browser-compat.js';
 
 const CSS_URL = chrome.runtime.getURL('options/sections/variables/variables.css');
 const HTML_URL = chrome.runtime.getURL('options/sections/variables/variables.html');
@@ -25,14 +26,14 @@ export async function init(container) {
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 async function loadVariables(container, state) {
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' }).catch(() => null);
+  const resp = await runtime.sendMessage({ action: 'getSettings' }).catch(() => null);
   state.variables = resp?.settings?.variables?.list || [];
   setCheck(container, 'variablesEnabled', resp?.settings?.variables?.enabled ?? true);
   render(container, state);
 }
 
 async function persist(container, state) {
-  const resp = await chrome.runtime.sendMessage({
+  const resp = await runtime.sendMessage({
     action: 'updateSettings',
     settings: {
       variables: {

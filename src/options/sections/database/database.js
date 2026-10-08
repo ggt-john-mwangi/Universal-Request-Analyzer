@@ -1,6 +1,7 @@
 /**
  * Database section — pipeline live counts, SQL editor, retention settings, backup/restore.
  */
+import { runtime } from '../../../background/compat/browser-compat.js';
 
 const CSS_URL = chrome.runtime.getURL('options/sections/database/database.css');
 const HTML_URL = chrome.runtime.getURL('options/sections/database/database.html');
@@ -26,8 +27,8 @@ export async function init(container) {
 
 async function loadPipeline(container, state) {
   const [statsResp, sizeResp] = await Promise.all([
-    chrome.runtime.sendMessage({ action: 'getDatabaseStats' }).catch(() => null),
-    chrome.runtime.sendMessage({ action: 'getDatabaseSize' }).catch(() => null),
+    runtime.sendMessage({ action: 'getDatabaseStats' }).catch(() => null),
+    runtime.sendMessage({ action: 'getDatabaseSize' }).catch(() => null),
   ]);
   const stats = statsResp?.stats || {};
 
@@ -68,7 +69,7 @@ async function runQuery(container, state) {
   if (!resultsEl) return;
   resultsEl.innerHTML = `<div class="db-sql-placeholder">Running…</div>`;
 
-  const resp = await chrome.runtime.sendMessage({ action: 'executeDirectQuery', query: sql });
+  const resp = await runtime.sendMessage({ action: 'executeDirectQuery', query: sql });
   addToSqlHistory(container, state, sql);
 
   if (!resp?.success) {
@@ -115,7 +116,7 @@ function addToSqlHistory(container, state, sql) {
 // ── Retention ─────────────────────────────────────────────────────────────────
 
 async function loadRetentionSettings(container) {
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' });
+  const resp = await runtime.sendMessage({ action: 'getSettings' });
   const ret = resp?.settings?.retention || {};
   // bronzeDays/goldDays are URA-specific extensions stored alongside the core retentionDays field
   setVal(container, '#db-ret-bronze', ret.bronzeDays ?? 7);
@@ -128,7 +129,7 @@ async function saveRetention(container) {
   const silver = parseInt(getVal(container, '#db-ret-silver') || '30', 10);
   const gold = parseInt(getVal(container, '#db-ret-gold') || '365', 10);
 
-  const resp = await chrome.runtime.sendMessage({
+  const resp = await runtime.sendMessage({
     action: 'updateSettings',
     settings: { retention: { bronzeDays: bronze, retentionDays: silver, goldDays: gold, autoCleanup: true } },
   });
@@ -146,7 +147,7 @@ async function runCleanup(container) {
   const status = container.querySelector('#db-cleanup-status');
   if (status) status.textContent = 'Running…';
   const days = parseInt(getVal(container, '#db-ret-silver') || '30', 10);
-  const resp = await chrome.runtime.sendMessage({ action: 'cleanupOldRecords', days });
+  const resp = await runtime.sendMessage({ action: 'cleanupOldRecords', days });
   if (status) {
     status.textContent = resp?.success ? 'Cleanup complete' : `Failed: ${resp?.error || ''}`;
     status.className = `db-save-status ${resp?.success ? 'ok' : 'err'}`;
@@ -161,7 +162,7 @@ async function exportDb(container) {
   const status = container.querySelector('#db-export-status');
   if (status) status.textContent = 'Exporting…';
   // createBackup triggers chrome.downloads directly from the background
-  const resp = await chrome.runtime.sendMessage({ action: 'createBackup' });
+  const resp = await runtime.sendMessage({ action: 'createBackup' });
   if (status) {
     status.textContent = resp?.success ? `Saved: ${resp.filename}` : (resp?.error || 'Export failed');
     status.className = `db-save-status ${resp?.success ? 'ok' : 'err'}`;
@@ -172,7 +173,7 @@ async function exportDb(container) {
 async function vacuumDb(container) {
   const status = container.querySelector('#db-vacuum-status');
   if (status) status.textContent = 'Running VACUUM…';
-  const resp = await chrome.runtime.sendMessage({ action: 'vacuumDatabase' });
+  const resp = await runtime.sendMessage({ action: 'vacuumDatabase' });
   if (status) {
     status.textContent = resp?.success ? 'VACUUM complete' : `Failed: ${resp?.error || ''}`;
     status.className = `db-save-status ${resp?.success ? 'ok' : 'err'}`;
@@ -230,7 +231,7 @@ function wireControls(container, state) {
     if (status) status.textContent = 'Importing…';
     const buf = await state.importFile.arrayBuffer();
     const data = Array.from(new Uint8Array(buf));
-    const resp = await chrome.runtime.sendMessage({ action: 'importDatabase', data });
+    const resp = await runtime.sendMessage({ action: 'importDatabase', data });
     if (status) {
       status.textContent = resp?.success ? 'Import complete' : `Failed: ${resp?.error || ''}`;
       status.className = `db-save-status ${resp?.success ? 'ok' : 'err'}`;

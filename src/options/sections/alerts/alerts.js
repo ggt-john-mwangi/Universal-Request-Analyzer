@@ -2,6 +2,7 @@
  * Alerts section — rule CRUD + history with 7-day bar chart.
  * Rules stored in settings.alerts.rules.
  */
+import { runtime } from '../../../background/compat/browser-compat.js';
 
 const CSS_URL = chrome.runtime.getURL('options/sections/alerts/alerts.css');
 const HTML_URL = chrome.runtime.getURL('options/sections/alerts/alerts.html');
@@ -26,9 +27,9 @@ export async function init(container) {
 
 async function loadData(container, state) {
   const [settResp, histResp, statsResp] = await Promise.all([
-    chrome.runtime.sendMessage({ action: 'getSettings' }).catch(() => null),
-    chrome.runtime.sendMessage({ action: 'getAlertHistory', limit: 100 }).catch(() => null),
-    chrome.runtime.sendMessage({ action: 'getDomains', timeRange: 86400 }).catch(() => null),
+    runtime.sendMessage({ action: 'getSettings' }).catch(() => null),
+    runtime.sendMessage({ action: 'getAlertHistory', limit: 100 }).catch(() => null),
+    runtime.sendMessage({ action: 'getDomains', timeRange: 86400 }).catch(() => null),
   ]);
 
   state.rules = settResp?.settings?.alerts?.rules || [];
@@ -59,9 +60,9 @@ function updateKPIs(container, state) {
 }
 
 async function persistRules(container, state) {
-  const settResp = await chrome.runtime.sendMessage({ action: 'getSettings' });
+  const settResp = await runtime.sendMessage({ action: 'getSettings' });
   const current = settResp?.settings || {};
-  const resp = await chrome.runtime.sendMessage({
+  const resp = await runtime.sendMessage({
     action: 'updateSettings',
     settings: { ...current, alerts: { ...(current.alerts || {}), rules: state.rules } },
   });

@@ -1,6 +1,7 @@
 /**
  * Settings section — loads settings from background, renders form, wires all controls.
  */
+import { runtime } from '../../../background/compat/browser-compat.js';
 
 const CSS_URL = chrome.runtime.getURL('options/sections/settings/settings.css');
 const HTML_URL = chrome.runtime.getURL('options/sections/settings/settings.html');
@@ -24,7 +25,7 @@ export async function init(container) {
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 async function loadSettings(container, state) {
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' }).catch(() => null);
+  const resp = await runtime.sendMessage({ action: 'getSettings' }).catch(() => null);
   if (!resp?.success) return;
   state.settings = resp.settings;
   populateForm(container, resp.settings);
@@ -129,9 +130,9 @@ function toggleExportOptions(container, show) {
 
 async function save(container, state) {
   const newSettings = collectForm(container);
-  const resp = await chrome.runtime.sendMessage({ action: 'updateSettings', settings: newSettings });
+  const resp = await runtime.sendMessage({ action: 'updateSettings', settings: newSettings });
   if (resp?.success) {
-    await chrome.runtime.sendMessage({ action: 'reloadCaptureSettings' }).catch(() => {});
+    await runtime.sendMessage({ action: 'reloadCaptureSettings' }).catch(() => {});
     state.settings = newSettings;
     notify(container, 'Settings saved', 'success');
   } else {
@@ -141,7 +142,7 @@ async function save(container, state) {
 
 async function reset(container, state) {
   if (!confirm('Reset all settings to defaults?')) return;
-  const resp = await chrome.runtime.sendMessage({ action: 'resetSettings' });
+  const resp = await runtime.sendMessage({ action: 'resetSettings' });
   if (resp?.success) {
     await loadSettings(container, state);
     notify(container, 'Settings reset to defaults', 'success');
@@ -151,7 +152,7 @@ async function reset(container, state) {
 }
 
 async function exportProfile(container) {
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' });
+  const resp = await runtime.sendMessage({ action: 'getSettings' });
   if (!resp?.success) { notify(container, 'Could not load settings', 'error'); return; }
   const blob = new Blob([JSON.stringify(resp.settings, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -178,7 +179,7 @@ async function handleImportFile(container, state, event) {
     return;
   }
 
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' });
+  const resp = await runtime.sendMessage({ action: 'getSettings' });
   const current = resp?.settings || {};
   const incoming = data.settings || data;
   const changes = diffSettings(current, incoming);
@@ -191,7 +192,7 @@ async function handleImportFile(container, state, event) {
 
 async function applyImport(container, state) {
   if (!state.pendingImport) return;
-  const resp = await chrome.runtime.sendMessage({ action: 'updateSettings', settings: state.pendingImport });
+  const resp = await runtime.sendMessage({ action: 'updateSettings', settings: state.pendingImport });
   state.pendingImport = null;
   container.querySelector('#importDiffPanel').hidden = true;
   if (resp?.success) {

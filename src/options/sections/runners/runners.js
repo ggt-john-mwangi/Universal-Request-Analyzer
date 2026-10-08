@@ -1,7 +1,7 @@
 /**
  * Runners section — browse, run, and review saved runners.
- * Delegates to background runner-handlers via chrome.runtime.sendMessage.
  */
+import { runtime } from '../../../background/compat/browser-compat.js';
 
 const CSS_URL = chrome.runtime.getURL('options/sections/runners/runners.css');
 const HTML_URL = chrome.runtime.getURL('options/sections/runners/runners.html');
@@ -26,13 +26,13 @@ export async function init(container) {
 
 async function loadRunners(container, state) {
   const [runnersResp, histResp] = await Promise.all([
-    chrome.runtime.sendMessage({
+    runtime.sendMessage({
       action: 'getAllRunners',
       offset: state.offset,
       limit: state.limit,
       searchQuery: state.search || null,
     }).catch(() => null),
-    chrome.runtime.sendMessage({ action: 'getRunHistory', limit: 100 }).catch(() => null),
+    runtime.sendMessage({ action: 'getRunHistory', limit: 100 }).catch(() => null),
   ]);
 
   state.runners = runnersResp?.runners || [];
@@ -151,7 +151,7 @@ async function runRunner(container, state, runnerId, cardEl) {
     if (bar) { bar.style.width = '0'; setTimeout(() => { bar.style.width = '80%'; }, 50); }
   }
 
-  const resp = await chrome.runtime.sendMessage({ action: 'runRunner', runnerId });
+  const resp = await runtime.sendMessage({ action: 'runRunner', runnerId });
 
   if (progress) {
     if (bar) bar.style.width = '100%';
@@ -178,8 +178,8 @@ async function showHistory(container, state, runnerId) {
   modal.hidden = false;
 
   const [histResp, perfResp] = await Promise.all([
-    chrome.runtime.sendMessage({ action: 'getRunnerHistory', runnerId, limit: 20 }),
-    chrome.runtime.sendMessage({ action: 'getRunnerPerformanceStats', runnerId }),
+    runtime.sendMessage({ action: 'getRunnerHistory', runnerId, limit: 20 }),
+    runtime.sendMessage({ action: 'getRunnerPerformanceStats', runnerId }),
   ]);
 
   const executions = histResp?.executions || [];
@@ -219,7 +219,7 @@ async function showHistory(container, state, runnerId) {
 async function deleteRunner(container, state, runnerId) {
   const runner = state.runners.find(r => r.id === runnerId);
   if (!runner || !confirm(`Delete runner "${runner.name}"?`)) return;
-  const resp = await chrome.runtime.sendMessage({ action: 'deleteRunner', runnerId });
+  const resp = await runtime.sendMessage({ action: 'deleteRunner', runnerId });
   if (resp?.success) await loadRunners(container, state);
   else notify(container, `Delete failed: ${resp?.error || 'Unknown'}`, 'error');
 }
