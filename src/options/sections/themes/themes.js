@@ -93,22 +93,26 @@ export async function init(container) {
     customColors: defaultCustomColors(),
   };
 
-  // Restore persisted custom theme if it was active when Options was last closed
-  const stored = await chrome.storage.local.get(['activeTheme', 'customTheme']);
-  if (stored.activeTheme === 'custom' && stored.customTheme?.colors) {
-    state.customColors = { ...state.customColors, ...stored.customTheme.colors };
-    state.activeTheme = 'custom';
-    applyCustomVars(state.customColors); // re-apply vars without re-saving
-  } else if (stored.activeTheme && stored.activeTheme !== state.activeTheme) {
-    // Ensure body class matches persisted choice (e.g. after a reload)
-    applyTheme(stored.activeTheme);
-    state.activeTheme = stored.activeTheme;
-  }
-
   renderBuiltinGrid(container, state);
   renderColorPickers(container, state);
   updateCustomPreview(container, state);
   wireControls(container, state);
+
+  // Restore persisted theme asynchronously so HTML shows immediately
+  chrome.storage.local.get(['activeTheme', 'customTheme']).then(stored => {
+    if (stored.activeTheme === 'custom' && stored.customTheme?.colors) {
+      state.customColors = { ...state.customColors, ...stored.customTheme.colors };
+      state.activeTheme = 'custom';
+      applyCustomVars(state.customColors);
+      renderBuiltinGrid(container, state);
+      renderColorPickers(container, state);
+      updateCustomPreview(container, state);
+    } else if (stored.activeTheme && stored.activeTheme !== state.activeTheme) {
+      applyTheme(stored.activeTheme);
+      state.activeTheme = stored.activeTheme;
+      renderBuiltinGrid(container, state);
+    }
+  });
 }
 
 // ── Render builtin grid ───────────────────────────────────────────────────────

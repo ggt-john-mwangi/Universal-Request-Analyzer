@@ -19,8 +19,8 @@ export async function init(container) {
   container.innerHTML = html;
 
   const state = { rules: [], history: [], editingId: null, activeTab: 'rules' };
-  await loadData(container, state);
   wireControls(container, state);
+  loadData(container, state);
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────

@@ -19,8 +19,8 @@ export async function init(container) {
   container.innerHTML = html;
 
   const state = { variables: [], editingId: null, maskSensitive: true };
-  await loadVariables(container, state);
   wireControls(container, state);
+  loadVariables(container, state);
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────

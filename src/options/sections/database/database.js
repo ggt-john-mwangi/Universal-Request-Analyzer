@@ -18,9 +18,9 @@ export async function init(container) {
   container.innerHTML = html;
 
   const state = { sqlHistory: [], importFile: null };
-  await loadPipeline(container, state);
-  loadRetentionSettings(container);
   wireControls(container, state);
+  loadPipeline(container, state);
+  loadRetentionSettings(container);
 }
 
 // ── Pipeline ──────────────────────────────────────────────────────────────────

@@ -18,8 +18,8 @@ export async function init(container) {
   container.innerHTML = html;
 
   const state = { runners: [], totalCount: 0, offset: 0, limit: 20, search: '', activeTab: 'runners' };
-  await loadRunners(container, state);
   wireControls(container, state);
+  loadRunners(container, state);
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────

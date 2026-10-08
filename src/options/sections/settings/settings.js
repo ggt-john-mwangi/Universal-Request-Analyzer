@@ -18,8 +18,8 @@ export async function init(container) {
   container.innerHTML = html;
 
   const state = { settings: null, pendingImport: null };
-  await loadSettings(container, state);
   wireControls(container, state);
+  loadSettings(container, state);
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
