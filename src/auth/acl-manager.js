@@ -121,7 +121,7 @@ class ACLManager {
     this.roles = { ...DEFAULT_ROLES };
     this.currentRole = 'user'; // Default role
     this.currentUser = null;
-    this.initialized = false;
+    this.initialized = true; // defaults are valid immediately; initialize() loads persisted state
     this.customPermissions = []; // Additional permissions for current user
   }
 

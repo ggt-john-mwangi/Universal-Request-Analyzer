@@ -1,0 +1,67 @@
+<div class="themes-page">
+
+  <!-- Header -->
+  <div class="section-header">
+    <h2 class="section-title">Themes</h2>
+    <p class="section-subtitle">Choose a color scheme for the extension</p>
+  </div>
+
+  <!-- Notification -->
+  <div id="themeNotification" class="theme-notification" hidden></div>
+
+  <!-- Built-in themes -->
+  <div class="themes-group">
+    <h3 class="group-label">Built-in themes</h3>
+    <div class="themes-grid" id="builtinThemesGrid">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Custom theme editor -->
+  <details class="custom-theme-card" id="customThemeSection">
+    <summary class="custom-theme-header">
+      <span class="header-icon"><i class="fas fa-palette"></i></span>
+      <span class="header-title">Custom theme</span>
+      <span class="header-hint">Build your own color scheme</span>
+      <i class="fas fa-chevron-down toggle-icon"></i>
+    </summary>
+    <div class="custom-theme-body">
+      <div class="custom-theme-name-row">
+        <label class="form-label" for="customThemeName">Theme name</label>
+        <input type="text" id="customThemeName" class="form-input" placeholder="My theme" maxlength="32">
+      </div>
+
+      <div class="color-pickers-grid" id="colorPickersGrid">
+        <!-- populated by JS -->
+      </div>
+
+      <!-- Live preview -->
+      <div class="custom-preview" id="customPreview">
+        <div class="preview-surface">
+          <div class="preview-sidebar" id="previewSidebar">
+            <div class="preview-nav-item active"></div>
+            <div class="preview-nav-item"></div>
+            <div class="preview-nav-item"></div>
+          </div>
+          <div class="preview-main" id="previewMain">
+            <div class="preview-card" id="previewCard">
+              <div class="preview-heading" id="previewHeading"></div>
+              <div class="preview-text" id="previewText"></div>
+              <div class="preview-badge"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="custom-actions">
+        <button id="applyCustomBtn" class="btn btn-primary">
+          <i class="fas fa-check"></i> Apply custom theme
+        </button>
+        <button id="resetCustomBtn" class="btn btn-ghost">
+          <i class="fas fa-undo"></i> Reset
+        </button>
+      </div>
+    </div>
+  </details>
+
+</div>

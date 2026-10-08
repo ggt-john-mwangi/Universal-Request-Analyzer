@@ -284,6 +284,13 @@ async function handleGetSetting(message, sender, context) {
  * Export handler map for settings operations
  */
 export const settingsHandlers = new Map([
+  [
+    "settingsUpdated",
+    async (message) => {
+      settingsManager.handleSettingsUpdate(message.settings);
+      return { success: true };
+    },
+  ],
   ["getSettings", handleGetSettings],
   ["updateSettings", handleUpdateSettings],
   ["resetSettings", handleResetSettings],

@@ -1,0 +1,475 @@
+/* Database section */
+
+/* Medallion tier colors — semantic, not theme-dependent */
+:root {
+  --db-bronze: #cd7f32;
+  --db-silver: #a8a9ad;
+  --db-gold:   #ffd700;
+  --db-source: #718096;
+}
+
+.db-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+/* ── sub-tabs ────────────────────────────────────────────────────────────── */
+.db-subtabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--divider-color);
+  padding: 0 20px;
+  background: var(--surface-color);
+}
+
+.db-subtab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.db-subtab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+.db-subtab:hover  { color: var(--text-primary-color); }
+
+.db-subtab-icon { font-size: 15px; }
+
+/* ── panes ───────────────────────────────────────────────────────────────── */
+.db-pane { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── pipeline KPI stats ──────────────────────────────────────────────────── */
+.db-pipeline-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.db-ps-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px;
+  gap: 4px;
+  position: relative;
+}
+
+.db-ps-card + .db-ps-arrow + .db-ps-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: var(--divider-color);
+}
+
+.db-ps-card.bronze { border-top: 3px solid var(--db-bronze); }
+.db-ps-card.silver { border-top: 3px solid var(--db-silver); }
+.db-ps-card.gold   { border-top: 3px solid var(--db-gold);   }
+
+.db-ps-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text-primary-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.db-ps-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-secondary-color);
+}
+
+.db-ps-tp { font-size: 10px; color: var(--text-disabled-color); }
+
+.db-ps-arrow {
+  font-size: 18px;
+  color: var(--text-disabled-color);
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── pipeline flow diagram ───────────────────────────────────────────────── */
+.db-flow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  overflow-x: auto;
+}
+
+.db-flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.db-flow-sources { gap: 12px; }
+
+/* flow nodes */
+.db-flow-node {
+  width: 130px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-color);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  background: var(--background-color);
+}
+
+.db-flow-node.source  { border-color: var(--db-source); width: 140px; }
+.db-flow-node.bronze  { border-color: var(--db-bronze); border-top: 3px solid var(--db-bronze); }
+.db-flow-node.silver  { border-color: var(--db-silver); border-top: 3px solid var(--db-silver); }
+.db-flow-node.gold    { border-color: var(--db-gold);   border-top: 3px solid var(--db-gold);   }
+
+.db-flow-node-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.db-flow-node.bronze .db-flow-node-badge { color: var(--db-bronze); }
+.db-flow-node.silver .db-flow-node-badge { color: var(--db-silver); }
+.db-flow-node.gold   .db-flow-node-badge { color: var(--db-gold);   }
+.db-flow-node.source .db-flow-node-label { color: var(--db-source); font-weight: 700; }
+
+.db-flow-node-label {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.db-flow-node-sub  { font-size: 9px; color: var(--text-secondary-color); }
+.db-flow-node-alarm { font-size: 9px; color: var(--text-disabled-color); margin-top: 2px; }
+
+/* connectors */
+.db-flow-connector {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+@keyframes db-flow {
+  from { stroke-dashoffset: 20; }
+  to   { stroke-dashoffset: 0;  }
+}
+
+.db-flow-arrow-line {
+  width: 40px;
+  height: 2px;
+  background: var(--db-source);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.db-flow-arrow-line::after {
+  content: '›';
+  position: absolute;
+  right: -8px;
+  top: -7px;
+  font-size: 16px;
+  color: var(--db-source);
+}
+
+.db-flow-arrow-line.animated { background: var(--db-silver); animation: none; }
+.db-flow-arrow-line.animated::after { color: var(--db-silver); }
+.db-flow-arrow-line.gold-line { background: var(--db-gold); }
+.db-flow-arrow-line.gold-line::after { color: var(--db-gold); }
+
+.db-flow-timing {
+  font-size: 9px;
+  color: var(--text-disabled-color);
+  text-align: center;
+  max-width: 80px;
+}
+
+/* pipeline footer */
+.db-pipeline-footer {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary-color);
+}
+
+.db-pipeline-footer strong { color: var(--text-primary-color); }
+
+/* ── SQL editor ──────────────────────────────────────────────────────────── */
+.db-sql-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+.db-sql-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.db-sql-toolbar-right { display: flex; gap: 8px; }
+
+.db-sql-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary-color);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.db-sql-textarea:focus { outline: none; border-color: var(--primary-color); }
+
+.db-sql-history-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.db-sql-history { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.db-hist-chip {
+  padding: 3px 10px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  font-size: 11px;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  font-family: monospace;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+
+.db-hist-chip:hover { background: var(--hover-color); }
+
+.db-sql-results {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  min-height: 80px;
+  overflow: hidden;
+}
+
+.db-sql-placeholder,
+.db-sql-ok {
+  padding: 20px;
+  color: var(--text-secondary-color);
+  text-align: center;
+  font-size: 13px;
+}
+
+.db-sql-error {
+  padding: 12px 16px;
+  color: var(--error-color);
+  background: var(--error-bg-color);
+  font-family: monospace;
+  font-size: 12px;
+  border-radius: 4px;
+  margin: 8px;
+}
+
+.db-sql-note {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--warning-color);
+  background: var(--warning-bg-color);
+}
+
+.db-sql-table-wrap { overflow-x: auto; }
+
+.db-sql-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.db-sql-table th {
+  padding: 6px 10px;
+  background: var(--surface-color);
+  border-bottom: 1px solid var(--divider-color);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary-color);
+  white-space: nowrap;
+}
+
+.db-sql-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--divider-color);
+  color: var(--text-primary-color);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-sql-table tr:hover td { background: var(--hover-color); }
+
+/* ── section cards (retention, backup) ───────────────────────────────────── */
+.db-section-card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.db-section-card-header {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary-color);
+  border-bottom: 1px solid var(--divider-color);
+  background: var(--surface-secondary, var(--background-color));
+}
+
+.db-section-card-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── form ────────────────────────────────────────────────────────────────── */
+.db-form-group { display: flex; flex-direction: column; gap: 4px; }
+
+.db-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.db-hint { font-size: 11px; color: var(--text-disabled-color); }
+
+.db-input {
+  padding: 7px 10px;
+  width: 100%;
+  max-width: 160px;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary-color);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.db-input:focus { outline: none; border-color: var(--primary-color); }
+
+.db-form-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+
+.db-body-text { font-size: 13px; color: var(--text-secondary-color); margin: 0; }
+.db-body-text code { font-family: monospace; background: var(--background-color); padding: 1px 5px; border-radius: 4px; }
+
+/* ── backup grid ─────────────────────────────────────────────────────────── */
+.db-backup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.db-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.db-btn-primary:hover { opacity: 0.88; }
+.db-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.db-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--text-secondary-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.db-btn-ghost:hover { background: var(--hover-color); }
+
+.db-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: var(--error-bg-color);
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.db-btn-danger:hover { background: var(--error-color); color: #fff; }
+
+.db-file-label { cursor: pointer; }
+
+/* ── status feedback ─────────────────────────────────────────────────────── */
+.db-save-status {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition: opacity 0.3s;
+}
+
+.db-status-success { color: var(--success-color); background: var(--success-bg-color); }
+.db-status-error   { color: var(--error-color);   background: var(--error-bg-color);   }
+.db-status-info    { color: var(--info-color);     background: var(--info-bg-color);    }
+
+/* ── section label ───────────────────────────────────────────────────────── */
+.db-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary-color);
+}

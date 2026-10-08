@@ -789,67 +789,37 @@ function createGoldSchema(db) {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_daily_date ON gold_daily_analytics(date)`
   );
-  // ❌ COMMENTED OUT - Indexes for disabled gold tables
-  /*
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_gold_insights_type ON gold_performance_insights(insight_type)`
-  );
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_gold_insights_severity ON gold_performance_insights(severity)`
-  );
-  */
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_date ON gold_domain_performance(date)`
   );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_gold_domain_perf_domain ON gold_domain_performance(domain)`
   );
-  // ❌ COMMENTED OUT - Indexes for disabled gold tables
-  /*
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_gold_trends_metric ON gold_trends(metric_name)`
-  );
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_gold_trends_date ON gold_trends(date)`
-  );
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_gold_anomalies_severity ON gold_anomalies(severity)`
-  );
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_gold_anomalies_resolved ON gold_anomalies(resolved)`
-  );
-  */
 
-  // Runner results tracking (LEGACY/DEPRECATED, replaced by bronze_runner_executions)
-  // ❌ COMMENTED OUT - Not in use, safe to remove
-  /*
+  // Alert rules and history (used by checkAlertRules in db-manager-medallion.js)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS runner_results (
-      run_id TEXT PRIMARY KEY,
-      collection_id TEXT,
-      status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
-      mode TEXT NOT NULL CHECK(mode IN ('sequential', 'parallel')),
-      total_requests INTEGER NOT NULL,
-      success_count INTEGER DEFAULT 0,
-      failure_count INTEGER DEFAULT 0,
-      duration INTEGER,
-      start_time INTEGER NOT NULL,
-      end_time INTEGER,
-      results_json TEXT,
-      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+    CREATE TABLE IF NOT EXISTS alert_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      condition TEXT NOT NULL,
+      threshold REAL NOT NULL,
+      domain TEXT,
+      enabled INTEGER DEFAULT 1,
+      created_at INTEGER
     )
   `);
-
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_runner_collection ON runner_results(collection_id)`
-  );
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_runner_status ON runner_results(status)`
-  );
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_runner_start_time ON runner_results(start_time DESC)`
-  );
-  */
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_id INTEGER,
+      rule_name TEXT,
+      triggered_at INTEGER,
+      value REAL,
+      threshold REAL,
+      message TEXT
+    )
+  `);
 
   // Runner alerts (CONFIG, still in use)
   db.exec(`
@@ -976,50 +946,6 @@ export async function validateAndFixSchema(db) {
         console.log("✓ bronze_web_vitals table recreated with correct schema");
       }
     }
-
-    // ❌ COMMENTED OUT - bronze_performance_entries validation (table disabled)
-    // TODO: Remove after testing confirms table not needed
-    /*
-    // Check bronze_performance_entries table
-    const perfResult = db.exec(`PRAGMA table_info(bronze_performance_entries)`);
-
-    if (perfResult && perfResult[0]?.values) {
-      const perfColumns = perfResult[0].values.map((col) => col[1]);
-      console.log("bronze_performance_entries columns:", perfColumns);
-
-      // Check if table has old 'metric_value' column
-      if (
-        perfColumns.includes("metric_value") &&
-        !perfColumns.includes("duration")
-      ) {
-        console.warn(
-          "⚠️ Detected old schema in bronze_performance_entries. Recreating table..."
-        );
-
-        db.exec(`DROP TABLE IF EXISTS bronze_performance_entries`);
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS bronze_performance_entries (
-            id TEXT PRIMARY KEY,
-            page_url TEXT NOT NULL,
-            domain TEXT NOT NULL,
-            entry_type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            start_time REAL,
-            duration REAL,
-            metrics TEXT,
-            timestamp INTEGER NOT NULL,
-            session_id TEXT,
-            created_at INTEGER NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES bronze_sessions(id) ON DELETE SET NULL
-          )
-        `);
-
-        console.log(
-          "✓ bronze_performance_entries table recreated with correct schema"
-        );
-      }
-    }
-    */
 
     // ✅ Ensure runner tables exist (for existing databases created before runner feature)
     const runnerTablesResult = db.exec(`

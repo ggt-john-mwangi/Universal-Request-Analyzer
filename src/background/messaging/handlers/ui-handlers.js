@@ -55,30 +55,28 @@ export const uiHandlers = new Map([
     async (message, sender, context) => {
       try {
         const { site, filters } = message;
-        const { database } = context;
 
+        // null site means "all" — nothing to query, caller refreshes dashboard
+        if (!site) {
+          return { success: true, site: null };
+        }
+
+        const { database } = context;
         if (!database) {
           return { success: false, error: "Database not initialized" };
         }
 
-        // Get filtered dashboard data for the specific site
-        // This could reuse getDashboardStats with site filter
         const query = `
-        SELECT 
-          domain,
-          COUNT(*) as request_count,
-          AVG(duration) as avg_duration,
-          SUM(size_bytes) as total_size,
-          COUNT(CASE WHEN status >= 400 THEN 1 END) as error_count
-        FROM silver_requests
-        WHERE domain = '${site.replace(/'/g, "''")}'
-        ${
-          filters?.timeRange
-            ? `AND timestamp >= ${Date.now() - filters.timeRange * 1000}`
-            : ""
-        }
-        GROUP BY domain
-      `;
+          SELECT domain,
+            COUNT(*) as request_count,
+            AVG(duration) as avg_duration,
+            SUM(size_bytes) as total_size,
+            COUNT(CASE WHEN status >= 400 THEN 1 END) as error_count
+          FROM silver_requests
+          WHERE domain = '${site.replace(/'/g, "''")}'
+          ${filters?.timeRange ? `AND timestamp >= ${Date.now() - filters.timeRange * 1000}` : ""}
+          GROUP BY domain
+        `;
 
         const result = database.executeQuery(query);
 
@@ -86,7 +84,6 @@ export const uiHandlers = new Map([
           success: true,
           site,
           stats: result[0]?.values?.[0] || {},
-          message: `Dashboard filtered by ${site}`,
         };
       } catch (error) {
         console.error("filterDashboardBySite error:", error);
@@ -105,6 +102,15 @@ export const uiHandlers = new Map([
         timestamp: Date.now(),
         message: "pong",
       };
+    },
+  ],
+
+  [
+    "pageVisit",
+    async (message) => {
+      // Sent by content.js when eventTracking flag is on.
+      // Phase 2 will write to bronze; for now just acknowledge.
+      return { success: true };
     },
   ],
 ]);

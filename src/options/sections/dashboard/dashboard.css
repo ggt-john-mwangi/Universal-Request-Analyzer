@@ -1,0 +1,74 @@
+/* Dashboard section styles — supplements options.css */
+
+.dashboard-container {
+  padding: 0;
+}
+
+/* Larger, bolder metric numbers */
+#dashboard .metric-value {
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Trend deltas */
+#dashboard .metric-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+#dashboard .metric-change.positive { color: var(--success-color); }
+#dashboard .metric-change.negative { color: var(--error-color); }
+
+/* Vital cards */
+#dashboard .vital-card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+#dashboard .vital-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+/* Chart containers */
+#dashboard .chart-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+#dashboard .chart-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary-color);
+  margin: 0 0 16px;
+}
+
+/* Status badges in requests table */
+#dashboard .status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+#dashboard .status-badge[data-status^="2"] { background: var(--success-bg-color); color: var(--success-color); }
+#dashboard .status-badge[data-status^="3"] { background: var(--info-bg-color);    color: var(--info-color); }
+#dashboard .status-badge[data-status^="4"] { background: var(--warning-bg-color); color: var(--warning-color); }
+#dashboard .status-badge[data-status^="5"] { background: var(--error-bg-color);   color: var(--error-color); }
+
+/* Analytics percentile grid */
+#dashboard .percentiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}

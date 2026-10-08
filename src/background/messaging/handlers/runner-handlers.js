@@ -5,6 +5,8 @@
  */
 
 import requestRunner from "../../capture/request-runner.js";
+import { parseUrl } from "../../utils/url-utils.js";
+import { generateId } from "../../utils/id-generator.js";
 
 /**
  * Handle run requests
@@ -514,4 +516,32 @@ export const runnerHandlers = new Map([
   ["updateRunnerMetadata", handleUpdateRunnerMetadata],
   ["cleanupTemporaryRunners", handleCleanupTemporaryRunners],
   ["deleteRunner", handleDeleteRunner],
+
+  [
+    "runnerRequestCompleted",
+    async (message, sender, context) => {
+      const { data } = message;
+      if (!data?.url) return { success: false, error: "Missing url" };
+      const medallion = context.database?.medallion;
+      if (!medallion) return { success: false, error: "Medallion not available" };
+      const parsed = parseUrl(data.url);
+      const id = generateId();
+      await medallion.insertBronzeRequest({
+        id,
+        url: data.url,
+        method: data.method || "GET",
+        status: data.status,
+        duration: data.duration,
+        timestamp: data.timestamp || Date.now(),
+        domain: data.originalDomain || parsed.domain,
+        path: parsed.path,
+        queryString: parsed.query,
+        protocol: parsed.protocol,
+        pageUrl: data.originalPageUrl,
+        startTime: data.timestamp,
+        endTime: (data.timestamp || 0) + (data.duration || 0),
+      });
+      return { success: true, requestId: id };
+    },
+  ],
 ]);

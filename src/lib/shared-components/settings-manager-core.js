@@ -25,10 +25,9 @@ class SettingsManagerCore {
     // Add event listeners for settings changes
     if (browserAPI && browserAPI.runtime) {
       browserAPI.runtime.onMessage.addListener(
-        (message, sender, sendResponse) => {
+        (message) => {
           if (message.action === "settingsUpdated") {
             this.handleSettingsUpdate(message.settings);
-            sendResponse({ success: true });
           }
         }
       );
@@ -312,12 +311,12 @@ class SettingsManagerCore {
    * @param {Object} settings - Updated settings
    * @returns {Promise<void>}
    */
-  async broadcastSettingsUpdate(settings) {
+  broadcastSettingsUpdate(settings) {
     if (typeof chrome !== "undefined" && chrome.runtime) {
-      await chrome.runtime.sendMessage({
+      chrome.runtime.sendMessage({
         action: "settingsUpdated",
         settings: settings,
-      });
+      }).catch(() => {}); // fire-and-forget; suppress "no receiving end" when UI isn't open
     }
   }
 

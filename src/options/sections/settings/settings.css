@@ -1,0 +1,430 @@
+/* Settings section styles — all vars from themes.css */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  max-width: 800px;
+}
+
+/* ── Header ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary-color);
+  margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Notification ── */
+.settings-notification {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.settings-notification.success {
+  background: var(--success-bg-color);
+  color: var(--success-color);
+  border: 1px solid var(--success-color);
+}
+
+.settings-notification.error {
+  background: var(--error-bg-color);
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+}
+
+/* ── Card (details/summary) ── */
+.settings-card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  color: var(--text-primary-color);
+}
+
+.settings-card-header::-webkit-details-marker { display: none; }
+
+.settings-card-header:hover {
+  background: var(--hover-color);
+}
+
+.card-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-secondary);
+  border-radius: 6px;
+  color: var(--primary-color);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.card-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary-color);
+}
+
+.card-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--primary-color);
+  color: #fff;
+  font-weight: 600;
+  display: none;
+}
+
+.card-badge:not(:empty) {
+  display: inline-block;
+}
+
+.toggle-icon {
+  color: var(--text-secondary-color);
+  font-size: 11px;
+  transition: transform 0.2s;
+}
+
+details[open] .toggle-icon {
+  transform: rotate(180deg);
+}
+
+.settings-card-body {
+  padding: 4px 16px 16px;
+  border-top: 1px solid var(--divider-color);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Setting Row ── */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.setting-row-column {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.label-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary-color);
+}
+
+.label-desc {
+  font-size: 12px;
+  color: var(--text-secondary-color);
+}
+
+/* ── Toggle switch ── */
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border-color);
+  border-radius: 9999px;
+  transition: background 0.2s;
+}
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: var(--primary-color);
+}
+
+.toggle-switch input:checked + .toggle-track::after {
+  transform: translateX(20px);
+}
+
+/* ── Form inputs ── */
+.setting-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--background-color);
+  color: var(--text-primary-color);
+  font-size: 13px;
+}
+
+.setting-input-sm {
+  width: 120px;
+}
+
+.setting-input:focus,
+.setting-select:focus,
+.setting-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.setting-select {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--background-color);
+  color: var(--text-primary-color);
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.setting-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--background-color);
+  color: var(--text-primary-color);
+  font-size: 13px;
+  resize: vertical;
+  font-family: monospace;
+}
+
+/* ── Checkbox chips ── */
+.checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checkbox-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.checkbox-chip:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.checkbox-chip input:checked ~ * { color: var(--primary-color); }
+.checkbox-chip:has(input:checked) {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+}
+
+.checkbox-chip input {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--primary-color);
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  text-decoration: none;
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--primary-color);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--primary-dark); }
+
+.btn-secondary {
+  background: var(--surface-secondary);
+  color: var(--text-primary-color);
+  border: 1px solid var(--border-color);
+}
+.btn-secondary:hover { background: var(--hover-color); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary-color);
+}
+.btn-ghost:hover { background: var(--hover-color); }
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* ── Import/Export ── */
+.settings-hint {
+  font-size: 13px;
+  color: var(--text-secondary-color);
+  margin: 0 0 12px;
+}
+
+.import-export-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Import diff panel ── */
+.import-diff-panel {
+  margin-top: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.diff-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.diff-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary-color);
+}
+
+.diff-count {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--accent-color);
+  color: #fff;
+  font-weight: 600;
+}
+
+.diff-table-wrap {
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.diff-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary-color);
+  background: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+}
+
+.diff-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--divider-color);
+  color: var(--text-primary-color);
+  font-family: monospace;
+}
+
+.diff-table td.diff-old { color: var(--error-color); }
+.diff-table td.diff-new { color: var(--success-color); }
+
+.diff-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface-secondary);
+  border-top: 1px solid var(--border-color);
+}

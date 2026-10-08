@@ -8,7 +8,7 @@ import { MedallionManager } from "./database/medallion-manager.js";
 import { AnalyticsProcessor } from "./database/analytics-processor.js";
 import { ConfigSchemaManager } from "./database/config-schema-manager.js";
 import { RequestCaptureIntegration } from "./capture/request-capture-integration.js";
-import { runtime, downloads, alarms } from "./compat/browser-compat.js";
+import { runtime, alarms } from "./compat/browser-compat.js";
 import settingsManager from "../lib/shared-components/settings-manager.js";
 import featureFlags from "../config/feature-flags.js";
 
@@ -284,12 +284,6 @@ class IntegratedExtensionInitializer {
           sendResponse({ success: true });
           break;
 
-        case "processToSilver": {
-          const count = await this.medallionManager.processAllPendingToSilver();
-          sendResponse({ success: true, processed: count });
-          break;
-        }
-
         case "configureAutoExport": {
           await this.setupAutoExport(message.config);
           sendResponse({ success: true });
@@ -304,141 +298,10 @@ class IntegratedExtensionInitializer {
           break;
         }
 
-        case "ping":
-          sendResponse({ success: true, message: "pong" });
-          break;
-
         case "reloadCaptureSettings": {
           // Reload settings and reinitialize request capture
           await this.initializeRequestCapture();
           sendResponse({ success: true, message: "Capture settings reloaded" });
-          break;
-        }
-
-        case "vacuumDatabase":
-          try {
-            console.log("[Background] Vacuum database requested");
-            await this.medallionDb.vacuumDatabase();
-            sendResponse({
-              success: true,
-              message: "Database compacted successfully",
-            });
-          } catch (vacuumError) {
-            console.error("[Background] Vacuum failed:", vacuumError);
-            sendResponse({ success: false, error: vacuumError.message });
-          }
-          break;
-
-        case "getDatabaseSize":
-          try {
-            const size = await this.medallionDb.getDatabaseSize();
-            const stats = await this.medallionDb.getDatabaseStats();
-            sendResponse({
-              success: true,
-              size: size,
-              records: stats?.totalRequests || 0,
-              oldestDate: stats?.oldestDate || null,
-            });
-          } catch (sizeError) {
-            sendResponse({ success: false, error: sizeError.message });
-          }
-          break;
-
-        case "createBackup": {
-          try {
-            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-            const filename = `ura_backup_${timestamp}.sqlite`;
-
-            const data = this.medallionDb.exportDatabase();
-
-            // Convert to base64 in chunks to avoid stack overflow
-            let binary = "";
-            const chunkSize = 8192;
-            for (let i = 0; i < data.length; i += chunkSize) {
-              const chunk = data.subarray(i, i + chunkSize);
-              binary += String.fromCharCode.apply(null, chunk);
-            }
-            const base64 = btoa(binary);
-            const dataUrl = `data:application/x-sqlite3;base64,${base64}`;
-
-            await downloads.download({
-              url: dataUrl,
-              filename: filename,
-              saveAs: true,
-            });
-
-            sendResponse({
-              success: true,
-              filename: filename,
-              size: data.length,
-            });
-          } catch (backupError) {
-            console.error("Backup error:", backupError);
-            sendResponse({ success: false, error: backupError.message });
-          }
-          break;
-        }
-
-        case "exportDatabase": {
-          try {
-            const format = message.format || "json";
-            let exportResponse;
-
-            switch (format) {
-              case "json":
-                exportResponse = await this.popupMessageHandler({ action: "exportToJSON", options: { prettify: true } });
-                break;
-              case "csv":
-                exportResponse = await this.popupMessageHandler({ action: "exportAllTablesToCSV", options: {} });
-                break;
-              case "sqlite":
-              default:
-                exportResponse = await this.popupMessageHandler({ action: "exportToSQLite", options: {} });
-                break;
-            }
-
-            if (!exportResponse?.success) throw new Error(exportResponse?.error || "Export failed");
-            if (!exportResponse.data) throw new Error("Export returned no data");
-
-            const data = new Uint8Array(exportResponse.data);
-            let binary = "";
-            const chunkSize = 8192;
-            for (let i = 0; i < data.length; i += chunkSize) {
-              binary += String.fromCharCode.apply(null, data.subarray(i, i + chunkSize));
-            }
-            const mimeType = exportResponse.mimeType || "application/octet-stream";
-            const filename = exportResponse.filename || message.filename;
-            await downloads.download({ url: `data:${mimeType};base64,${btoa(binary)}`, filename, saveAs: true });
-            sendResponse({ success: true, filename, size: data.length, format });
-          } catch (exportError) {
-            console.error("[Background] Export error:", exportError);
-            sendResponse({ success: false, error: exportError.message });
-          }
-          break;
-        }
-
-        case "importDatabase": {
-          try {
-            console.log("[Background] Import database requested");
-
-            if (!message.data || !Array.isArray(message.data)) {
-              throw new Error("Invalid database data");
-            }
-
-            // Convert array back to Uint8Array
-            const uint8Array = new Uint8Array(message.data);
-
-            // Import database
-            await this.medallionDb.importDatabase(uint8Array);
-
-            sendResponse({
-              success: true,
-              message: "Database imported successfully",
-            });
-          } catch (importError) {
-            console.error("[Background] Import error:", importError);
-            sendResponse({ success: false, error: importError.message });
-          }
           break;
         }
 
@@ -510,20 +373,6 @@ class IntegratedExtensionInitializer {
           } catch (timingError) {
             console.error("Resource timing capture error:", timingError);
             sendResponse({ success: false, error: timingError.message });
-          }
-          break;
-        }
-
-        case "getResourceCompressionStats": {
-          try {
-            const stats =
-              await this.medallionManager.getResourceCompressionStats(
-                message.filters || {}
-              );
-            sendResponse({ success: true, data: stats });
-          } catch (statsError) {
-            console.error("Compression stats error:", statsError);
-            sendResponse({ success: false, error: statsError.message });
           }
           break;
         }

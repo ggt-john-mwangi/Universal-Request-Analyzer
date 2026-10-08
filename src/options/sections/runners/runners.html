@@ -1,0 +1,77 @@
+<div class="rn-root">
+
+  <div id="rn-notify" class="rn-notify" hidden></div>
+
+  <!-- KPI bar -->
+  <div class="rn-kpi-bar">
+    <div class="rn-kpi">
+      <span class="rn-kpi-val" id="rn-kpi-total">—</span>
+      <span class="rn-kpi-lbl">Runners</span>
+    </div>
+    <div class="rn-kpi">
+      <span class="rn-kpi-val" id="rn-kpi-passrate">—</span>
+      <span class="rn-kpi-lbl">Avg Pass Rate</span>
+    </div>
+    <div class="rn-kpi">
+      <span class="rn-kpi-val" id="rn-kpi-avgdur">—</span>
+      <span class="rn-kpi-lbl">Avg Duration</span>
+    </div>
+    <div class="rn-kpi">
+      <span class="rn-kpi-val" id="rn-kpi-runs">—</span>
+      <span class="rn-kpi-lbl">Total Runs</span>
+    </div>
+  </div>
+
+  <!-- toolbar -->
+  <div class="rn-toolbar">
+    <div class="rn-subtabs">
+      <button class="rn-subtab active" data-subtab="runners">Runners</button>
+      <button class="rn-subtab" data-subtab="collections">Collections</button>
+    </div>
+    <div class="rn-toolbar-right">
+      <input type="text" id="rn-search" class="rn-search-input" placeholder="Search runners…" autocomplete="off">
+      <button class="rn-btn-primary" id="rn-create-btn">+ New Runner</button>
+    </div>
+  </div>
+
+  <!-- Runners pane -->
+  <div id="rn-pane-runners" class="rn-pane">
+    <div class="rn-grid" id="rn-grid">
+      <div class="rn-empty-state">
+        <div class="rn-empty-icon">▶</div>
+        <p>No runners yet. Click <strong>+ New Runner</strong> to capture and replay requests.</p>
+      </div>
+    </div>
+    <div class="rn-pagination" id="rn-pagination"></div>
+  </div>
+
+  <!-- Collections pane -->
+  <div id="rn-pane-collections" class="rn-pane" hidden>
+    <div class="rn-coll-bar">
+      <button class="rn-btn-primary" id="rn-create-coll-btn">+ New Collection</button>
+    </div>
+    <div class="rn-grid" id="rn-coll-grid">
+      <div class="rn-empty-state">
+        <div class="rn-empty-icon">📂</div>
+        <p>No collections yet. Group your runners into collections for easy access.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Execution results modal -->
+<div class="rn-modal-overlay" id="rn-results-modal" hidden>
+  <div class="rn-modal-panel">
+    <div class="rn-modal-header">
+      <span class="rn-modal-title" id="rn-results-title">Runner Results</span>
+      <button class="rn-modal-close" data-close="rn-results-modal">×</button>
+    </div>
+    <div class="rn-modal-tabs">
+      <button class="rn-modal-tab active" data-modal-tab="history">Run History</button>
+      <button class="rn-modal-tab" data-modal-tab="perf">Performance</button>
+    </div>
+    <div class="rn-modal-body" id="rn-results-body"></div>
+    <div class="rn-modal-body" id="rn-perf-body" hidden></div>
+  </div>
+</div>

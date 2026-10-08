@@ -20,7 +20,6 @@ let medallionManager = null;
 let configManager = null;
 let eventBus = null;
 let isSaving = false;
-let autoSaveInterval = null;
 const DB_FILE_NAME = "universal_request_analyzer.sqlite";
 
 /**
@@ -123,23 +122,14 @@ export function scheduleSave() {
 }
 
 /**
- * Setup auto-save mechanism (periodic fallback, not primary)
+ * Wire the onSuspend save — called once during initDatabase.
+ * Periodic saves are driven by the bronzeToSilver chrome.alarm in background.js,
+ * not by a setInterval (which dies when the MV3 SW goes idle after ~30s).
  */
 function setupAutoSave() {
-  if (autoSaveInterval) {
-    clearInterval(autoSaveInterval);
-  }
-
-  // 5-minute periodic fallback — the debounced save handles the hot path
-  autoSaveInterval = setInterval(async () => {
-    await saveDatabase();
-  }, 5 * 60 * 1000);
-
-  // Save immediately when the service worker is about to be suspended
   const browserAPI = globalThis.browser || globalThis.chrome;
   if (browserAPI?.runtime?.onSuspend) {
     browserAPI.runtime.onSuspend.addListener(() => {
-      // Clear debounce and save synchronously-as-possible
       if (saveDebouncerTimer) {
         clearTimeout(saveDebouncerTimer);
         saveDebouncerTimer = null;
@@ -208,10 +198,6 @@ export async function initDatabase(dbConfig, encryptionMgr, events) {
       // Medallion operations
       medallion: medallionManager,
       config: configManager,
-
-      // Legacy compatibility (delegates to medallion)
-      getRequests: async (options) => getRequestsLegacy(options),
-      saveRequest: async (request) => saveRequestLegacy(request),
 
       // Database management
       getDatabaseSize,
@@ -310,68 +296,6 @@ export function executeTransaction(queries) {
     console.error("Transaction failed:", error);
     throw new DatabaseError("Transaction failed", error);
   }
-}
-
-/**
- * Legacy compatibility: Get requests
- */
-async function getRequestsLegacy(options = {}) {
-  const { page = 1, limit = 100, filters = {} } = options;
-
-  const offset = (page - 1) * limit;
-
-  // Query silver layer for enriched data
-  let query = `
-    SELECT * FROM silver_requests
-    WHERE 1=1
-  `;
-
-  const params = [];
-
-  // Apply filters
-  if (filters.domain) {
-    query += " AND domain LIKE ?";
-    params.push(`%${filters.domain}%`);
-  }
-
-  if (filters.status) {
-    query += " AND status = ?";
-    params.push(filters.status);
-  }
-
-  if (filters.type) {
-    query += " AND type = ?";
-    params.push(filters.type);
-  }
-
-  if (filters.startDate) {
-    query += " AND timestamp >= ?";
-    params.push(filters.startDate);
-  }
-
-  if (filters.endDate) {
-    query += " AND timestamp <= ?";
-    params.push(filters.endDate);
-  }
-
-  query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?";
-  params.push(limit, offset);
-
-  const result = executeQuery(query, params);
-
-  if (!result || !result[0]) {
-    return [];
-  }
-
-  return mapResultToArray(result[0]);
-}
-
-/**
- * Legacy compatibility: Save request
- */
-async function saveRequestLegacy(request) {
-  // Delegate to medallion manager
-  return medallionManager.insertBronzeRequest(request);
 }
 
 /**
@@ -794,30 +718,9 @@ export function previewCleanup(days) {
 }
 
 /**
- * Map SQL result to array of objects
- */
-function mapResultToArray(result) {
-  if (!result || !result.columns || !result.values) {
-    return [];
-  }
-
-  return result.values.map((row) => {
-    const obj = {};
-    result.columns.forEach((col, idx) => {
-      obj[col] = row[idx];
-    });
-    return obj;
-  });
-}
-
-/**
  * Cleanup on shutdown
  */
 export async function cleanup() {
-  if (autoSaveInterval) {
-    clearInterval(autoSaveInterval);
-  }
-
   await saveDatabase();
 
   if (db) {
@@ -2041,15 +1944,6 @@ async function deleteScheduledRun(scheduleId) {
 async function checkAlertRules() {
   if (!db) return [];
   try {
-    // Ensure tables exist (safe no-op if already there)
-    db.exec(`CREATE TABLE IF NOT EXISTS alert_rules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, metric TEXT NOT NULL,
-      condition TEXT NOT NULL, threshold REAL NOT NULL, domain TEXT,
-      enabled INTEGER DEFAULT 1, created_at INTEGER)`);
-    db.exec(`CREATE TABLE IF NOT EXISTS alert_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id INTEGER, rule_name TEXT,
-      triggered_at INTEGER, value REAL, threshold REAL, message TEXT)`);
-
     const rulesResult = db.exec(`SELECT * FROM alert_rules WHERE enabled = 1`);
     if (!rulesResult?.[0]?.values?.length) return [];
 
@@ -2167,16 +2061,6 @@ export class DatabaseManagerMedallion {
     return this.dbApi.saveDatabase();
   }
 
-  getRequests(...args) {
-    if (!this.initialized) throw new DatabaseError("Database not initialized");
-    return this.dbApi.getRequests(...args);
-  }
-
-  saveRequest(...args) {
-    if (!this.initialized) throw new DatabaseError("Database not initialized");
-    return this.dbApi.saveRequest(...args);
-  }
-
   getDatabaseSize() {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.getDatabaseSize();
@@ -2263,6 +2147,12 @@ export class DatabaseManagerMedallion {
   get collection() {
     if (!this.initialized) throw new DatabaseError("Database not initialized");
     return this.dbApi.collection;
+  }
+
+  // Scheduled run operations proxy
+  get scheduledRun() {
+    if (!this.initialized) throw new DatabaseError("Database not initialized");
+    return this.dbApi.scheduledRun;
   }
 
   async checkAlertRules() {

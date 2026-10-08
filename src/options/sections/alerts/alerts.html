@@ -1,0 +1,107 @@
+<div class="al-root">
+
+  <!-- KPI bar -->
+  <div class="al-kpi-bar">
+    <div class="al-kpi">
+      <span class="al-kpi-val" id="al-kpi-rules">—</span>
+      <span class="al-kpi-lbl">Total Rules</span>
+    </div>
+    <div class="al-kpi">
+      <span class="al-kpi-val" id="al-kpi-enabled">—</span>
+      <span class="al-kpi-lbl">Enabled</span>
+    </div>
+    <div class="al-kpi">
+      <span class="al-kpi-val" id="al-kpi-today">—</span>
+      <span class="al-kpi-lbl">Triggered Today</span>
+    </div>
+    <div class="al-kpi">
+      <span class="al-kpi-val" id="al-kpi-week">—</span>
+      <span class="al-kpi-lbl">This Week</span>
+    </div>
+  </div>
+
+  <!-- toolbar -->
+  <div class="al-toolbar">
+    <div class="al-subtabs">
+      <button class="al-subtab active" data-subtab="rules">Alert Rules</button>
+      <button class="al-subtab" data-subtab="history">History</button>
+    </div>
+    <div class="al-toolbar-right">
+      <button class="al-btn-primary" id="al-add-rule-btn">+ Add Rule</button>
+    </div>
+  </div>
+
+  <!-- Rules pane -->
+  <div id="al-pane-rules" class="al-pane">
+    <div id="al-rules-list" class="al-rules-list">
+      <div class="al-empty-state">Loading alert rules…</div>
+    </div>
+  </div>
+
+  <!-- History pane -->
+  <div id="al-pane-history" class="al-pane" hidden>
+    <div class="al-chart-wrap">
+      <p class="al-chart-label">Alerts Triggered — Last 7 Days</p>
+      <div id="al-chart-container" class="al-chart-container"></div>
+    </div>
+    <div id="al-history-list" class="al-history-list">
+      <div class="al-empty-state">Loading alert history…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Add / Edit Rule modal -->
+<div class="al-modal-overlay" id="al-rule-modal" hidden>
+  <div class="al-modal-panel">
+    <div class="al-modal-header">
+      <span class="al-modal-title" id="al-modal-title">Add Alert Rule</span>
+      <button class="al-modal-close" data-close="al-rule-modal">×</button>
+    </div>
+    <div class="al-modal-body">
+      <div class="al-form-group">
+        <label class="al-label" for="al-f-name">Rule Name <span class="al-required">*</span></label>
+        <input type="text" id="al-f-name" class="al-input" placeholder="e.g. High Error Rate">
+      </div>
+      <div class="al-form-row">
+        <div class="al-form-group">
+          <label class="al-label" for="al-f-metric">Metric <span class="al-required">*</span></label>
+          <select id="al-f-metric" class="al-select">
+            <option value="avgDuration">Avg Response Time</option>
+            <option value="maxDuration">Max Response Time</option>
+            <option value="errorRate">Error Rate</option>
+            <option value="requestCount">Request Count</option>
+          </select>
+        </div>
+        <div class="al-form-group">
+          <label class="al-label" for="al-f-condition">Condition <span class="al-required">*</span></label>
+          <select id="al-f-condition" class="al-select">
+            <option value="gt">Greater than (&gt;)</option>
+            <option value="lt">Less than (&lt;)</option>
+            <option value="eq">Equals (=)</option>
+          </select>
+        </div>
+        <div class="al-form-group">
+          <label class="al-label" for="al-f-threshold">Threshold <span class="al-required">*</span></label>
+          <input type="number" id="al-f-threshold" class="al-input" placeholder="e.g. 500">
+        </div>
+      </div>
+      <div class="al-form-group">
+        <label class="al-label" for="al-f-domain">Domain (optional)</label>
+        <select id="al-f-domain" class="al-select">
+          <option value="">All Domains</option>
+        </select>
+      </div>
+      <div class="al-form-group al-form-check">
+        <label class="al-check-label">
+          <input type="checkbox" id="al-f-enabled" checked>
+          Enable this rule
+        </label>
+      </div>
+    </div>
+    <div class="al-modal-footer">
+      <button class="al-btn-ghost" data-close="al-rule-modal">Cancel</button>
+      <button class="al-btn-primary" id="al-save-rule-btn">Save Rule</button>
+    </div>
+  </div>
+</div>

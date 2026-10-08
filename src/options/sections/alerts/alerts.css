@@ -1,0 +1,341 @@
+/* Alerts section */
+
+.al-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+/* ── KPI bar ─────────────────────────────────────────────────────────────── */
+.al-kpi-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.al-kpi {
+  flex: 1;
+  min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 12px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.al-kpi-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-primary-color);
+  letter-spacing: -0.02em;
+}
+
+.al-kpi-lbl {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-secondary-color);
+}
+
+/* ── toolbar ─────────────────────────────────────────────────────────────── */
+.al-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.al-subtabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.al-subtab {
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.al-subtab.active {
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.al-toolbar-right { display: flex; gap: 8px; }
+
+/* ── panes ───────────────────────────────────────────────────────────────── */
+.al-pane { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── rules list ──────────────────────────────────────────────────────────── */
+.al-rules-list { display: flex; flex-direction: column; gap: 8px; }
+
+.al-rule-card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
+  transition: border-color 0.15s;
+}
+
+.al-rule-card.al-rule-enabled  { border-left: 3px solid var(--success-color); }
+.al-rule-card.al-rule-disabled { border-left: 3px solid var(--text-disabled-color); opacity: 0.7; }
+
+.al-rule-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.al-rule-left { display: flex; gap: 10px; align-items: flex-start; }
+
+.al-rule-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+
+.al-rule-info { display: flex; flex-direction: column; gap: 3px; }
+
+.al-rule-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary-color);
+}
+
+.al-rule-cond {
+  font-size: 12px;
+  color: var(--text-secondary-color);
+  font-family: monospace;
+}
+
+.al-rule-domain {
+  font-size: 11px;
+  color: var(--text-secondary-color);
+}
+
+.al-rule-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.al-icon-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.al-toggle-btn:hover { background: var(--info-bg-color); color: var(--info-color); border-color: var(--info-color); }
+.al-del-btn:hover    { background: var(--error-bg-color); color: var(--error-color); border-color: var(--error-color); }
+
+/* ── history chart ───────────────────────────────────────────────────────── */
+.al-chart-wrap {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.al-chart-label {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary-color);
+}
+
+.al-chart-container { overflow: hidden; }
+
+/* ── history list ────────────────────────────────────────────────────────── */
+.al-history-list { display: flex; flex-direction: column; gap: 8px; }
+
+.al-history-item {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.al-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.al-history-time { font-size: 11px; color: var(--text-secondary-color); font-family: monospace; }
+
+.al-history-msg { font-size: 13px; color: var(--text-primary-color); }
+
+.al-history-vals { font-size: 11px; color: var(--text-secondary-color); }
+
+/* ── badges ──────────────────────────────────────────────────────────────── */
+.al-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.al-badge-error   { background: var(--error-bg-color);   color: var(--error-color);   }
+.al-badge-success { background: var(--success-bg-color); color: var(--success-color); }
+.al-badge-info    { background: var(--info-bg-color);    color: var(--info-color);    }
+
+/* ── empty state ─────────────────────────────────────────────────────────── */
+.al-empty-state {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-secondary-color);
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.al-loading { padding: 20px; color: var(--text-secondary-color); text-align: center; }
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.al-btn-primary {
+  padding: 7px 14px;
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.al-btn-primary:hover { opacity: 0.88; }
+
+.al-btn-ghost {
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--text-secondary-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.al-btn-ghost:hover { background: var(--hover-color); }
+
+/* ── modal ───────────────────────────────────────────────────────────────── */
+.al-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-overlay-bg, rgba(0,0,0,0.55));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+.al-modal-panel {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px var(--modal-shadow, var(--shadow-color));
+  width: min(520px, 95vw);
+  display: flex;
+  flex-direction: column;
+}
+
+.al-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.al-modal-title { font-weight: 700; font-size: 16px; color: var(--text-primary-color); }
+
+.al-modal-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  font-size: 18px;
+  border-radius: 4px;
+}
+.al-modal-close:hover { background: var(--hover-color); }
+
+.al-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+.al-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--divider-color);
+}
+
+/* ── form ────────────────────────────────────────────────────────────────── */
+.al-form-group { display: flex; flex-direction: column; gap: 5px; }
+
+.al-form-row { display: flex; gap: 12px; }
+.al-form-row .al-form-group { flex: 1; }
+
+.al-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.al-required { color: var(--error-color); }
+
+.al-input,
+.al-select {
+  padding: 7px 10px;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary-color);
+  font-size: 13px;
+}
+
+.al-input:focus,
+.al-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.al-form-check { flex-direction: row; align-items: center; }
+
+.al-check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary-color);
+  cursor: pointer;
+}

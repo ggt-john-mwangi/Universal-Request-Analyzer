@@ -5,7 +5,7 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const ZipPlugin = require("zip-webpack-plugin");
 
-module.exports = (env, argv) => {
+module.exports = (_env, argv) => {
   const isProduction = argv.mode === "production";
 
   return {
@@ -37,18 +37,8 @@ module.exports = (env, argv) => {
         },
         {
           test: /\.css$/,
-          use: [
-            MiniCssExtractPlugin.loader, // Ensure this is used to extract CSS
-            "css-loader",
-          ],
+          use: [MiniCssExtractPlugin.loader, "css-loader"],
         },
-        // {
-        //   test: /\.css$/,
-        //   use: [
-        //     isProduction ? MiniCssExtractPlugin.loader : "style-loader", // Use MiniCssExtractPlugin.loader in production
-        //     "css-loader",
-        //   ],
-        // },
         {
           test: /\.(png|svg|jpg|jpeg|gif)$/i,
           type: "asset/resource",
@@ -67,9 +57,7 @@ module.exports = (env, argv) => {
     },
     plugins: [
       new CleanWebpackPlugin(),
-      new MiniCssExtractPlugin({
-        filename: "styles.css", // Ensure the output CSS file is named correctly
-      }),
+      new MiniCssExtractPlugin({ filename: "styles.css" }),
       new CopyWebpackPlugin({
         patterns: [
           { from: "./src/manifest.json", to: "manifest.json" },
@@ -86,10 +74,15 @@ module.exports = (env, argv) => {
             from: "./src/assets/wasm/**/*",
             to: "assets/wasm/[name][ext]",
           },
-          // { from: "./src/lib/chart.min.js", to: "lib/chart.min.js" },
           { from: "./src/lib/**/*", to: "lib/[name][ext]" },
 
           { from: "./src/**/css/*", to: "css/[name][ext]" },
+          // Section HTML partials (fetched at runtime via chrome.runtime.getURL)
+          {
+            from: path.resolve(__dirname, "src/options/sections"),
+            to: path.resolve(__dirname, "dist/options/sections"),
+            noErrorOnMissing: true,
+          },
         ],
       }),
       new HtmlWebpackPlugin({
@@ -117,11 +110,11 @@ module.exports = (env, argv) => {
         filename: "help/help.html",
         chunks: [],
       }),
-      // Package the dist/ folder into a single ZIP for upload/sideload
-      new ZipPlugin({
+      // Package the dist/ folder into a ZIP only on production builds
+      ...(isProduction ? [new ZipPlugin({
         path: path.resolve(__dirname, "release"),
         filename: "ura.zip",
-      }),
+      })] : []),
     ],
     resolve: {
       extensions: [".js"],
@@ -138,7 +131,7 @@ module.exports = (env, argv) => {
       },
     },
     optimization: {
-      minimize: isProduction ? true : true,
+      minimize: isProduction,
       splitChunks: {
         cacheGroups: {
           styles: {

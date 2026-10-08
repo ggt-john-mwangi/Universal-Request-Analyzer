@@ -1,0 +1,204 @@
+<div class="db-root">
+
+  <!-- Sub-tabs -->
+  <div class="db-subtabs">
+    <button class="db-subtab active" data-subtab="pipeline">
+      <span class="db-subtab-icon">⬡</span> Pipeline
+    </button>
+    <button class="db-subtab" data-subtab="sql">
+      <span class="db-subtab-icon">⌨</span> SQL Editor
+    </button>
+    <button class="db-subtab" data-subtab="retention">
+      <span class="db-subtab-icon">⏱</span> Retention
+    </button>
+    <button class="db-subtab" data-subtab="backup">
+      <span class="db-subtab-icon">💾</span> Backup
+    </button>
+  </div>
+
+  <!-- Pipeline pane -->
+  <div id="db-pane-pipeline" class="db-pane">
+
+    <!-- Live row counts above the flow -->
+    <div class="db-pipeline-stats">
+      <div class="db-ps-card bronze">
+        <span class="db-ps-val" id="db-bronze-count">—</span>
+        <span class="db-ps-lbl">Bronze rows</span>
+        <span class="db-ps-tp" id="db-bronze-tp">— / 5 min</span>
+      </div>
+      <div class="db-ps-arrow">→</div>
+      <div class="db-ps-card silver">
+        <span class="db-ps-val" id="db-silver-count">—</span>
+        <span class="db-ps-lbl">Silver rows</span>
+        <span class="db-ps-tp" id="db-silver-tp">— / 5 min</span>
+      </div>
+      <div class="db-ps-arrow">→</div>
+      <div class="db-ps-card gold">
+        <span class="db-ps-val" id="db-gold-count">—</span>
+        <span class="db-ps-lbl">Gold rows</span>
+        <span class="db-ps-tp">daily agg</span>
+      </div>
+    </div>
+
+    <!-- Flow diagram -->
+    <div class="db-flow">
+      <!-- Sources -->
+      <div class="db-flow-col db-flow-sources">
+        <div class="db-flow-node source">
+          <div class="db-flow-node-label">SW Capture</div>
+          <div class="db-flow-node-sub">chrome.webRequest</div>
+          <div class="db-flow-node-sub">request-capture.js</div>
+        </div>
+        <div class="db-flow-node source">
+          <div class="db-flow-node-label">content.js</div>
+          <div class="db-flow-node-sub">batchResourceTiming</div>
+          <div class="db-flow-node-sub">Web Vitals · XHR/fetch</div>
+        </div>
+      </div>
+
+      <div class="db-flow-connector">
+        <div class="db-flow-arrow-line"></div>
+      </div>
+
+      <!-- Bronze -->
+      <div class="db-flow-col">
+        <div class="db-flow-node bronze">
+          <div class="db-flow-node-badge">Bronze</div>
+          <div class="db-flow-node-label" id="db-node-bronze-count">—</div>
+          <div class="db-flow-node-sub">raw requests</div>
+          <div class="db-flow-node-alarm">⏱ live</div>
+        </div>
+        <div class="db-flow-timing" id="db-bts-timing">B→S: —</div>
+      </div>
+
+      <div class="db-flow-connector">
+        <div class="db-flow-arrow-line animated"></div>
+      </div>
+
+      <!-- Silver -->
+      <div class="db-flow-col">
+        <div class="db-flow-node silver">
+          <div class="db-flow-node-badge">Silver</div>
+          <div class="db-flow-node-label" id="db-node-silver-count">—</div>
+          <div class="db-flow-node-sub">enriched</div>
+          <div class="db-flow-node-alarm">⏱ every 2 min</div>
+        </div>
+        <div class="db-flow-timing" id="db-stg-timing">S→G: —</div>
+      </div>
+
+      <div class="db-flow-connector">
+        <div class="db-flow-arrow-line animated gold-line"></div>
+      </div>
+
+      <!-- Gold -->
+      <div class="db-flow-col">
+        <div class="db-flow-node gold">
+          <div class="db-flow-node-badge">Gold</div>
+          <div class="db-flow-node-label" id="db-node-gold-count">—</div>
+          <div class="db-flow-node-sub">aggregated</div>
+          <div class="db-flow-node-alarm">⏱ daily</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DB size footer -->
+    <div class="db-pipeline-footer">
+      <span>DB Size: <strong id="db-size-val">—</strong></span>
+      <span>Last Bronze→Silver: <strong id="db-last-bts">—</strong></span>
+      <span>Last Silver→Gold: <strong id="db-last-stg">—</strong></span>
+    </div>
+  </div>
+
+  <!-- SQL Editor pane -->
+  <div id="db-pane-sql" class="db-pane" hidden>
+    <div class="db-sql-wrap">
+      <div class="db-sql-toolbar">
+        <span class="db-section-label">SQL Editor</span>
+        <div class="db-sql-toolbar-right">
+          <button class="db-btn-ghost" id="db-sql-clear-btn">Clear</button>
+          <button class="db-btn-primary" id="db-sql-run-btn">▶ Run Query</button>
+        </div>
+      </div>
+      <textarea id="db-sql-input" class="db-sql-textarea" spellcheck="false" placeholder="SELECT * FROM silver_requests LIMIT 100;"></textarea>
+      <div class="db-sql-history-bar">
+        <span class="db-section-label">Recent</span>
+        <div id="db-sql-history" class="db-sql-history"></div>
+      </div>
+      <div id="db-sql-results" class="db-sql-results">
+        <div class="db-sql-placeholder">Run a query to see results.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Retention pane -->
+  <div id="db-pane-retention" class="db-pane" hidden>
+    <div class="db-section-card">
+      <div class="db-section-card-header">Data Retention</div>
+      <div class="db-section-card-body">
+        <div class="db-form-group">
+          <label class="db-label" for="db-ret-bronze">Bronze retention (days)</label>
+          <input type="number" id="db-ret-bronze" class="db-input" min="1" max="365" value="7">
+          <span class="db-hint">Raw requests. Default: 7 days.</span>
+        </div>
+        <div class="db-form-group">
+          <label class="db-label" for="db-ret-silver">Silver retention (days)</label>
+          <input type="number" id="db-ret-silver" class="db-input" min="1" max="365" value="30">
+          <span class="db-hint">Enriched requests. Default: 30 days.</span>
+        </div>
+        <div class="db-form-group">
+          <label class="db-label" for="db-ret-gold">Gold retention (days)</label>
+          <input type="number" id="db-ret-gold" class="db-input" min="1" max="3650" value="365">
+          <span class="db-hint">Aggregated analytics. Default: 365 days.</span>
+        </div>
+        <div class="db-form-actions">
+          <button class="db-btn-primary" id="db-ret-save-btn">Save Retention Settings</button>
+          <span class="db-save-status" id="db-ret-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-section-card">
+      <div class="db-section-card-header">Cleanup</div>
+      <div class="db-section-card-body">
+        <p class="db-body-text">Manually run data cleanup to remove records older than the retention thresholds above.</p>
+        <button class="db-btn-danger" id="db-cleanup-btn">Run Cleanup Now</button>
+        <span class="db-save-status" id="db-cleanup-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup pane -->
+  <div id="db-pane-backup" class="db-pane" hidden>
+    <div class="db-backup-grid">
+      <div class="db-section-card">
+        <div class="db-section-card-header">Export Database</div>
+        <div class="db-section-card-body">
+          <p class="db-body-text">Download a full copy of your OPFS database as a <code>.sqlite</code> file.</p>
+          <button class="db-btn-primary" id="db-export-btn">⬇ Export Database</button>
+          <span class="db-save-status" id="db-export-status"></span>
+        </div>
+      </div>
+      <div class="db-section-card">
+        <div class="db-section-card-header">Import Database</div>
+        <div class="db-section-card-body">
+          <p class="db-body-text">Restore from a previously exported <code>.sqlite</code> file. <strong>This replaces the current database.</strong></p>
+          <label class="db-file-label">
+            <input type="file" id="db-import-file" accept=".sqlite,.db" hidden>
+            <span class="db-btn-ghost">Choose File…</span>
+          </label>
+          <button class="db-btn-primary" id="db-import-btn" disabled>⬆ Import Database</button>
+          <span class="db-save-status" id="db-import-status"></span>
+        </div>
+      </div>
+      <div class="db-section-card">
+        <div class="db-section-card-header">Maintenance</div>
+        <div class="db-section-card-body">
+          <p class="db-body-text">Run <code>VACUUM</code> to reclaim space after large deletions.</p>
+          <button class="db-btn-ghost" id="db-vacuum-btn">⚙ VACUUM Database</button>
+          <span class="db-save-status" id="db-vacuum-status"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
