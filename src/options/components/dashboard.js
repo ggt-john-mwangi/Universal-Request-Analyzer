@@ -2,6 +2,7 @@
 // Manages the dashboard visualization and real-time metrics
 
 import Chart from "../../lib/chart.min.js";
+import { runtime } from "../../background/compat/browser-compat.js";
 
 class Dashboard {
   constructor() {
@@ -34,8 +35,11 @@ class Dashboard {
       this.showNoDomainState();
     }
 
-    // Start auto-refresh
-    this.startAutoRefresh();
+    // Start auto-refresh only if checkbox is checked (default: checked)
+    const autoRefreshChk = document.getElementById("dashboardAutoRefresh");
+    if (!autoRefreshChk || autoRefreshChk.checked) {
+      this.startAutoRefresh();
+    }
   }
 
   setupEventListeners() {
@@ -330,6 +334,27 @@ class Dashboard {
 
     // Analytics Tab event listeners removed - features provide no actionable value for developers
 
+    // Filter panel toggle
+    const filterToggle = document.getElementById("dashboardFilterToggle");
+    const filterPanel = document.getElementById("dashboardFilterPanel");
+    if (filterToggle && filterPanel) {
+      filterToggle.addEventListener("click", () => {
+        filterPanel.hidden = !filterPanel.hidden;
+      });
+    }
+
+    // Auto-refresh checkbox
+    const autoRefreshChk = document.getElementById("dashboardAutoRefresh");
+    if (autoRefreshChk) {
+      autoRefreshChk.addEventListener("change", () => {
+        if (autoRefreshChk.checked) {
+          this.startAutoRefresh();
+        } else {
+          this.stopAutoRefresh();
+        }
+      });
+    }
+
     // Populate domain comparison dropdowns
     const compareDomain1 = document.getElementById("compareDomain1");
     const compareDomain2 = document.getElementById("compareDomain2");
@@ -337,7 +362,7 @@ class Dashboard {
 
     if (compareDomain1 || compareDomain2 || compareDomain3) {
       // Load domains for comparison dropdowns
-      chrome.runtime
+      runtime
         .sendMessage({ action: "getAvailableDomains" })
         .then((response) => {
           if (response.success && response.domains) {
@@ -390,7 +415,7 @@ class Dashboard {
     // Check if plots/visualizations are enabled in settings
     let enabledCharts = ["requestsChart", "statusChart", "performanceChart"]; // Default: all enabled
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getSettings",
       });
 
@@ -918,7 +943,7 @@ class Dashboard {
     const filters = this.getActiveFilters();
 
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(
+      runtime.sendMessage(
         {
           action: "getFilteredStats",
           filters: {
@@ -927,10 +952,10 @@ class Dashboard {
           },
         },
         (response) => {
-          if (chrome.runtime.lastError) {
+          if (runtime.lastError) {
             console.error(
               "Error getting dashboard stats:",
-              chrome.runtime.lastError
+              runtime.lastError
             );
             resolve(this.getDefaultStats());
             return;
@@ -1226,7 +1251,7 @@ class Dashboard {
         LIMIT 100
       `;
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "executeDirectQuery",
         query: query,
       });
@@ -1335,7 +1360,7 @@ class Dashboard {
         maxPointsPerEndpoint,
       };
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getEndpointPerformanceHistory",
         filters,
       });
@@ -1750,7 +1775,7 @@ class Dashboard {
         timeRange: this.timeRange,
       };
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getDetailedRequests",
         filters,
         limit: perPage,
@@ -2124,7 +2149,7 @@ class Dashboard {
         return `'${String(val).replace(/'/g, "''")}'`;
       };
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "executeDirectQuery",
         query: `
           SELECT name, value
@@ -2152,7 +2177,7 @@ class Dashboard {
         return `'${String(val).replace(/'/g, "''")}'`;
       };
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "executeDirectQuery",
         query: `
           SELECT request_body
@@ -2553,7 +2578,7 @@ class Dashboard {
       const domainFilter = document.getElementById("dashboardDomainFilter");
       const selectedDomain = domainFilter?.value || "all";
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "exportAsHAR",
         filters: {
           domain: selectedDomain === "all" ? null : selectedDomain,
@@ -2590,7 +2615,7 @@ class Dashboard {
         timeRange: this.timeRange,
       };
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getResourceSizeBreakdown",
         filters,
       });
@@ -2711,7 +2736,7 @@ class Dashboard {
       const domainFilter = document.getElementById("dashboardDomainFilter");
       const selectedDomain = domainFilter?.value || "all";
 
-      const statsResponse = await chrome.runtime.sendMessage({
+      const statsResponse = await runtime.sendMessage({
         action: "getResourceCompressionStats",
         filters: {
           domain: selectedDomain === "all" ? null : selectedDomain,
@@ -2841,7 +2866,7 @@ class Dashboard {
 
       // Get 4xx errors
       const filters4xx = { ...filters, statusPrefix: "4xx" };
-      const response4xx = await chrome.runtime.sendMessage({
+      const response4xx = await runtime.sendMessage({
         action: "getDetailedRequests",
         filters: filters4xx,
         limit: 50,
@@ -2850,7 +2875,7 @@ class Dashboard {
 
       // Get 5xx errors
       const filters5xx = { ...filters, statusPrefix: "5xx" };
-      const response5xx = await chrome.runtime.sendMessage({
+      const response5xx = await runtime.sendMessage({
         action: "getDetailedRequests",
         filters: filters5xx,
         limit: 50,
@@ -3296,7 +3321,7 @@ class Dashboard {
       console.log("[Runner Variables] Starting to load variables...");
 
       // Fetch settings from background
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getSettings",
       });
 
@@ -3470,7 +3495,7 @@ class Dashboard {
 
     try {
       // Start the runner
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "runRequests",
         config,
         requests: selectedRequests,
@@ -3496,7 +3521,7 @@ class Dashboard {
 
   async updateRunnerProgress() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getRunnerProgress",
       });
 
@@ -3584,7 +3609,7 @@ class Dashboard {
 
   async updateRunnerResultsTable() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getRunnerProgress",
       });
 
@@ -3649,7 +3674,7 @@ class Dashboard {
 
   async cancelRunner() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "cancelRun",
       });
 
@@ -3664,7 +3689,7 @@ class Dashboard {
 
   async showRunnerHistory() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getRunHistory",
         limit: 20,
       });
@@ -3826,7 +3851,7 @@ class Dashboard {
       }
 
       // Get all domains
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getDomains",
         timeRange: 604800, // Last 7 days
       });
@@ -3997,7 +4022,7 @@ class Dashboard {
       }
 
       // Get pages for this domain
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getPagesByDomain",
         domain: domain,
         timeRange: 604800, // Last 7 days
@@ -4146,7 +4171,7 @@ class Dashboard {
       this.showWebVitals();
 
       // Get Web Vitals from background
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getWebVitals",
         filters: {
           ...filters,
@@ -4338,7 +4363,7 @@ class Dashboard {
         ${whereClause}
       `;
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "executeDirectQuery",
         query: query,
       });
@@ -4361,7 +4386,7 @@ class Dashboard {
         // Execute all percentile queries
         const percentileResults = await Promise.all(
           percentileQueries.map((q) =>
-            chrome.runtime.sendMessage({
+            runtime.sendMessage({
               action: "executeDirectQuery",
               query: q,
             })
@@ -4482,7 +4507,7 @@ class Dashboard {
         LIMIT 20
       `;
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "executeDirectQuery",
         query: query,
       });
@@ -4592,11 +4617,11 @@ class Dashboard {
       `;
 
       const [currentResponse, previousResponse] = await Promise.all([
-        chrome.runtime.sendMessage({
+        runtime.sendMessage({
           action: "executeDirectQuery",
           query: currentQuery,
         }),
-        chrome.runtime.sendMessage({
+        runtime.sendMessage({
           action: "executeDirectQuery",
           query: previousQuery,
         }),
@@ -4716,7 +4741,7 @@ class Dashboard {
         ORDER BY day_of_week, hour_of_day
       `;
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "executeDirectQuery",
         query: query,
       });
@@ -4857,7 +4882,7 @@ class Dashboard {
 
       const responses = await Promise.all(
         queries.map((q) =>
-          chrome.runtime.sendMessage({ action: "executeDirectQuery", query: q })
+          runtime.sendMessage({ action: "executeDirectQuery", query: q })
         )
       );
 
@@ -5021,7 +5046,7 @@ class Dashboard {
 
       const responses = await Promise.all(
         Object.values(queries).map((q) =>
-          chrome.runtime.sendMessage({ action: "executeDirectQuery", query: q })
+          runtime.sendMessage({ action: "executeDirectQuery", query: q })
         )
       );
 
@@ -5174,7 +5199,7 @@ class Dashboard {
    */
   async applyVariableSubstitution(text) {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getSettings",
       });
 
@@ -5217,7 +5242,7 @@ class Dashboard {
         `[Variables Dropdown] Populating ${type} variables dropdown...`
       );
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await runtime.sendMessage({
         action: "getSettings",
       });
 
