@@ -129,11 +129,45 @@
         </div>
       </div>
 
+      <!-- ── API Endpoints (primary view) ── -->
+      <div class="section-card" id="endpointsSection">
+        <div class="section-header">
+          <span class="section-title"><i class="fas fa-plug" style="color:#58a6ff"></i> API Endpoints</span>
+          <div class="filter-chips">
+            <button class="chip active" id="epSortSlow" data-ep-sort="slow">Slowest</button>
+            <button class="chip" id="epSortError" data-ep-sort="error">Most Errors</button>
+          </div>
+        </div>
+        <!-- Percentiles row — shown once data arrives -->
+        <div id="percentilesSection" style="display:none">
+          <div class="percentile-row">
+            <div class="pct-tile">
+              <div class="pct-label">p50</div>
+              <div class="pct-value" id="pct-p50">—</div>
+            </div>
+            <div class="pct-tile">
+              <div class="pct-label">p95</div>
+              <div class="pct-value" id="pct-p95">—</div>
+            </div>
+            <div class="pct-tile">
+              <div class="pct-label">p99</div>
+              <div class="pct-value" id="pct-p99">—</div>
+            </div>
+            <div class="pct-tile">
+              <div class="pct-label">max</div>
+              <div class="pct-value" id="pct-max">—</div>
+            </div>
+          </div>
+        </div>
+        <div id="endpointsList" class="endpoints-list">
+          <p class="placeholder-text">No API calls captured yet</p>
+        </div>
+      </div>
+
       <!-- ── Status Distribution ── -->
       <div class="section-card">
         <div class="section-header">
-          <span class="section-title">Status Distribution</span>
-          <!-- filter chips -->
+          <span class="section-title">Status</span>
           <div class="filter-chips">
             <button class="chip active" data-filter="all" data-filter-type="all">All</button>
             <button class="chip" data-filter="2xx" data-filter-type="status">2xx</button>
@@ -181,7 +215,7 @@
       <!-- ── Core Web Vitals ── -->
       <div class="section-card" id="vitalsSection" style="display:none">
         <div class="section-header">
-          <span class="section-title"><i class="fas fa-heartbeat" style="color:#58a6ff"></i> Core Web Vitals</span>
+          <span class="section-title"><i class="fas fa-heartbeat" style="color:#58a6ff"></i> Web Vitals</span>
         </div>
         <div class="vitals-grid">
           <div class="vital-tile">
@@ -207,51 +241,14 @@
         </div>
       </div>
 
-      <!-- ── Advanced (collapsible) ── -->
+      <!-- ── More (collapsible — noise moved here) ── -->
       <details class="advanced-details">
         <summary class="advanced-summary">
-          <i class="fas fa-cogs"></i> Advanced
+          <i class="fas fa-ellipsis-h"></i> More
           <i class="fas fa-chevron-down chevron"></i>
         </summary>
 
-        <!-- Response Percentiles -->
-        <div class="adv-section" id="percentilesSection" style="display:none">
-          <div class="adv-title">Response Time Percentiles</div>
-          <div class="percentile-row">
-            <div class="pct-tile">
-              <div class="pct-label">p50</div>
-              <div class="pct-value" id="pct-p50">—</div>
-            </div>
-            <div class="pct-tile">
-              <div class="pct-label">p95</div>
-              <div class="pct-value" id="pct-p95">—</div>
-            </div>
-            <div class="pct-tile">
-              <div class="pct-label">p99</div>
-              <div class="pct-value" id="pct-p99">—</div>
-            </div>
-            <div class="pct-tile">
-              <div class="pct-label">max</div>
-              <div class="pct-value" id="pct-max">—</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Endpoint Drilldown -->
-        <div class="adv-section" id="endpointsSection" style="display:none">
-          <div class="section-header" style="margin-bottom:8px">
-            <span class="adv-title" style="margin-bottom:0">Endpoints</span>
-            <div class="filter-chips">
-              <button class="chip active" id="epSortSlow" data-ep-sort="slow">Slowest</button>
-              <button class="chip" id="epSortError" data-ep-sort="error">Top Errors</button>
-            </div>
-          </div>
-          <div id="endpointsList" class="endpoints-list">
-            <p class="placeholder-text">No data</p>
-          </div>
-        </div>
-
-        <!-- Request Types -->
+        <!-- Request Types breakdown -->
         <div class="adv-section">
           <div class="adv-title">Request Types</div>
           <div id="requestTypesList" class="types-list">
@@ -261,18 +258,11 @@
 
         <!-- Timeline Chart -->
         <div class="adv-section">
-          <div class="adv-title">Response Timeline (Last 30 min)</div>
+          <div class="adv-title">Response Timeline</div>
           <canvas id="requestTimelineChart" class="timeline-canvas"></canvas>
         </div>
 
-        <!-- Export -->
-        <div class="adv-section adv-row">
-          <button id="exportHARBtn" class="adv-btn">
-            <i class="fas fa-download"></i> Export HAR
-          </button>
-        </div>
-
-        <!-- Advanced Filters -->
+        <!-- Filters -->
         <div class="adv-section">
           <div class="adv-title">Filters</div>
           <div class="adv-filters">
@@ -285,9 +275,10 @@
             <div class="filter-row">
               <label class="filter-label"><i class="fas fa-filter"></i> Type</label>
               <select id="requestTypeFilter" class="filter-select">
+                <option value="api" selected>API (XHR + Fetch)</option>
                 <option value="">All Types</option>
-                <option value="xmlhttprequest">XHR / API</option>
-                <option value="fetch">Fetch</option>
+                <option value="xmlhttprequest">XHR only</option>
+                <option value="fetch">Fetch only</option>
                 <option value="script">Scripts</option>
                 <option value="stylesheet">CSS</option>
                 <option value="image">Images</option>
@@ -299,15 +290,11 @@
           </div>
         </div>
 
-        <!-- Type Filter Chips -->
-        <div class="adv-section">
-          <div class="filter-chips">
-            <button class="chip" data-filter="xhr" data-filter-type="type"><i class="fas fa-exchange-alt"></i> XHR</button>
-            <button class="chip" data-filter="fetch" data-filter-type="type"><i class="fas fa-satellite-dish"></i> Fetch</button>
-            <button class="chip" data-filter="js" data-filter-type="type"><i class="fab fa-js-square"></i> JS</button>
-            <button class="chip" data-filter="css" data-filter-type="type"><i class="fab fa-css3-alt"></i> CSS</button>
-            <button class="chip" data-filter="img" data-filter-type="type"><i class="fas fa-image"></i> Img</button>
-          </div>
+        <!-- Export -->
+        <div class="adv-section adv-row">
+          <button id="exportHARBtn" class="adv-btn">
+            <i class="fas fa-download"></i> Export HAR
+          </button>
         </div>
 
         <!-- Resource Usage -->
@@ -324,9 +311,9 @@
           </div>
         </div>
 
-        <!-- QA Quick View -->
+        <!-- Domain View -->
         <div class="adv-section">
-          <div class="adv-title">QA Domain View</div>
+          <div class="adv-title">Domain View</div>
           <div class="qa-row">
             <select id="siteSelect" class="filter-select">
               <option value="">All Domains</option>

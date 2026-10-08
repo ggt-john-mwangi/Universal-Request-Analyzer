@@ -48,9 +48,10 @@ export async function loadPageSummary() {
     // Get time window selection
     const timeWindow = parseInt(document.getElementById("timeWindowSelect")?.value || 30);
 
-    // Get selected filters
+    // Get selected filters — "api" means XHR+Fetch; pass "" to backend and filter in UI
     const requestTypeFilter = document.getElementById("requestTypeFilter");
-    const requestType = requestTypeFilter ? requestTypeFilter.value : "";
+    const rawType = requestTypeFilter ? requestTypeFilter.value : "api";
+    const requestType = rawType === "api" ? "" : rawType;
 
     const pageFilter = document.getElementById("pageFilter");
     const selectedPage = pageFilter ? pageFilter.value : "";
@@ -289,12 +290,13 @@ export async function updateRecentErrors() {
 
     if (!currentTab || !currentTab.url) return;
 
-    // Get recent errors from background
+    // Get recent errors — use same time window as the main stats selector
+    const timeWindow = parseInt(document.getElementById("timeWindowSelect")?.value || 30);
     const response = await runtime.sendMessage({
       action: "getRecentErrors",
       data: {
         url: currentTab.url,
-        timeRange: 300000, // Last 5 minutes in milliseconds
+        timeRange: timeWindow * 60 * 1000,
       },
     });
 

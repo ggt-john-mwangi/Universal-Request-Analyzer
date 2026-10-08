@@ -295,6 +295,23 @@ export function updatePercentilesDisplay(percentiles) {
   set('pct-max', percentiles.max);
 }
 
+// Static asset extensions to exclude when showing API-only view
+const STATIC_EXTS = /\.(css|js|mjs|jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|eot|otf|mp4|webm|pdf|zip)(\?|$)/i;
+
+function normalizeEndpoint(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    return u.pathname
+      // numeric IDs: /orders/123 → /orders/:id
+      .replace(/\/\d{1,20}(?=\/|$)/g, '/:id')
+      // UUIDs: /users/a1b2c3d4-... → /users/:id
+      .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi, '/:id')
+      || '/';
+  } catch {
+    return rawUrl;
+  }
+}
+
 /**
  * Update endpoint drilldown list
  * @param {Array} endpoints - from getEndpointAnalysis
@@ -305,34 +322,51 @@ export function updateEndpointsDisplay(endpoints, sort = 'slow') {
   const container = document.getElementById('endpointsList');
   if (!section || !container) return;
 
-  if (!endpoints || endpoints.length === 0) {
-    section.style.display = 'none';
+  // When in API mode (default), filter out static assets
+  const typeFilter = document.getElementById('requestTypeFilter');
+  const isApiMode = !typeFilter || typeFilter.value === 'api' || typeFilter.value === '';
+  const filtered = isApiMode
+    ? (endpoints || []).filter(ep => !STATIC_EXTS.test(ep.url || ep.endpoint || ''))
+    : (endpoints || []);
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="placeholder-text">No API calls captured yet</p>';
     return;
   }
 
-  section.style.display = '';
-
-  const sorted = [...endpoints].sort((a, b) =>
+  const sorted = [...filtered].sort((a, b) =>
     sort === 'error' ? (b.errorCount - a.errorCount) : (b.avgDuration - a.avgDuration)
   );
-  const top = sorted.filter(e => sort === 'error' ? e.errorCount > 0 : true).slice(0, 7);
+  const top = sort === 'error'
+    ? sorted.filter(e => e.errorCount > 0).slice(0, 10)
+    : sorted.slice(0, 10);
 
   if (top.length === 0) {
     container.innerHTML = '<p class="placeholder-text">No errors found</p>';
     return;
   }
 
-  const fmt = (ms) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+  const fmt = (ms) => ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+  const health = (ep) => {
+    if (ep.errorCount > 0) return 'ep-health-error';
+    if (ep.avgDuration > 1000) return 'ep-health-slow';
+    if (ep.avgDuration > 300) return 'ep-health-warn';
+    return 'ep-health-ok';
+  };
 
   container.innerHTML = top.map(ep => {
-    const path = ep.endpoint || ep.url;
+    const path = normalizeEndpoint(ep.url || ep.endpoint || '');
+    const fullUrl = ep.url || ep.endpoint || '';
     const hasErr = ep.errorCount > 0;
-    const errLabel = hasErr ? `${ep.errorRate}%` : '0%';
+    const count = ep.requestCount || ep.count || '';
     return `
-      <div class="endpoint-item${hasErr ? ' has-errors' : ''}">
-        <span class="ep-path" title="${ep.url}">${path}</span>
-        <span class="ep-duration">${fmt(ep.avgDuration)}</span>
-        <span class="ep-error-rate ${hasErr ? 'has-errors' : 'no-errors'}">${errLabel}</span>
+      <div class="endpoint-item ${health(ep)}">
+        <span class="ep-path" title="${fullUrl}">${path}</span>
+        <span class="ep-meta">
+          ${count ? `<span class="ep-count">${count}×</span>` : ''}
+          <span class="ep-duration">${fmt(ep.avgDuration)}</span>
+          ${hasErr ? `<span class="ep-error-badge">${ep.errorCount} err</span>` : ''}
+        </span>
       </div>`;
   }).join('');
 }
