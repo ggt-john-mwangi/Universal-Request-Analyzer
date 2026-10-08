@@ -23,6 +23,8 @@ class IntegratedExtensionInitializer {
     this.eventBus = this.createEventBus();
     this.scheduledTasks = [];
     this.initialized = false; // Prevent multiple initializations
+    this._initReady = null;   // Promise that resolves when init completes
+    this._listenerRegistered = false;
   }
 
   createEventBus() {
@@ -60,6 +62,10 @@ class IntegratedExtensionInitializer {
         "🚀 Initializing Universal Request Analyzer with Medallion Architecture..."
       );
 
+      // Step 0: Register message listener immediately so messages arriving during
+      // async init are queued (handleAllMessages awaits _initReady before processing)
+      this.initializeMessageHandlers();
+
       // Step 1: Initialize database with medallion architecture
       await this.initializeDatabase();
 
@@ -81,8 +87,8 @@ class IntegratedExtensionInitializer {
       // Step 8: Initialize feature flags
       await this.initializeFeatureFlags();
 
-      // Step 9: Initialize message handlers
-      this.initializeMessageHandlers();
+      // Step 9: Wire popup/options handler now that auth + db are ready
+      this.finalizeMessageHandlers();
 
       // Step 10: Schedule periodic tasks
       this.schedulePeriodicTasks();
@@ -206,23 +212,34 @@ class IntegratedExtensionInitializer {
   initializeMessageHandlers() {
     console.log("→ Initializing Message Handlers...");
 
-    // Get popup message handler function
-    this.popupMessageHandler = initializePopupMessageHandler(
-      this.localAuth,
-      this.medallionDb
-    );
-
-    // Single consolidated message listener for better browser compatibility
-    runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleAllMessages(message, sender, sendResponse);
-      return true; // Keep channel open for async response
-    });
+    // Register exactly once — guard against retry after init failure
+    if (!this._listenerRegistered) {
+      runtime.onMessage.addListener((message, sender, sendResponse) => {
+        this.handleAllMessages(message, sender, sendResponse);
+        return true; // Keep channel open for async response
+      });
+      this._listenerRegistered = true;
+    }
 
     console.log("✓ Message Handlers initialized");
   }
 
+  finalizeMessageHandlers() {
+    // Wire up popup/options handler now that auth + db are ready
+    this.popupMessageHandler = initializePopupMessageHandler(
+      this.localAuth,
+      this.medallionDb
+    );
+  }
+
   async handleAllMessages(message, sender, sendResponse) {
     try {
+      // Wait for async init to complete before processing — this makes messages
+      // received during startup block until the DB, auth, and handlers are ready
+      if (!this.initialized && this._initReady) {
+        try { await this._initReady; } catch (_) {}
+      }
+
       // First try popup/options handlers (register, login, getPageStats, query, etc.)
       if (this.popupMessageHandler) {
         const popupResponse = await this.popupMessageHandler(message, sender);
@@ -668,6 +685,7 @@ async function safeInitialize() {
 
   console.log("🚀 Starting extension initialization...");
   initializationPromise = initializer.initialize();
+  initializer._initReady = initializationPromise;
 
   try {
     await initializationPromise;

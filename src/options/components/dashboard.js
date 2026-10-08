@@ -380,6 +380,13 @@ class Dashboard {
   }
 
   async initializeCharts() {
+    // Destroy any existing Chart.js instances before recreating to prevent
+    // "Canvas is already in use" when the section re-initializes
+    Object.keys(this.charts).forEach(k => {
+      this.charts[k]?.destroy?.();
+      this.charts[k] = null;
+    });
+
     // Check if plots/visualizations are enabled in settings
     let enabledCharts = ["requestsChart", "statusChart", "performanceChart"]; // Default: all enabled
     try {
