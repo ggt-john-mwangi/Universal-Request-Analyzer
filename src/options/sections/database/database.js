@@ -3,8 +3,8 @@
  */
 import { runtime } from '../../../background/compat/browser-compat.js';
 
-const CSS_URL = chrome.runtime.getURL('options/sections/database/database.css');
-const HTML_URL = chrome.runtime.getURL('options/sections/database/database.html');
+const CSS_URL = runtime.getURL('options/sections/database/database.css');
+const HTML_URL = runtime.getURL('options/sections/database/database.html');
 
 export async function init(container) {
   if (!document.querySelector(`link[href="${CSS_URL}"]`)) {

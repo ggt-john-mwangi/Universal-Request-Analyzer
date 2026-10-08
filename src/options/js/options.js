@@ -1,5 +1,6 @@
 import "../css/options.css";
 import "../css/data-purge.css";
+import { runtime } from "../../background/compat/browser-compat.js";
 
 const SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: "fas fa-chart-line",  group: "Observe" },
@@ -97,7 +98,7 @@ async function navigate(id) {
 
 async function updateCaptureStatus() {
   try {
-    const resp = await chrome.runtime.sendMessage({ action: "getSettings" });
+    const resp = await runtime.sendMessage({ action: "getSettings" });
     const enabled = resp?.settings?.capture?.enabled ?? false;
     const dot = document.querySelector("#sidebarCaptureStatus .status-dot");
     const text = document.getElementById("sidebarCaptureText");
@@ -117,7 +118,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  chrome.runtime.onMessage.addListener((message) => {
+  runtime.onMessage.addListener((message) => {
     if (message.action === "settingsUpdated") updateCaptureStatus();
   });
 });

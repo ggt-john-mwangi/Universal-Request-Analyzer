@@ -3,8 +3,10 @@
  * Applies theme via body class (same as theme-manager.js).
  */
 
-const CSS_URL = chrome.runtime.getURL('options/sections/themes/themes.css');
-const HTML_URL = chrome.runtime.getURL('options/sections/themes/themes.html');
+import { storage, runtime } from '../../../background/compat/browser-compat.js';
+
+const CSS_URL = runtime.getURL('options/sections/themes/themes.css');
+const HTML_URL = runtime.getURL('options/sections/themes/themes.html');
 
 const BUILTIN_THEMES = [
   {
@@ -99,7 +101,7 @@ export async function init(container) {
   wireControls(container, state);
 
   // Restore persisted theme asynchronously so HTML shows immediately
-  chrome.storage.local.get(['activeTheme', 'customTheme']).then(stored => {
+  storage.get(['activeTheme', 'customTheme']).then(stored => {
     if (stored.activeTheme === 'custom' && stored.customTheme?.colors) {
       state.customColors = { ...state.customColors, ...stored.customTheme.colors };
       state.activeTheme = 'custom';
@@ -223,7 +225,7 @@ function applyCustomTheme(container, state) {
   applyCustomVars(state.customColors);
 
   // Persist to storage so it survives reload
-  chrome.storage.local.set({
+  storage.set({
     customTheme: { name, colors: { ...state.customColors } },
     activeTheme: 'custom',
   });
@@ -264,8 +266,8 @@ function applyTheme(themeId) {
   // 'light' = default, no class needed
 
   // Persist
-  chrome.storage.local.set({ activeTheme: themeId });
-  chrome.runtime.sendMessage({
+  storage.set({ activeTheme: themeId });
+  runtime.sendMessage({
     action: 'updateSettings',
     settings: { theme: { current: themeId } },
   }).catch(() => {});
