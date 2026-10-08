@@ -5421,50 +5421,5 @@ class Dashboard {
 export const dashboard = new Dashboard();
 
 // Initialize when dashboard tab is active
-document.addEventListener("DOMContentLoaded", () => {
-  const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-  const dashboardContent = document.getElementById("dashboard");
-
-  if (dashboardTab) {
-    // Attach to the tab click
-    dashboardTab.addEventListener("click", async () => {
-      // Delay initialization to ensure DOM is ready
-      setTimeout(async () => {
-        if (!dashboard.charts.volume) {
-          await dashboard.initialize();
-        } else {
-          await dashboard.refreshDashboard();
-        }
-      }, 100);
-    });
-
-    // If dashboard tab is active by default, initialize immediately
-    if (dashboardTab.classList.contains("active")) {
-      setTimeout(async () => {
-        await dashboard.initialize();
-      }, 500);
-    }
-  }
-
-  // Also observe the dashboard content becoming active (backup approach)
-  if (dashboardContent) {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (
-          mutation.type === "attributes" &&
-          mutation.attributeName === "class"
-        ) {
-          if (dashboardContent.classList.contains("active")) {
-            setTimeout(async () => {
-              if (!dashboard.charts.volume) {
-                await dashboard.initialize();
-              }
-            }, 100);
-          }
-        }
-      });
-    });
-
-    observer.observe(dashboardContent, { attributes: true });
-  }
-});
+// Initialization is driven by sections/dashboard/dashboard.js → init() → dashboard.initialize()
+// No global DOMContentLoaded wiring needed; options.js navigate() handles section lifecycle.

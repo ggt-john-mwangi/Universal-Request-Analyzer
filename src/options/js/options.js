@@ -22,7 +22,9 @@ const sectionLoaders = {
 };
 
 const mounted = new Map();
+const loading = new Map(); // id → promise, prevents duplicate concurrent loads
 let activeSection = null;
+let pendingNavId = null;   // latest nav target; stale loads don't activate
 
 function buildNav() {
   const nav = document.getElementById("sidebarNav");
@@ -46,6 +48,7 @@ function buildNav() {
 
 async function navigate(id) {
   if (!sectionLoaders[id]) return;
+  pendingNavId = id;
 
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
   const btn = document.querySelector(`.nav-item[data-tab="${id}"]`);
@@ -58,23 +61,38 @@ async function navigate(id) {
   for (const div of mounted.values()) div.classList.remove("active");
 
   if (!mounted.has(id)) {
-    const container = document.getElementById("section-container");
-    const div = document.createElement("div");
-    div.id = id;
-    div.className = "tab-content";
-    container.appendChild(div);
-    try {
-      const mod = await sectionLoaders[id]();
-      await mod.init(div);
-    } catch (err) {
-      console.error(`[nav] Section "${id}" failed to load:`, err);
-      div.innerHTML = `<p style="padding:20px;color:var(--error-color,#dc3545)">Failed to load section: ${err.message}</p>`;
+    if (!loading.has(id)) {
+      // First request for this section — create the div and start loading
+      const container = document.getElementById("section-container");
+      const div = document.createElement("div");
+      div.id = id;
+      div.className = "tab-content";
+      container.appendChild(div);
+      const p = (async () => {
+        try {
+          const mod = await sectionLoaders[id]();
+          await mod.init(div);
+        } catch (err) {
+          console.error(`[nav] Section "${id}" failed to load:`, err);
+          div.innerHTML = `<p style="padding:20px;color:var(--error-color,#dc3545)">Failed to load section: ${err.message}</p>`;
+        }
+        mounted.set(id, div);
+        loading.delete(id);
+      })();
+      loading.set(id, p);
+      await p;
+    } else {
+      // Another navigate for same id is already in-flight — just wait for it
+      await loading.get(id);
     }
-    mounted.set(id, div);
   }
 
-  mounted.get(id).classList.add("active");
-  activeSection = id;
+  // Only show this section if it's still the last thing the user clicked
+  if (pendingNavId === id) {
+    for (const div of mounted.values()) div.classList.remove("active");
+    mounted.get(id)?.classList.add("active");
+    activeSection = id;
+  }
 }
 
 async function updateCaptureStatus() {
