@@ -57,6 +57,7 @@
         <label>
           <span><i class="fas fa-filter"></i> Type:</span>
           <select id="dashboardRequestTypeFilter" style="min-width:120px">
+            <option value="api" selected>API (XHR + Fetch)</option>
             <option value="">All Types</option>
             <option value="xmlhttprequest">XHR/API</option>
             <option value="fetch">Fetch</option>
@@ -435,9 +436,8 @@
 
     <!-- Analytics Tab -->
     <div class="dashboard-tab-content" data-tab-content="analytics">
-      <p class="hint" style="margin-bottom:16px">
-        <i class="fas fa-info-circle"></i> Advanced analytics including percentiles, anomalies, trends, and domain comparisons.
-      </p>
+
+      <!-- Percentiles -->
       <div class="analytics-section">
         <h3><i class="fas fa-percentage"></i> Response Time Percentiles</h3>
         <div id="percentilesLoading" class="loading-indicator" style="display:none">
@@ -476,6 +476,48 @@
           </div>
         </div>
       </div>
+
+      <!-- Trend Comparison -->
+      <div class="analytics-section" style="margin-top:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <h3 style="margin:0"><i class="fas fa-chart-line"></i> Trend Comparison</h3>
+          <select id="trendCompareType" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border-color);background:var(--surface-color);color:var(--text-color)">
+            <option value="week">vs Last Week</option>
+            <option value="month">vs Last Month</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="percentile-card">
+            <div class="percentile-label">Requests</div>
+            <div class="percentile-value" id="trendRequests">-</div>
+            <div class="percentile-desc" id="trendRequestsChange" style="font-size:11px">-</div>
+          </div>
+          <div class="percentile-card">
+            <div class="percentile-label">Avg Duration</div>
+            <div class="percentile-value" id="trendDuration">-</div>
+            <div class="percentile-desc" id="trendDurationChange" style="font-size:11px">-</div>
+          </div>
+          <div class="percentile-card">
+            <div class="percentile-label">Errors</div>
+            <div class="percentile-value" id="trendErrors">-</div>
+            <div class="percentile-desc" id="trendErrorsChange" style="font-size:11px">-</div>
+          </div>
+          <div class="percentile-card">
+            <div class="percentile-label">Data Transfer</div>
+            <div class="percentile-value" id="trendBytes">-</div>
+            <div class="percentile-desc" id="trendBytesChange" style="font-size:11px">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Anomaly Detection -->
+      <div class="analytics-section" style="margin-top:24px">
+        <h3><i class="fas fa-exclamation-triangle"></i> P99 Outliers</h3>
+        <div id="anomaliesList">
+          <p class="no-data">Loading anomaly data...</p>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>

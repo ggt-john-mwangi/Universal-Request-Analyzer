@@ -355,6 +355,12 @@ class Dashboard {
       });
     }
 
+    // Trend compare type re-runs analysis on change
+    const trendCompareType = document.getElementById("trendCompareType");
+    if (trendCompareType) {
+      trendCompareType.addEventListener("change", () => this.loadTrendAnalysis());
+    }
+
     // Populate domain comparison dropdowns
     const compareDomain1 = document.getElementById("compareDomain1");
     const compareDomain2 = document.getElementById("compareDomain2");
@@ -3962,7 +3968,8 @@ class Dashboard {
       this.loadErrorsAnalysis();
     } else if (tabName === "analytics") {
       this.loadAnalyticsPercentiles();
-      // Other analytics features removed - don't provide actionable insights for developers
+      this.loadTrendAnalysis();
+      this.loadAnomalyDetection();
     }
   }
 
@@ -4102,8 +4109,8 @@ class Dashboard {
       filters.pageUrl = pageFilter;
     }
 
-    // Add request type filter
-    if (requestTypeFilter && requestTypeFilter !== "") {
+    // Add request type filter; "api" = XHR+Fetch combined, backend receives empty string
+    if (requestTypeFilter && requestTypeFilter !== "" && requestTypeFilter !== "api") {
       filters.type = requestTypeFilter;
     }
 
