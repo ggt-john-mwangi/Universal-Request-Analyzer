@@ -31,8 +31,8 @@ async function loadRunners(container, state) {
       offset: state.offset,
       limit: state.limit,
       searchQuery: state.search || null,
-    }),
-    chrome.runtime.sendMessage({ action: 'getRunHistory', limit: 100 }),
+    }).catch(() => null),
+    chrome.runtime.sendMessage({ action: 'getRunHistory', limit: 100 }).catch(() => null),
   ]);
 
   state.runners = runnersResp?.runners || [];

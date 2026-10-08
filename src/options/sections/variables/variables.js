@@ -25,7 +25,7 @@ export async function init(container) {
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 async function loadVariables(container, state) {
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' });
+  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' }).catch(() => null);
   state.variables = resp?.settings?.variables?.list || [];
   setCheck(container, 'variablesEnabled', resp?.settings?.variables?.enabled ?? true);
   render(container, state);

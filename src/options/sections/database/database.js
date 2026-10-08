@@ -26,8 +26,8 @@ export async function init(container) {
 
 async function loadPipeline(container, state) {
   const [statsResp, sizeResp] = await Promise.all([
-    chrome.runtime.sendMessage({ action: 'getDatabaseStats' }),
-    chrome.runtime.sendMessage({ action: 'getDatabaseSize' }),
+    chrome.runtime.sendMessage({ action: 'getDatabaseStats' }).catch(() => null),
+    chrome.runtime.sendMessage({ action: 'getDatabaseSize' }).catch(() => null),
   ]);
   const stats = statsResp?.stats || {};
 

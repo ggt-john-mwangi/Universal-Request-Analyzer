@@ -63,8 +63,13 @@ async function navigate(id) {
     div.id = id;
     div.className = "tab-content";
     container.appendChild(div);
-    const mod = await sectionLoaders[id]();
-    await mod.init(div);
+    try {
+      const mod = await sectionLoaders[id]();
+      await mod.init(div);
+    } catch (err) {
+      console.error(`[nav] Section "${id}" failed to load:`, err);
+      div.innerHTML = `<p style="padding:20px;color:var(--error-color,#dc3545)">Failed to load section: ${err.message}</p>`;
+    }
     mounted.set(id, div);
   }
 

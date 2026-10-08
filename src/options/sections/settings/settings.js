@@ -24,7 +24,7 @@ export async function init(container) {
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 async function loadSettings(container, state) {
-  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' });
+  const resp = await chrome.runtime.sendMessage({ action: 'getSettings' }).catch(() => null);
   if (!resp?.success) return;
   state.settings = resp.settings;
   populateForm(container, resp.settings);

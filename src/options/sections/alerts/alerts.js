@@ -26,7 +26,7 @@ export async function init(container) {
 
 async function loadData(container, state) {
   const [settResp, histResp, statsResp] = await Promise.all([
-    chrome.runtime.sendMessage({ action: 'getSettings' }),
+    chrome.runtime.sendMessage({ action: 'getSettings' }).catch(() => null),
     chrome.runtime.sendMessage({ action: 'getAlertHistory', limit: 100 }).catch(() => null),
     chrome.runtime.sendMessage({ action: 'getDomains', timeRange: 86400 }).catch(() => null),
   ]);
