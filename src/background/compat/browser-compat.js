@@ -2,11 +2,11 @@
 
 // Get the appropriate browser API
 const getBrowserAPI = () => {
-  if (typeof browser !== "undefined" && browser.runtime) {
-    return browser; // Firefox
-  }
   if (typeof chrome !== "undefined" && chrome.runtime) {
-    return chrome; // Chrome, Edge, Safari
+    return chrome; // Chrome, Edge, Safari (and Firefox where chrome is an alias)
+  }
+  if (typeof browser !== "undefined" && browser.runtime) {
+    return browser; // Firefox fallback
   }
   console.error(
     "[browser-compat] No browser API available! Neither chrome nor browser object found."
@@ -24,7 +24,8 @@ if (!browserAPI) {
 
 // Browser detection
 const browserInfo = {
-  isFirefox: typeof browser !== "undefined" && !!browser.runtime,
+  // Chrome 105+ also exposes `browser`, so check for a Firefox-only API method
+  isFirefox: typeof browser !== "undefined" && typeof browser.runtime?.getBrowserInfo === "function",
   isChrome:
     typeof chrome !== "undefined" &&
     !!chrome.runtime &&
