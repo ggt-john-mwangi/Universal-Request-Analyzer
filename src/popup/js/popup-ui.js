@@ -7,7 +7,7 @@ import { formatBytes, formatTimeAgo, truncateUrl } from './popup-utils.js';
  * Update page summary display
  * @param {Object} data - Stats data object
  */
-export function updatePageSummary(data) {
+export function updatePageSummary(data, delta = null) {
   const totalRequests = data.totalRequests || 0;
   const avgResponse = data.avgResponse || 0;
   const errorCount = data.errorCount ?? 0;
@@ -27,15 +27,27 @@ export function updatePageSummary(data) {
                        '#f85149';
   }
 
-  document.getElementById('dataTransferred').textContent = formatBytes(
-    data.dataTransferred || data.totalBytes || 0
-  );
-
   const slowEl = document.getElementById('slowRequests');
   if (slowEl) {
     const slow = data.slowRequests || 0;
     slowEl.textContent = slow > 0 ? `${slow} slow >1s` : '';
     slowEl.style.display = slow > 0 ? '' : 'none';
+  }
+
+  // KPI deltas (vs baseline from first popup load)
+  if (delta) {
+    const setDelta = (id, pct, reverse = false) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (!pct || Math.abs(pct) < 1) { el.style.display = 'none'; return; }
+      const good = reverse ? pct < 0 : pct > 0;
+      el.textContent = `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%`;
+      el.style.color = good ? '#3fb950' : '#f85149';
+      el.style.display = '';
+    };
+    setDelta('deltaRequests', delta.requests);
+    setDelta('deltaResponse', delta.response, true);
+    setDelta('deltaErrors',   delta.errors,   true);
   }
 }
 
@@ -281,14 +293,18 @@ export function updatePercentilesDisplay(percentiles) {
   const section = document.getElementById('percentilesSection');
   if (!section) return;
 
+  const fmt = (ms) => ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
+
+  // Always populate the KPI P95 tile regardless of detail section visibility
+  set('kpiP95', percentiles?.p95);
+
   if (!percentiles || !percentiles.count) {
     section.style.display = 'none';
     return;
   }
 
   section.style.display = '';
-  const fmt = (ms) => ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
   set('pct-p50', percentiles.p50);
   set('pct-p95', percentiles.p95);
   set('pct-p99', percentiles.p99);

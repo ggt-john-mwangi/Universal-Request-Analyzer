@@ -361,6 +361,16 @@ class Dashboard {
       trendCompareType.addEventListener("change", () => this.loadTrendAnalysis());
     }
 
+    // Web vitals "Show all / Show less" toggle
+    document.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "vitalsToggleBtn") {
+        const extras = document.querySelectorAll(".vital-extra");
+        const expanded = extras[0]?.style.display !== "none";
+        extras.forEach(el => { el.style.display = expanded ? "none" : ""; });
+        e.target.textContent = expanded ? "Show all" : "Show less";
+      }
+    });
+
     // Populate domain comparison dropdowns
     const compareDomain1 = document.getElementById("compareDomain1");
     const compareDomain2 = document.getElementById("compareDomain2");
@@ -681,6 +691,9 @@ class Dashboard {
   }
 
   async refreshDashboard() {
+    // Reset baseline on manual refresh so deltas are fresh
+    this._baselineStats = null;
+
     // Check if "All Domains" is selected
     const domainFilter = document.getElementById("dashboardDomainFilter");
     if (domainFilter && domainFilter.value === "all") {
@@ -1110,19 +1123,28 @@ class Dashboard {
         : 0;
     if (errorEl) errorEl.textContent = `${errorRate.toFixed(1)}%`;
 
-    // Update change indicators (simplified - would need historical data for real changes)
-    const updateChange = (id, value) => {
+    // Delta vs baseline (first load since dashboard opened; reset on filter change)
+    if (!this._baselineStats) {
+      this._baselineStats = {
+        totalRequests: stats.totalRequests || 0,
+        avgResponse: stats.avgResponse || 0,
+        slowRequests: stats.slowRequests || 0,
+        errorRate,
+      };
+    }
+    const calcDelta = (curr, base) => base > 0 ? Math.round(((curr - base) / base) * 10) / 10 : 0;
+    const updateChange = (id, value, reverse = false) => {
       const el = document.getElementById(id);
-      if (el) {
-        el.textContent = value >= 0 ? `+${value}%` : `${value}%`;
-        el.className = `metric-change ${value >= 0 ? "positive" : "negative"}`;
-      }
+      if (!el) return;
+      if (value === 0) { el.textContent = "—"; el.className = "metric-change"; return; }
+      const good = reverse ? value < 0 : value > 0;
+      el.textContent = value > 0 ? `+${value}%` : `${value}%`;
+      el.className = `metric-change ${good ? "positive" : "negative"}`;
     };
-
-    updateChange("dashTotalChange", 0);
-    updateChange("dashAvgChange", 0);
-    updateChange("dashSlowChange", 0);
-    updateChange("dashErrorChange", 0);
+    updateChange("dashTotalChange", calcDelta(stats.totalRequests || 0, this._baselineStats.totalRequests));
+    updateChange("dashAvgChange",   calcDelta(stats.avgResponse || 0,    this._baselineStats.avgResponse), true);
+    updateChange("dashSlowChange",  calcDelta(stats.slowRequests || 0,   this._baselineStats.slowRequests), true);
+    updateChange("dashErrorChange", calcDelta(errorRate,                  this._baselineStats.errorRate), true);
 
     // Rolling sparkline history (last 20 samples, one per refresh cycle)
     if (!this._metricHistory) {
@@ -1343,9 +1365,10 @@ class Dashboard {
       const maxPoints = document.getElementById("dashboardEndpointMaxPoints");
 
       const timeRangeMinutes = parseInt(timeRangeSelect?.value || "1440");
-      const selectedType = typeFilter?.value || "";
+      const rawType = typeFilter?.value || "api";
+      const selectedType = rawType === "api" ? "" : rawType;
       const pattern = endpointPattern?.value?.trim() || "";
-      const sort = sortBy?.value || "requests";
+      const sort = sortBy?.value || "slowest";
       const limit = topN?.value || "10";
       const maxPointsPerEndpoint = parseInt(maxPoints?.value || "100");
 
@@ -3958,6 +3981,7 @@ class Dashboard {
     // Load data for specific tabs when switched
     if (tabName === "overview") {
       this.loadWebVitals();
+      this.loadOverviewEndpoints();
     } else if (tabName === "requests") {
       this.loadRequestsTable(1);
     } else if (tabName === "performance") {
@@ -4148,8 +4172,9 @@ class Dashboard {
       }
     }
 
-    if (type && type !== "") {
-      parts.push(`<strong>Type:</strong> ${type}`);
+    const typeLabel = type === "api" ? "API (XHR + Fetch)" : type;
+    if (typeLabel) {
+      parts.push(`<strong>Type:</strong> ${typeLabel}`);
     }
 
     infoText.innerHTML = parts.join(" | ");
@@ -4712,6 +4737,36 @@ class Dashboard {
       }
     } catch (error) {
       console.error("Failed to load trend analysis:", error);
+    }
+  }
+
+  async loadOverviewEndpoints() {
+    const el = document.getElementById("overviewEndpointsList");
+    if (!el) return;
+    try {
+      const filters = this.getActiveFilters();
+      const timeRange = parseInt(document.getElementById("dashboardTimeRange")?.value || 86400);
+      const response = await runtime.sendMessage({
+        action: "getEndpointAnalysis",
+        filters: { domain: filters.domain && filters.domain !== "all" ? filters.domain : null, timeRange },
+      });
+      if (!response?.success || !response.endpoints?.length) {
+        el.innerHTML = '<p class="no-data">No API endpoint data available</p>';
+        return;
+      }
+      const STATIC = /\.(css|js|mjs|jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|eot|otf|mp4|webm|pdf|zip)(\?|$)/i;
+      const fmt = ms => ms >= 1000 ? `${(ms/1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+      const borderColor = ep => ep.errorCount > 0 ? '#f85149' : ep.avgDuration > 1000 ? '#f0883e' : ep.avgDuration > 300 ? '#e3b341' : '#3fb950';
+      const normPath = url => { try { return new URL(url).pathname.replace(/\/\d{1,20}(?=\/|$)/g,'/:id').replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi,'/:id')||'/'; } catch { return url; } };
+      const top5 = response.endpoints.filter(ep => !STATIC.test(ep.url||ep.endpoint||'')).sort((a,b)=>b.avgDuration-a.avgDuration).slice(0,5);
+      if (!top5.length) { el.innerHTML = '<p class="no-data">No API calls captured yet</p>'; return; }
+      el.innerHTML = top5.map(ep => {
+        const url = ep.url||ep.endpoint||''; const c = borderColor(ep);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:6px;border-radius:4px;border-left:3px solid ${c};background:var(--surface-color)"><span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${normPath(url)}</span><span style="font-weight:700;margin-left:12px;color:${c}">${fmt(ep.avgDuration)}</span>${ep.errorCount>0?`<span style="margin-left:8px;font-size:11px;background:rgba(248,81,73,.15);color:#f85149;padding:2px 6px;border-radius:4px">${ep.errorCount} err</span>`:''}</div>`;
+      }).join('');
+    } catch (e) {
+      const el2 = document.getElementById("overviewEndpointsList");
+      if (el2) el2.innerHTML = '<p class="no-data">Error loading endpoints</p>';
     }
   }
 

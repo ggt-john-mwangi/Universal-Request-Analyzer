@@ -119,17 +119,31 @@
   <div class="dashboard-tabs">
     <div class="tabs-nav">
       <button data-tab="overview" class="dashboard-tab-btn active"><i class="fas fa-chart-line"></i> Overview</button>
-      <button data-tab="requests" class="dashboard-tab-btn"><i class="fas fa-list"></i> Requests</button>
-      <button data-tab="performance" class="dashboard-tab-btn"><i class="fas fa-stopwatch"></i> Performance</button>
-      <button data-tab="resources" class="dashboard-tab-btn"><i class="fas fa-database"></i> Resources</button>
-      <button data-tab="errors" class="dashboard-tab-btn"><i class="fas fa-bug"></i> Errors</button>
       <button data-tab="analytics" class="dashboard-tab-btn"><i class="fas fa-chart-bar"></i> Analytics</button>
+      <button data-tab="performance" class="dashboard-tab-btn"><i class="fas fa-stopwatch"></i> Performance</button>
+      <button data-tab="errors" class="dashboard-tab-btn"><i class="fas fa-bug"></i> Errors</button>
+      <button data-tab="requests" class="dashboard-tab-btn"><i class="fas fa-list"></i> Requests</button>
+      <button data-tab="resources" class="dashboard-tab-btn"><i class="fas fa-database"></i> Resources</button>
     </div>
 
     <!-- Overview Tab -->
     <div class="dashboard-tab-content active" data-tab-content="overview">
+      <!-- Top API Endpoints (gap 3 - always visible on Overview) -->
+      <div style="margin-bottom:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h3 style="margin:0"><i class="fas fa-plug"></i> Slowest API Endpoints</h3>
+          <span style="font-size:12px;color:var(--text-secondary-color)">Top 5 · API only</span>
+        </div>
+        <div id="overviewEndpointsList">
+          <p class="no-data">Loading...</p>
+        </div>
+      </div>
+
       <div class="web-vitals-section">
-        <h3><i class="fas fa-tachometer-alt"></i> Core Web Vitals</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h3 style="margin:0"><i class="fas fa-tachometer-alt"></i> Core Web Vitals</h3>
+          <button id="vitalsToggleBtn" style="font-size:11px;background:none;border:none;color:var(--text-secondary-color);cursor:pointer">Show all</button>
+        </div>
         <div class="web-vitals-grid">
           <div class="vital-card" id="lcpCard">
             <div class="vital-icon"><i class="fas fa-image"></i></div>
@@ -139,26 +153,6 @@
               <div class="vital-value" id="lcpValue">-</div>
               <div class="vital-rating" id="lcpRating"></div>
               <div class="vital-target">Target: &lt; 2.5s</div>
-            </div>
-          </div>
-          <div class="vital-card" id="fidCard">
-            <div class="vital-icon"><i class="fas fa-mouse-pointer"></i></div>
-            <div class="vital-content">
-              <div class="vital-label">FID</div>
-              <div class="vital-subtitle">First Input Delay</div>
-              <div class="vital-value" id="fidValue">-</div>
-              <div class="vital-rating" id="fidRating"></div>
-              <div class="vital-target">Target: &lt; 100ms</div>
-            </div>
-          </div>
-          <div class="vital-card" id="clsCard">
-            <div class="vital-icon"><i class="fas fa-arrows-alt"></i></div>
-            <div class="vital-content">
-              <div class="vital-label">CLS</div>
-              <div class="vital-subtitle">Cumulative Layout Shift</div>
-              <div class="vital-value" id="clsValue">-</div>
-              <div class="vital-rating" id="clsRating"></div>
-              <div class="vital-target">Target: &lt; 0.1</div>
             </div>
           </div>
           <div class="vital-card" id="fcpCard">
@@ -171,6 +165,16 @@
               <div class="vital-target">Target: &lt; 1.8s</div>
             </div>
           </div>
+          <div class="vital-card" id="clsCard">
+            <div class="vital-icon"><i class="fas fa-arrows-alt"></i></div>
+            <div class="vital-content">
+              <div class="vital-label">CLS</div>
+              <div class="vital-subtitle">Cumulative Layout Shift</div>
+              <div class="vital-value" id="clsValue">-</div>
+              <div class="vital-rating" id="clsRating"></div>
+              <div class="vital-target">Target: &lt; 0.1</div>
+            </div>
+          </div>
           <div class="vital-card" id="ttfbCard">
             <div class="vital-icon"><i class="fas fa-server"></i></div>
             <div class="vital-content">
@@ -181,7 +185,18 @@
               <div class="vital-target">Target: &lt; 800ms</div>
             </div>
           </div>
-          <div class="vital-card" id="ttiCard">
+          <!-- Extra vitals hidden by default -->
+          <div class="vital-card vital-extra" id="fidCard" style="display:none">
+            <div class="vital-icon"><i class="fas fa-mouse-pointer"></i></div>
+            <div class="vital-content">
+              <div class="vital-label">FID</div>
+              <div class="vital-subtitle">First Input Delay</div>
+              <div class="vital-value" id="fidValue">-</div>
+              <div class="vital-rating" id="fidRating"></div>
+              <div class="vital-target">Target: &lt; 100ms</div>
+            </div>
+          </div>
+          <div class="vital-card vital-extra" id="ttiCard" style="display:none">
             <div class="vital-icon"><i class="fas fa-hand-pointer"></i></div>
             <div class="vital-content">
               <div class="vital-label">TTI</div>
@@ -191,7 +206,7 @@
               <div class="vital-target">Target: &lt; 3.8s</div>
             </div>
           </div>
-          <div class="vital-card" id="dclCard">
+          <div class="vital-card vital-extra" id="dclCard" style="display:none">
             <div class="vital-icon"><i class="fas fa-file-code"></i></div>
             <div class="vital-content">
               <div class="vital-label">DCL</div>
@@ -201,7 +216,7 @@
               <div class="vital-target">Target: &lt; 1.5s</div>
             </div>
           </div>
-          <div class="vital-card" id="loadCard">
+          <div class="vital-card vital-extra" id="loadCard" style="display:none">
             <div class="vital-icon"><i class="fas fa-check-circle"></i></div>
             <div class="vital-content">
               <div class="vital-label">Load</div>
@@ -325,6 +340,7 @@
           <div class="filter-group">
             <label><i class="fas fa-filter"></i> Resource Type</label>
             <select id="dashboardEndpointTypeFilter" class="filter-select">
+              <option value="api" selected>API (XHR + Fetch)</option>
               <option value="">All Types</option>
               <option value="fetch">Fetch</option>
               <option value="xmlhttprequest">XHR/AJAX</option>
@@ -339,8 +355,8 @@
           <div class="filter-group">
             <label><i class="fas fa-sort"></i> Sort By</label>
             <select id="dashboardEndpointSortBy" class="filter-select">
-              <option value="requests" selected>Most Requests</option>
-              <option value="slowest">Slowest Avg</option>
+              <option value="requests">Most Requests</option>
+              <option value="slowest" selected>Slowest Avg</option>
               <option value="errors">Most Errors</option>
               <option value="size">Largest Size</option>
             </select>

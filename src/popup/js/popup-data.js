@@ -20,6 +20,7 @@ import {
 
 let refreshInterval = null;
 let _lastEndpoints = [];
+let _baselineStats = null;
 
 export function rerenderEndpoints(sort) {
   updateEndpointsDisplay(_lastEndpoints, sort);
@@ -95,8 +96,21 @@ export async function loadPageSummary() {
         showEmptyState();
       } else {
         hideEmptyState();
-        updatePageSummary(response.stats);
-        updateDetailedViews(response.stats);
+        const s = response.stats;
+        let delta = null;
+        if (_baselineStats) {
+          const prevErr = _baselineStats.totalRequests > 0 ? (_baselineStats.errorCount || 0) / _baselineStats.totalRequests * 100 : 0;
+          const currErr = s.totalRequests > 0 ? (s.errorCount || 0) / s.totalRequests * 100 : 0;
+          delta = {
+            requests: _baselineStats.totalRequests > 0 ? ((s.totalRequests - _baselineStats.totalRequests) / _baselineStats.totalRequests * 100) : 0,
+            response: _baselineStats.avgResponse > 0 ? (((s.avgResponse||0) - _baselineStats.avgResponse) / _baselineStats.avgResponse * 100) : 0,
+            errors:   prevErr > 0 ? ((currErr - prevErr) / prevErr * 100) : 0,
+          };
+        } else {
+          _baselineStats = { totalRequests: s.totalRequests || 0, avgResponse: s.avgResponse || 0, errorCount: s.errorCount || 0 };
+        }
+        updatePageSummary(s, delta);
+        updateDetailedViews(s);
         loadWebVitals(filterDomain, timeWindow).catch(() => {});
         loadPercentilesAndEndpoints(filterDomain, timeWindow).catch(() => {});
       }

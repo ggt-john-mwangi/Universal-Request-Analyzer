@@ -80,6 +80,7 @@ export class DevToolsPanel {
           <div class="filter-group">
             <label><i class="fas fa-filter"></i> Request Type:</label>
             <select id="requestTypeFilter" class="filter-select">
+              <option value="api" selected>API (XHR + Fetch)</option>
               <option value="">All Types</option>
               <option value="xmlhttprequest">XHR/AJAX</option>
               <option value="fetch">Fetch API</option>
@@ -356,6 +357,7 @@ export class DevToolsPanel {
                 <div class="filter-group">
                   <label><i class="fas fa-filter"></i> Resource Type</label>
                   <select id="endpointTypeFilter" class="filter-select">
+                    <option value="api" selected>API (XHR + Fetch)</option>
                     <option value="">All Types</option>
                     <option value="fetch">Fetch</option>
                     <option value="xmlhttprequest">XHR/AJAX</option>
@@ -371,8 +373,8 @@ export class DevToolsPanel {
                 <div class="filter-group">
                   <label><i class="fas fa-sort"></i> Sort By</label>
                   <select id="endpointSortBy" class="filter-select">
-                    <option value="requests" selected>Most Requests</option>
-                    <option value="slowest">Slowest Avg</option>
+                    <option value="requests">Most Requests</option>
+                    <option value="slowest" selected>Slowest Avg</option>
                     <option value="errors">Most Errors</option>
                     <option value="size">Largest Size</option>
                   </select>
@@ -2311,9 +2313,10 @@ export class DevToolsPanel {
       const topN = document.getElementById("endpointTopN");
 
       const timeRangeMs = parseInt(timeRangeSelect?.value || "86400000");
-      const selectedType = typeFilter?.value || "";
+      const rawType = typeFilter?.value || "api";
+      const selectedType = rawType === "api" ? "" : rawType;
       const pattern = endpointPattern?.value?.trim() || "";
-      const sort = sortBy?.value || "requests";
+      const sort = sortBy?.value || "slowest";
       const limit = topN?.value || "10";
 
       // Calculate startTime based on selected range
@@ -3477,9 +3480,9 @@ export class DevToolsPanel {
       filters.pageUrl = pageValue;
     }
 
-    // Add request type filter
-    const requestType = requestTypeFilter ? requestTypeFilter.value : "";
-    if (requestType) {
+    // Add request type filter; "api" = XHR+Fetch combined, pass no type constraint to backend
+    const requestType = requestTypeFilter ? requestTypeFilter.value : "api";
+    if (requestType && requestType !== "" && requestType !== "api") {
       filters.type = requestType;
     }
 
